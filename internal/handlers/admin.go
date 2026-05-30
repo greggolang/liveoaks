@@ -9,7 +9,8 @@ import (
 )
 
 type AdminHandler struct {
-	DB *pgxpool.Pool
+	DB     *pgxpool.Pool
+	Mailer EmailTester
 }
 
 func (h *AdminHandler) ActivityLog(c echo.Context) error {
@@ -91,6 +92,34 @@ func (h *AdminHandler) PendingResets(c echo.Context) error {
 		resets = append(resets, r)
 	}
 	return c.JSON(http.StatusOK, resets)
+}
+
+type EmailTester interface {
+	Send(to, subject, body string) error
+}
+
+func (h *AdminHandler) TestEmail(c echo.Context) error {
+	var req struct {
+		To string `json:"to"`
+	}
+	if err := c.Bind(&req); err != nil || req.To == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "email address required")
+	}
+	if h.Mailer == nil {
+		return echo.NewHTTPError(http.StatusServiceUnavailable, "email not configured")
+	}
+	err := h.Mailer.Send(req.To, "Test Email — Liveoaks Tennis Club",
+		`<div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
+		  <h2 style="color:#15803d">🎾 Liveoaks Tennis Club</h2>
+		  <p>This is a test email from the Liveoaks admin panel.</p>
+		  <p>If you received this, email delivery is working correctly.</p>
+		  <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0"/>
+		  <p style="color:#9ca3af;font-size:12px">Sent from Liveoaks Tennis Club admin panel.</p>
+		</div>`)
+	if err != nil {
+		return c.JSON(http.StatusOK, map[string]interface{}{"success": false, "error": err.Error()})
+	}
+	return c.JSON(http.StatusOK, map[string]interface{}{"success": true})
 }
 
 func (h *AdminHandler) UpdateSetting(c echo.Context) error {

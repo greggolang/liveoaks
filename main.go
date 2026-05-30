@@ -63,7 +63,7 @@ func main() {
 	courts := &handlers.CourtsHandler{DB: pool}
 	bookings := &handlers.BookingsHandler{DB: pool, Logger: actlog}
 	announcements := &handlers.AnnouncementsHandler{DB: pool}
-	admin := &handlers.AdminHandler{DB: pool}
+	admin := &handlers.AdminHandler{DB: pool, Mailer: mailer}
 	members := &handlers.MembersHandler{DB: pool}
 	events := &handlers.EventsHandler{DB: pool}
 	dues := &handlers.DuesHandler{DB: pool}
@@ -133,6 +133,7 @@ func main() {
 	adminOnly.PUT("/waitlist/:id/status", waitlist.UpdateStatus)
 	adminOnly.DELETE("/waitlist/:id", waitlist.Delete)
 	adminOnly.GET("/guests", guests.AdminList)
+	adminOnly.POST("/test-email", admin.TestEmail)
 
 	// Serve uploaded files
 	e.GET("/uploads/documents/:filename", uploads.ServeDocument)

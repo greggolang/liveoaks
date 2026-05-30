@@ -8,6 +8,7 @@ const links = [
   { to: '/admin/guests', label: 'Guest Passes' },
   { to: '/admin/settings', label: 'Settings' },
   { to: '/admin/resets', label: 'Password Resets' },
+  { to: '/admin/test-email', label: 'Test Email' },
   { to: '/admin/log', label: 'Activity Log' },
 ]
 

@@ -106,5 +106,7 @@ export const api = {
       request(`/admin/settings/${key}`, { method: 'PUT', body: JSON.stringify({ value }) }),
     passwordResets: () => request('/admin/password-resets'),
     activityLog: () => request('/admin/activity-log'),
+    testEmail: (to: string) =>
+      request('/admin/test-email', { method: 'POST', body: JSON.stringify({ to }) }),
   },
 }

@@ -27,6 +27,7 @@ import AdminLog from './pages/admin/AdminLog'
 import AdminDues from './pages/admin/AdminDues'
 import AdminWaitlist from './pages/admin/AdminWaitlist'
 import AdminGuests from './pages/admin/AdminGuests'
+import AdminTestEmail from './pages/admin/AdminTestEmail'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -76,6 +77,7 @@ function AppRoutes() {
         <Route path="guests" element={<AdminGuests />} />
         <Route path="settings" element={<AdminSettings />} />
         <Route path="resets" element={<AdminResets />} />
+        <Route path="test-email" element={<AdminTestEmail />} />
         <Route path="log" element={<AdminLog />} />
       </Route>
 
