@@ -196,23 +196,28 @@ func (h *EventsHandler) SendEmail(c echo.Context) error {
 	subject = replacer.Replace(subject)
 	body = replacer.Replace(body)
 
-	// Send to all active members
-	rows, err := h.DB.Query(c.Request().Context(),
-		`SELECT email, first_name FROM users WHERE status = 'active'`)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch members")
-	}
-	defer rows.Close()
+	// Count recipients first so we can return immediately
+	var total int
+	h.DB.QueryRow(c.Request().Context(),
+		`SELECT COUNT(*) FROM users WHERE status = 'active' AND email IS NOT NULL`).Scan(&total)
 
-	var sent int
-	for rows.Next() {
-		var email, firstName string
-		if err := rows.Scan(&email, &firstName); err != nil {
-			continue
+	// Send in background, 1 per second, so the SMTP relay is not overwhelmed
+	go func(subj, bod string) {
+		rows, err := h.DB.Query(context.Background(),
+			`SELECT email FROM users WHERE status = 'active' AND email IS NOT NULL ORDER BY last_name, first_name`)
+		if err != nil {
+			return
 		}
-		go h.Mailer.Send(email, subject, body)
-		sent++
-	}
+		defer rows.Close()
+		for rows.Next() {
+			var email string
+			if rows.Scan(&email) != nil {
+				continue
+			}
+			h.Mailer.Send(email, subj, bod)
+			time.Sleep(time.Second)
+		}
+	}(subject, body)
 
-	return c.JSON(http.StatusOK, map[string]interface{}{"sent": sent, "subject": subject})
+	return c.JSON(http.StatusOK, map[string]interface{}{"sent": total, "subject": subject})
 }

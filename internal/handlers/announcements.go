@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/greggolang/liveoaks/internal/models"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -113,7 +114,8 @@ func (h *AnnouncementsHandler) emailMembers(title, body, authorName string) {
 		if err := rows.Scan(&email, &firstName); err != nil {
 			continue
 		}
-		go h.Mailer.Send(email, "📢 "+title+" — Liveoaks Tennis Club", emailBody)
+		h.Mailer.Send(email, "📢 "+title+" — Liveoaks Tennis Club", emailBody)
+		time.Sleep(time.Second)
 	}
 }
 
