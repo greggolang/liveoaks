@@ -55,7 +55,7 @@ jobs:
             chmod +x /opt/liveoaks/liveoaks
 
             # Add SMTP env vars to service file if not already present
-            grep -q 'SMTP_HOST' /etc/systemd/system/liveoaks.service || sed -i '/Environment=PORT/a Environment=SMTP_HOST=smtp.gmail.com\nEnvironment=SMTP_PORT=587\nEnvironment=SMTP_USER=admin@liveoakstennis.com\nEnvironment=SMTP_FROM=admin@liveoakstennis.com\nEnvironment=SMTP_PASS=placeholder\nEnvironment=SITE_URL=http://liveoaks.webgoserver.com' /etc/systemd/system/liveoaks.service
+            grep -q 'SMTP_HOST' /etc/systemd/system/liveoaks.service || sed -i '/Environment=PORT/a Environment=SMTP_HOST=smtp-relay.gmail.com\nEnvironment=SMTP_PORT=587\nEnvironment=SMTP_USER=admin@liveoakstennis.com\nEnvironment=SMTP_FROM=admin@liveoakstennis.com\nEnvironment=SMTP_PASS=placeholder\nEnvironment=SITE_URL=http://liveoaks.webgoserver.com' /etc/systemd/system/liveoaks.service
 
             # Harden SSH: disable password auth, only allow key-based login
             sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
