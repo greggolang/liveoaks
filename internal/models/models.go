@@ -26,7 +26,7 @@ const (
 // BoardRoles are roles that have board-level permissions
 var BoardRoles = []string{
 	"admin", "president", "vice_president", "secretary",
-	"treasurer", "entertainment", "house_grounds",
+	"treasurer", "billing", "entertainment", "house_grounds",
 }
 
 type User struct {

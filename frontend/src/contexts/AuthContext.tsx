@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react'
 import { api } from '../api/client'
 
-const BOARD_ROLES = ['admin', 'president', 'vice_president', 'secretary', 'treasurer', 'entertainment', 'house_grounds']
+const BOARD_ROLES = ['admin', 'president', 'vice_president', 'secretary', 'treasurer', 'billing', 'entertainment', 'house_grounds']
 
 interface User {
   id: string

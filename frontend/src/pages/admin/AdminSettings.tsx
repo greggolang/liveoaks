@@ -14,7 +14,7 @@ const LABELS: Record<string, string> = {
 const HIDDEN_KEYS = new Set([
   'smtp_host','smtp_port','smtp_user','smtp_pass','smtp_from',
   'google_email_president','google_email_vice_president','google_email_secretary',
-  'google_email_treasurer','google_email_entertainment','google_email_house_grounds',
+  'google_email_treasurer','google_email_billing','google_email_entertainment','google_email_house_grounds',
   'google_email_usta','google_email_admin',
 ])
 
@@ -22,7 +22,8 @@ const GOOGLE_ROLE_KEYS: { key: string; label: string }[] = [
   { key: 'google_email_president',      label: 'President' },
   { key: 'google_email_vice_president',  label: 'Vice President' },
   { key: 'google_email_secretary',       label: 'Secretary' },
-  { key: 'google_email_treasurer',       label: 'Billing / Treasurer' },
+  { key: 'google_email_treasurer',       label: 'Treasurer' },
+  { key: 'google_email_billing',         label: 'Billing' },
   { key: 'google_email_entertainment',   label: 'Entertainment' },
   { key: 'google_email_house_grounds',   label: 'House & Grounds' },
   { key: 'google_email_usta',            label: 'USTA' },

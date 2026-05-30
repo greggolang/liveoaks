@@ -23,6 +23,7 @@ var roleEmailKey = map[string]string{
 	"vice_president": "google_email_vice_president",
 	"secretary":      "google_email_secretary",
 	"treasurer":      "google_email_treasurer",
+	"billing":        "google_email_billing",
 	"entertainment":  "google_email_entertainment",
 	"house_grounds":  "google_email_house_grounds",
 	"usta":           "google_email_usta",
