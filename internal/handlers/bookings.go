@@ -14,9 +14,46 @@ import (
 
 type BookingsHandler struct {
 	DB     *pgxpool.Pool
-	Logger interface {
+	Mailer interface {
+		Send(to, subject, body string) error
+	}
+	SiteURL string
+	Logger  interface {
 		Log(ctx context.Context, event, details, userID, ip string)
 	}
+}
+
+// emailRoster sends an email to every player on the roster who has a user account.
+func (h *BookingsHandler) emailRoster(bookingID, subject, body string) {
+	if h.Mailer == nil {
+		return
+	}
+	rows, err := h.DB.Query(context.Background(),
+		`SELECT u.email FROM match_players mp
+		 JOIN users u ON u.id = mp.user_id
+		 WHERE mp.booking_id = $1 AND mp.user_id IS NOT NULL`, bookingID)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var email string
+		if rows.Scan(&email) == nil {
+			e := email
+			go h.Mailer.Send(e, subject, body)
+		}
+	}
+}
+
+func bookingCard(courtName string, start, end time.Time) string {
+	loc, _ := time.LoadLocation("America/Los_Angeles")
+	if loc == nil {
+		loc = time.UTC
+	}
+	return fmt.Sprintf("<strong>%s</strong><br>%s – %s",
+		courtName,
+		start.In(loc).Format("Mon Jan 2 at 3:04 PM"),
+		end.In(loc).Format("3:04 PM"))
 }
 
 func (h *BookingsHandler) List(c echo.Context) error {
@@ -215,12 +252,28 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 	}
 
 	// Add host to match roster
-	var hostName string
+	var hostName, hostEmail string
 	h.DB.QueryRow(c.Request().Context(),
-		`SELECT first_name || ' ' || last_name FROM users WHERE id = $1`, userID).Scan(&hostName)
+		`SELECT first_name || ' ' || last_name, email FROM users WHERE id = $1`, userID).Scan(&hostName, &hostEmail)
 	h.DB.Exec(c.Request().Context(),
 		`INSERT INTO match_players (booking_id, user_id, player_name, is_host) VALUES ($1, $2, $3, true)`,
 		booking.ID, userID, hostName)
+
+	// Confirmation email to host
+	if h.Mailer != nil && hostEmail != "" {
+		var courtName string
+		h.DB.QueryRow(c.Request().Context(), `SELECT name FROM courts WHERE id = $1`, req.CourtID).Scan(&courtName)
+		card := bookingCard(courtName, req.StartTime, req.EndTime)
+		body := fmt.Sprintf(`
+<div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
+  <h2 style="color:#15803d">🎾 Booking Confirmed</h2>
+  <p>Hi %s,</p>
+  <p>Your court booking is confirmed:</p>
+  <div style="background:#f0fdf4;border-radius:8px;padding:16px;margin:16px 0">%s</div>
+  <a href="%s/bookings" style="color:#15803d">View your bookings →</a>
+</div>`, hostName, card, h.SiteURL)
+		go h.Mailer.Send(hostEmail, "Booking confirmed – "+courtName, body)
+	}
 
 	h.Logger.Log(c.Request().Context(), "booking_created",
 		fmt.Sprintf("Court %d on %s", req.CourtID, req.StartTime.Format("2006-01-02 15:04")),
@@ -304,6 +357,22 @@ func (h *BookingsHandler) Update(c echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not update booking")
 	}
+
+	// Notify all roster players when the court or time changed
+	if h.Mailer != nil && (newCourtID != currentCourtID || newEnd != currentEnd) {
+		var courtName string
+		h.DB.QueryRow(c.Request().Context(), `SELECT name FROM courts WHERE id = $1`, newCourtID).Scan(&courtName)
+		card := bookingCard(courtName, currentStart, newEnd)
+		body := fmt.Sprintf(`
+<div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
+  <h2 style="color:#15803d">📋 Booking Updated</h2>
+  <p>A court booking you are on has been updated:</p>
+  <div style="background:#fefce8;border-radius:8px;padding:16px;margin:16px 0">%s</div>
+  <a href="%s/bookings" style="color:#15803d">View bookings →</a>
+</div>`, card, h.SiteURL)
+		go h.emailRoster(id, "Booking updated – "+courtName, body)
+	}
+
 	return c.JSON(http.StatusOK, map[string]string{"id": id})
 }
 
@@ -321,6 +390,27 @@ func (h *BookingsHandler) Delete(c echo.Context) error {
 
 	if ownerID != userID && role != "admin" && role != "board" {
 		return echo.NewHTTPError(http.StatusForbidden, "cannot cancel another member's booking")
+	}
+
+	// Email all roster players before the booking is deleted
+	if h.Mailer != nil {
+		var courtName string
+		var startTime, endTime time.Time
+		h.DB.QueryRow(c.Request().Context(),
+			`SELECT ct.name, b.start_time, b.end_time FROM bookings b
+			 JOIN courts ct ON ct.id = b.court_id WHERE b.id = $1`, id,
+		).Scan(&courtName, &startTime, &endTime)
+		if courtName != "" {
+			card := bookingCard(courtName, startTime, endTime)
+			body := fmt.Sprintf(`
+<div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
+  <h2 style="color:#dc2626">❌ Booking Cancelled</h2>
+  <p>The following court booking has been cancelled:</p>
+  <div style="background:#fef2f2;border-radius:8px;padding:16px;margin:16px 0">%s</div>
+  <a href="%s/bookings" style="color:#15803d">View your bookings →</a>
+</div>`, card, h.SiteURL)
+			go h.emailRoster(id, "Booking cancelled – "+courtName, body)
+		}
 	}
 
 	h.DB.Exec(c.Request().Context(), `DELETE FROM bookings WHERE id = $1`, id)

@@ -310,9 +310,33 @@ func (h *InvitationsHandler) RemovePlayer(c echo.Context) error {
 func (h *InvitationsHandler) Cancel(c echo.Context) error {
 	inviterID := c.Get("user_id").(string)
 	id := c.Param("id")
-	h.DB.Exec(c.Request().Context(),
+
+	// Fetch details before cancelling so we can email the invitee
+	var inviteeName, inviteeEmail, courtName, startTime, endTime string
+	h.DB.QueryRow(c.Request().Context(),
+		`SELECT i.invitee_name, i.invitee_email, ct.name,
+		        b.start_time::text, b.end_time::text
+		 FROM match_invitations i
+		 JOIN bookings b ON b.id = i.booking_id
+		 JOIN courts ct ON ct.id = b.court_id
+		 WHERE i.id = $1 AND i.inviter_id = $2 AND i.status = 'pending'`,
+		id, inviterID,
+	).Scan(&inviteeName, &inviteeEmail, &courtName, &startTime, &endTime)
+
+	tag, _ := h.DB.Exec(c.Request().Context(),
 		`UPDATE match_invitations SET status='cancelled', responded_at=NOW()
 		 WHERE id=$1 AND inviter_id=$2 AND status='pending'`, id, inviterID)
+
+	if tag.RowsAffected() > 0 && inviteeEmail != "" {
+		body := fmt.Sprintf(`
+<div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
+  <h2 style="color:#6b7280">Invitation Cancelled</h2>
+  <p>Hi %s,</p>
+  <p>Your invitation to play at <strong>%s</strong> (%s – %s) has been cancelled by the host.</p>
+</div>`, inviteeName, courtName, startTime, endTime)
+		go h.Mailer.Send(inviteeEmail, "Match invitation cancelled – Liveoaks Tennis Club", body)
+	}
+
 	return c.NoContent(http.StatusNoContent)
 }
 

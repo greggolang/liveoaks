@@ -66,7 +66,6 @@ export default function Bookings() {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [selected, setSelected] = useState<Selected | null>(null)
   const [duration, setDuration] = useState(1.5)
-  const [notes, setNotes] = useState('')
   const [matchType, setMatchType] = useState('casual')
   const [playersNeeded, setPlayersNeeded] = useState(PLAYERS_BY_TYPE['casual'])
   const [error, setError] = useState('')
@@ -79,6 +78,7 @@ export default function Bookings() {
   const [selectedFriends, setSelectedFriends] = useState<string[]>([]) // friend ids to invite at booking time
   const [confirming, setConfirming] = useState(false)
   const [activeBookingRoster, setActiveBookingRoster] = useState<{ bookingId: string; players: MatchPlayer[]; invitations: Invitation[] } | null>(null)
+  const [rosterMap, setRosterMap] = useState<Record<string, { players: MatchPlayer[]; invitations: Invitation[] }>>({})
   const [inviting, setInviting] = useState(false)
   // Directory — loaded once at mount, used for all member searches
   const [directory, setDirectory] = useState<{id: string; first_name: string; last_name: string; email: string}[]>([])
@@ -96,7 +96,7 @@ export default function Bookings() {
   const [addingPlayer, setAddingPlayer] = useState(false)
   const [bookingDetail, setBookingDetail] = useState<Booking | null>(null)
   const [editingBooking, setEditingBooking] = useState(false)
-  const [editForm, setEditForm] = useState({ notes: '', matchType: 'casual', playersNeeded: 0, duration: 1.5, courtId: 0 })
+  const [editForm, setEditForm] = useState({ matchType: 'casual', playersNeeded: 0, duration: 1.5, courtId: 0 })
   const [editLoading, setEditLoading] = useState(false)
   const [editError, setEditError] = useState('')
   const [showTutorial, setShowTutorial] = useState(false)
@@ -105,12 +105,20 @@ export default function Bookings() {
     api.bookings.list(date).then(d => setBookings(d as Booking[]))
   }, [date])
 
-  const loadMine = () => {
-    api.bookings.list().then(d =>
-      setMyBookings((d as Booking[]).filter(b =>
-        b.user_id === user?.id && new Date(b.start_time) >= new Date()
-      ))
+  const loadMine = async () => {
+    const data = await api.bookings.list()
+    const mine = (data as Booking[]).filter(b =>
+      b.user_id === user?.id && new Date(b.start_time) >= new Date()
     )
+    setMyBookings(mine)
+    const map: Record<string, { players: MatchPlayer[]; invitations: Invitation[] }> = {}
+    await Promise.all(mine.map(async b => {
+      try {
+        const d = await api.invitations.getRoster(b.id) as any
+        map[b.id] = { players: d.players || [], invitations: d.invitations || [] }
+      } catch {}
+    }))
+    setRosterMap(map)
   }
 
   useEffect(() => {
@@ -121,6 +129,14 @@ export default function Bookings() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  // Auto-load roster when the user opens their own booking in the grid detail panel
+  useEffect(() => {
+    if (bookingDetail && bookingDetail.user_id === user?.id) {
+      refreshRoster(bookingDetail.id)
+    }
+  }, [bookingDetail?.id])
+
   useEffect(() => {
     if (bookingSearchMode !== 'member') return
     if (bookingSearchQuery.length < 2) { setBookingSearchResults([]); return }
@@ -142,7 +158,10 @@ export default function Bookings() {
 
   const refreshRoster = async (bookingId: string) => {
     const data = await api.invitations.getRoster(bookingId) as any
-    setActiveBookingRoster({ bookingId, players: data.players || [], invitations: data.invitations || [] })
+    const players = data.players || []
+    const invitations = data.invitations || []
+    setActiveBookingRoster({ bookingId, players, invitations })
+    setRosterMap(prev => ({ ...prev, [bookingId]: { players, invitations } }))
   }
 
   const loadRoster = async (bookingId: string) => {
@@ -236,7 +255,6 @@ export default function Bookings() {
     setBookingGuestForm({ name: '', email: '' })
     setConfirming(false)
     setDuration(1.5)
-    setNotes('')
     setError('')
   }
 
@@ -251,7 +269,6 @@ export default function Bookings() {
         court_id: selected.courtId,
         start_time: start.toISOString(),
         end_time: end.toISOString(),
-        notes,
         match_type: matchType,
         players_needed: playersNeeded,
       }) as { id: string }
@@ -314,7 +331,6 @@ export default function Bookings() {
     const dHours = (new Date(b.end_time).getTime() - new Date(b.start_time).getTime()) / 3600000
     const mt = b.match_type ?? 'casual'
     setEditForm({
-      notes: b.notes ?? '',
       matchType: mt,
       playersNeeded: PLAYERS_BY_TYPE[mt] ?? 0,
       duration: dHours <= 1 ? 1 : 1.5,
@@ -334,7 +350,6 @@ export default function Bookings() {
     try {
       const newEnd = new Date(new Date(b.start_time).getTime() + editForm.duration * 3600000)
       await api.bookings.update(b.id, {
-        notes: editForm.notes,
         match_type: editForm.matchType,
         players_needed: editForm.playersNeeded,
         end_time: newEnd.toISOString(),
@@ -591,9 +606,6 @@ export default function Bookings() {
                     </div>
                   </div>
                 )}
-                <input value={notes} onChange={e => setNotes(e.target.value)}
-                  placeholder="Notes (optional)" maxLength={80}
-                  className="border border-green-200 rounded-lg px-3 py-1 text-sm flex-1 min-w-32 focus:outline-none focus:ring-2 focus:ring-green-500 bg-white" />
               </div>
               <div className="flex gap-2 shrink-0">
                 <button onClick={() => setSelected(null)}
@@ -646,12 +658,6 @@ export default function Bookings() {
                           {matchType === 'ball_machine' ? '🤖 Ball Machine'
                             : `${matchType.charAt(0).toUpperCase() + matchType.slice(1)} — need ${playersNeeded} more player${playersNeeded !== 1 ? 's' : ''}`}
                         </p>
-                      </div>
-                    )}
-                    {notes && (
-                      <div className="col-span-2">
-                        <span className="text-gray-500 text-xs uppercase tracking-wide">Notes</span>
-                        <p className="font-semibold text-gray-800 mt-0.5">{notes}</p>
                       </div>
                     )}
                   </div>
@@ -808,14 +814,6 @@ export default function Bookings() {
                       </div>
                     </div>
 
-
-                    {/* Notes */}
-                    <div>
-                      <p className="text-xs font-medium text-gray-600 mb-1">Notes</p>
-                      <input value={editForm.notes} onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
-                        placeholder="Optional notes…" maxLength={80}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
-                    </div>
 
                     {/* Players — roster management */}
                     {editForm.matchType !== 'ball_machine' && (() => {
@@ -1007,13 +1005,45 @@ export default function Bookings() {
                           {isMe ? 'You' : `${b.user.first_name} ${b.user.last_name}`}
                         </p>
                       </div>
-                      {b.notes && (
-                        <div className="col-span-2">
-                          <p className="text-xs text-gray-400 uppercase tracking-wide">Notes</p>
-                          <p className="font-semibold text-gray-800 mt-0.5">{b.notes}</p>
-                        </div>
-                      )}
                     </div>
+                    {/* Roster — shown for host's own bookings */}
+                    {isMe && !isBallMachine && (() => {
+                      const roster = rosterMap[b.id]
+                      if (!roster) return (
+                        <div className="px-5 pb-3 text-xs text-gray-400">Loading players…</div>
+                      )
+                      const pending  = roster.invitations.filter(i => i.status === 'pending')
+                      const declined = roster.invitations.filter(i => i.status === 'declined')
+                      if (roster.players.length === 0 && pending.length === 0) return null
+                      return (
+                        <div className="px-5 pb-3 border-t border-gray-100 pt-3 space-y-1.5">
+                          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Players</p>
+                          {roster.players.map(p => (
+                            <div key={p.id} className="flex items-center gap-2 text-sm">
+                              <span className="w-5 h-5 bg-green-100 text-green-700 rounded-full flex items-center justify-center text-xs shrink-0">✓</span>
+                              <span className="font-medium text-gray-800">{p.player_name}</span>
+                              {p.is_host && <span className="text-xs text-gray-400">(Host)</span>}
+                              {p.is_guest && <span className="text-xs bg-orange-100 text-orange-600 px-1.5 rounded">Guest</span>}
+                            </div>
+                          ))}
+                          {pending.map(i => (
+                            <div key={i.id} className="flex items-center gap-2 text-sm">
+                              <span className="w-5 h-5 bg-yellow-100 text-yellow-600 rounded-full flex items-center justify-center text-xs shrink-0">⏳</span>
+                              <span className="text-gray-600">{i.invitee_name}</span>
+                              <span className="text-xs text-yellow-600 font-medium">Invited</span>
+                            </div>
+                          ))}
+                          {declined.map(i => (
+                            <div key={i.id} className="flex items-center gap-2 text-sm text-gray-400">
+                              <span className="w-5 h-5 bg-gray-100 rounded-full flex items-center justify-center text-xs shrink-0">✗</span>
+                              <span>{i.invitee_name}</span>
+                              <span className="text-xs">declined</span>
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    })()}
+
                     {canEdit && (
                       <div className="px-5 pb-4 flex items-center gap-4">
                         <button onClick={() => openEdit(b)}
@@ -1198,8 +1228,33 @@ export default function Bookings() {
                           </div>
                           <div className="text-xs text-gray-400 mt-0.5">
                             {durationMins >= 60 ? `${durationMins / 60} hr${durationMins > 60 ? 's' : ''}` : `${durationMins} min`}
-                            {b.notes && ` · ${b.notes}`}
                           </div>
+                          {/* Compact roster status */}
+                          {rosterMap[b.id] && b.match_type !== 'ball_machine' && (() => {
+                            const r = rosterMap[b.id]
+                            const pending = r.invitations.filter(i => i.status === 'pending')
+                            const declined = r.invitations.filter(i => i.status === 'declined')
+                            return (
+                              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                {r.players.map(p => (
+                                  <span key={p.id} className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium
+                                    ${p.is_host ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                                    ✓ {p.player_name.split(' ')[0]}{p.is_host ? ' (you)' : ''}
+                                  </span>
+                                ))}
+                                {pending.map(i => (
+                                  <span key={i.id} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-yellow-50 text-yellow-700 font-medium">
+                                    ⏳ {i.invitee_name.split(' ')[0]}
+                                  </span>
+                                ))}
+                                {declined.map(i => (
+                                  <span key={i.id} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-400 font-medium">
+                                    ✗ {i.invitee_name.split(' ')[0]}
+                                  </span>
+                                ))}
+                              </div>
+                            )
+                          })()}
                         </div>
                       </div>
                       <div className="flex gap-3 items-center shrink-0">
@@ -1424,7 +1479,7 @@ const TUTORIAL_STEPS = [
   {
     icon: '🔍',
     title: 'View Booking Details',
-    body: 'Click any booked slot on the grid to see full details: who booked it, the time range, duration, match type, and notes. You can cancel your own bookings from the detail panel.',
+    body: 'Click any booked slot on the grid to see full details: who booked it, the time range, duration, and match type. You can cancel your own bookings from the detail panel.',
   },
   {
     icon: '📋',

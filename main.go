@@ -68,7 +68,7 @@ func main() {
 	auth := &handlers.AuthHandler{DB: pool, JWTSecret: cfg.JWTSecret, SiteURL: cfg.SiteURL, Mailer: mailer, Logger: actlog}
 	users := &handlers.UsersHandler{DB: pool, SiteURL: cfg.SiteURL, Mailer: mailer, Logger: actlog}
 	courts := &handlers.CourtsHandler{DB: pool}
-	bookings := &handlers.BookingsHandler{DB: pool, Logger: actlog}
+	bookings := &handlers.BookingsHandler{DB: pool, Logger: actlog, Mailer: mailer, SiteURL: cfg.SiteURL}
 	announcements := &handlers.AnnouncementsHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	admin := &handlers.AdminHandler{DB: pool, Mailer: mailer}
 	members := &handlers.MembersHandler{DB: pool}
