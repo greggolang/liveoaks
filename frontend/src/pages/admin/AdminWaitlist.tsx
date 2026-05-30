@@ -55,6 +55,7 @@ export default function AdminWaitlist() {
         <p className="text-gray-400 text-sm">No one on the waitlist.</p>
       ) : (
         <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
               <tr>
@@ -83,14 +84,14 @@ export default function AdminWaitlist() {
                           value={contactForm.email}
                           onChange={e => setContactForm(f => ({ ...f, email: e.target.value }))}
                           placeholder="Email"
-                          className="border border-gray-300 rounded px-2 py-1 text-xs w-48 focus:outline-none focus:ring-1 focus:ring-green-500"
+                          className="border border-gray-300 rounded px-2 py-1 text-xs w-full focus:outline-none focus:ring-1 focus:ring-green-500"
                         />
                         <input
                           type="tel"
                           value={contactForm.phone}
                           onChange={e => setContactForm(f => ({ ...f, phone: e.target.value }))}
                           placeholder="Phone"
-                          className="border border-gray-300 rounded px-2 py-1 text-xs w-48 focus:outline-none focus:ring-1 focus:ring-green-500"
+                          className="border border-gray-300 rounded px-2 py-1 text-xs w-full focus:outline-none focus:ring-1 focus:ring-green-500"
                         />
                         <div className="flex gap-2">
                           <button onClick={() => saveContact(w.id)} disabled={savingContact}
@@ -139,6 +140,7 @@ export default function AdminWaitlist() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

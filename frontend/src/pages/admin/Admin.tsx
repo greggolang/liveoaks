@@ -56,9 +56,21 @@ export default function Admin() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-800 mb-6">Admin Panel</h1>
-      <div className="flex gap-8">
-        <nav className="w-44 shrink-0 space-y-4">
+      <h1 className="text-2xl font-bold text-gray-800 mb-4">Admin Panel</h1>
+      <div className="flex flex-col md:flex-row gap-4 md:gap-8">
+        {/* Mobile: horizontal scrolling pill strip */}
+        <nav className="md:hidden flex overflow-x-auto gap-1 pb-2 -mx-1 px-1">
+          {sections.flatMap(s => s.links).map(l => (
+            <NavLink key={l.to} to={l.to}
+              className={({ isActive }) =>
+                `whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-medium transition shrink-0
+                 ${isActive ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+              {l.label}
+            </NavLink>
+          ))}
+        </nav>
+        {/* Desktop: sidebar */}
+        <nav className="hidden md:block w-44 shrink-0 space-y-4">
           {sections.map(section => (
             <div key={section.heading}>
               <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">

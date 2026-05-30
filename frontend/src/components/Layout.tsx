@@ -102,7 +102,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto px-4 py-8">{children}</main>
+      <main className="max-w-7xl mx-auto px-4 py-5 sm:py-8">{children}</main>
 
       {/* Bug report modal */}
       {bugOpen && (

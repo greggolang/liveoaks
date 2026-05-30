@@ -20,6 +20,7 @@ export default function MyDues() {
         <p className="text-gray-400 text-sm">No dues on record.</p>
       ) : (
         <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
               <tr>
@@ -42,6 +43,7 @@ export default function MyDues() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

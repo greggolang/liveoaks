@@ -121,7 +121,7 @@ export default function MemberDirectory() {
       {showForm && (
         <form onSubmit={handleSave} className="bg-white border border-gray-200 rounded-xl p-6 mb-6 shadow-sm space-y-4">
           <h2 className="font-semibold text-gray-800">{editing ? 'Edit Contact' : 'Add Non-Member Contact'}</h2>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">First Name</label>
               <input value={form.first_name} onChange={e => setForm(f => ({ ...f, first_name: e.target.value }))} required
@@ -178,7 +178,7 @@ export default function MemberDirectory() {
       <div className="flex flex-wrap gap-3 mb-6">
         <input type="text" placeholder="Search name or email…" value={search}
           onChange={e => setSearch(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 w-64" />
+          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 flex-1 sm:flex-none sm:w-64" />
         <div className="flex gap-1">
           {(['all', 'member', 'contact'] as const).map(t => (
             <button key={t} onClick={() => setFilterType(t)}

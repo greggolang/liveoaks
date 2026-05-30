@@ -69,7 +69,7 @@ export default function AdminReceipts() {
         <form onSubmit={handleUpload}
           className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm mb-6 space-y-4">
           <p className="text-sm font-semibold text-gray-700">Upload Receipt</p>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Title *</label>
               <input value={form.title} onChange={sf('title')} required placeholder="e.g. Court resurfacing invoice"

@@ -38,7 +38,7 @@ export default function GuestPasses() {
 
       {showForm && (
         <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-xl p-6 mb-6 shadow-sm space-y-3">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Guest Name</label>
               <input value={form.guest_name} onChange={set('guest_name')} required
@@ -73,6 +73,7 @@ export default function GuestPasses() {
         <p className="text-gray-400 text-sm">No guests logged yet.</p>
       ) : (
         <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
               <tr>
@@ -94,6 +95,7 @@ export default function GuestPasses() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

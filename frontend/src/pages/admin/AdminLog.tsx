@@ -90,7 +90,7 @@ export default function AdminLog() {
           placeholder="Search actor, details, IP..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 w-56"
+          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 flex-1 sm:flex-none sm:w-56"
         />
         <select value={eventFilter} onChange={e => setEventFilter(e.target.value)}
           className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
@@ -120,6 +120,7 @@ export default function AdminLog() {
         <p className="text-gray-400 text-sm">No log entries yet.</p>
       ) : (
         <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
               <tr>
@@ -151,6 +152,7 @@ export default function AdminLog() {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

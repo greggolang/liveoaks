@@ -60,7 +60,7 @@ export default function Events() {
 
       {showForm && (
         <form onSubmit={handleCreate} className="bg-white border border-gray-200 rounded-xl p-6 mb-6 shadow-sm space-y-3">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
               <input value={form.title} onChange={set('title')} required
@@ -169,7 +169,7 @@ function EventList({ title, events, isBoard, templates, onDelete, onToggleSignup
                   {ev.location && <p className="text-xs text-gray-400 mt-0.5">📍 {ev.location}</p>}
                   {ev.description && <p className="text-sm text-gray-600 mt-2">{ev.description}</p>}
                 </div>
-                <div className="flex flex-col items-end gap-2 ml-4 shrink-0">
+                <div className="flex flex-col items-end gap-2 ml-2 sm:ml-4 shrink-0">
                   {isBoard && (
                     <>
                       <button onClick={() => toggleSignup(ev)}
@@ -211,11 +211,11 @@ function EventList({ title, events, isBoard, templates, onDelete, onToggleSignup
                 <p className="text-xs text-gray-500">
                   Sends the event details with a Sign Up / Volunteer link to every active member.
                 </p>
-                <div className="flex items-center gap-3 flex-wrap">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-wrap">
                   <div className="flex items-center gap-2">
-                    <label className="text-xs font-medium text-gray-600">Template:</label>
+                    <label className="text-xs font-medium text-gray-600 shrink-0">Template:</label>
                     <select value={selectedTemplate} onChange={e => setSelectedTemplate(e.target.value)}
-                      className="border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                      className="flex-1 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                       {templates.map(t => (
                         <option key={t.id} value={t.name}>{t.name}</option>
                       ))}
@@ -225,7 +225,7 @@ function EventList({ title, events, isBoard, templates, onDelete, onToggleSignup
                     </select>
                   </div>
                   <button onClick={() => sendEmail(ev.id)} disabled={sending}
-                    className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold px-5 py-1.5 rounded-lg transition disabled:opacity-50">
+                    className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold px-5 py-2 rounded-lg transition disabled:opacity-50 w-full sm:w-auto">
                     {sending ? 'Sending…' : 'Send to All Members'}
                   </button>
                 </div>

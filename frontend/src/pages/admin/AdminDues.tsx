@@ -46,7 +46,7 @@ export default function AdminDues() {
         ))}
       </div>
 
-      <form onSubmit={handleGenerate} className="bg-white border border-gray-200 rounded-xl p-4 mb-6 flex gap-3 items-end shadow-sm">
+      <form onSubmit={handleGenerate} className="bg-white border border-gray-200 rounded-xl p-4 mb-6 flex flex-col sm:flex-row gap-3 sm:items-end shadow-sm">
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Amount ($)</label>
           <input type="number" value={genAmount} onChange={e => setGenAmount(e.target.value)} required
@@ -73,6 +73,7 @@ export default function AdminDues() {
       </div>
 
       <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
             <tr>
@@ -107,6 +108,7 @@ export default function AdminDues() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   )

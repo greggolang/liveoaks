@@ -126,9 +126,9 @@ export default function Dashboard() {
 
       {/* Court availability */}
       <div>
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
           <h2 className="text-lg font-semibold text-gray-700">Court Availability</h2>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 flex-wrap">
             <input
               type="date"
               value={date}
@@ -137,7 +137,7 @@ export default function Dashboard() {
             />
             <Link
               to="/bookings"
-              className="bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-4 py-1.5 rounded-lg transition"
+              className="bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-4 py-1.5 rounded-lg transition whitespace-nowrap"
             >
               Book a Court
             </Link>
@@ -211,8 +211,8 @@ export default function Dashboard() {
           <iframe
             src="https://autotrader.webgoserver.com/camera"
             title="Court Camera"
-            className="w-full"
-            style={{ height: '400px', border: 'none' }}
+            className="w-full aspect-video"
+            style={{ border: 'none' }}
             allowFullScreen
           />
         </div>
@@ -257,17 +257,17 @@ function FeedbackBox({ title, placeholder, buttonLabel, value, onChange, state, 
         </div>
       ) : (
         <form onSubmit={e => { e.preventDefault(); if (value.trim()) onSubmit() }}
-          className="flex gap-2 items-start">
+          className="flex flex-col sm:flex-row gap-2 items-start">
           <textarea
             value={value}
             onChange={e => onChange(e.target.value)}
             placeholder={placeholder}
             maxLength={1000}
             rows={2}
-            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-green-500"
+            className="flex-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-green-500"
           />
           <button type="submit" disabled={state === 'sending' || !value.trim()}
-            className="bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-4 py-2 rounded-lg transition disabled:opacity-50 shrink-0">
+            className="bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-4 py-2 rounded-lg transition disabled:opacity-50 sm:shrink-0 w-full sm:w-auto">
             {state === 'sending' ? 'Sending…' : buttonLabel}
           </button>
         </form>

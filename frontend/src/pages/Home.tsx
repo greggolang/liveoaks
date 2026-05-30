@@ -6,29 +6,33 @@ export default function Home() {
     <div className="min-h-screen bg-white">
 
       {/* Nav */}
-      <nav className="bg-green-700 text-white px-6 py-4 flex justify-between items-center">
-        <span className="font-bold text-lg tracking-wide">
-          🎾 Live Oaks Tennis Association
-          <span className="ml-2 text-green-300 text-xs font-normal">v{APP_VERSION}</span>
-        </span>
-        <div className="flex gap-4 text-sm font-medium">
-          <a href="#about" className="text-green-200 hover:text-white transition">About</a>
-          <a href="#facilities" className="text-green-200 hover:text-white transition">Facilities</a>
-          <a href="#coaching" className="text-green-200 hover:text-white transition">Coaching</a>
-          <a href="#contact" className="text-green-200 hover:text-white transition">Contact</a>
-          <Link to="/login" className="bg-white text-green-700 px-4 py-1 rounded-full font-semibold hover:bg-green-50 transition">
-            Member Login
-          </Link>
+      <nav className="bg-green-700 text-white px-4 sm:px-6 py-4">
+        <div className="flex justify-between items-center">
+          <span className="font-bold text-base sm:text-lg tracking-wide">
+            🎾 Live Oaks Tennis Association
+            <span className="ml-2 text-green-300 text-xs font-normal">v{APP_VERSION}</span>
+          </span>
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex gap-4 text-sm font-medium">
+              <a href="#about" className="text-green-200 hover:text-white transition">About</a>
+              <a href="#facilities" className="text-green-200 hover:text-white transition">Facilities</a>
+              <a href="#coaching" className="text-green-200 hover:text-white transition">Coaching</a>
+              <a href="#contact" className="text-green-200 hover:text-white transition">Contact</a>
+            </div>
+            <Link to="/login" className="bg-white text-green-700 px-4 py-1.5 rounded-full font-semibold hover:bg-green-50 transition text-sm whitespace-nowrap">
+              Member Login
+            </Link>
+          </div>
         </div>
       </nav>
 
       {/* Hero */}
       <div className="bg-gradient-to-br from-green-800 to-green-600 text-white py-24 px-6 text-center">
         <p className="text-green-300 text-sm font-semibold tracking-widest uppercase mb-3">Est. 1912 · South Pasadena, CA</p>
-        <h1 className="text-5xl font-bold mb-4 leading-tight">
+        <h1 className="text-4xl sm:text-5xl font-bold mb-4 leading-tight">
           Live Oaks Tennis<br />Association
         </h1>
-        <p className="text-green-200 text-xl max-w-xl mx-auto mb-10">
+        <p className="text-green-200 text-lg sm:text-xl max-w-xl mx-auto mb-10">
           One of the oldest private tennis clubs in Southern California — a friendly community of players for over a century.
         </p>
         <div className="flex gap-4 justify-center flex-wrap">
@@ -45,7 +49,7 @@ export default function Home() {
 
       {/* Stats */}
       <div className="bg-green-700 text-white py-8">
-        <div className="max-w-4xl mx-auto grid grid-cols-4 gap-4 text-center px-6">
+        <div className="max-w-4xl mx-auto grid grid-cols-2 sm:grid-cols-4 gap-4 text-center px-6">
           {[
             ['1912', 'Year Founded'],
             ['110+', 'Active Members'],

@@ -135,7 +135,7 @@ export default function Profile() {
       {/* Personal info */}
       <form onSubmit={handleSave} className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm space-y-4">
         <h2 className="font-semibold text-gray-800">Personal Information</h2>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">First Name</label>
             <input value={form.first_name} onChange={set('first_name')} required
@@ -228,7 +228,7 @@ export default function Profile() {
             <p className="text-sm font-semibold text-gray-700">
               {editingMember ? 'Edit Family Member' : 'Add Family Member'}
             </p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">First Name *</label>
                 <input value={memberForm.first_name} onChange={setMf('first_name')} required
@@ -285,7 +285,7 @@ export default function Profile() {
           <input type="password" value={pwForm.current} onChange={e => setPwForm(f => ({ ...f, current: e.target.value }))} required
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">New Password</label>
             <input type="password" value={pwForm.new} onChange={e => setPwForm(f => ({ ...f, new: e.target.value }))} required minLength={8}

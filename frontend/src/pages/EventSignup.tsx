@@ -271,7 +271,7 @@ export default function EventSignup() {
           {/* Section 6: Additional */}
           <div className={sectionCls}>
             <h3 className={sectionTitle}>Section 6 — Additional Information</h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Emergency Contact Name <span className="text-gray-400 font-normal">(optional)</span></label>
                 <input value={form.emergency_name} onChange={set('emergency_name')} className={inputCls} />
