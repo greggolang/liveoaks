@@ -24,9 +24,23 @@ type MemberContact struct {
 }
 
 func (h *MembersHandler) Directory(c echo.Context) error {
-	rows, err := h.DB.Query(c.Request().Context(),
-		`SELECT id, first_name, last_name, email, phone, address, family, created_at
-		 FROM users WHERE status = 'active' ORDER BY last_name, first_name`)
+	role, _ := c.Get("role").(string)
+	boardRoles := map[string]bool{
+		"admin": true, "president": true, "vice_president": true,
+		"secretary": true, "treasurer": true, "entertainment": true, "house_grounds": true,
+	}
+	isBoard := boardRoles[role]
+
+	var query string
+	if isBoard {
+		query = `SELECT id, first_name, last_name, email, phone, address, family, created_at
+		         FROM users WHERE status = 'active' ORDER BY last_name, first_name`
+	} else {
+		query = `SELECT id, first_name, last_name, email, NULL, NULL, family, created_at
+		         FROM users WHERE status = 'active' ORDER BY last_name, first_name`
+	}
+
+	rows, err := h.DB.Query(c.Request().Context(), query)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch members")
 	}

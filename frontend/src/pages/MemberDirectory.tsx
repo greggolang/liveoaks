@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
+import { Link } from 'react-router-dom'
 
 interface Member { id: string; first_name: string; last_name: string; email: string; phone?: string; address?: string; family?: string; type: 'member' }
 interface Contact { id: string; first_name: string; last_name: string; email?: string; phone?: string; address?: string; family?: string; category: string; notes?: string; type: 'contact' }
@@ -101,6 +102,12 @@ export default function MemberDirectory() {
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Member Directory</h1>
           <p className="text-sm text-gray-400 mt-0.5">{members.length} members · {contacts.length} contacts</p>
+          {!isBoard && (
+            <p className="text-xs text-gray-400 mt-1">
+              📞 Phone and address details are visible to board members only.{' '}
+              <Link to="/profile" className="text-green-700 hover:underline">Update your own info →</Link>
+            </p>
+          )}
         </div>
         {isBoard && (
           <button onClick={openAdd}
@@ -209,9 +216,11 @@ export default function MemberDirectory() {
                   {e.email && (
                     <a href={`mailto:${e.email}`} className="text-green-700 text-xs hover:underline truncate block">{e.email}</a>
                   )}
-                  {e.phone && <div className="text-gray-400 text-xs mt-0.5">{e.phone}</div>}
-                  {e.family && <div className="text-gray-500 text-xs mt-0.5">👨‍👩‍👧 {e.family}</div>}
-                  {e.address && <div className="text-gray-400 text-xs mt-0.5 truncate">📍 {e.address}</div>}
+                  {e.phone && (
+                    <a href={`tel:${e.phone}`} className="text-gray-600 text-xs mt-0.5 hover:text-green-700 block">📞 {e.phone}</a>
+                  )}
+                  {e.address && <div className="text-gray-500 text-xs mt-0.5">📍 {e.address}</div>}
+                  {e.family && <div className="text-gray-400 text-xs mt-0.5">👨‍👩‍👧 {e.family}</div>}
                   {e.type === 'contact' && (e as Contact).notes && (
                     <div className="text-gray-400 text-xs mt-0.5 italic">{(e as Contact).notes}</div>
                   )}
