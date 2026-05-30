@@ -96,8 +96,8 @@ export const api = {
     get: (id: string) => request(`/events/${id}`),
     create: (data: object) => request('/events', { method: 'POST', body: JSON.stringify(data) }),
     delete: (id: string) => request(`/events/${id}`, { method: 'DELETE' }),
-    sendEmail: (id: string, templateName: string) =>
-      request(`/events/${id}/send-email`, { method: 'POST', body: JSON.stringify({ template_name: templateName }) }),
+    sendEmail: (id: string, templateName: string, userIds?: string[]) =>
+      request(`/events/${id}/send-email`, { method: 'POST', body: JSON.stringify({ template_name: templateName, user_ids: userIds ?? [] }) }),
   },
   receipts: {
     list: () => request('/admin/receipts'),

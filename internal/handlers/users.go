@@ -2,9 +2,11 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/greggolang/liveoaks/internal/models"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
 	"golang.org/x/crypto/bcrypt"
@@ -53,12 +55,16 @@ func (h *UsersHandler) Create(c echo.Context) error {
 	var role, status string
 	err = h.DB.QueryRow(c.Request().Context(),
 		`INSERT INTO users (first_name, last_name, email, password_hash, phone, role, status)
-		 VALUES ($1, $2, $3, $4, NULLIF($5,''), $6::user_role, $7::user_status)
+		 VALUES ($1, $2, $3, $4, NULLIF($5,''), $6, $7)
 		 RETURNING id, first_name, last_name, email, role::text, status::text, created_at`,
 		req.FirstName, req.LastName, req.Email, string(hash), req.Phone, req.Role, req.Status,
 	).Scan(&u.ID, &u.FirstName, &u.LastName, &u.Email, &role, &status, &u.CreatedAt)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusConflict, "email already registered")
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return echo.NewHTTPError(http.StatusConflict, "email already registered")
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not create user: "+err.Error())
 	}
 	u.Role = models.Role(role)
 	u.Status = models.Status(status)

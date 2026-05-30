@@ -137,7 +137,8 @@ func (h *EventsHandler) Delete(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
-// SendEmail sends an event email to all active members using a named template.
+// SendEmail sends an event email using a named template.
+// If user_ids is provided, sends only to those users; otherwise sends to all active members.
 func (h *EventsHandler) SendEmail(c echo.Context) error {
 	if h.Mailer == nil {
 		return echo.NewHTTPError(http.StatusServiceUnavailable, "email not configured")
@@ -145,7 +146,8 @@ func (h *EventsHandler) SendEmail(c echo.Context) error {
 
 	eventID := c.Param("id")
 	var req struct {
-		TemplateName string `json:"template_name"`
+		TemplateName string   `json:"template_name"`
+		UserIDs      []string `json:"user_ids"`
 	}
 	c.Bind(&req)
 	if req.TemplateName == "" {
@@ -196,28 +198,44 @@ func (h *EventsHandler) SendEmail(c echo.Context) error {
 	subject = replacer.Replace(subject)
 	body = replacer.Replace(body)
 
-	// Count recipients first so we can return immediately
-	var total int
-	h.DB.QueryRow(c.Request().Context(),
-		`SELECT COUNT(*) FROM users WHERE status = 'active' AND email IS NOT NULL`).Scan(&total)
+	// Resolve recipient emails
+	var emails []string
+	if len(req.UserIDs) > 0 {
+		rows, err := h.DB.Query(c.Request().Context(),
+			`SELECT email FROM users WHERE id = ANY($1) AND email IS NOT NULL ORDER BY last_name, first_name`,
+			req.UserIDs)
+		if err == nil {
+			defer rows.Close()
+			for rows.Next() {
+				var email string
+				if rows.Scan(&email) == nil {
+					emails = append(emails, email)
+				}
+			}
+		}
+	} else {
+		rows, err := h.DB.Query(c.Request().Context(),
+			`SELECT email FROM users WHERE status = 'active' AND email IS NOT NULL ORDER BY last_name, first_name`)
+		if err == nil {
+			defer rows.Close()
+			for rows.Next() {
+				var email string
+				if rows.Scan(&email) == nil {
+					emails = append(emails, email)
+				}
+			}
+		}
+	}
+
+	total := len(emails)
 
 	// Send in background, 1 per second, so the SMTP relay is not overwhelmed
-	go func(subj, bod string) {
-		rows, err := h.DB.Query(context.Background(),
-			`SELECT email FROM users WHERE status = 'active' AND email IS NOT NULL ORDER BY last_name, first_name`)
-		if err != nil {
-			return
-		}
-		defer rows.Close()
-		for rows.Next() {
-			var email string
-			if rows.Scan(&email) != nil {
-				continue
-			}
+	go func(subj, bod string, recipients []string) {
+		for _, email := range recipients {
 			h.Mailer.Send(email, subj, bod)
 			time.Sleep(time.Second)
 		}
-	}(subject, body)
+	}(subject, body, emails)
 
 	return c.JSON(http.StatusOK, map[string]interface{}{"sent": total, "subject": subject})
 }

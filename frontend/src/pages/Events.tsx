@@ -9,6 +9,7 @@ interface Event {
   signup_enabled?: boolean; signup_deadline?: string; max_players?: number
 }
 interface EmailTemplate { id: string; name: string; subject: string }
+interface Member { id: string; first_name: string; last_name: string; email: string }
 
 const TYPE_COLORS: Record<string, string> = {
   general: 'bg-blue-100 text-blue-700',
@@ -21,6 +22,7 @@ export default function Events() {
   const { isBoard } = useAuth()
   const [events, setEvents] = useState<Event[]>([])
   const [templates, setTemplates] = useState<EmailTemplate[]>([])
+  const [members, setMembers] = useState<Member[]>([])
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ title: '', description: '', start_time: '', end_time: '', event_type: 'general', location: '' })
   const [error, setError] = useState('')
@@ -28,7 +30,12 @@ export default function Events() {
   const load = () => api.events.list().then(d => setEvents(d as Event[]))
   useEffect(() => {
     load()
-    if (isBoard) api.emailTemplates.list().then(d => setTemplates(d as EmailTemplate[]))
+    if (isBoard) {
+      api.emailTemplates.list().then(d => setTemplates(d as EmailTemplate[]))
+      api.members.directory().then(d => setMembers((d as any[]).map(m => ({
+        id: m.id, first_name: m.first_name, last_name: m.last_name, email: m.email,
+      }))))
+    }
   }, [])
 
   const set = (f: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
@@ -104,22 +111,26 @@ export default function Events() {
         </form>
       )}
 
-      <EventList title="Upcoming" events={upcoming} isBoard={isBoard} templates={templates}
+      <EventList title="Upcoming" events={upcoming} isBoard={isBoard} templates={templates} members={members}
         onDelete={async id => { await api.events.delete(id); load() }}
         onToggleSignup={load} />
-      {past.length > 0 && <EventList title="Past" events={past} isBoard={isBoard} templates={templates}
+      {past.length > 0 && <EventList title="Past" events={past} isBoard={isBoard} templates={templates} members={members}
         onDelete={async id => { await api.events.delete(id); load() }}
         onToggleSignup={load} />}
     </div>
   )
 }
 
-function EventList({ title, events, isBoard, templates, onDelete, onToggleSignup }: {
+function EventList({ title, events, isBoard, templates, members, onDelete, onToggleSignup }: {
   title: string; events: Event[]; isBoard: boolean; templates: EmailTemplate[]
+  members: Member[]
   onDelete: (id: string) => void; onToggleSignup: () => void
 }) {
   const [emailPanelId, setEmailPanelId] = useState<string | null>(null)
   const [selectedTemplate, setSelectedTemplate] = useState('event_announcement')
+  const [recipientMode, setRecipientMode] = useState<'all' | 'select'>('all')
+  const [search, setSearch] = useState('')
+  const [selected, setSelected] = useState<Member[]>([])
   const [sending, setSending] = useState(false)
   const [sendResult, setSendResult] = useState<{ sent: number; subject: string } | null>(null)
 
@@ -131,18 +142,36 @@ function EventList({ title, events, isBoard, templates, onDelete, onToggleSignup
   }
 
   const openEmail = (id: string) => {
-    setEmailPanelId(id === emailPanelId ? null : id)
+    if (id === emailPanelId) { setEmailPanelId(null); return }
+    setEmailPanelId(id)
     setSendResult(null)
+    setRecipientMode('all')
+    setSearch('')
+    setSelected([])
+  }
+
+  const toggleMember = (m: Member) => {
+    setSelected(s => s.some(x => x.id === m.id) ? s.filter(x => x.id !== m.id) : [...s, m])
   }
 
   const sendEmail = async (eventId: string) => {
     setSending(true)
     setSendResult(null)
     try {
-      const res = await api.events.sendEmail(eventId, selectedTemplate) as { sent: number; subject: string }
+      const userIds = recipientMode === 'select' ? selected.map(m => m.id) : undefined
+      const res = await api.events.sendEmail(eventId, selectedTemplate, userIds) as { sent: number; subject: string }
       setSendResult(res)
     } finally { setSending(false) }
   }
+
+  const filtered = search.length >= 1
+    ? members.filter(m =>
+        `${m.first_name} ${m.last_name}`.toLowerCase().includes(search.toLowerCase()) ||
+        m.email.toLowerCase().includes(search.toLowerCase())
+      ).slice(0, 20)
+    : []
+
+  const canSend = recipientMode === 'all' || selected.length > 0
 
   return (
     <div className="mb-8">
@@ -206,29 +235,103 @@ function EventList({ title, events, isBoard, templates, onDelete, onToggleSignup
 
             {/* Send email panel */}
             {isBoard && emailPanelId === ev.id && (
-              <div className="border-t border-gray-100 bg-blue-50 px-5 py-4 space-y-3">
-                <p className="text-sm font-semibold text-gray-700">Send Event Email to All Members</p>
-                <p className="text-xs text-gray-500">
-                  Sends the event details with a Sign Up / Volunteer link to every active member.
-                </p>
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-wrap">
-                  <div className="flex items-center gap-2">
-                    <label className="text-xs font-medium text-gray-600 shrink-0">Template:</label>
-                    <select value={selectedTemplate} onChange={e => setSelectedTemplate(e.target.value)}
-                      className="flex-1 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-                      {templates.map(t => (
-                        <option key={t.id} value={t.name}>{t.name}</option>
-                      ))}
-                      {templates.length === 0 && (
-                        <option value="event_announcement">event_announcement (default)</option>
-                      )}
-                    </select>
-                  </div>
-                  <button onClick={() => sendEmail(ev.id)} disabled={sending}
-                    className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold px-5 py-2 rounded-lg transition disabled:opacity-50 w-full sm:w-auto">
-                    {sending ? 'Sending…' : 'Send to All Members'}
-                  </button>
+              <div className="border-t border-gray-100 bg-blue-50 px-5 py-4 space-y-4">
+                <p className="text-sm font-semibold text-gray-700">Send Event Email</p>
+
+                {/* Template */}
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-medium text-gray-600 shrink-0">Template:</label>
+                  <select value={selectedTemplate} onChange={e => setSelectedTemplate(e.target.value)}
+                    className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                    {templates.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                    {templates.length === 0 && <option value="event_announcement">event_announcement (default)</option>}
+                  </select>
                 </div>
+
+                {/* Recipient mode toggle */}
+                <div className="flex gap-3">
+                  {(['all', 'select'] as const).map(mode => (
+                    <button key={mode} type="button"
+                      onClick={() => { setRecipientMode(mode); setSearch(''); if (mode === 'all') setSelected([]) }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition border ${
+                        recipientMode === mode
+                          ? 'bg-blue-700 text-white border-blue-700'
+                          : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
+                      }`}>
+                      {mode === 'all' ? `All Active Members (${members.length})` : 'Select Specific Members'}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Member picker */}
+                {recipientMode === 'select' && (
+                  <div className="space-y-2">
+                    {/* Selected chips */}
+                    {selected.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {selected.map(m => (
+                          <span key={m.id}
+                            className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded-full">
+                            {m.first_name} {m.last_name}
+                            <button type="button" onClick={() => toggleMember(m)}
+                              className="opacity-60 hover:opacity-100 leading-none">×</button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {selected.length === 0 && (
+                      <p className="text-xs text-gray-400 italic">No members selected yet — search below.</p>
+                    )}
+
+                    {/* Search */}
+                    <input
+                      value={search}
+                      onChange={e => setSearch(e.target.value)}
+                      placeholder="Search by name or email…"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    />
+                    {filtered.length > 0 && (
+                      <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 bg-white max-h-48 overflow-y-auto">
+                        {filtered.map(m => {
+                          const picked = selected.some(x => x.id === m.id)
+                          return (
+                            <div key={m.id}
+                              className="flex items-center justify-between px-3 py-2 hover:bg-gray-50 transition">
+                              <div>
+                                <div className="text-sm font-medium text-gray-800">{m.first_name} {m.last_name}</div>
+                                <div className="text-xs text-gray-400">{m.email}</div>
+                              </div>
+                              <button type="button" onClick={() => toggleMember(m)}
+                                className={`text-xs font-medium px-2.5 py-1 rounded-lg transition ${
+                                  picked
+                                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                }`}>
+                                {picked ? '✓ Added' : '+ Add'}
+                              </button>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Send button */}
+                <div className="flex items-center gap-3 flex-wrap">
+                  <button onClick={() => sendEmail(ev.id)} disabled={sending || !canSend}
+                    className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold px-5 py-2 rounded-lg transition disabled:opacity-50">
+                    {sending
+                      ? 'Sending…'
+                      : recipientMode === 'all'
+                        ? `Send to All Members (${members.length})`
+                        : `Send to ${selected.length} Member${selected.length !== 1 ? 's' : ''}`}
+                  </button>
+                  {recipientMode === 'select' && selected.length === 0 && (
+                    <p className="text-xs text-gray-400">Select at least one member to send.</p>
+                  )}
+                </div>
+
                 {sendResult && (
                   <p className="text-sm text-green-700 font-medium">
                     ✓ Sent to {sendResult.sent} member{sendResult.sent !== 1 ? 's' : ''} — "{sendResult.subject}"
