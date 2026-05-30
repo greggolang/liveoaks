@@ -53,5 +53,6 @@ export const api = {
     updateSetting: (key: string, value: string) =>
       request(`/admin/settings/${key}`, { method: 'PUT', body: JSON.stringify({ value }) }),
     passwordResets: () => request('/admin/password-resets'),
+    activityLog: () => request('/admin/activity-log'),
   },
 }

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"net/http"
@@ -23,6 +24,9 @@ type AuthHandler struct {
 	JWTSecret string
 	SiteURL   string
 	Mailer    Mailer
+	Logger    interface {
+		Log(ctx context.Context, event, details, userID, ip string)
+	}
 }
 
 type registerRequest struct {
@@ -92,8 +96,11 @@ func (h *AuthHandler) Login(c echo.Context) error {
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
+		h.Logger.Log(c.Request().Context(), "login_failed", req.Email, "", c.RealIP())
 		return echo.NewHTTPError(http.StatusUnauthorized, "invalid credentials")
 	}
+
+	h.Logger.Log(c.Request().Context(), "login", user.FirstName+" "+user.LastName, user.ID, c.RealIP())
 
 	claims := &middleware.Claims{
 		UserID: user.ID,
@@ -176,6 +183,7 @@ func (h *AuthHandler) ForgotPassword(c echo.Context) error {
 
 	resetURL := h.SiteURL + "/reset-password?token=" + token
 	go h.Mailer.SendPasswordReset(req.Email, firstName, resetURL)
+	h.Logger.Log(c.Request().Context(), "password_reset_requested", req.Email, userID, c.RealIP())
 
 	return c.JSON(http.StatusOK, map[string]string{"message": "If that email is registered, you'll receive a reset link shortly."})
 }
@@ -207,6 +215,7 @@ func (h *AuthHandler) ResetPassword(c echo.Context) error {
 
 	h.DB.Exec(c.Request().Context(),
 		`UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2`, string(hash), userID)
+	h.Logger.Log(c.Request().Context(), "password_reset_completed", "", userID, c.RealIP())
 
 	return c.JSON(http.StatusOK, map[string]string{"message": "Password updated. You can now log in."})
 }

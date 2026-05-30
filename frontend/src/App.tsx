@@ -10,6 +10,7 @@ import Admin from './pages/admin/Admin'
 import AdminUsers from './pages/admin/AdminUsers'
 import AdminSettings from './pages/admin/AdminSettings'
 import AdminResets from './pages/admin/AdminResets'
+import AdminLog from './pages/admin/AdminLog'
 import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
 
@@ -42,6 +43,7 @@ function AppRoutes() {
         <Route path="users" element={<AdminUsers />} />
         <Route path="settings" element={<AdminSettings />} />
         <Route path="resets" element={<AdminResets />} />
+        <Route path="log" element={<AdminLog />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

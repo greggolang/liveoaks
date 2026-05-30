@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -10,7 +12,10 @@ import (
 )
 
 type BookingsHandler struct {
-	DB *pgxpool.Pool
+	DB     *pgxpool.Pool
+	Logger interface {
+		Log(ctx context.Context, event, details, userID, ip string)
+	}
 }
 
 func (h *BookingsHandler) List(c echo.Context) error {
@@ -84,6 +89,9 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusConflict, "court already booked for that time")
 	}
+	h.Logger.Log(c.Request().Context(), "booking_created",
+		fmt.Sprintf("Court %d on %s", req.CourtID, req.StartTime.Format("2006-01-02 15:04")),
+		userID, c.RealIP())
 	return c.JSON(http.StatusCreated, booking)
 }
 
@@ -104,5 +112,6 @@ func (h *BookingsHandler) Delete(c echo.Context) error {
 	}
 
 	h.DB.Exec(c.Request().Context(), `DELETE FROM bookings WHERE id = $1`, id)
+	h.Logger.Log(c.Request().Context(), "booking_cancelled", id, userID, c.RealIP())
 	return c.NoContent(http.StatusNoContent)
 }

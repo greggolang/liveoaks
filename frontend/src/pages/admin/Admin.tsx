@@ -25,6 +25,11 @@ export default function Admin() {
               `block px-4 py-2 rounded-lg text-sm font-medium transition ${isActive ? 'bg-green-100 text-green-800' : 'text-gray-600 hover:bg-gray-100'}`}>
             Password Resets
           </NavLink>
+          <NavLink to="/admin/log"
+            className={({ isActive }) =>
+              `block px-4 py-2 rounded-lg text-sm font-medium transition ${isActive ? 'bg-green-100 text-green-800' : 'text-gray-600 hover:bg-gray-100'}`}>
+            Activity Log
+          </NavLink>
         </nav>
         <div className="flex-1">
           <Outlet />

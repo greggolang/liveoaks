@@ -11,6 +11,7 @@ import (
 	"github.com/greggolang/liveoaks/internal/db"
 	"github.com/greggolang/liveoaks/internal/email"
 	"github.com/greggolang/liveoaks/internal/handlers"
+	"github.com/greggolang/liveoaks/internal/logger"
 	mw "github.com/greggolang/liveoaks/internal/middleware"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -46,10 +47,12 @@ func main() {
 		From:     cfg.SMTPFrom,
 	}
 
-	auth := &handlers.AuthHandler{DB: pool, JWTSecret: cfg.JWTSecret, SiteURL: cfg.SiteURL, Mailer: mailer}
-	users := &handlers.UsersHandler{DB: pool, SiteURL: cfg.SiteURL, Mailer: mailer}
+	actlog := &logger.Logger{DB: pool}
+
+	auth := &handlers.AuthHandler{DB: pool, JWTSecret: cfg.JWTSecret, SiteURL: cfg.SiteURL, Mailer: mailer, Logger: actlog}
+	users := &handlers.UsersHandler{DB: pool, SiteURL: cfg.SiteURL, Mailer: mailer, Logger: actlog}
 	courts := &handlers.CourtsHandler{DB: pool}
-	bookings := &handlers.BookingsHandler{DB: pool}
+	bookings := &handlers.BookingsHandler{DB: pool, Logger: actlog}
 	announcements := &handlers.AnnouncementsHandler{DB: pool}
 	admin := &handlers.AdminHandler{DB: pool}
 
@@ -88,6 +91,7 @@ func main() {
 	adminOnly.GET("/settings", admin.GetSettings)
 	adminOnly.PUT("/settings/:key", admin.UpdateSetting)
 	adminOnly.GET("/password-resets", admin.PendingResets)
+	adminOnly.GET("/activity-log", admin.ActivityLog)
 
 	// Serve React frontend
 	distFS, err := fs.Sub(frontendFS, "frontend/dist")

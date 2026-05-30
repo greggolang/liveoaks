@@ -12,6 +12,38 @@ type AdminHandler struct {
 	DB *pgxpool.Pool
 }
 
+func (h *AdminHandler) ActivityLog(c echo.Context) error {
+	rows, err := h.DB.Query(c.Request().Context(),
+		`SELECT a.id, a.event, a.details, a.ip, a.created_at,
+		        COALESCE(u.first_name || ' ' || u.last_name, 'System') as actor
+		 FROM activity_log a
+		 LEFT JOIN users u ON u.id = a.user_id
+		 ORDER BY a.created_at DESC
+		 LIMIT 200`)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch logs")
+	}
+	defer rows.Close()
+
+	type Entry struct {
+		ID        string    `json:"id"`
+		Event     string    `json:"event"`
+		Details   *string   `json:"details"`
+		IP        *string   `json:"ip"`
+		CreatedAt time.Time `json:"created_at"`
+		Actor     string    `json:"actor"`
+	}
+	entries := []Entry{}
+	for rows.Next() {
+		var e Entry
+		if err := rows.Scan(&e.ID, &e.Event, &e.Details, &e.IP, &e.CreatedAt, &e.Actor); err != nil {
+			continue
+		}
+		entries = append(entries, e)
+	}
+	return c.JSON(http.StatusOK, entries)
+}
+
 func (h *AdminHandler) GetSettings(c echo.Context) error {
 	rows, err := h.DB.Query(c.Request().Context(),
 		`SELECT key, value FROM settings ORDER BY key`)

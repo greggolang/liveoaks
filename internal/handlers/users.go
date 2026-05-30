@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/greggolang/liveoaks/internal/models"
@@ -16,6 +17,9 @@ type UsersHandler struct {
 	DB      *pgxpool.Pool
 	SiteURL string
 	Mailer  UserMailer
+	Logger  interface {
+		Log(ctx context.Context, event, details, userID, ip string)
+	}
 }
 
 func (h *UsersHandler) List(c echo.Context) error {
@@ -56,6 +60,9 @@ func (h *UsersHandler) UpdateRole(c echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not update role")
 	}
+	adminID := c.Get("user_id").(string)
+	h.Logger.Log(c.Request().Context(), "user_role_changed",
+		id+" → "+string(body.Role), adminID, c.RealIP())
 	return c.JSON(http.StatusOK, map[string]string{"message": "role updated"})
 }
 
@@ -85,6 +92,10 @@ func (h *UsersHandler) UpdateStatus(c echo.Context) error {
 	if body.Status == models.StatusActive && prevStatus != "active" && email != "" {
 		go h.Mailer.SendWelcome(email, firstName, h.SiteURL)
 	}
+
+	adminID := c.Get("user_id").(string)
+	h.Logger.Log(c.Request().Context(), "user_status_changed",
+		firstName+" "+email+" → "+string(body.Status), adminID, c.RealIP())
 
 	return c.JSON(http.StatusOK, map[string]string{"message": "status updated"})
 }
