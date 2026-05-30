@@ -45,9 +45,10 @@ type User struct {
 }
 
 type Court struct {
-	ID     int    `json:"id"`
-	Name   string `json:"name"`
-	Number int    `json:"number"`
+	ID             int    `json:"id"`
+	Name           string `json:"name"`
+	Number         int    `json:"number"`
+	HasBallMachine bool   `json:"has_ball_machine"`
 }
 
 type Booking struct {

@@ -6,7 +6,7 @@ interface Booking {
   user: { first_name: string; last_name: string }
   court: { name: string; number: number }
 }
-interface Court { id: number; name: string; number: number; type?: string }
+interface Court { id: number; name: string; number: number; has_ball_machine?: boolean }
 
 const HOURS = Array.from({ length: 14 }, (_, i) => i + 7) // 7am–8pm
 
@@ -16,7 +16,7 @@ export default function CourtGrid() {
   const [courts, setCourts] = useState<Court[]>([])
 
   useEffect(() => {
-    api.courts.list().then(d => setCourts((d as Court[]).filter(c => c.type !== 'ball_machine')))
+    api.courts.list().then(d => setCourts(d as Court[]))
     api.bookings.list(date).then(d => setBookings(d as Booking[]))
   }, [date])
 
@@ -41,7 +41,10 @@ export default function CourtGrid() {
             <tr className="bg-gray-50 border-b border-gray-200">
               <th className="px-4 py-3 text-left text-gray-500 text-xs font-medium w-20">Time</th>
               {courts.map(c => (
-                <th key={c.id} className="px-4 py-3 text-center text-gray-700 font-semibold">{c.name}</th>
+                <th key={c.id} className="px-4 py-3 text-center text-gray-700 font-semibold">
+                  {c.name}
+                  {c.has_ball_machine && <div className="text-xs font-normal text-green-600">🤖 Ball Machine</div>}
+                </th>
               ))}
             </tr>
           </thead>

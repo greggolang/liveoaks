@@ -14,7 +14,7 @@ type CourtsHandler struct {
 
 func (h *CourtsHandler) List(c echo.Context) error {
 	rows, err := h.DB.Query(c.Request().Context(),
-		`SELECT id, name, number FROM courts ORDER BY number`)
+		`SELECT id, name, number, has_ball_machine FROM courts ORDER BY number`)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch courts")
 	}
@@ -23,7 +23,7 @@ func (h *CourtsHandler) List(c echo.Context) error {
 	courts := []models.Court{}
 	for rows.Next() {
 		var court models.Court
-		if err := rows.Scan(&court.ID, &court.Name, &court.Number); err != nil {
+		if err := rows.Scan(&court.ID, &court.Name, &court.Number, &court.HasBallMachine); err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "could not scan court")
 		}
 		courts = append(courts, court)

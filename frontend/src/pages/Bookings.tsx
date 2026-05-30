@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { api } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 
-interface Court { id: number; name: string; number: number; type?: string }
+interface Court { id: number; name: string; number: number; has_ball_machine?: boolean }
 interface Booking {
   id: string; user_id: string; court_id: number
   start_time: string; end_time: string; notes?: string
@@ -58,7 +58,7 @@ export default function Bookings() {
   }
 
   useEffect(() => {
-    api.courts.list().then(d => setCourts((d as Court[]).filter(c => !c.type || c.type === 'court')))
+    api.courts.list().then(d => setCourts(d as Court[]))
   }, [])
 
   useEffect(() => { load() }, [load])
@@ -168,6 +168,9 @@ export default function Bookings() {
             <div className="mb-4 bg-green-50 border border-green-200 rounded-xl p-4 shadow-sm flex flex-col sm:flex-row gap-4 items-start sm:items-center">
               <div className="font-semibold text-green-800 shrink-0">
                 📅 {selected.courtName} · {fmt12(selected.hour)}
+                {courts.find(c => c.id === selected.courtId)?.has_ball_machine && (
+                  <span className="ml-2 text-xs font-normal text-green-600">🤖 Ball Machine available</span>
+                )}
               </div>
               <div className="flex flex-wrap gap-2 items-center flex-1">
                 <span className="text-sm text-green-700 font-medium">Duration:</span>
@@ -204,6 +207,9 @@ export default function Bookings() {
                   {courts.map(c => (
                     <th key={c.id} className="py-3 px-2 text-center font-semibold text-gray-700 border-b border-gray-100">
                       {c.name}
+                      {c.has_ball_machine && (
+                        <div className="text-xs font-normal text-green-600 mt-0.5">🤖 Ball Machine</div>
+                      )}
                     </th>
                   ))}
                 </tr>
