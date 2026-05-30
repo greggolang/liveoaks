@@ -27,7 +27,19 @@ func (m *Mailer) Send(to, subject, body string) error {
 	if m.Username == "" {
 		d.Auth = nil
 	}
-	return d.DialAndSend(msg)
+
+	// Run in a goroutine with a hard overall deadline so the HTTP handler
+	// never hangs if the SMTP server accepts the TCP connection but stalls
+	// during AUTH (e.g. wrong host for the credential type).
+	type result struct{ err error }
+	ch := make(chan result, 1)
+	go func() { ch <- result{d.DialAndSend(msg)} }()
+	select {
+	case r := <-ch:
+		return r.err
+	case <-time.After(20 * time.Second):
+		return fmt.Errorf("SMTP timed out after 20 s — verify host and credentials")
+	}
 }
 
 func (m *Mailer) SendPasswordReset(to, firstName, resetURL string) error {

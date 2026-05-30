@@ -118,6 +118,66 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 		}
 	}
 
+	// ── Per-day minutes limit ─────────────────────────────────────────────
+	var maxMinStr string
+	if scanErr := h.DB.QueryRow(c.Request().Context(),
+		`SELECT value FROM settings WHERE key = 'booking_max_minutes_per_day'`).Scan(&maxMinStr); scanErr == nil {
+		if maxMin, convErr := strconv.Atoi(maxMinStr); convErr == nil && maxMin > 0 {
+			var usedMin float64
+			h.DB.QueryRow(c.Request().Context(),
+				`SELECT COALESCE(SUM(EXTRACT(EPOCH FROM (end_time - start_time))/60),0)
+				 FROM bookings WHERE user_id = $1 AND start_time::date = $2::date`,
+				userID, req.StartTime).Scan(&usedMin)
+			newMin := req.EndTime.Sub(req.StartTime).Minutes()
+			if int(usedMin)+int(newMin) > maxMin {
+				return echo.NewHTTPError(http.StatusBadRequest,
+					fmt.Sprintf("you have reached your daily limit of %d minutes on court", maxMin))
+			}
+		}
+	}
+
+	// ── Per-week booking limit ────────────────────────────────────────────
+	for _, key := range []string{"booking_max_per_week", "booking_max_courts_per_week"} {
+		var maxWkStr string
+		if scanErr := h.DB.QueryRow(c.Request().Context(),
+			`SELECT value FROM settings WHERE key = $1`, key).Scan(&maxWkStr); scanErr == nil {
+			if maxWk, convErr := strconv.Atoi(maxWkStr); convErr == nil && maxWk > 0 {
+				var weekCount int
+				h.DB.QueryRow(c.Request().Context(),
+					`SELECT COUNT(*) FROM bookings WHERE user_id = $1
+					 AND DATE_TRUNC('week', start_time AT TIME ZONE 'America/Los_Angeles')
+					   = DATE_TRUNC('week', $2 AT TIME ZONE 'America/Los_Angeles')`,
+					userID, req.StartTime).Scan(&weekCount)
+				if weekCount >= maxWk {
+					return echo.NewHTTPError(http.StatusBadRequest,
+						fmt.Sprintf("you have reached your weekly limit of %d reservations", maxWk))
+				}
+			}
+		}
+	}
+
+	// ── Sandwich gap (min gap between same-member bookings on same court) ─
+	var minGapStr string
+	if scanErr := h.DB.QueryRow(c.Request().Context(),
+		`SELECT value FROM settings WHERE key = 'booking_min_gap_minutes'`).Scan(&minGapStr); scanErr == nil {
+		if minGap, convErr := strconv.Atoi(minGapStr); convErr == nil && minGap > 0 {
+			var tooClose int
+			h.DB.QueryRow(c.Request().Context(),
+				`SELECT COUNT(*) FROM bookings
+				 WHERE user_id = $1 AND court_id = $2 AND start_time::date = $3::date
+				   AND (
+				     (end_time > $4 - make_interval(mins => $5) AND end_time <= $4) OR
+				     (start_time >= $6 AND start_time < $6 + make_interval(mins => $5))
+				   )`,
+				userID, req.CourtID, req.StartTime, req.StartTime, minGap, req.EndTime).Scan(&tooClose)
+			if tooClose > 0 {
+				return echo.NewHTTPError(http.StatusBadRequest,
+					fmt.Sprintf("bookings on the same court must be at least %d minutes apart", minGap))
+			}
+		}
+	}
+
+	// ── Per-day booking limit ─────────────────────────────────────────────
 	// Enforce per-day booking limit (default 1, configurable via settings)
 	maxPerDay := 1
 	var maxStr string

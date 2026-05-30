@@ -938,7 +938,7 @@ export default function Bookings() {
                                 )}
                               </div>
                             ) : (
-                              <div className={`rounded h-5 ${isMe ? 'bg-green-600' : 'bg-green-100'}`} />
+                              <div className={`rounded h-7 ${isMe ? 'bg-green-600' : 'bg-green-100'}`} />
                             )}
                           </td>
                         )
@@ -949,7 +949,7 @@ export default function Bookings() {
                           <button
                             onClick={() => !past && handleSlotClick(c.id, hour, c.name)}
                             disabled={past}
-                            className={`w-full h-10 rounded-lg border transition text-xs font-medium
+                            className={`w-full h-14 rounded-lg border transition text-xs font-medium
                               ${past ? 'bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed' :
                                 isSelectedSlot ? 'bg-green-100 border-green-400 text-green-700 ring-2 ring-green-400' :
                                 'bg-white border-gray-200 text-gray-400 hover:bg-green-50 hover:border-green-300 hover:text-green-700 cursor-pointer'

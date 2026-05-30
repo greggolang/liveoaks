@@ -32,6 +32,12 @@ const sections: Section[] = [
     ],
   },
   {
+    heading: 'Bookings',
+    links: [
+      { to: '/admin/booking-docs', label: 'How Bookings Work' },
+    ],
+  },
+  {
     heading: 'Feedback',
     links: [
       { to: '/admin/feedback', label: 'Site Ideas' },

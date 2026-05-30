@@ -8,17 +8,46 @@ const LABELS: Record<string, string> = {
   session_timeout_minutes:      'Auto Logout (minutes, 0 = off)',
 }
 
-const BOOKING_SETTINGS: { key: string; label: string; hint: string }[] = [
-  { key: 'booking_max_per_day',        label: 'Max bookings per member per day', hint: '1 = one booking per day (recommended). Increase to allow multiple.' },
-  { key: 'booking_max_days_ahead',     label: 'Max days ahead a member can book', hint: 'Leave blank for no limit.' },
-  { key: 'booking_max_duration_hours', label: 'Max booking duration (hours)',     hint: 'Leave blank for no limit.' },
+type BSType = 'text' | 'boolean' | 'time'
+type BookingSection = {
+  heading: string
+  settings: { key: string; label: string; hint: string; type?: BSType; enforced?: boolean }[]
+}
+
+const BOOKING_SECTIONS: BookingSection[] = [
+  {
+    heading: 'Court Limits',
+    settings: [
+      { key: 'booking_max_per_day',         label: 'Max reservations per member per day',   hint: '1 = one booking per day. Increase to allow multiple.',                                    enforced: true },
+      { key: 'booking_max_minutes_per_day',  label: 'Max minutes per member per day',        hint: 'Total court time a member may book in a single day. Leave blank for no limit.',          enforced: true },
+      { key: 'booking_max_courts_per_week',  label: 'Max courts per member per week',        hint: 'Max number of court sessions per member in a calendar week. Leave blank for no limit.',  enforced: true },
+      { key: 'booking_max_per_week',         label: 'Max reservations per member per week',  hint: 'Max total bookings per member per week. Leave blank for no limit.',                       enforced: true },
+      { key: 'booking_max_family_per_day',   label: 'Max courts per family per day',         hint: 'Combined daily limit across all family members. Leave blank for no limit.' },
+      { key: 'booking_max_duration_hours',   label: 'Max booking duration (hours)',          hint: 'Longest single reservation allowed. Leave blank for no limit.' },
+    ],
+  },
+  {
+    heading: 'Time Rules',
+    settings: [
+      { key: 'booking_max_days_ahead',     label: 'Max days ahead a court can be booked',         hint: 'How far in advance members may book. Enforced on save.',                     enforced: true },
+      { key: 'booking_open_time',          label: 'Time next reservation day opens',               hint: 'e.g. 06:00 — when tomorrow\'s slots become bookable. Leave blank for midnight.', type: 'time' },
+      { key: 'booking_min_gap_minutes',    label: 'Min gap between a member\'s bookings (minutes)', hint: 'Prevents back-to-back "sandwich" reservations on the same court. Set to 30 to require a 30-min gap. 0 = disabled.', enforced: true },
+    ],
+  },
+  {
+    heading: 'Player / Sub Rules',
+    settings: [
+      { key: 'booking_allow_sub',      label: 'Allow rostered players to sub out',      hint: 'A player on a reservation can be replaced by another player.', type: 'boolean' },
+      { key: 'booking_allow_any_sub',  label: 'Allow any player to sub another',        hint: 'Any rostered player may swap without host approval.',          type: 'boolean' },
+    ],
+  },
 ]
 
-const BOOKING_KEYS = new Set(BOOKING_SETTINGS.map(s => s.key))
+const BOOKING_KEYS = new Set(BOOKING_SECTIONS.flatMap(s => s.settings.map(x => x.key)))
 
 // Keys managed elsewhere or in dedicated sections — hide from the generic list
 const HIDDEN_KEYS = new Set([
-  'booking_max_per_day','booking_max_days_ahead','booking_max_duration_hours',
+  ...BOOKING_KEYS,
   'smtp_host','smtp_port','smtp_user','smtp_pass','smtp_from',
   'google_email_president','google_email_vice_president','google_email_secretary',
   'google_email_treasurer','google_email_billing','google_email_entertainment','google_email_house_grounds',
@@ -106,22 +135,41 @@ export default function AdminSettings() {
       {/* Booking System */}
       <h2 className="text-xl font-bold text-gray-800 mt-8 mb-1">Booking System</h2>
       <p className="text-sm text-gray-500 mb-4">Rules that govern when and how members can reserve courts.</p>
-      <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 space-y-5">
-        {BOOKING_SETTINGS.map(({ key, label, hint }) => (
+      <div className="bg-white border border-gray-200 rounded-xl shadow-sm divide-y divide-gray-100">
+        {BOOKING_SECTIONS.map(section => (
+          <div key={section.heading} className="p-6 space-y-5">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{section.heading}</p>
+            {section.settings.map(({ key, label, hint, type, enforced }) => (
           <div key={key}>
             <div className="flex items-center gap-4">
-              <label className="w-56 text-sm font-medium text-gray-700 shrink-0">{label}</label>
-              <input
-                value={settings[key] ?? ''}
-                onChange={e => setSettings(s => ({ ...s, [key]: e.target.value }))}
-                className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
+              <label className="w-56 text-sm font-medium text-gray-700 shrink-0 flex items-center gap-1.5">
+                {label}
+                {enforced && <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-normal">enforced</span>}
+              </label>
+              {type === 'boolean' ? (
+                <select value={settings[key] ?? 'true'}
+                  onChange={e => setSettings(s => ({ ...s, [key]: e.target.value }))}
+                  className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
+                  <option value="true">Yes</option>
+                  <option value="false">No</option>
+                </select>
+              ) : type === 'time' ? (
+                <input type="time" value={settings[key] ?? ''}
+                  onChange={e => setSettings(s => ({ ...s, [key]: e.target.value }))}
+                  className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+              ) : (
+                <input value={settings[key] ?? ''}
+                  onChange={e => setSettings(s => ({ ...s, [key]: e.target.value }))}
+                  className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+              )}
               <button onClick={() => save(key)}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition shrink-0 ${saved[key] ? 'bg-green-100 text-green-700' : 'bg-green-700 text-white hover:bg-green-800'}`}>
                 {saved[key] ? 'Saved!' : 'Save'}
               </button>
             </div>
             {hint && <p className="text-xs text-gray-400 mt-1 ml-[calc(224px+1rem)]">{hint}</p>}
+          </div>
+            ))}
           </div>
         ))}
       </div>
