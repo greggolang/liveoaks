@@ -96,7 +96,7 @@ export default function Bookings() {
   const [addingPlayer, setAddingPlayer] = useState(false)
   const [bookingDetail, setBookingDetail] = useState<Booking | null>(null)
   const [editingBooking, setEditingBooking] = useState(false)
-  const [editForm, setEditForm] = useState({ notes: '', matchType: 'casual', playersNeeded: 0, duration: 1.5 })
+  const [editForm, setEditForm] = useState({ notes: '', matchType: 'casual', playersNeeded: 0, duration: 1.5, courtId: 0 })
   const [editLoading, setEditLoading] = useState(false)
   const [editError, setEditError] = useState('')
   const [showTutorial, setShowTutorial] = useState(false)
@@ -318,9 +318,14 @@ export default function Bookings() {
       matchType: mt,
       playersNeeded: PLAYERS_BY_TYPE[mt] ?? 0,
       duration: dHours <= 1 ? 1 : 1.5,
+      courtId: b.court_id,
     })
     setEditError('')
     setEditingBooking(true)
+    setAddPlayerMode(null)
+    setAddPlayerQuery('')
+    setAddPlayerResults([])
+    refreshRoster(b.id)
   }
 
   const saveEdit = async (b: Booking) => {
@@ -333,6 +338,7 @@ export default function Bookings() {
         match_type: editForm.matchType,
         players_needed: editForm.playersNeeded,
         end_time: newEnd.toISOString(),
+        court_id: editForm.courtId,
       })
       setEditingBooking(false)
       setBookingDetail(null)
@@ -730,10 +736,6 @@ export default function Bookings() {
                     {/* Read-only context */}
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2 text-sm pb-3 border-b border-gray-100">
                       <div>
-                        <p className="text-xs text-gray-400 uppercase tracking-wide">Court</p>
-                        <p className="font-semibold text-gray-800 mt-0.5">{b.court.name}</p>
-                      </div>
-                      <div>
                         <p className="text-xs text-gray-400 uppercase tracking-wide">Date</p>
                         <p className="font-semibold text-gray-800 mt-0.5">{bStart.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</p>
                       </div>
@@ -742,6 +744,40 @@ export default function Bookings() {
                         <p className="font-semibold text-gray-800 mt-0.5">{bStart.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</p>
                       </div>
                     </div>
+
+                    {/* Court */}
+                    {(() => {
+                      const newEnd = new Date(bStart.getTime() + editForm.duration * 3600000)
+                      const available = courts.filter(c =>
+                        c.id === b.court_id ||
+                        !bookings.some(bk =>
+                          bk.id !== b.id &&
+                          bk.court_id === c.id &&
+                          new Date(bk.start_time) < newEnd &&
+                          new Date(bk.end_time) > bStart
+                        )
+                      )
+                      return (
+                        <div>
+                          <p className="text-xs font-medium text-gray-600 mb-2">Court</p>
+                          <div className="flex flex-wrap gap-2">
+                            {available.map(c => (
+                              <button key={c.id} type="button"
+                                onClick={() => {
+                                  const mt = editForm.matchType === 'ball_machine' && !c.has_ball_machine ? 'casual' : editForm.matchType
+                                  setEditForm(f => ({ ...f, courtId: c.id, matchType: mt, playersNeeded: PLAYERS_BY_TYPE[mt] ?? 0 }))
+                                }}
+                                className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${editForm.courtId === c.id ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                                {c.name}
+                                {c.id === b.court_id && editForm.courtId !== c.id && (
+                                  <span className="ml-1.5 text-xs opacity-60">current</span>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    })()}
 
                     {/* Duration */}
                     <div>
@@ -761,7 +797,7 @@ export default function Bookings() {
                       <p className="text-xs font-medium text-gray-600 mb-2">Match Type</p>
                       <div className="flex flex-wrap gap-2">
                         {MATCH_TYPES
-                          .filter(m => !m.ballMachineOnly || courts.find(c => c.id === b.court_id)?.has_ball_machine)
+                          .filter(m => !m.ballMachineOnly || courts.find(c => c.id === editForm.courtId)?.has_ball_machine)
                           .map(m => (
                             <button key={m.value} type="button"
                               onClick={() => setEditForm(f => ({ ...f, matchType: m.value, playersNeeded: PLAYERS_BY_TYPE[m.value] ?? 0 }))}
@@ -781,6 +817,151 @@ export default function Bookings() {
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
                     </div>
 
+                    {/* Players — roster management */}
+                    {editForm.matchType !== 'ball_machine' && (() => {
+                      const maxCap: Record<string, number> = { casual: 2, singles: 2, doubles: 4, ball_machine: 1 }
+                      const cap = maxCap[editForm.matchType] ?? 2
+                      const roster = activeBookingRoster?.bookingId === b.id ? activeBookingRoster : null
+                      const full = roster !== null && roster.players.length >= cap
+                      return (
+                        <div>
+                          <p className="text-xs font-medium text-gray-600 mb-2">
+                            Players <span className="font-normal text-gray-400">({roster ? `${roster.players.length}/${cap}` : '…'})</span>
+                          </p>
+
+                          {/* Current roster */}
+                          {roster && (
+                            <div className="space-y-1.5 mb-3 border border-gray-100 rounded-lg p-3 bg-gray-50">
+                              {roster.players.map(p => (
+                                <div key={p.id} className="flex items-center gap-2 text-sm">
+                                  <span className="w-5 h-5 bg-green-100 text-green-700 rounded-full flex items-center justify-center text-xs shrink-0">✓</span>
+                                  <span className="font-medium text-gray-800 truncate">{p.player_name}</span>
+                                  {p.is_host && <span className="text-xs text-gray-400 shrink-0">(Host)</span>}
+                                  {p.is_guest && <span className="text-xs bg-orange-100 text-orange-600 px-1.5 rounded shrink-0">Guest</span>}
+                                  {!p.is_host && (
+                                    <button onClick={() => removePlayer(b.id, p.id)}
+                                      className="ml-auto text-xs text-red-400 hover:text-red-600 shrink-0 transition">
+                                      Remove
+                                    </button>
+                                  )}
+                                </div>
+                              ))}
+                              {roster.invitations.filter(i => i.status === 'pending').map(i => (
+                                <div key={i.id} className="flex items-center gap-2 text-sm">
+                                  <span className="w-5 h-5 bg-yellow-100 text-yellow-600 rounded-full flex items-center justify-center text-xs shrink-0">⏳</span>
+                                  <span className="text-gray-500 truncate">{i.invitee_name}</span>
+                                  {i.is_guest && <span className="text-xs bg-orange-100 text-orange-600 px-1.5 rounded shrink-0">Guest</span>}
+                                  <button onClick={() => api.invitations.cancel(i.id).then(() => refreshRoster(b.id))}
+                                    className="ml-auto text-xs text-red-400 hover:text-red-600 shrink-0 transition">
+                                    Cancel
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Invite friends */}
+                          {friends.length > 0 && !full && addPlayerMode === null && (
+                            <div className="mb-2">
+                              <p className="text-xs text-gray-500 mb-1.5">Invite via email:</p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {friends.map(f => {
+                                  const email = f.friend_email || ''
+                                  const joined = roster?.players.some(p => p.player_email === email)
+                                  const invited = roster?.invitations.some(i => i.invitee_email === email && i.status !== 'declined')
+                                  return (
+                                    <button key={f.id}
+                                      onClick={() => !invited && !joined && !inviting && sendInvite(b.id, f)}
+                                      disabled={invited || joined || inviting}
+                                      className={`px-2.5 py-1 rounded-full text-xs font-medium transition
+                                        ${joined ? 'bg-green-100 text-green-700 cursor-default' :
+                                          invited ? 'bg-yellow-50 text-yellow-600 border border-yellow-200 cursor-default' :
+                                          'bg-white border border-gray-200 text-gray-700 hover:border-green-400 hover:text-green-700'}`}>
+                                      {joined ? '✓ ' : invited ? '⏳ ' : '✉️ '}{f.friend_name}
+                                      {f.is_guest && <span className="ml-1 opacity-50">(G)</span>}
+                                    </button>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Add directly */}
+                          {!full && addPlayerMode === null && (
+                            <div className="flex gap-2">
+                              <button onClick={() => setAddPlayerMode('member')}
+                                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-gray-200 text-gray-700 hover:border-blue-400 hover:text-blue-700 transition">
+                                + Member
+                              </button>
+                              <button onClick={() => setAddPlayerMode('guest')}
+                                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-gray-200 text-gray-700 hover:border-orange-400 hover:text-orange-700 transition">
+                                + Guest
+                              </button>
+                            </div>
+                          )}
+                          {full && (
+                            <p className="text-xs text-gray-400 italic">Booking is full ({roster!.players.length}/{cap} players).</p>
+                          )}
+
+                          {/* Member search */}
+                          {addPlayerMode === 'member' && (
+                            <div className="space-y-1.5">
+                              <input
+                                value={addPlayerQuery}
+                                onChange={e => searchPlayers(e.target.value)}
+                                placeholder="Search by name or email…"
+                                autoFocus
+                                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
+                              />
+                              {addPlayerResults.length > 0 && (
+                                <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 bg-white max-h-36 overflow-y-auto">
+                                  {addPlayerResults.map(m => (
+                                    <div key={m.id} className="flex items-center justify-between px-3 py-1.5">
+                                      <div>
+                                        <div className="text-xs font-medium text-gray-800">{m.first_name} {m.last_name}</div>
+                                        <div className="text-xs text-gray-400">{m.email}</div>
+                                      </div>
+                                      <button
+                                        onClick={() => addMemberPlayer(b.id, m.id)}
+                                        disabled={addingPlayer || roster?.players.some(p => p.player_email === m.email)}
+                                        className="text-xs bg-green-700 text-white px-2 py-1 rounded hover:bg-green-800 transition disabled:opacity-50">
+                                        {roster?.players.some(p => p.player_email === m.email) ? '✓' : 'Add'}
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              <button onClick={() => { setAddPlayerMode(null); setAddPlayerQuery(''); setAddPlayerResults([]) }}
+                                className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+                            </div>
+                          )}
+
+                          {/* Guest form */}
+                          {addPlayerMode === 'guest' && (
+                            <form onSubmit={e => addGuestPlayer(e, b.id)} className="space-y-2">
+                              <p className="text-xs text-orange-700 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
+                                ⚠️ A <strong>$5.00 guest fee</strong> will be added to your next quarterly dues.
+                              </p>
+                              <input value={guestAddForm.name} onChange={e => setGuestAddForm(f => ({ ...f, name: e.target.value }))}
+                                placeholder="Guest name *" required autoFocus
+                                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500 bg-white" />
+                              <input type="email" value={guestAddForm.email} onChange={e => setGuestAddForm(f => ({ ...f, email: e.target.value }))}
+                                placeholder="Email (optional)"
+                                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500 bg-white" />
+                              <div className="flex gap-2">
+                                <button type="submit" disabled={addingPlayer}
+                                  className="text-xs bg-green-700 text-white px-3 py-1.5 rounded-lg hover:bg-green-800 transition disabled:opacity-50">
+                                  {addingPlayer ? 'Adding…' : 'Add Guest'}
+                                </button>
+                                <button type="button" onClick={() => { setAddPlayerMode(null); setGuestAddForm({ name: '', email: '' }) }}
+                                  className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+                              </div>
+                            </form>
+                          )}
+                        </div>
+                      )
+                    })()}
+
                     {editError && <p className="text-red-600 text-sm">{editError}</p>}
 
                     <div className="flex gap-3 pt-1">
@@ -788,7 +969,7 @@ export default function Bookings() {
                         className="px-5 py-2 bg-green-700 hover:bg-green-800 text-white rounded-lg text-sm font-semibold transition disabled:opacity-50">
                         {editLoading ? 'Saving…' : 'Save Changes'}
                       </button>
-                      <button onClick={() => setEditingBooking(false)}
+                      <button onClick={() => { setEditingBooking(false); setAddPlayerMode(null); setAddPlayerQuery(''); setAddPlayerResults([]) }}
                         className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition">
                         Back
                       </button>

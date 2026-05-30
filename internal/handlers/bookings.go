@@ -234,10 +234,11 @@ func (h *BookingsHandler) Update(c echo.Context) error {
 	role := c.Get("role").(string)
 
 	var ownerID string
+	var currentCourtID int
 	var currentStart, currentEnd time.Time
 	if err := h.DB.QueryRow(c.Request().Context(),
-		`SELECT user_id, start_time, end_time FROM bookings WHERE id = $1`, id,
-	).Scan(&ownerID, &currentStart, &currentEnd); err != nil {
+		`SELECT user_id, court_id, start_time, end_time FROM bookings WHERE id = $1`, id,
+	).Scan(&ownerID, &currentCourtID, &currentStart, &currentEnd); err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "booking not found")
 	}
 	if ownerID != userID && role != "admin" && role != "board" {
@@ -249,11 +250,13 @@ func (h *BookingsHandler) Update(c echo.Context) error {
 		MatchType     string    `json:"match_type"`
 		PlayersNeeded int       `json:"players_needed"`
 		EndTime       time.Time `json:"end_time"`
+		CourtID       int       `json:"court_id"`
 	}
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
 	}
 
+	// Determine new end time
 	newEnd := currentEnd
 	if !req.EndTime.IsZero() {
 		newEnd = req.EndTime
@@ -268,15 +271,22 @@ func (h *BookingsHandler) Update(c echo.Context) error {
 		if localEnd.Hour() > 20 || (localEnd.Hour() == 20 && localEnd.Minute() > 0) {
 			return echo.NewHTTPError(http.StatusBadRequest, "bookings must end by 8:00 PM")
 		}
-		// Check for conflicts on the new end time (only matters if extending)
+	}
+
+	// Determine new court
+	newCourtID := currentCourtID
+	if req.CourtID != 0 && req.CourtID != currentCourtID {
+		newCourtID = req.CourtID
+	}
+
+	// Check for conflicts whenever the court or duration changes
+	if newCourtID != currentCourtID || newEnd != currentEnd {
 		var conflicts int
 		h.DB.QueryRow(c.Request().Context(),
 			`SELECT COUNT(*) FROM bookings
-			 WHERE court_id = (SELECT court_id FROM bookings WHERE id = $1)
-			   AND id != $1
-			   AND start_time < $2
-			   AND end_time > (SELECT start_time FROM bookings WHERE id = $1)`,
-			id, newEnd,
+			 WHERE court_id = $1 AND id != $2
+			   AND start_time < $3 AND end_time > $4`,
+			newCourtID, id, newEnd, currentStart,
 		).Scan(&conflicts)
 		if conflicts > 0 {
 			return echo.NewHTTPError(http.StatusConflict, "court is already booked during that time")
@@ -288,9 +298,9 @@ func (h *BookingsHandler) Update(c echo.Context) error {
 	}
 
 	_, err := h.DB.Exec(c.Request().Context(),
-		`UPDATE bookings SET notes = NULLIF($1,''), match_type = $2, players_needed = $3, end_time = $4
-		 WHERE id = $5`,
-		req.Notes, req.MatchType, req.PlayersNeeded, newEnd, id)
+		`UPDATE bookings SET notes = NULLIF($1,''), match_type = $2, players_needed = $3, end_time = $4, court_id = $5
+		 WHERE id = $6`,
+		req.Notes, req.MatchType, req.PlayersNeeded, newEnd, newCourtID, id)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not update booking")
 	}
