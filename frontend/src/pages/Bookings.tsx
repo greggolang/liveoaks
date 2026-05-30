@@ -22,7 +22,7 @@ const MATCH_TYPES = [
 ]
 
 const HOURS = Array.from({ length: 14 }, (_, i) => i + 7) // 7am–8pm
-const DURATIONS = [{ label: '1 hr', hours: 1 }, { label: '1½ hr', hours: 1.5 }, { label: '2 hr', hours: 2 }]
+const DURATIONS = [{ label: '1 hr', hours: 1 }, { label: '1½ hr', hours: 1.5 }]
 
 function fmt12(hour: number) {
   const h = hour % 12 || 12
@@ -48,7 +48,7 @@ export default function Bookings() {
   const [courts, setCourts] = useState<Court[]>([])
   const [bookings, setBookings] = useState<Booking[]>([])
   const [selected, setSelected] = useState<Selected | null>(null)
-  const [duration, setDuration] = useState(1)
+  const [duration, setDuration] = useState(1.5)
   const [notes, setNotes] = useState('')
   const [matchType, setMatchType] = useState('casual')
   const [playersNeeded, setPlayersNeeded] = useState(0)
