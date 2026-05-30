@@ -48,6 +48,12 @@ export const api = {
     delete: (id: string) => request(`/announcements/${id}`, { method: 'DELETE' }),
   },
   members: { directory: () => request('/members/directory') },
+  contacts: {
+    list: () => request('/contacts'),
+    create: (data: object) => request('/contacts', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: object) => request(`/contacts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    delete: (id: string) => request(`/contacts/${id}`, { method: 'DELETE' }),
+  },
   events: {
     list: () => request('/events'),
     create: (data: object) => request('/events', { method: 'POST', body: JSON.stringify(data) }),

@@ -71,6 +71,7 @@ func main() {
 	guests := &handlers.GuestsHandler{DB: pool}
 	usta := &handlers.USTAHandler{DB: pool}
 	uploads := &handlers.UploadsHandler{DB: pool, UploadDir: uploadDir}
+	contacts := &handlers.ContactsHandler{DB: pool}
 
 	api := e.Group("/api")
 
@@ -95,6 +96,7 @@ func main() {
 	authed.GET("/announcements", announcements.List)
 
 	authed.GET("/members/directory", members.Directory)
+	authed.GET("/contacts", contacts.List)
 	authed.GET("/events", events.List)
 	authed.GET("/documents", uploads.ListDocuments)
 	authed.GET("/photos", uploads.ListPhotos)
@@ -107,6 +109,9 @@ func main() {
 	boardPlus := authed.Group("", mw.RequireRole(mw.BoardRoleList()...))
 	boardPlus.POST("/announcements", announcements.Create)
 	boardPlus.DELETE("/announcements/:id", announcements.Delete)
+	boardPlus.POST("/contacts", contacts.Create)
+	boardPlus.PUT("/contacts/:id", contacts.Update)
+	boardPlus.DELETE("/contacts/:id", contacts.Delete)
 	boardPlus.POST("/events", events.Create)
 	boardPlus.DELETE("/events/:id", events.Delete)
 	boardPlus.POST("/admin/documents", uploads.UploadDocument)
