@@ -3,15 +3,22 @@ import { api } from '../../api/client'
 
 const LABELS: Record<string, string> = {
   club_name:                    'Club Name',
-  booking_max_days_ahead:       'Max Days to Book Ahead',
-  booking_max_duration_hours:   'Max Booking Duration (hours)',
   dues_amount:                  'Annual Dues Amount ($)',
   dues_period:                  'Dues Period',
   session_timeout_minutes:      'Auto Logout (minutes, 0 = off)',
 }
 
-// Keys managed elsewhere — hide from this page
+const BOOKING_SETTINGS: { key: string; label: string; hint: string }[] = [
+  { key: 'booking_max_per_day',        label: 'Max bookings per member per day', hint: '1 = one booking per day (recommended). Increase to allow multiple.' },
+  { key: 'booking_max_days_ahead',     label: 'Max days ahead a member can book', hint: 'Leave blank for no limit.' },
+  { key: 'booking_max_duration_hours', label: 'Max booking duration (hours)',     hint: 'Leave blank for no limit.' },
+]
+
+const BOOKING_KEYS = new Set(BOOKING_SETTINGS.map(s => s.key))
+
+// Keys managed elsewhere or in dedicated sections — hide from the generic list
 const HIDDEN_KEYS = new Set([
+  'booking_max_per_day','booking_max_days_ahead','booking_max_duration_hours',
   'smtp_host','smtp_port','smtp_user','smtp_pass','smtp_from',
   'google_email_president','google_email_vice_president','google_email_secretary',
   'google_email_treasurer','google_email_billing','google_email_entertainment','google_email_house_grounds',
@@ -92,6 +99,29 @@ export default function AdminSettings() {
               className={`px-4 py-2 rounded-lg text-sm font-medium transition ${saved[key] ? 'bg-green-100 text-green-700' : 'bg-green-700 text-white hover:bg-green-800'}`}>
               {saved[key] ? 'Saved!' : 'Save'}
             </button>
+          </div>
+        ))}
+      </div>
+
+      {/* Booking System */}
+      <h2 className="text-xl font-bold text-gray-800 mt-8 mb-1">Booking System</h2>
+      <p className="text-sm text-gray-500 mb-4">Rules that govern when and how members can reserve courts.</p>
+      <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 space-y-5">
+        {BOOKING_SETTINGS.map(({ key, label, hint }) => (
+          <div key={key}>
+            <div className="flex items-center gap-4">
+              <label className="w-56 text-sm font-medium text-gray-700 shrink-0">{label}</label>
+              <input
+                value={settings[key] ?? ''}
+                onChange={e => setSettings(s => ({ ...s, [key]: e.target.value }))}
+                className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+              <button onClick={() => save(key)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition shrink-0 ${saved[key] ? 'bg-green-100 text-green-700' : 'bg-green-700 text-white hover:bg-green-800'}`}>
+                {saved[key] ? 'Saved!' : 'Save'}
+              </button>
+            </div>
+            {hint && <p className="text-xs text-gray-400 mt-1 ml-[calc(224px+1rem)]">{hint}</p>}
           </div>
         ))}
       </div>

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/greggolang/liveoaks/internal/models"
@@ -100,6 +101,27 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 	}
 	if localEnd.Hour() > 20 || (localEnd.Hour() == 20 && localEnd.Minute() > 0) {
 		return echo.NewHTTPError(http.StatusBadRequest, "bookings must end by 8:00 PM")
+	}
+
+	// Enforce per-day booking limit (default 1, configurable via settings)
+	maxPerDay := 1
+	var maxStr string
+	if scanErr := h.DB.QueryRow(c.Request().Context(),
+		`SELECT value FROM settings WHERE key = 'booking_max_per_day'`).Scan(&maxStr); scanErr == nil {
+		if v, convErr := strconv.Atoi(maxStr); convErr == nil && v > 0 {
+			maxPerDay = v
+		}
+	}
+	var bookingsToday int
+	h.DB.QueryRow(c.Request().Context(),
+		`SELECT COUNT(*) FROM bookings WHERE user_id = $1 AND start_time::date = $2::date`,
+		userID, req.StartTime).Scan(&bookingsToday)
+	if bookingsToday >= maxPerDay {
+		if maxPerDay == 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, "you already have a booking on this date")
+		}
+		return echo.NewHTTPError(http.StatusBadRequest,
+			fmt.Sprintf("members may not make more than %d bookings per day", maxPerDay))
 	}
 
 	if req.MatchType == "" {
