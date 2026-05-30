@@ -19,6 +19,7 @@ interface AuthContextType {
   logout: () => Promise<void>
   isAdmin: boolean
   isBoard: boolean
+  bookingMaxDaysAhead: number
 }
 
 const AuthContext = createContext<AuthContextType>(null!)
@@ -27,6 +28,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [sessionTimeoutMinutes, setSessionTimeoutMinutes] = useState(60)
+  const [bookingMaxDaysAhead, setBookingMaxDaysAhead] = useState(5)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Load current user and session config on mount
@@ -35,7 +37,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       api.auth.me().then((u) => setUser(u as User)).catch(() => setUser(null)),
       fetch('/api/session-config')
         .then(r => r.json())
-        .then(d => setSessionTimeoutMinutes(parseInt(d.session_timeout_minutes) || 60))
+        .then(d => {
+          setSessionTimeoutMinutes(parseInt(d.session_timeout_minutes) || 60)
+          setBookingMaxDaysAhead(parseInt(d.booking_max_days_ahead) || 5)
+        })
         .catch(() => {}),
     ]).finally(() => setLoading(false))
   }, [])
@@ -83,6 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout,
       isAdmin: user?.role === 'admin',
       isBoard: user ? BOARD_ROLES.includes(user.role) : false,
+      bookingMaxDaysAhead,
     }}>
       {children}
     </AuthContext.Provider>

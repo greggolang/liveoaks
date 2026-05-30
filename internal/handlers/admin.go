@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"fmt"
+	"net"
 	"net/http"
 	"time"
 
@@ -47,13 +49,21 @@ func (h *AdminHandler) ActivityLog(c echo.Context) error {
 
 // GetSessionConfig is a public endpoint — returns only the session timeout setting.
 func (h *AdminHandler) GetSessionConfig(c echo.Context) error {
-	var minutes string
+	var minutes, maxDaysAhead string
 	h.DB.QueryRow(c.Request().Context(),
 		`SELECT value FROM settings WHERE key = 'session_timeout_minutes'`).Scan(&minutes)
 	if minutes == "" {
 		minutes = "60"
 	}
-	return c.JSON(http.StatusOK, map[string]string{"session_timeout_minutes": minutes})
+	h.DB.QueryRow(c.Request().Context(),
+		`SELECT value FROM settings WHERE key = 'booking_max_days_ahead'`).Scan(&maxDaysAhead)
+	if maxDaysAhead == "" {
+		maxDaysAhead = "5"
+	}
+	return c.JSON(http.StatusOK, map[string]string{
+		"session_timeout_minutes": minutes,
+		"booking_max_days_ahead":  maxDaysAhead,
+	})
 }
 
 func (h *AdminHandler) GetSettings(c echo.Context) error {
@@ -149,4 +159,29 @@ func (h *AdminHandler) UpdateSetting(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not update setting")
 	}
 	return c.JSON(http.StatusOK, map[string]string{"key": key, "value": body.Value})
+}
+
+// SMTPPing tries a raw TCP connection to the configured SMTP host:port.
+// Returns success/failure so the frontend can distinguish firewall blocks
+// from credential problems without actually sending an email.
+func (h *AdminHandler) SMTPPing(c echo.Context) error {
+	host, port := "", "587"
+	h.DB.QueryRow(c.Request().Context(), `SELECT value FROM settings WHERE key = 'smtp_host'`).Scan(&host)
+	h.DB.QueryRow(c.Request().Context(), `SELECT value FROM settings WHERE key = 'smtp_port'`).Scan(&port)
+	if host == "" {
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"ok": false, "message": "SMTP host is not configured — save your settings first.",
+		})
+	}
+	addr := fmt.Sprintf("%s:%s", host, port)
+	conn, err := net.DialTimeout("tcp", addr, 10*time.Second)
+	if err != nil {
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"ok": false, "message": fmt.Sprintf("Cannot reach %s — %v", addr, err),
+		})
+	}
+	conn.Close()
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"ok": true, "message": fmt.Sprintf("TCP connection to %s succeeded. Port is open.", addr),
+	})
 }

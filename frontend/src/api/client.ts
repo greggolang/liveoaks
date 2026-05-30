@@ -252,5 +252,6 @@ export const api = {
     activityLog: () => request('/admin/activity-log'),
     testEmail: (to: string) =>
       request('/admin/test-email', { method: 'POST', body: JSON.stringify({ to }) }),
+    smtpPing: () => request('/admin/smtp-ping'),
   },
 }

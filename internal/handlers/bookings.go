@@ -103,6 +103,21 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "bookings must end by 8:00 PM")
 	}
 
+	// Enforce days-in-advance limit
+	var maxDaysStr string
+	if scanErr := h.DB.QueryRow(c.Request().Context(),
+		`SELECT value FROM settings WHERE key = 'booking_max_days_ahead'`).Scan(&maxDaysStr); scanErr == nil {
+		if maxDays, convErr := strconv.Atoi(maxDaysStr); convErr == nil && maxDays > 0 {
+			nowLA := time.Now().In(loc)
+			todayStart := time.Date(nowLA.Year(), nowLA.Month(), nowLA.Day(), 0, 0, 0, 0, loc)
+			deadline := todayStart.AddDate(0, 0, maxDays+1) // midnight after the last allowed day
+			if !localStart.Before(deadline) {
+				return echo.NewHTTPError(http.StatusBadRequest,
+					fmt.Sprintf("courts can only be booked up to %d days in advance", maxDays))
+			}
+		}
+	}
+
 	// Enforce per-day booking limit (default 1, configurable via settings)
 	maxPerDay := 1
 	var maxStr string

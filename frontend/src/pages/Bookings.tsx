@@ -51,7 +51,7 @@ function formatDate(dateStr: string) {
 }
 
 export default function Bookings() {
-  const { user, isBoard } = useAuth()
+  const { user, isBoard, bookingMaxDaysAhead } = useAuth()
   const today = localDateStr(new Date())
   const [date, setDate] = useState(today)
   const [courts, setCourts] = useState<Court[]>([])
@@ -369,25 +369,33 @@ export default function Bookings() {
       {tab === 'grid' && (
         <>
           {/* Date navigation */}
-          <div className="flex items-center justify-between mb-4 bg-white border border-gray-200 rounded-xl px-4 py-3 shadow-sm">
-            <button onClick={() => setDate(d => addDays(d, -1))}
-              className="flex items-center gap-1 text-gray-600 hover:text-green-700 transition text-sm font-medium">
-              ← Prev
-            </button>
-            <div className="flex items-center gap-3">
-              <button onClick={() => setDate(today)}
-                className={`text-xs px-3 py-1 rounded-full font-medium transition ${date === today ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-                Today
-              </button>
-              <span className="font-semibold text-gray-800 text-sm sm:text-base">{formatDate(date)}</span>
-              <input type="date" value={date} onChange={e => setDate(e.target.value)}
-                className="text-xs border border-gray-200 rounded px-2 py-1 text-gray-500 focus:outline-none focus:ring-1 focus:ring-green-500" />
-            </div>
-            <button onClick={() => setDate(d => addDays(d, 1))}
-              className="flex items-center gap-1 text-gray-600 hover:text-green-700 transition text-sm font-medium">
-              Next →
-            </button>
-          </div>
+          {(() => {
+            const maxDate = localDateStr(new Date(new Date().setDate(new Date().getDate() + bookingMaxDaysAhead)))
+            const atMax = date >= maxDate
+            return (
+              <div className="flex items-center justify-between mb-4 bg-white border border-gray-200 rounded-xl px-4 py-3 shadow-sm">
+                <button onClick={() => setDate(d => addDays(d, -1))}
+                  className="flex items-center gap-1 text-gray-600 hover:text-green-700 transition text-sm font-medium">
+                  ← Prev
+                </button>
+                <div className="flex items-center gap-3">
+                  <button onClick={() => setDate(today)}
+                    className={`text-xs px-3 py-1 rounded-full font-medium transition ${date === today ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                    Today
+                  </button>
+                  <span className="font-semibold text-gray-800 text-sm sm:text-base">{formatDate(date)}</span>
+                  <input type="date" value={date} min={today} max={maxDate}
+                    onChange={e => setDate(e.target.value <= maxDate ? e.target.value : maxDate)}
+                    className="text-xs border border-gray-200 rounded px-2 py-1 text-gray-500 focus:outline-none focus:ring-1 focus:ring-green-500" />
+                </div>
+                <button onClick={() => !atMax && setDate(d => addDays(d, 1))}
+                  disabled={atMax}
+                  className={`flex items-center gap-1 transition text-sm font-medium ${atMax ? 'text-gray-300 cursor-not-allowed' : 'text-gray-600 hover:text-green-700'}`}>
+                  Next →
+                </button>
+              </div>
+            )
+          })()}
 
           {/* Booking panel — Step 1: Configure */}
           {selected && !confirming && (
@@ -403,7 +411,7 @@ export default function Bookings() {
                     {d.label}
                   </button>
                 ))}
-                <select value={matchType} onChange={e => { setMatchType(e.target.value); setPlayersNeeded(0); setSelectedFriends([]) }}
+                <select value={matchType} onChange={e => { setMatchType(e.target.value); setPlayersNeeded(0); setSelectedFriends([]); setDirectPlayers([]); setBookingSearchMode(null); setBookingSearchQuery(''); setBookingSearchResults([]) }}
                   className="border border-green-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white text-green-800">
                   {MATCH_TYPES
                     .filter(m => !m.ballMachineOnly || courts.find(c => c.id === selected.courtId)?.has_ball_machine)
@@ -417,80 +425,90 @@ export default function Bookings() {
                     ))}
                   </select>
                 )}
-                {friends.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 items-center">
-                    <span className="text-xs text-green-700 font-medium">Invite:</span>
-                    {friends.map(f => {
-                      const picked = selectedFriends.includes(f.id)
-                      const limit = matchType !== 'casual' && matchType !== 'ball_machine' && playersNeeded > 0 ? playersNeeded : Infinity
-                      const atLimit = selectedFriends.length >= limit && !picked
-                      return (
-                        <button key={f.id} type="button"
-                          onClick={() => setSelectedFriends(s =>
-                            picked ? s.filter(x => x !== f.id) : atLimit ? s : [...s, f.id]
-                          )}
-                          disabled={atLimit}
-                          className={`px-2.5 py-1 rounded-full text-xs font-medium transition
-                            ${picked ? 'bg-green-700 text-white' :
-                              atLimit ? 'bg-gray-100 text-gray-300 cursor-not-allowed' :
-                              'bg-white border border-green-300 text-green-700 hover:bg-green-50'}`}>
-                          {picked ? '✓ ' : ''}{f.friend_name}{f.is_guest ? ' (G)' : ''}
-                        </button>
-                      )
-                    })}
-                    {selectedFriends.length > 0 && matchType !== 'casual' && matchType !== 'ball_machine' && playersNeeded > 0 && (
-                      <span className="text-xs text-green-600">{selectedFriends.length}/{playersNeeded} selected</span>
+                {/* ── Player limits (hidden for ball machine — solo only) ── */}
+                {matchType !== 'ball_machine' && (() => {
+                  const maxAdditional =
+                    matchType === 'ball_machine' ? 0
+                    : matchType === 'doubles' && playersNeeded > 0 ? playersNeeded
+                    : 1  // casual or singles
+                  const totalAdded = selectedFriends.length + directPlayers.length
+                  const spotsLeft = Math.max(0, maxAdditional - totalAdded)
+                  return (<>
+                    {friends.length > 0 && maxAdditional > 0 && (
+                      <div className="flex flex-wrap gap-1.5 items-center">
+                        <span className="text-xs text-green-700 font-medium">Invite:</span>
+                        {friends.map(f => {
+                          const picked = selectedFriends.includes(f.id)
+                          const atLimit = spotsLeft === 0 && !picked
+                          return (
+                            <button key={f.id} type="button"
+                              onClick={() => setSelectedFriends(s =>
+                                picked ? s.filter(x => x !== f.id) : atLimit ? s : [...s, f.id]
+                              )}
+                              disabled={atLimit}
+                              className={`px-2.5 py-1 rounded-full text-xs font-medium transition
+                                ${picked ? 'bg-green-700 text-white' :
+                                  atLimit ? 'bg-gray-100 text-gray-300 cursor-not-allowed' :
+                                  'bg-white border border-green-300 text-green-700 hover:bg-green-50'}`}>
+                              {picked ? '✓ ' : ''}{f.friend_name}{f.is_guest ? ' (G)' : ''}
+                            </button>
+                          )
+                        })}
+                        {totalAdded > 0 && (
+                          <span className="text-xs text-green-600">{totalAdded}/{maxAdditional} added</span>
+                        )}
+                      </div>
                     )}
-                  </div>
-                )}
-                {/* Group invite — show groups whose size exactly fills the open spots */}
-                {matchType !== 'casual' && matchType !== 'ball_machine' && playersNeeded > 0 && (() => {
-                  const matchingGroups = friendGroups.filter(g => g.members.length === playersNeeded)
-                  if (matchingGroups.length === 0) return null
-                  return (
-                    <div className="flex flex-wrap gap-1.5 items-center">
-                      <span className="text-xs text-green-700 font-medium">Groups:</span>
-                      {matchingGroups.map(g => {
-                        const allPicked = g.members.every(m => selectedFriends.includes(m.friend_id))
-                        return (
-                          <button key={g.id} type="button"
-                            onClick={() => setSelectedFriends(allPicked ? [] : g.members.map(m => m.friend_id))}
-                            className={`px-2.5 py-1 rounded-full text-xs font-medium transition
-                              ${allPicked
-                                ? 'bg-green-700 text-white'
-                                : 'bg-white border border-green-300 text-green-700 hover:bg-green-50'}`}>
-                            {allPicked ? '✓ ' : ''}{g.name}
-                            <span className="ml-1 opacity-70">({g.members.length})</span>
-                          </button>
-                        )
-                      })}
+                    {/* Group invite */}
+                    {maxAdditional > 0 && playersNeeded > 0 && (() => {
+                      const matchingGroups = friendGroups.filter(g => g.members.length === spotsLeft)
+                      if (matchingGroups.length === 0) return null
+                      return (
+                        <div className="flex flex-wrap gap-1.5 items-center">
+                          <span className="text-xs text-green-700 font-medium">Groups:</span>
+                          {matchingGroups.map(g => {
+                            const allPicked = g.members.every(m => selectedFriends.includes(m.friend_id))
+                            return (
+                              <button key={g.id} type="button"
+                                onClick={() => setSelectedFriends(allPicked ? [] : g.members.map(m => m.friend_id))}
+                                className={`px-2.5 py-1 rounded-full text-xs font-medium transition
+                                  ${allPicked ? 'bg-green-700 text-white' : 'bg-white border border-green-300 text-green-700 hover:bg-green-50'}`}>
+                                {allPicked ? '✓ ' : ''}{g.name}
+                                <span className="ml-1 opacity-70">({g.members.length})</span>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )
+                    })()}
+                    {/* Add players directly to roster */}
+                    <div className="w-full flex flex-wrap gap-1.5 items-start pt-1 border-t border-green-100">
+                      <span className="text-xs text-green-700 font-medium self-center">Add Directly:</span>
+                      {directPlayers.map((p, i) => (
+                        <span key={i} className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium
+                          ${p.isGuest ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                          {p.name}{p.isGuest ? ' (G)' : ''}
+                          <button type="button" onClick={() => setDirectPlayers(s => s.filter((_, j) => j !== i))}
+                            className="ml-0.5 opacity-60 hover:opacity-100">✕</button>
+                        </span>
+                      ))}
+                      {bookingSearchMode === null && (
+                        spotsLeft === 0
+                          ? <span className="text-xs text-gray-400 italic self-center">Booking is full</span>
+                          : <>
+                              <button type="button" onClick={() => setBookingSearchMode('member')}
+                                className="px-2.5 py-1 rounded-full text-xs font-medium bg-white border border-blue-300 text-blue-700 hover:bg-blue-50 transition">
+                                + Member
+                              </button>
+                              <button type="button" onClick={() => setBookingSearchMode('guest')}
+                                className="px-2.5 py-1 rounded-full text-xs font-medium bg-white border border-orange-300 text-orange-700 hover:bg-orange-50 transition">
+                                + Guest
+                              </button>
+                            </>
+                      )}
                     </div>
-                  )
+                  </>)
                 })()}
-                {/* Add players directly to roster */}
-                <div className="w-full flex flex-wrap gap-1.5 items-start pt-1 border-t border-green-100">
-                  <span className="text-xs text-green-700 font-medium self-center">Add Directly:</span>
-                  {directPlayers.map((p, i) => (
-                    <span key={i} className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium
-                      ${p.isGuest ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
-                      {p.name}{p.isGuest ? ' (G)' : ''}
-                      <button type="button" onClick={() => setDirectPlayers(s => s.filter((_, j) => j !== i))}
-                        className="ml-0.5 opacity-60 hover:opacity-100">✕</button>
-                    </span>
-                  ))}
-                  {bookingSearchMode === null && (
-                    <>
-                      <button type="button" onClick={() => setBookingSearchMode('member')}
-                        className="px-2.5 py-1 rounded-full text-xs font-medium bg-white border border-blue-300 text-blue-700 hover:bg-blue-50 transition">
-                        + Member
-                      </button>
-                      <button type="button" onClick={() => setBookingSearchMode('guest')}
-                        className="px-2.5 py-1 rounded-full text-xs font-medium bg-white border border-orange-300 text-orange-700 hover:bg-orange-50 transition">
-                        + Guest
-                      </button>
-                    </>
-                  )}
-                </div>
                 {bookingSearchMode === 'member' && (
                   <div className="w-full space-y-1.5">
                     <div className="relative">
@@ -506,6 +524,8 @@ export default function Bookings() {
                       <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 bg-white max-h-36 overflow-y-auto">
                         {bookingSearchResults.map(m => {
                           const already = directPlayers.some(p => p.userId === m.id)
+                          const maxAdditional = matchType === 'ball_machine' ? 0 : matchType === 'doubles' && playersNeeded > 0 ? playersNeeded : 1
+                          const full = selectedFriends.length + directPlayers.length >= maxAdditional
                           return (
                             <div key={m.id} className="flex items-center justify-between px-3 py-1.5">
                               <div>
@@ -513,7 +533,7 @@ export default function Bookings() {
                                 <div className="text-xs text-gray-400">{m.email}</div>
                               </div>
                               <button type="button"
-                                disabled={already}
+                                disabled={already || full}
                                 onClick={() => {
                                   if (already) return
                                   setDirectPlayers(s => [...s, { name: `${m.first_name} ${m.last_name}`, email: m.email, userId: m.id, isGuest: false }])
@@ -522,7 +542,7 @@ export default function Bookings() {
                                   setBookingSearchMode(null)
                                 }}
                                 className="text-xs bg-blue-700 text-white px-2 py-0.5 rounded hover:bg-blue-800 transition disabled:opacity-40">
-                                {already ? '✓' : 'Add'}
+                                {already ? '✓' : full ? 'Full' : 'Add'}
                               </button>
                             </div>
                           )

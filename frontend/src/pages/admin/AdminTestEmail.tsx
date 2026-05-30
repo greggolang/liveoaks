@@ -24,6 +24,21 @@ export default function AdminTestEmail() {
   const [sending, setSending] = useState(false)
   const [testResult, setTestResult] = useState<{ success: boolean; error?: string } | null>(null)
 
+  const [pinging, setPinging] = useState(false)
+  const [pingResult, setPingResult] = useState<{ ok: boolean; message: string } | null>(null)
+
+  const runPing = async () => {
+    setPinging(true)
+    setPingResult(null)
+    try {
+      const res = await api.admin.smtpPing() as { ok: boolean; message: string }
+      setPingResult(res)
+    } catch (err: any) {
+      setPingResult({ ok: false, message: err.message })
+    } finally {
+      setPinging(false) }
+  }
+
   // Sync to email field once user is available (useState only captures initial value)
   useEffect(() => {
     if (user?.email && !to) setTo(user.email)
@@ -167,12 +182,34 @@ export default function AdminTestEmail() {
         </p>
       </form>
 
+      {/* Connection diagnostic */}
+      <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm space-y-3">
+        <p className="text-sm font-semibold text-gray-700">Step 1 — Test Network Connection</p>
+        <p className="text-xs text-gray-500">
+          Checks whether this server can reach the SMTP host on the configured port.
+          Run this first — if it fails, the firewall is blocking outbound email and no password will work.
+        </p>
+        {pingResult && (
+          <div className={`rounded-lg px-4 py-3 text-sm font-medium ${pingResult.ok ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-red-50 border border-red-200 text-red-800'}`}>
+            {pingResult.ok ? '✅' : '❌'} {pingResult.message}
+            {!pingResult.ok && (
+              <p className="text-xs font-normal mt-1 opacity-80">
+                Port is blocked. On Linode: open a support ticket and ask them to enable outbound SMTP (port 587) for your Linode ID.
+              </p>
+            )}
+          </div>
+        )}
+        <button onClick={runPing} disabled={pinging}
+          className="bg-blue-700 hover:bg-blue-800 text-white font-semibold px-5 py-2 rounded-lg text-sm transition disabled:opacity-50">
+          {pinging ? 'Testing…' : 'Test Connection'}
+        </button>
+      </div>
+
       {/* Test email */}
       <form onSubmit={sendTest} className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm space-y-4">
-        <p className="text-sm font-semibold text-gray-700">Send Test Email</p>
+        <p className="text-sm font-semibold text-gray-700">Step 2 — Send Test Email</p>
         <p className="text-xs text-gray-500">
-          Sends a test using the settings currently saved in the database.
-          Make sure you click <strong>Save Settings</strong> above before testing.
+          Only run this after Step 1 passes. Uses the settings currently saved in the database.
         </p>
 
         {/* Result shown first so it's always visible without scrolling */}

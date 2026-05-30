@@ -188,6 +188,7 @@ func main() {
 	adminOnly.GET("/events/:id/signups/summary", signups.Summary)
 	adminOnly.DELETE("/events/:id/signups/:signupId", signups.Delete)
 	adminOnly.POST("/test-email", admin.TestEmail)
+	adminOnly.GET("/smtp-ping", admin.SMTPPing)
 	adminOnly.GET("/permissions", perms.GetAll)
 	adminOnly.PUT("/permissions/:page/:role", perms.Toggle)
 	authed.POST("/feedback", feedback.Submit)
