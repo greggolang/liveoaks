@@ -198,6 +198,82 @@ func (h *InvitationsHandler) Respond(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]string{"status": newStatus})
 }
 
+// AddPlayer adds a player directly to the roster (no invite email needed)
+func (h *InvitationsHandler) AddPlayer(c echo.Context) error {
+	userID := c.Get("user_id").(string)
+	bookingID := c.Param("id")
+
+	// Only the host (or board) may add players directly
+	var hostID string
+	if err := h.DB.QueryRow(c.Request().Context(),
+		`SELECT user_id FROM bookings WHERE id = $1`, bookingID).Scan(&hostID); err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, "booking not found")
+	}
+	role, _ := c.Get("role").(string)
+	if hostID != userID && role != "admin" && role != "board" {
+		return echo.NewHTTPError(http.StatusForbidden, "only the host can add players")
+	}
+
+	var req struct {
+		UserID      *string `json:"user_id"`
+		PlayerName  string  `json:"player_name"`
+		PlayerEmail string  `json:"player_email"`
+		IsGuest     bool    `json:"is_guest"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
+	}
+
+	// If a member user_id is given, resolve name/email from DB
+	if req.UserID != nil && *req.UserID != "" {
+		var first, last, email string
+		h.DB.QueryRow(c.Request().Context(),
+			`SELECT first_name, last_name, email FROM users WHERE id = $1`, *req.UserID,
+		).Scan(&first, &last, &email)
+		if first != "" {
+			req.PlayerName = first + " " + last
+			req.PlayerEmail = email
+		}
+	}
+
+	if req.PlayerName == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "player name required")
+	}
+
+	var p MatchPlayer
+	err := h.DB.QueryRow(c.Request().Context(), `
+		INSERT INTO match_players (booking_id, user_id, player_name, player_email, is_guest)
+		VALUES ($1, $2, $3, NULLIF($4,''), $5)
+		RETURNING id, player_name, player_email, is_guest, is_host, added_at`,
+		bookingID, req.UserID, req.PlayerName, req.PlayerEmail, req.IsGuest,
+	).Scan(&p.ID, &p.PlayerName, &p.PlayerEmail, &p.IsGuest, &p.IsHost, &p.AddedAt)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not add player")
+	}
+	return c.JSON(http.StatusCreated, p)
+}
+
+// RemovePlayer removes a non-host player from the roster
+func (h *InvitationsHandler) RemovePlayer(c echo.Context) error {
+	userID := c.Get("user_id").(string)
+	bookingID := c.Param("id")
+	playerID := c.Param("playerId")
+
+	var hostID string
+	h.DB.QueryRow(c.Request().Context(),
+		`SELECT user_id FROM bookings WHERE id = $1`, bookingID).Scan(&hostID)
+
+	role, _ := c.Get("role").(string)
+	if hostID != userID && role != "admin" && role != "board" {
+		return echo.NewHTTPError(http.StatusForbidden, "only the host can remove players")
+	}
+
+	h.DB.Exec(c.Request().Context(),
+		`DELETE FROM match_players WHERE id=$1 AND booking_id=$2 AND is_host=false`,
+		playerID, bookingID)
+	return c.NoContent(http.StatusNoContent)
+}
+
 // Cancel an invitation (by inviter)
 func (h *InvitationsHandler) Cancel(c echo.Context) error {
 	inviterID := c.Get("user_id").(string)

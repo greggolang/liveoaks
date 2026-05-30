@@ -61,6 +61,8 @@ export const api = {
   invitations: {
     getRoster: (bookingId: string) => request(`/bookings/${bookingId}/roster`),
     send: (bookingId: string, data: object) => request(`/bookings/${bookingId}/invite`, { method: 'POST', body: JSON.stringify(data) }),
+    addPlayer: (bookingId: string, data: object) => request(`/bookings/${bookingId}/players`, { method: 'POST', body: JSON.stringify(data) }),
+    removePlayer: (bookingId: string, playerId: string) => request(`/bookings/${bookingId}/players/${playerId}`, { method: 'DELETE' }),
     respond: (token: string, action: 'accept' | 'decline') => request(`/invite/${token}/${action}`, { method: 'POST' }),
     cancel: (id: string) => request(`/invitations/${id}/cancel`, { method: 'PUT' }),
   },

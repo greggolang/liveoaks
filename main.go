@@ -135,6 +135,8 @@ func main() {
 	// Match invitations
 	authed.GET("/bookings/:id/roster", invitations.GetRoster)
 	authed.POST("/bookings/:id/invite", invitations.Send)
+	authed.POST("/bookings/:id/players", invitations.AddPlayer)
+	authed.DELETE("/bookings/:id/players/:playerId", invitations.RemovePlayer)
 	authed.PUT("/invitations/:id/cancel", invitations.Cancel)
 
 	// Public invite response (no auth needed)
