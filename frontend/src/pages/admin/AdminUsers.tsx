@@ -8,6 +8,10 @@ interface User {
 
 export default function AdminUsers() {
   const [users, setUsers] = useState<User[]>([])
+  const [search, setSearch] = useState('')
+  const [roleFilter, setRoleFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+
   const load = () => api.admin.users().then(d => setUsers(d as User[]))
   useEffect(() => { load() }, [])
 
@@ -25,6 +29,23 @@ export default function AdminUsers() {
     load()
   }
 
+  const filtered = users.filter(u => {
+    if (roleFilter && u.role !== roleFilter) return false
+    if (statusFilter && u.status !== statusFilter) return false
+    if (search) {
+      const q = search.toLowerCase()
+      return (
+        u.first_name.toLowerCase().includes(q) ||
+        u.last_name.toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q) ||
+        (u.phone ?? '').includes(q)
+      )
+    }
+    return true
+  })
+
+  const hasFilters = search || roleFilter || statusFilter
+
   const roleColor: Record<string, string> = {
     admin: 'bg-purple-100 text-purple-700',
     board: 'bg-blue-100 text-blue-700',
@@ -38,7 +59,41 @@ export default function AdminUsers() {
 
   return (
     <div>
-      <h2 className="text-xl font-bold text-gray-800 mb-4">Members</h2>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xl font-bold text-gray-800">Members</h2>
+        <span className="text-xs text-gray-400">{filtered.length} of {users.length}</span>
+      </div>
+
+      <div className="flex flex-wrap gap-3 mb-4">
+        <input
+          type="text"
+          placeholder="Search name, email, phone..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 w-60"
+        />
+        <select value={roleFilter} onChange={e => setRoleFilter(e.target.value)}
+          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
+          <option value="">All roles</option>
+          <option value="member">Member</option>
+          <option value="board">Board</option>
+          <option value="admin">Admin</option>
+        </select>
+        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
+          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
+          <option value="">All statuses</option>
+          <option value="active">Active</option>
+          <option value="pending">Pending</option>
+          <option value="inactive">Inactive</option>
+        </select>
+        {hasFilters && (
+          <button onClick={() => { setSearch(''); setRoleFilter(''); setStatusFilter('') }}
+            className="text-sm text-red-500 hover:text-red-700 font-medium px-2">
+            Clear
+          </button>
+        )}
+      </div>
+
       <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
@@ -52,7 +107,9 @@ export default function AdminUsers() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {users.map(u => (
+            {filtered.length === 0 ? (
+              <tr><td colSpan={6} className="px-4 py-6 text-center text-gray-400 text-sm">No members match your search.</td></tr>
+            ) : filtered.map(u => (
               <tr key={u.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3 font-medium text-gray-800">{u.first_name} {u.last_name}</td>
                 <td className="px-4 py-3 text-gray-500">{u.email}</td>
