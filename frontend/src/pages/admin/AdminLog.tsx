@@ -24,9 +24,18 @@ const EVENT_LABELS: Record<string, { label: string; color: string }> = {
 export default function AdminLog() {
   const [entries, setEntries] = useState<Entry[]>([])
   const [filter, setFilter] = useState('')
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+
+  const load = () =>
+    api.admin.activityLog().then(d => {
+      setEntries(d as Entry[])
+      setLastUpdated(new Date())
+    })
 
   useEffect(() => {
-    api.admin.activityLog().then(d => setEntries(d as Entry[]))
+    load()
+    const interval = setInterval(load, 30000)
+    return () => clearInterval(interval)
   }, [])
 
   const filtered = filter
@@ -38,14 +47,27 @@ export default function AdminLog() {
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-bold text-gray-800">Activity Log</h2>
-        <select value={filter} onChange={e => setFilter(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
-          <option value="">All events</option>
-          {eventTypes.map(t => (
-            <option key={t} value={t}>{EVENT_LABELS[t]?.label ?? t}</option>
-          ))}
-        </select>
+        <div>
+          <h2 className="text-xl font-bold text-gray-800">Activity Log</h2>
+          {lastUpdated && (
+            <p className="text-xs text-gray-400 mt-0.5">
+              Updated {lastUpdated.toLocaleTimeString()} · refreshes every 30s
+            </p>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          <select value={filter} onChange={e => setFilter(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
+            <option value="">All events</option>
+            {eventTypes.map(t => (
+              <option key={t} value={t}>{EVENT_LABELS[t]?.label ?? t}</option>
+            ))}
+          </select>
+          <button onClick={load}
+            className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg text-sm font-medium transition">
+            Refresh
+          </button>
+        </div>
       </div>
 
       {filtered.length === 0 ? (
