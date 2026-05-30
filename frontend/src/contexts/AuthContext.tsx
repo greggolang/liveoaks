@@ -1,12 +1,14 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { api } from '../api/client'
 
+const BOARD_ROLES = ['admin', 'president', 'vice_president', 'secretary', 'treasurer', 'entertainment', 'house_grounds']
+
 interface User {
   id: string
   first_name: string
   last_name: string
   email: string
-  role: 'admin' | 'board' | 'member'
+  role: string
   status: string
 }
 
@@ -49,7 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       logout,
       isAdmin: user?.role === 'admin',
-      isBoard: user?.role === 'board' || user?.role === 'admin',
+      isBoard: user ? BOARD_ROLES.includes(user.role) : false,
     }}>
       {children}
     </AuthContext.Provider>

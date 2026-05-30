@@ -52,7 +52,13 @@ func (h *UsersHandler) UpdateRole(c echo.Context) error {
 	if err := c.Bind(&body); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
 	}
-	if body.Role != models.RoleAdmin && body.Role != models.RoleBoard && body.Role != models.RoleMember {
+	validRoles := map[models.Role]bool{
+		models.RoleAdmin: true, models.RolePresident: true, models.RoleVicePresident: true,
+		models.RoleSecretary: true, models.RoleTreasurer: true, models.RoleEntertainment: true,
+		models.RoleHouseGrounds: true, models.RoleBilling: true, models.RoleMembership: true,
+		models.RoleUSTA: true, models.RoleMember: true,
+	}
+	if !validRoles[body.Role] {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid role")
 	}
 	_, err := h.DB.Exec(c.Request().Context(),

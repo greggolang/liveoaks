@@ -49,3 +49,8 @@ func RequireRole(roles ...string) echo.MiddlewareFunc {
 		}
 	}
 }
+
+// BoardRoles returns the list of roles with board-level permissions
+func BoardRoleList() []string {
+	return []string{"admin", "president", "vice_president", "secretary", "treasurer", "entertainment", "house_grounds"}
+}

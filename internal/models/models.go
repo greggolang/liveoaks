@@ -6,14 +6,28 @@ type Role string
 type Status string
 
 const (
-	RoleAdmin  Role = "admin"
-	RoleBoard  Role = "board"
-	RoleMember Role = "member"
+	RoleAdmin       Role = "admin"
+	RolePresident   Role = "president"
+	RoleVicePresident Role = "vice_president"
+	RoleSecretary   Role = "secretary"
+	RoleTreasurer   Role = "treasurer"
+	RoleEntertainment Role = "entertainment"
+	RoleHouseGrounds Role = "house_grounds"
+	RoleBilling     Role = "billing"
+	RoleMembership  Role = "membership"
+	RoleUSTA        Role = "usta"
+	RoleMember      Role = "member"
 
 	StatusActive   Status = "active"
 	StatusInactive Status = "inactive"
 	StatusPending  Status = "pending"
 )
+
+// BoardRoles are roles that have board-level permissions
+var BoardRoles = []string{
+	"admin", "president", "vice_president", "secretary",
+	"treasurer", "entertainment", "house_grounds",
+}
 
 type User struct {
 	ID           string    `json:"id"`

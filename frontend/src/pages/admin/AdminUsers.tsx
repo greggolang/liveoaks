@@ -46,10 +46,20 @@ export default function AdminUsers() {
 
   const hasFilters = search || roleFilter || statusFilter
 
-  const roleColor: Record<string, string> = {
-    admin: 'bg-purple-100 text-purple-700',
-    board: 'bg-blue-100 text-blue-700',
-    member: 'bg-gray-100 text-gray-700',
+  const BOARD_ROLES = ['president', 'vice_president', 'secretary', 'treasurer', 'entertainment', 'house_grounds']
+
+  const roleColor = (role: string): string => {
+    if (role === 'admin') return 'bg-purple-100 text-purple-700'
+    if (BOARD_ROLES.includes(role)) return 'bg-blue-100 text-blue-700'
+    if (['billing', 'membership', 'usta'].includes(role)) return 'bg-teal-100 text-teal-700'
+    return 'bg-gray-100 text-gray-700'
+  }
+
+  const roleLabel: Record<string, string> = {
+    admin: 'Admin', president: 'President', vice_president: 'Vice President',
+    secretary: 'Secretary', treasurer: 'Treasurer', entertainment: 'Entertainment',
+    house_grounds: 'House & Grounds', billing: 'Billing', membership: 'Membership',
+    usta: 'USTA', member: 'Member',
   }
   const statusColor: Record<string, string> = {
     active: 'bg-green-100 text-green-700',
@@ -76,7 +86,15 @@ export default function AdminUsers() {
           className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
           <option value="">All roles</option>
           <option value="member">Member</option>
-          <option value="board">Board</option>
+          <option value="billing">Billing</option>
+          <option value="membership">Membership</option>
+          <option value="usta">USTA</option>
+          <option value="entertainment">Entertainment</option>
+          <option value="house_grounds">House &amp; Grounds</option>
+          <option value="secretary">Secretary</option>
+          <option value="treasurer">Treasurer</option>
+          <option value="vice_president">Vice President</option>
+          <option value="president">President</option>
           <option value="admin">Admin</option>
         </select>
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
@@ -115,10 +133,24 @@ export default function AdminUsers() {
                 <td className="px-4 py-3 text-gray-500">{u.email}</td>
                 <td className="px-4 py-3">
                   <select value={u.role} onChange={e => setRole(u.id, e.target.value)}
-                    className={`text-xs font-medium px-2 py-1 rounded-full border-0 cursor-pointer ${roleColor[u.role]}`}>
+                    className={`text-xs font-medium px-2 py-1 rounded-full border-0 cursor-pointer ${roleColor(u.role)}`}>
                     <option value="member">Member</option>
-                    <option value="board">Board</option>
-                    <option value="admin">Admin</option>
+                    <optgroup label="Committee">
+                      <option value="billing">Billing</option>
+                      <option value="membership">Membership</option>
+                      <option value="usta">USTA</option>
+                    </optgroup>
+                    <optgroup label="Board">
+                      <option value="entertainment">Entertainment</option>
+                      <option value="house_grounds">House &amp; Grounds</option>
+                      <option value="secretary">Secretary</option>
+                      <option value="treasurer">Treasurer</option>
+                      <option value="vice_president">Vice President</option>
+                      <option value="president">President</option>
+                    </optgroup>
+                    <optgroup label="System">
+                      <option value="admin">Admin</option>
+                    </optgroup>
                   </select>
                 </td>
                 <td className="px-4 py-3">

@@ -104,7 +104,7 @@ func main() {
 	authed.POST("/guests", guests.Log)
 
 	// Board+
-	boardPlus := authed.Group("", mw.RequireRole("board", "admin"))
+	boardPlus := authed.Group("", mw.RequireRole(mw.BoardRoleList()...))
 	boardPlus.POST("/announcements", announcements.Create)
 	boardPlus.DELETE("/announcements/:id", announcements.Delete)
 	boardPlus.POST("/events", events.Create)
