@@ -81,6 +81,7 @@ export default function Bookings() {
   const [addPlayerSearching, setAddPlayerSearching] = useState(false)
   const [guestAddForm, setGuestAddForm] = useState({ name: '', email: '' })
   const [addingPlayer, setAddingPlayer] = useState(false)
+  const [bookingDetail, setBookingDetail] = useState<Booking | null>(null)
 
   const load = useCallback(() => {
     api.bookings.list(date).then(d => setBookings(d as Booking[]))
@@ -202,6 +203,7 @@ export default function Bookings() {
   const handleSlotClick = (courtId: number, hour: number, courtName: string) => {
     const booking = getBooking(courtId, hour)
     if (booking) return
+    setBookingDetail(null)
     setSelected({ courtId, hour, courtName })
     setSelectedFriends([])
     setDirectPlayers([])
@@ -620,6 +622,74 @@ export default function Bookings() {
             )
           })()}
 
+          {/* Booking detail panel */}
+          {bookingDetail && (() => {
+            const b = bookingDetail
+            const bStart = new Date(b.start_time)
+            const bEnd = new Date(b.end_time)
+            const dMins = (bEnd.getTime() - bStart.getTime()) / 60000
+            const isMe = b.user_id === user?.id
+            const isBallMachine = b.match_type === 'ball_machine'
+            const matchLabel = isBallMachine ? '🤖 Ball Machine'
+              : b.match_type === 'singles' ? 'Singles'
+              : b.match_type === 'doubles' ? 'Doubles'
+              : b.match_type === 'casual' ? 'Hit Session'
+              : b.match_type || 'Hit Session'
+            return (
+              <div className="mb-4 bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+                <div className="flex items-center justify-between px-5 py-3 bg-gray-50 border-b border-gray-100">
+                  <h3 className="font-semibold text-gray-800 text-sm">Booking Details</h3>
+                  <button onClick={() => setBookingDetail(null)} className="text-gray-400 hover:text-gray-600 transition text-lg leading-none">×</button>
+                </div>
+                <div className="px-5 py-4 grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-3 text-sm">
+                  <div>
+                    <p className="text-xs text-gray-400 uppercase tracking-wide">Court</p>
+                    <p className="font-semibold text-gray-800 mt-0.5">{b.court.name}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400 uppercase tracking-wide">Date</p>
+                    <p className="font-semibold text-gray-800 mt-0.5">{bStart.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400 uppercase tracking-wide">Time</p>
+                    <p className="font-semibold text-gray-800 mt-0.5">
+                      {bStart.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} – {bEnd.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400 uppercase tracking-wide">Duration</p>
+                    <p className="font-semibold text-gray-800 mt-0.5">{dMins >= 60 ? `${dMins / 60} hr${dMins > 60 ? 's' : ''}` : `${dMins} min`}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400 uppercase tracking-wide">Type</p>
+                    <p className="font-semibold text-gray-800 mt-0.5">{matchLabel}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400 uppercase tracking-wide">Booked by</p>
+                    <p className="font-semibold text-gray-800 mt-0.5">
+                      {isMe ? 'You' : `${b.user.first_name} ${b.user.last_name}`}
+                    </p>
+                  </div>
+                  {b.notes && (
+                    <div className="col-span-2">
+                      <p className="text-xs text-gray-400 uppercase tracking-wide">Notes</p>
+                      <p className="font-semibold text-gray-800 mt-0.5">{b.notes}</p>
+                    </div>
+                  )}
+                </div>
+                {(isMe || isBoard) && (
+                  <div className="px-5 pb-4">
+                    <button
+                      onClick={() => { handleCancel(b.id); setBookingDetail(null) }}
+                      className="text-sm text-red-500 hover:text-red-700 font-medium transition">
+                      Cancel this booking
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+
           {/* Grid */}
           <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-x-auto">
             <table className="w-full text-sm border-collapse">
@@ -648,21 +718,36 @@ export default function Bookings() {
                       if (booking) {
                         const showDetails = isFirstHour(booking, hour)
                         const isBallMachine = booking.match_type === 'ball_machine'
+                        const bStart = new Date(booking.start_time)
+                        const bEnd = new Date(booking.end_time)
+                        const timeRange = `${bStart.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} – ${bEnd.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+                        const matchLabel = isBallMachine ? '🤖 Ball Machine'
+                          : booking.match_type === 'singles' ? 'Singles'
+                          : booking.match_type === 'doubles' ? 'Doubles'
+                          : booking.match_type === 'casual' ? 'Hit Session'
+                          : ''
                         return (
                           <td key={c.id} className="px-2 py-1 align-top">
-                            <div className={`rounded-lg px-2 py-2 h-10 flex items-center justify-between gap-1 ${isMe ? 'bg-green-600 text-white' : 'bg-green-100 text-green-800'}`}>
+                            <div
+                              onClick={() => showDetails && setBookingDetail(bookingDetail?.id === booking.id ? null : booking)}
+                              className={`rounded-lg px-2 py-1.5 flex flex-col gap-0.5 ${isMe ? 'bg-green-600 text-white' : 'bg-green-100 text-green-800'} ${showDetails ? 'cursor-pointer hover:opacity-90 transition' : ''}`}>
                               {showDetails && (
                                 <>
-                                  <span className="text-xs font-medium truncate">
-                                    {isBallMachine
-                                      ? `🤖 Ball Machine${isMe ? ' (Me)' : ''}`
-                                      : isMe ? 'Me' : `${booking.user.first_name} ${booking.user.last_name[0]}.`}
-                                  </span>
-                                  {(isMe || isBoard) && (
-                                    <button onClick={() => handleCancel(booking.id)}
-                                      className={`text-xs shrink-0 hover:opacity-70 transition ${isMe ? 'text-green-200' : 'text-green-600'}`}>
-                                      ✕
-                                    </button>
+                                  <div className="flex items-center justify-between gap-1">
+                                    <span className="text-xs font-semibold truncate">
+                                      {isBallMachine ? '🤖 Ball Machine' : isMe ? 'Me' : `${booking.user.first_name} ${booking.user.last_name[0]}.`}
+                                    </span>
+                                    {(isMe || isBoard) && (
+                                      <button
+                                        onClick={e => { e.stopPropagation(); handleCancel(booking.id) }}
+                                        className={`text-xs shrink-0 hover:opacity-70 transition ${isMe ? 'text-green-200' : 'text-green-600'}`}>
+                                        ✕
+                                      </button>
+                                    )}
+                                  </div>
+                                  <span className={`text-xs truncate ${isMe ? 'text-green-200' : 'text-green-600'}`}>{timeRange}</span>
+                                  {matchLabel && !isBallMachine && (
+                                    <span className={`text-xs truncate ${isMe ? 'text-green-200' : 'text-green-600'}`}>{matchLabel}</span>
                                   )}
                                 </>
                               )}
