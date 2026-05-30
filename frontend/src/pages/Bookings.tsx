@@ -34,12 +34,20 @@ const PLAYERS_BY_TYPE: Record<string, number> = {
   ball_machine: 0,
 }
 
-const HOURS = Array.from({ length: 12 }, (_, i) => i + 8) // 8am–7pm (last slot ends by 8pm)
+// 24 half-hour slots: 8:00, 8:30, 9:00 … 7:30 PM
+const HOURS = Array.from({ length: 24 }, (_, i) => i * 0.5 + 8)
 const DURATIONS = [{ label: '1 hr', hours: 1 }, { label: '1½ hr', hours: 1.5 }]
 
-function fmt12(hour: number) {
-  const h = hour % 12 || 12
-  return `${h}:00 ${hour < 12 ? 'AM' : 'PM'}`
+function fmt12(slot: number) {
+  const h = Math.floor(slot) % 12 || 12
+  const m = slot % 1 === 0.5 ? '30' : '00'
+  return `${h}:${m} ${Math.floor(slot) < 12 ? 'AM' : 'PM'}`
+}
+
+function slotToDate(dateStr: string, slot: number): Date {
+  const h = Math.floor(slot)
+  const m = slot % 1 === 0.5 ? '30' : '00'
+  return new Date(`${dateStr}T${String(h).padStart(2, '0')}:${m}:00`)
 }
 
 function localDateStr(d: Date) {
@@ -239,19 +247,20 @@ export default function Bookings() {
     await refreshRoster(bookingId)
   }
 
-  const getBooking = (courtId: number, hour: number): Booking | null => {
+  const getBooking = (courtId: number, slot: number): Booking | null => {
     return bookings.find(b => {
       if (b.court_id !== courtId) return false
       const start = new Date(b.start_time)
       const end = new Date(b.end_time)
-      const slotStart = new Date(`${date}T${String(hour).padStart(2, '0')}:00:00`)
-      const slotEnd = new Date(`${date}T${String(hour + 1).padStart(2, '0')}:00:00`)
+      const slotStart = slotToDate(date, slot)
+      const slotEnd = new Date(slotStart.getTime() + 30 * 60 * 1000)
       return start < slotEnd && end > slotStart
     }) ?? null
   }
 
-  const isFirstHour = (b: Booking, hour: number): boolean => {
-    return new Date(b.start_time).getHours() === hour
+  const isFirstSlot = (b: Booking, slot: number): boolean => {
+    const s = new Date(b.start_time)
+    return s.getHours() === Math.floor(slot) && s.getMinutes() === (slot % 1 === 0.5 ? 30 : 0)
   }
 
   const handleSlotClick = (courtId: number, hour: number, courtName: string) => {
@@ -275,7 +284,7 @@ export default function Bookings() {
     setLoading(true)
     setError('')
     try {
-      const start = new Date(`${date}T${String(selected.hour).padStart(2, '0')}:00:00`)
+      const start = slotToDate(date, selected.hour)
       const end = new Date(start.getTime() + duration * 60 * 60 * 1000)
       const booked = await api.bookings.create({
         court_id: selected.courtId,
@@ -378,10 +387,7 @@ export default function Bookings() {
     }
   }
 
-  const isPast = (hour: number) => {
-    const slotTime = new Date(`${date}T${String(hour).padStart(2, '0')}:00:00`)
-    return slotTime < new Date()
-  }
+  const isPast = (slot: number) => slotToDate(date, slot) < new Date()
 
   return (
     <div>
@@ -634,7 +640,7 @@ export default function Bookings() {
 
           {/* Booking panel — Step 2: Confirm */}
           {selected && confirming && (() => {
-            const start = new Date(`${date}T${String(selected.hour).padStart(2, '0')}:00:00`)
+            const start = slotToDate(date, selected.hour)
             const end = new Date(start.getTime() + duration * 60 * 60 * 1000)
             const invitedFriends = friends.filter(f => selectedFriends.includes(f.id))
             return (
@@ -1089,19 +1095,19 @@ export default function Bookings() {
                 </tr>
               </thead>
               <tbody>
-                {HOURS.map(hour => (
-                  <tr key={hour} className="border-b border-gray-50 last:border-0">
-                    <td className="py-2 px-3 text-xs text-gray-400 font-medium whitespace-nowrap align-top pt-3">
-                      {fmt12(hour)}
+                {HOURS.map(slot => (
+                  <tr key={slot} className={`border-b last:border-0 ${slot % 1 === 0 ? 'border-gray-100' : 'border-gray-50'}`}>
+                    <td className={`px-3 text-xs text-gray-400 font-medium whitespace-nowrap align-middle ${slot % 1 === 0 ? 'py-1.5' : 'py-0.5 text-gray-300'}`}>
+                      {fmt12(slot)}
                     </td>
                     {courts.map(c => {
-                      const booking = getBooking(c.id, hour)
+                      const booking = getBooking(c.id, slot)
                       const isMe = booking?.user_id === user?.id
-                      const past = isPast(hour)
-                      const isSelectedSlot = selected?.courtId === c.id && selected?.hour === hour
+                      const past = isPast(slot)
+                      const isSelectedSlot = selected?.courtId === c.id && selected?.hour === slot
 
                       if (booking) {
-                        const showDetails = isFirstHour(booking, hour)
+                        const showDetails = isFirstSlot(booking, slot)
                         const isBallMachine = booking.match_type === 'ball_machine'
                         const bStart = new Date(booking.start_time)
                         const bEnd = new Date(booking.end_time)
@@ -1161,11 +1167,11 @@ export default function Bookings() {
                       }
 
                       return (
-                        <td key={c.id} className="px-2 py-1 align-top">
+                        <td key={c.id} className="px-2 py-0.5 align-top">
                           <button
-                            onClick={() => !past && handleSlotClick(c.id, hour, c.name)}
+                            onClick={() => !past && handleSlotClick(c.id, slot, c.name)}
                             disabled={past}
-                            className={`w-full h-14 rounded-lg border transition text-xs font-medium
+                            className={`w-full h-8 rounded border transition text-xs font-medium
                               ${past ? 'bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed' :
                                 isSelectedSlot ? 'bg-green-100 border-green-400 text-green-700 ring-2 ring-green-400' :
                                 'bg-white border-gray-200 text-gray-400 hover:bg-green-50 hover:border-green-300 hover:text-green-700 cursor-pointer'
@@ -1482,7 +1488,7 @@ const TUTORIAL_STEPS = [
   {
     icon: '🟩',
     title: 'Choose an Open Slot',
-    body: 'The grid shows every court across the top and hours down the side (8 AM – 8 PM). White cells are available — click one to start a booking. Gray cells are in the past. Green cells are already taken.',
+    body: 'The grid shows every court across the top and 30-minute slots down the side (8:00 AM – 7:30 PM). White cells are available — click one to start a booking. Gray cells are in the past. Green cells are already taken.',
   },
   {
     icon: '⏱',
