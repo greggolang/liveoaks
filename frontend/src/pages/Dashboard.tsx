@@ -11,14 +11,24 @@ interface Booking {
 }
 interface Court { id: number; name: string; number: number; has_ball_machine?: boolean }
 type SubmitState = 'idle' | 'sending' | 'done' | 'error'
-type FeedbackType = 'idea' | 'bug'
 
 interface Announcement {
   id: string; title: string; body: string; created_at: string
   author: { first_name: string; last_name: string }
 }
 
-const HOURS = Array.from({ length: 10 }, (_, i) => i + 8) // 8am–5pm (last slot ends by 6pm)
+const HOURS = Array.from({ length: 10 }, (_, i) => i + 8)
+
+function readKey(userId: string) { return `news_read_${userId}` }
+
+function loadRead(userId: string): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem(readKey(userId)) || '[]')) }
+  catch { return new Set() }
+}
+
+function saveRead(userId: string, ids: Set<string>) {
+  localStorage.setItem(readKey(userId), JSON.stringify([...ids]))
+}
 
 export default function Dashboard() {
   const { user } = useAuth()
@@ -30,15 +40,29 @@ export default function Dashboard() {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [courts, setCourts] = useState<Court[]>([])
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
+  const [readIds, setReadIds] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    if (user?.id) setReadIds(loadRead(user.id))
+  }, [user?.id])
 
   useEffect(() => {
     api.courts.list().then(d => setCourts(d as Court[]))
-    api.announcements.list().then(d => setAnnouncements((d as Announcement[]).slice(0, 3)))
+    api.announcements.list().then(d => setAnnouncements(d as Announcement[]))
   }, [])
 
   useEffect(() => {
     api.bookings.list(date).then(d => setBookings(d as Booking[]))
   }, [date])
+
+  const markRead = (id: string) => {
+    if (!user?.id) return
+    const next = new Set(readIds).add(id)
+    setReadIds(next)
+    saveRead(user.id, next)
+  }
+
+  const unread = announcements.filter(a => !readIds.has(a.id))
 
   const getBooking = (courtId: number, hour: number) =>
     bookings.find(b => {
@@ -54,7 +78,52 @@ export default function Dashboard() {
         <h1 className="text-2xl font-bold text-gray-800">
           Welcome back, {user?.first_name}!
         </h1>
-        <p className="text-gray-500 text-sm mt-0.5">Here's today's court availability.</p>
+        <p className="text-gray-500 text-sm mt-0.5">Here's what's happening at the club.</p>
+      </div>
+
+      {/* Latest News */}
+      {unread.length > 0 && (
+        <div>
+          <h2 className="text-lg font-semibold text-gray-700 mb-3">Latest News</h2>
+          <div className="space-y-3">
+            {unread.map(a => (
+              <div key={a.id} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm flex gap-4 items-start">
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-gray-800">{a.title}</h3>
+                  <p className="text-gray-600 text-sm mt-1">{a.body}</p>
+                  <p className="text-gray-400 text-xs mt-2">
+                    {a.author.first_name} {a.author.last_name} · {new Date(a.created_at).toLocaleDateString()}
+                  </p>
+                </div>
+                <button
+                  onClick={() => markRead(a.id)}
+                  title="Mark as read"
+                  className="shrink-0 text-gray-300 hover:text-gray-500 transition mt-0.5"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Quick links */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { to: '/bookings',  emoji: '🎾', label: 'Book a Court' },
+          { to: '/pro-shop',  emoji: '🛍️', label: 'Pro Shop' },
+          { to: '/events',    emoji: '📅', label: 'Events' },
+          { to: '/directory', emoji: '👥', label: 'Directory' },
+        ].map(({ to, emoji, label }) => (
+          <Link key={to} to={to}
+            className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col items-center gap-2 hover:border-green-300 hover:shadow-md transition text-center">
+            <span className="text-2xl">{emoji}</span>
+            <span className="text-sm font-medium text-gray-700">{label}</span>
+          </Link>
+        ))}
       </div>
 
       {/* Court availability */}
@@ -127,7 +196,6 @@ export default function Dashboard() {
 
       {/* Feedback row */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Site idea */}
         <FeedbackBox
           title="Got an idea for the site?"
           placeholder="Describe your idea or request…"
@@ -143,7 +211,6 @@ export default function Dashboard() {
           onReset={() => { setIdeaState('idle'); setIdea('') }}
           doneMessage="Thanks — your idea was sent!"
         />
-        {/* Bug report */}
         <FeedbackBox
           title="Found a bug?"
           placeholder="Describe what happened and how to reproduce it…"
@@ -160,24 +227,6 @@ export default function Dashboard() {
           doneMessage="Bug reported — thanks!"
         />
       </div>
-
-      {/* Latest announcements */}
-      {announcements.length > 0 && (
-        <div>
-          <h2 className="text-lg font-semibold text-gray-700 mb-3">Latest News</h2>
-          <div className="space-y-3">
-            {announcements.map(a => (
-              <div key={a.id} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-                <h3 className="font-semibold text-gray-800">{a.title}</h3>
-                <p className="text-gray-600 text-sm mt-1 line-clamp-2">{a.body}</p>
-                <p className="text-gray-400 text-xs mt-2">
-                  {a.author.first_name} {a.author.last_name} · {new Date(a.created_at).toLocaleDateString()}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   )
 }
