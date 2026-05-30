@@ -17,7 +17,7 @@ interface Announcement {
   author: { first_name: string; last_name: string }
 }
 
-const HOURS = Array.from({ length: 10 }, (_, i) => i + 8)
+const HOURS = Array.from({ length: 12 }, (_, i) => i + 8) // 8am–7pm
 
 function readKey(userId: string) { return `news_read_${userId}` }
 

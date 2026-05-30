@@ -85,8 +85,8 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 	if localStart.Hour() < 8 {
 		return echo.NewHTTPError(http.StatusBadRequest, "bookings cannot start before 8:00 AM")
 	}
-	if localEnd.Hour() > 18 || (localEnd.Hour() == 18 && localEnd.Minute() > 0) {
-		return echo.NewHTTPError(http.StatusBadRequest, "bookings must end by 6:00 PM")
+	if localEnd.Hour() > 20 || (localEnd.Hour() == 20 && localEnd.Minute() > 0) {
+		return echo.NewHTTPError(http.StatusBadRequest, "bookings must end by 8:00 PM")
 	}
 
 	if req.MatchType == "" {

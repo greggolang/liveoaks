@@ -25,7 +25,7 @@ const MATCH_TYPES = [
   { value: 'ball_machine', label: 'Ball Machine',       players: [0], ballMachineOnly: true },
 ]
 
-const HOURS = Array.from({ length: 10 }, (_, i) => i + 8) // 8am–5pm (last slot ends by 6pm)
+const HOURS = Array.from({ length: 12 }, (_, i) => i + 8) // 8am–7pm (last slot ends by 8pm)
 const DURATIONS = [{ label: '1 hr', hours: 1 }, { label: '1½ hr', hours: 1.5 }]
 
 function fmt12(hour: number) {
