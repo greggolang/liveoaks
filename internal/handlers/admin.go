@@ -45,6 +45,17 @@ func (h *AdminHandler) ActivityLog(c echo.Context) error {
 	return c.JSON(http.StatusOK, entries)
 }
 
+// GetSessionConfig is a public endpoint — returns only the session timeout setting.
+func (h *AdminHandler) GetSessionConfig(c echo.Context) error {
+	var minutes string
+	h.DB.QueryRow(c.Request().Context(),
+		`SELECT value FROM settings WHERE key = 'session_timeout_minutes'`).Scan(&minutes)
+	if minutes == "" {
+		minutes = "60"
+	}
+	return c.JSON(http.StatusOK, map[string]string{"session_timeout_minutes": minutes})
+}
+
 func (h *AdminHandler) GetSettings(c echo.Context) error {
 	rows, err := h.DB.Query(c.Request().Context(),
 		`SELECT key, value FROM settings ORDER BY key`)

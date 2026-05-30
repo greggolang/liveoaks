@@ -90,6 +90,7 @@ func main() {
 	api := e.Group("/api")
 
 	// Public
+	api.GET("/session-config", admin.GetSessionConfig)
 	api.POST("/auth/register", auth.Register)
 	api.POST("/auth/login", auth.Login)
 	api.POST("/auth/forgot-password", auth.ForgotPassword)

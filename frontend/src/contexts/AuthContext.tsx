@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react'
 import { api } from '../api/client'
 
 const BOARD_ROLES = ['admin', 'president', 'vice_president', 'secretary', 'treasurer', 'entertainment', 'house_grounds']
@@ -26,13 +26,43 @@ const AuthContext = createContext<AuthContextType>(null!)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+  const [sessionTimeoutMinutes, setSessionTimeoutMinutes] = useState(60)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Load current user and session config on mount
   useEffect(() => {
-    api.auth.me()
-      .then((u) => setUser(u as User))
-      .catch(() => setUser(null))
-      .finally(() => setLoading(false))
+    Promise.all([
+      api.auth.me().then((u) => setUser(u as User)).catch(() => setUser(null)),
+      fetch('/api/session-config')
+        .then(r => r.json())
+        .then(d => setSessionTimeoutMinutes(parseInt(d.session_timeout_minutes) || 60))
+        .catch(() => {}),
+    ]).finally(() => setLoading(false))
   }, [])
+
+  // Idle auto-logout — never fires for admin role
+  useEffect(() => {
+    if (!user || user.role === 'admin' || sessionTimeoutMinutes <= 0) return
+
+    const ms = sessionTimeoutMinutes * 60 * 1000
+
+    const resetTimer = () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+      timerRef.current = setTimeout(async () => {
+        try { await api.auth.logout() } catch {}
+        setUser(null)
+      }, ms)
+    }
+
+    const events = ['mousemove', 'keydown', 'click', 'touchstart', 'scroll']
+    events.forEach(e => window.addEventListener(e, resetTimer, { passive: true }))
+    resetTimer()
+
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+      events.forEach(e => window.removeEventListener(e, resetTimer))
+    }
+  }, [user?.id, user?.role, sessionTimeoutMinutes])
 
   const login = async (email: string, password: string) => {
     const u = await api.auth.login(email, password) as User
@@ -40,6 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const logout = async () => {
+    if (timerRef.current) clearTimeout(timerRef.current)
     await api.auth.logout()
     setUser(null)
   }
