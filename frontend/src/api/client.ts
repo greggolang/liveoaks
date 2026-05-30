@@ -69,7 +69,8 @@ export const api = {
   members: { directory: () => request('/members/directory') },
   friends: {
     list: () => request('/friends'),
-    searchMembers: (q: string) => request(`/friends/search?q=${encodeURIComponent(q)}`),
+    searchMembers: (q: string, ustaRanking?: string) =>
+      request(`/friends/search?q=${encodeURIComponent(q)}${ustaRanking ? `&usta_ranking=${encodeURIComponent(ustaRanking)}` : ''}`),
     addMember: (friendUserId: string) => request('/friends/member', { method: 'POST', body: JSON.stringify({ friend_user_id: friendUserId }) }),
     addGuest: (data: object) => request('/friends/guest', { method: 'POST', body: JSON.stringify(data) }),
     remove: (id: string) => request(`/friends/${id}`, { method: 'DELETE' }),

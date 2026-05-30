@@ -13,14 +13,15 @@ type MembersHandler struct {
 }
 
 type MemberContact struct {
-	ID        string    `json:"id"`
-	FirstName string    `json:"first_name"`
-	LastName  string    `json:"last_name"`
-	Email     string    `json:"email"`
-	Phone     *string   `json:"phone,omitempty"`
-	Address   *string   `json:"address,omitempty"`
-	Family    *string   `json:"family,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
+	ID          string    `json:"id"`
+	FirstName   string    `json:"first_name"`
+	LastName    string    `json:"last_name"`
+	Email       string    `json:"email"`
+	Phone       *string   `json:"phone,omitempty"`
+	Address     *string   `json:"address,omitempty"`
+	Family      *string   `json:"family,omitempty"`
+	USTARanking *string   `json:"usta_ranking,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 func (h *MembersHandler) Directory(c echo.Context) error {
@@ -33,10 +34,10 @@ func (h *MembersHandler) Directory(c echo.Context) error {
 
 	var query string
 	if isBoard {
-		query = `SELECT id, first_name, last_name, email, phone, address, family, created_at
+		query = `SELECT id, first_name, last_name, email, phone, address, family, usta_ranking, created_at
 		         FROM users WHERE status = 'active' ORDER BY last_name, first_name`
 	} else {
-		query = `SELECT id, first_name, last_name, email, NULL, NULL, family, created_at
+		query = `SELECT id, first_name, last_name, email, NULL, NULL, family, usta_ranking, created_at
 		         FROM users WHERE status = 'active' ORDER BY last_name, first_name`
 	}
 
@@ -49,7 +50,7 @@ func (h *MembersHandler) Directory(c echo.Context) error {
 	members := []MemberContact{}
 	for rows.Next() {
 		var m MemberContact
-		if err := rows.Scan(&m.ID, &m.FirstName, &m.LastName, &m.Email, &m.Phone, &m.Address, &m.Family, &m.CreatedAt); err != nil {
+		if err := rows.Scan(&m.ID, &m.FirstName, &m.LastName, &m.Email, &m.Phone, &m.Address, &m.Family, &m.USTARanking, &m.CreatedAt); err != nil {
 			continue
 		}
 		members = append(members, m)

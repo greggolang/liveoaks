@@ -2,9 +2,12 @@ import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 
+const USTA_RATINGS = ['NR', '2.0', '2.5', '3.0', '3.5', '4.0', '4.5', '5.0', '5.5+']
+
 interface UserProfile {
   first_name: string; last_name: string; email: string
   phone?: string; address?: string; role: string; status: string
+  usta_ranking?: string
 }
 
 interface FamilyMember {
@@ -27,7 +30,7 @@ const emptyMember = { first_name: '', last_name: '', relationship: 'spouse', pho
 export default function Profile() {
   const { user } = useAuth()
   const [profile, setProfile] = useState<UserProfile | null>(null)
-  const [form, setForm] = useState({ first_name: '', last_name: '', phone: '', address: '' })
+  const [form, setForm] = useState({ first_name: '', last_name: '', phone: '', address: '', usta_ranking: '' })
   const [pwForm, setPwForm] = useState({ current: '', new: '', confirm: '' })
   const [saving, setSaving] = useState(false)
   const [savingPw, setSavingPw] = useState(false)
@@ -46,7 +49,7 @@ export default function Profile() {
     api.auth.me().then(d => {
       const p = d as UserProfile
       setProfile(p)
-      setForm({ first_name: p.first_name, last_name: p.last_name, phone: p.phone ?? '', address: p.address ?? '' })
+      setForm({ first_name: p.first_name, last_name: p.last_name, phone: p.phone ?? '', address: p.address ?? '', usta_ranking: p.usta_ranking ?? '' })
     })
     api.family.list().then(d => setFamilyMembers(d as FamilyMember[]))
   }, [])
@@ -163,6 +166,15 @@ export default function Profile() {
           <input value={form.address} onChange={set('address')}
             placeholder="123 Main St, South Pasadena CA 91030"
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">USTA Rating (NTRP)</label>
+          <select value={form.usta_ranking} onChange={e => setForm(f => ({ ...f, usta_ranking: e.target.value }))}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white">
+            <option value="">Not set</option>
+            {USTA_RATINGS.map(r => <option key={r} value={r}>{r}</option>)}
+          </select>
+          <p className="text-xs text-gray-400 mt-1">Your NTRP self-rating, used when searching for match partners.</p>
         </div>
         <div className="flex items-center gap-4">
           <button type="submit" disabled={saving}

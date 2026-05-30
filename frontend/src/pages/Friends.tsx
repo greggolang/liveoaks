@@ -11,7 +11,9 @@ interface GroupMember {
 interface FriendGroup {
   id: string; name: string; members: GroupMember[]
 }
-interface MemberResult { id: string; first_name: string; last_name: string; email: string }
+interface MemberResult { id: string; first_name: string; last_name: string; email: string; usta_ranking?: string }
+
+const USTA_RATINGS = ['NR', '2.0', '2.5', '3.0', '3.5', '4.0', '4.5', '5.0', '5.5+']
 
 export default function Friends() {
   const [friends, setFriends] = useState<Friend[]>([])
@@ -21,6 +23,7 @@ export default function Friends() {
   const [showGuestForm, setShowGuestForm] = useState(false)
   const [guestForm, setGuestForm] = useState({ friend_name: '', friend_email: '' })
   const [searching, setSearching] = useState(false)
+  const [ustaFilter, setUstaFilter] = useState('')
 
   // Group state
   const [showNewGroup, setShowNewGroup] = useState(false)
@@ -34,17 +37,17 @@ export default function Friends() {
 
   useEffect(() => { loadFriends(); loadGroups() }, [])
 
-  const doSearch = useCallback(async (q: string) => {
-    if (q.length < 2) { setResults([]); return }
+  const doSearch = useCallback(async (q: string, usta: string) => {
+    if (q.length < 2 && !usta) { setResults([]); return }
     setSearching(true)
-    try { setResults(await api.friends.searchMembers(q) as MemberResult[]) }
+    try { setResults(await api.friends.searchMembers(q, usta || undefined) as MemberResult[]) }
     finally { setSearching(false) }
   }, [])
 
   useEffect(() => {
-    const t = setTimeout(() => doSearch(search), 300)
+    const t = setTimeout(() => doSearch(search, ustaFilter), 300)
     return () => clearTimeout(t)
-  }, [search, doSearch])
+  }, [search, ustaFilter, doSearch])
 
   const addMember = async (id: string) => {
     await api.friends.addMember(id)
@@ -109,18 +112,32 @@ export default function Friends() {
       {/* Search members */}
       <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
         <h2 className="font-semibold text-gray-700 mb-3">Add a Club Member</h2>
-        <div className="relative">
-          <input value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Search by name or email…"
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
-          {searching && <span className="absolute right-3 top-2.5 text-xs text-gray-400">Searching…</span>}
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <input value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Search by name or email…"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+            {searching && <span className="absolute right-3 top-2.5 text-xs text-gray-400">Searching…</span>}
+          </div>
+          <select value={ustaFilter} onChange={e => setUstaFilter(e.target.value)}
+            className="border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white text-gray-600">
+            <option value="">Any USTA</option>
+            {USTA_RATINGS.map(r => <option key={r} value={r}>{r}</option>)}
+          </select>
         </div>
         {results.length > 0 && (
           <div className="mt-2 border border-gray-200 rounded-lg divide-y divide-gray-100">
             {results.map(m => (
               <div key={m.id} className="flex justify-between items-center px-3 py-2">
                 <div>
-                  <div className="text-sm font-medium text-gray-800">{m.first_name} {m.last_name}</div>
+                  <div className="text-sm font-medium text-gray-800 flex items-center gap-2">
+                    {m.first_name} {m.last_name}
+                    {m.usta_ranking && (
+                      <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">
+                        {m.usta_ranking}
+                      </span>
+                    )}
+                  </div>
                   <div className="text-xs text-gray-400">{m.email}</div>
                 </div>
                 {alreadyFriend(m.id) ? (

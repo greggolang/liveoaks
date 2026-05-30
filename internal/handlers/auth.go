@@ -144,9 +144,9 @@ func (h *AuthHandler) Me(c echo.Context) error {
 	var user models.User
 	var role, status string
 	err := h.DB.QueryRow(c.Request().Context(),
-		`SELECT id, first_name, last_name, email, role::text, status::text, phone, address, family, created_at FROM users WHERE id = $1`,
+		`SELECT id, first_name, last_name, email, role::text, status::text, phone, address, family, usta_ranking, created_at FROM users WHERE id = $1`,
 		userID,
-	).Scan(&user.ID, &user.FirstName, &user.LastName, &user.Email, &role, &status, &user.Phone, &user.Address, &user.Family, &user.CreatedAt)
+	).Scan(&user.ID, &user.FirstName, &user.LastName, &user.Email, &role, &status, &user.Phone, &user.Address, &user.Family, &user.USTARanking, &user.CreatedAt)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "user not found")
 	}

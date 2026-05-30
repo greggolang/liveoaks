@@ -112,30 +112,52 @@ func (h *FriendsHandler) Remove(c echo.Context) error {
 func (h *FriendsHandler) SearchMembers(c echo.Context) error {
 	q := "%" + c.QueryParam("q") + "%"
 	memberID := c.Get("user_id").(string)
+	ustaFilter := c.QueryParam("usta_ranking") // optional — exact match
 
-	rows, err := h.DB.Query(c.Request().Context(), `
-		SELECT id, first_name, last_name, email
-		FROM users
-		WHERE status = 'active'
-		  AND id != $1
-		  AND (first_name || ' ' || last_name ILIKE $2 OR email ILIKE $2)
-		ORDER BY last_name, first_name
-		LIMIT 10`, memberID, q)
+	type Result struct {
+		ID          string  `json:"id"`
+		FirstName   string  `json:"first_name"`
+		LastName    string  `json:"last_name"`
+		Email       string  `json:"email"`
+		USTARanking *string `json:"usta_ranking,omitempty"`
+	}
+
+	var rows interface {
+		Next() bool
+		Close()
+		Scan(...interface{}) error
+	}
+	var err error
+
+	if ustaFilter != "" {
+		rows, err = h.DB.Query(c.Request().Context(), `
+			SELECT id, first_name, last_name, email, usta_ranking
+			FROM users
+			WHERE status = 'active'
+			  AND id != $1
+			  AND (first_name || ' ' || last_name ILIKE $2 OR email ILIKE $2)
+			  AND usta_ranking = $3
+			ORDER BY last_name, first_name
+			LIMIT 20`, memberID, q, ustaFilter)
+	} else {
+		rows, err = h.DB.Query(c.Request().Context(), `
+			SELECT id, first_name, last_name, email, usta_ranking
+			FROM users
+			WHERE status = 'active'
+			  AND id != $1
+			  AND (first_name || ' ' || last_name ILIKE $2 OR email ILIKE $2)
+			ORDER BY last_name, first_name
+			LIMIT 20`, memberID, q)
+	}
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "search failed")
 	}
 	defer rows.Close()
 
-	type Result struct {
-		ID        string `json:"id"`
-		FirstName string `json:"first_name"`
-		LastName  string `json:"last_name"`
-		Email     string `json:"email"`
-	}
 	results := []Result{}
 	for rows.Next() {
 		var r Result
-		if err := rows.Scan(&r.ID, &r.FirstName, &r.LastName, &r.Email); err != nil {
+		if err := rows.Scan(&r.ID, &r.FirstName, &r.LastName, &r.Email, &r.USTARanking); err != nil {
 			continue
 		}
 		results = append(results, r)

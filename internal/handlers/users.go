@@ -24,7 +24,7 @@ type UsersHandler struct {
 
 func (h *UsersHandler) List(c echo.Context) error {
 	rows, err := h.DB.Query(c.Request().Context(),
-		`SELECT id, first_name, last_name, email, role::text, status::text, phone, address, family, created_at FROM users ORDER BY last_name, first_name`)
+		`SELECT id, first_name, last_name, email, role::text, status::text, phone, address, family, usta_ranking, created_at FROM users ORDER BY last_name, first_name`)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch users")
 	}
@@ -34,7 +34,7 @@ func (h *UsersHandler) List(c echo.Context) error {
 	for rows.Next() {
 		var u models.User
 		var role, status string
-		if err := rows.Scan(&u.ID, &u.FirstName, &u.LastName, &u.Email, &role, &status, &u.Phone, &u.Address, &u.Family, &u.CreatedAt); err != nil {
+		if err := rows.Scan(&u.ID, &u.FirstName, &u.LastName, &u.Email, &role, &status, &u.Phone, &u.Address, &u.Family, &u.USTARanking, &u.CreatedAt); err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "could not scan user")
 		}
 		u.Role = models.Role(role)
@@ -47,20 +47,21 @@ func (h *UsersHandler) List(c echo.Context) error {
 func (h *UsersHandler) UpdateProfile(c echo.Context) error {
 	id := c.Param("id")
 	var req struct {
-		FirstName string `json:"first_name"`
-		LastName  string `json:"last_name"`
-		Email     string `json:"email"`
-		Phone     string `json:"phone"`
-		Address   string `json:"address"`
-		Family    string `json:"family"`
+		FirstName   string `json:"first_name"`
+		LastName    string `json:"last_name"`
+		Email       string `json:"email"`
+		Phone       string `json:"phone"`
+		Address     string `json:"address"`
+		Family      string `json:"family"`
+		USTARanking string `json:"usta_ranking"`
 	}
 	if err := c.Bind(&req); err != nil || req.FirstName == "" || req.LastName == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "first and last name required")
 	}
 	_, err := h.DB.Exec(c.Request().Context(),
 		`UPDATE users SET first_name=$1, last_name=$2, email=$3, phone=NULLIF($4,''),
-		 address=NULLIF($5,''), family=NULLIF($6,''), updated_at=NOW() WHERE id=$7`,
-		req.FirstName, req.LastName, req.Email, req.Phone, req.Address, req.Family, id)
+		 address=NULLIF($5,''), family=NULLIF($6,''), usta_ranking=NULLIF($7,''), updated_at=NOW() WHERE id=$8`,
+		req.FirstName, req.LastName, req.Email, req.Phone, req.Address, req.Family, req.USTARanking, id)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not update profile")
 	}
