@@ -136,13 +136,18 @@ export default function Bookings() {
     api.members.directory().then(d => setDirectory((d as any[]).map(m => ({ id: m.id, first_name: m.first_name, last_name: m.last_name, email: m.email }))))
   }, [])
 
-  useEffect(() => { load() }, [load])
-
-  // Auto-load roster when the user opens their own booking in the grid detail panel
   useEffect(() => {
-    if (bookingDetail && bookingDetail.user_id === user?.id) {
-      refreshRoster(bookingDetail.id)
-    }
+    load()
+    const interval = setInterval(load, 30000)
+    return () => clearInterval(interval)
+  }, [load])
+
+  // Auto-load and keep refreshing the roster when a booking detail is open
+  useEffect(() => {
+    if (!bookingDetail || bookingDetail.user_id !== user?.id) return
+    refreshRoster(bookingDetail.id)
+    const interval = setInterval(() => refreshRoster(bookingDetail.id), 15000)
+    return () => clearInterval(interval)
   }, [bookingDetail?.id])
 
   useEffect(() => {
@@ -157,11 +162,12 @@ export default function Bookings() {
     )
   }, [bookingSearchQuery, bookingSearchMode, directory, user?.id])
   useEffect(() => {
-    if (tab === 'mine') {
-      loadMine()
-      api.friends.list().then(d => setFriends(d as Friend[]))
-      api.groups.list().then(d => setFriendGroups(d as FriendGroup[]))
-    }
+    if (tab !== 'mine') return
+    loadMine()
+    api.friends.list().then(d => setFriends(d as Friend[]))
+    api.groups.list().then(d => setFriendGroups(d as FriendGroup[]))
+    const interval = setInterval(loadMine, 20000)
+    return () => clearInterval(interval)
   }, [tab])
 
   // Load rosters for my bookings whenever the grid booking list changes
