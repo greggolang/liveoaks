@@ -12,7 +12,7 @@ interface User {
 const emptyEdit = { first_name: '', last_name: '', email: '', phone: '', address: '', family: '', usta_ranking: '' }
 const RELATIONSHIPS = ['spouse', 'child', 'parent', 'sibling', 'other']
 
-interface FamilyMember { id: string; first_name: string; last_name: string; relationship: string; phone?: string; email?: string }
+interface FamilyMember { id: string; first_name: string; last_name: string; relationship: string; phone?: string; email?: string; birthday?: string }
 
 export default function AdminUsers() {
   const [users, setUsers] = useState<User[]>([])
@@ -24,7 +24,7 @@ export default function AdminUsers() {
   const [saving, setSaving] = useState(false)
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([])
   const [showFamilyForm, setShowFamilyForm] = useState(false)
-  const [familyForm, setFamilyForm] = useState({ first_name: '', last_name: '', relationship: 'spouse' })
+  const [familyForm, setFamilyForm] = useState({ first_name: '', last_name: '', relationship: 'spouse', birthday: '' })
   const [savingFamily, setSavingFamily] = useState(false)
 
   const load = () => api.admin.users().then(d => setUsers(d as User[]))
@@ -36,7 +36,7 @@ export default function AdminUsers() {
       phone: u.phone ?? '', address: u.address ?? '', family: u.family ?? '', usta_ranking: u.usta_ranking ?? '' })
     setFamilyMembers([])
     setShowFamilyForm(false)
-    setFamilyForm({ first_name: '', last_name: '', relationship: 'spouse' })
+    setFamilyForm({ first_name: '', last_name: '', relationship: 'spouse', birthday: '' })
     loadFamily(u.id)
   }
 
@@ -46,7 +46,7 @@ export default function AdminUsers() {
     setSavingFamily(true)
     try {
       await api.family.adminCreate(editing.id, familyForm)
-      setFamilyForm({ first_name: '', last_name: '', relationship: 'spouse' })
+      setFamilyForm({ first_name: '', last_name: '', relationship: 'spouse', birthday: '' })
       setShowFamilyForm(false)
       loadFamily(editing.id)
     } finally { setSavingFamily(false) }
@@ -324,6 +324,7 @@ export default function AdminUsers() {
                     <div key={m.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-1.5 text-sm">
                       <span className="text-gray-800 font-medium">{m.first_name} {m.last_name}
                         <span className="ml-2 text-xs font-normal text-gray-400 capitalize">{m.relationship}</span>
+                        {m.birthday && <span className="ml-2 text-xs font-normal text-gray-400">b. {m.birthday}</span>}
                       </span>
                       <button type="button" onClick={() => removeFamilyMember(m.id)}
                         className="text-xs text-red-400 hover:text-red-600 transition">Remove</button>
@@ -346,6 +347,9 @@ export default function AdminUsers() {
                     className="border border-gray-300 rounded px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500">
                     {RELATIONSHIPS.map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
+                  <input type="date" value={familyForm.birthday} onChange={e => setFamilyForm(f => ({ ...f, birthday: e.target.value }))}
+                    title="Birthday"
+                    className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-green-500" />
                   <button type="submit" disabled={savingFamily}
                     className="text-xs bg-green-700 text-white px-2 py-1 rounded hover:bg-green-800 transition disabled:opacity-50">
                     {savingFamily ? 'Adding…' : 'Add'}

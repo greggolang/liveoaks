@@ -14,7 +14,7 @@ interface FamilyMember {
   id: string
   first_name: string; last_name: string
   relationship: string
-  phone?: string; email?: string; notes?: string
+  phone?: string; email?: string; notes?: string; birthday?: string
 }
 
 const RELATIONSHIPS = [
@@ -25,7 +25,7 @@ const RELATIONSHIPS = [
   { value: 'other',    label: 'Other' },
 ]
 
-const emptyMember = { first_name: '', last_name: '', relationship: 'spouse', phone: '', email: '', notes: '' }
+const emptyMember = { first_name: '', last_name: '', relationship: 'spouse', phone: '', email: '', notes: '', birthday: '' }
 
 export default function Profile() {
   const { user } = useAuth()
@@ -99,7 +99,7 @@ export default function Profile() {
     setMemberForm({
       first_name: m.first_name, last_name: m.last_name,
       relationship: m.relationship,
-      phone: m.phone ?? '', email: m.email ?? '', notes: m.notes ?? '',
+      phone: m.phone ?? '', email: m.email ?? '', notes: m.notes ?? '', birthday: m.birthday ?? '',
     })
     setShowFamilyForm(true)
   }
@@ -257,6 +257,11 @@ export default function Profile() {
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white">
                   {RELATIONSHIPS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
                 </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Birthday</label>
+                <input type="date" value={memberForm.birthday} onChange={setMf('birthday')}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>

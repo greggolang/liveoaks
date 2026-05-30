@@ -16,7 +16,17 @@ interface Friend { id: string; friend_user_id?: string; friend_name: string; fri
 interface GroupMember { friend_id: string; friend_name: string; friend_email?: string; is_guest: boolean }
 interface FriendGroup { id: string; name: string; members: GroupMember[] }
 interface DirectPlayer { name: string; email: string; userId?: string; isGuest: boolean }
-interface FamilyMember { id: string; first_name: string; last_name: string; relationship: string; email?: string }
+interface FamilyMember { id: string; first_name: string; last_name: string; relationship: string; email?: string; birthday?: string }
+
+function familyAge(birthday?: string): number | null {
+  if (!birthday) return null
+  const dob = new Date(birthday)
+  const today = new Date()
+  let age = today.getFullYear() - dob.getFullYear()
+  const m = today.getMonth() - dob.getMonth()
+  if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--
+  return age
+}
 interface MatchPlayer { id: string; player_name: string; player_email?: string; is_guest: boolean; is_host: boolean }
 interface Invitation { id: string; invitee_name: string; invitee_email: string; status: string; is_guest: boolean }
 
@@ -538,8 +548,11 @@ export default function Bookings() {
                             className="ml-0.5 opacity-60 hover:opacity-100">✕</button>
                         </span>
                       ))}
-                      {/* Family members as quick-add */}
-                      {familyMembers.filter(fm => !directPlayers.some(p => p.name === `${fm.first_name} ${fm.last_name}`)).map(fm => (
+                      {/* Family members as quick-add (under-26 only) */}
+                      {familyMembers.filter(fm => {
+                        const age = familyAge(fm.birthday)
+                        return age === null || age < 26
+                      }).filter(fm => !directPlayers.some(p => p.name === `${fm.first_name} ${fm.last_name}`)).map(fm => (
                         spotsLeft > 0 && (
                           <button key={fm.id} type="button"
                             onClick={() => setDirectPlayers(s => [...s, { name: `${fm.first_name} ${fm.last_name}`, email: fm.email ?? '', isGuest: false }])}
@@ -1420,10 +1433,12 @@ export default function Bookings() {
                             if (full) return null
                             return (
                             <div className="flex gap-2 flex-wrap">
-                              {/* Family member quick-add */}
-                              {familyMembers.filter(fm =>
-                                !roster?.players.some(p => p.player_name === `${fm.first_name} ${fm.last_name}`)
-                              ).map(fm => (
+                              {/* Family member quick-add (under-26 only) */}
+                              {familyMembers.filter(fm => {
+                                const age = familyAge(fm.birthday)
+                                return (age === null || age < 26) &&
+                                  !roster?.players.some(p => p.player_name === `${fm.first_name} ${fm.last_name}`)
+                              }).map(fm => (
                                 <button key={fm.id} onClick={async () => {
                                   await api.invitations.addPlayer(b.id, {
                                     player_name: `${fm.first_name} ${fm.last_name}`,
