@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/greggolang/liveoaks/internal/config"
 	"github.com/greggolang/liveoaks/internal/db"
@@ -95,12 +96,29 @@ func main() {
 	adminOnly.GET("/password-resets", admin.PendingResets)
 	adminOnly.GET("/activity-log", admin.ActivityLog)
 
-	// Serve React frontend
+	// Serve React frontend — fall back to index.html for SPA routes
 	distFS, err := fs.Sub(frontendFS, "frontend/dist")
 	if err != nil {
 		log.Fatalf("could not load frontend: %v", err)
 	}
-	e.GET("/*", echo.WrapHandler(http.FileServer(http.FS(distFS))))
+	e.GET("/*", func(c echo.Context) error {
+		req := c.Request()
+		path := req.URL.Path
+		if path == "/" || path == "" {
+			path = "index.html"
+		} else {
+			path = strings.TrimPrefix(path, "/")
+		}
+		f, err := distFS.Open(path)
+		if err != nil {
+			// Not a real file — let React Router handle it
+			req.URL.Path = "/"
+		} else {
+			f.Close()
+		}
+		http.FileServer(http.FS(distFS)).ServeHTTP(c.Response().Writer, req)
+		return nil
+	})
 
 	log.Printf("starting server on :%s", cfg.Port)
 	e.Logger.Fatal(e.Start(":" + cfg.Port))
