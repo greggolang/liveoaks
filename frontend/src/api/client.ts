@@ -254,4 +254,7 @@ export const api = {
       request('/admin/test-email', { method: 'POST', body: JSON.stringify({ to }) }),
     smtpPing: () => request('/admin/smtp-ping'),
   },
+  camera: {
+    embedURL: () => request<{ url: string }>('/camera/embed'),
+  },
 }

@@ -79,6 +79,19 @@ func (h *CameraHandler) Proxy(c echo.Context) error {
 	return nil
 }
 
+// EmbedURL returns the camera page URL (with token if configured) for
+// authenticated members to use in iframes or direct links.
+func (h *CameraHandler) EmbedURL(c echo.Context) error {
+	h.mu.Lock()
+	token := h.CameraToken
+	h.mu.Unlock()
+	u := "/camera"
+	if token != "" {
+		u += "?token=" + token
+	}
+	return c.JSON(http.StatusOK, map[string]string{"url": u})
+}
+
 // CameraStatus returns a human-readable status string (used by admin pages).
 func (h *CameraHandler) CameraStatus() string {
 	h.mu.Lock()

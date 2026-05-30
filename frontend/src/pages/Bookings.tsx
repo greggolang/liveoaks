@@ -20,11 +20,19 @@ interface MatchPlayer { id: string; player_name: string; player_email?: string; 
 interface Invitation { id: string; invitee_name: string; invitee_email: string; status: string; is_guest: boolean }
 
 const MATCH_TYPES = [
-  { value: 'singles',      label: 'Singles',            players: [1] },
-  { value: 'doubles',      label: 'Doubles',            players: [1, 2, 3] },
-  { value: 'casual',       label: 'Hit Session',        players: [0] },
-  { value: 'ball_machine', label: 'Ball Machine',       players: [0], ballMachineOnly: true },
+  { value: 'singles',      label: 'Singles',      ballMachineOnly: false },
+  { value: 'doubles',      label: 'Doubles',      ballMachineOnly: false },
+  { value: 'casual',       label: 'Hit Session',  ballMachineOnly: false },
+  { value: 'ball_machine', label: 'Ball Machine', ballMachineOnly: true  },
 ]
+
+// Fixed roster capacity per match type (excluding the host)
+const PLAYERS_BY_TYPE: Record<string, number> = {
+  casual:       1,
+  singles:      1,
+  doubles:      3,
+  ball_machine: 0,
+}
 
 const HOURS = Array.from({ length: 12 }, (_, i) => i + 8) // 8am–7pm (last slot ends by 8pm)
 const DURATIONS = [{ label: '1 hr', hours: 1 }, { label: '1½ hr', hours: 1.5 }]
@@ -60,7 +68,7 @@ export default function Bookings() {
   const [duration, setDuration] = useState(1.5)
   const [notes, setNotes] = useState('')
   const [matchType, setMatchType] = useState('casual')
-  const [playersNeeded, setPlayersNeeded] = useState(0)
+  const [playersNeeded, setPlayersNeeded] = useState(PLAYERS_BY_TYPE['casual'])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [tab, setTab] = useState<'grid' | 'mine'>('grid')
@@ -304,10 +312,11 @@ export default function Bookings() {
 
   const openEdit = (b: Booking) => {
     const dHours = (new Date(b.end_time).getTime() - new Date(b.start_time).getTime()) / 3600000
+    const mt = b.match_type ?? 'casual'
     setEditForm({
       notes: b.notes ?? '',
-      matchType: b.match_type ?? 'casual',
-      playersNeeded: b.players_needed ?? 0,
+      matchType: mt,
+      playersNeeded: PLAYERS_BY_TYPE[mt] ?? 0,
       duration: dHours <= 1 ? 1 : 1.5,
     })
     setEditError('')
@@ -411,26 +420,15 @@ export default function Bookings() {
                     {d.label}
                   </button>
                 ))}
-                <select value={matchType} onChange={e => { setMatchType(e.target.value); setPlayersNeeded(0); setSelectedFriends([]); setDirectPlayers([]); setBookingSearchMode(null); setBookingSearchQuery(''); setBookingSearchResults([]) }}
+                <select value={matchType} onChange={e => { setMatchType(e.target.value); setPlayersNeeded(PLAYERS_BY_TYPE[e.target.value] ?? 0); setSelectedFriends([]); setDirectPlayers([]); setBookingSearchMode(null); setBookingSearchQuery(''); setBookingSearchResults([]) }}
                   className="border border-green-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white text-green-800">
                   {MATCH_TYPES
                     .filter(m => !m.ballMachineOnly || courts.find(c => c.id === selected.courtId)?.has_ball_machine)
                     .map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
                 </select>
-                {matchType !== 'casual' && matchType !== 'ball_machine' && (
-                  <select value={playersNeeded} onChange={e => { setPlayersNeeded(+e.target.value); setSelectedFriends([]) }}
-                    className="border border-green-200 rounded-lg px-2 py-1 text-sm focus:outline-none bg-white text-green-800">
-                    {MATCH_TYPES.find(m => m.value === matchType)?.players.map(p => (
-                      <option key={p} value={p}>Need {p} player{p !== 1 ? 's' : ''}</option>
-                    ))}
-                  </select>
-                )}
                 {/* ── Player limits (hidden for ball machine — solo only) ── */}
                 {matchType !== 'ball_machine' && (() => {
-                  const maxAdditional =
-                    matchType === 'ball_machine' ? 0
-                    : matchType === 'doubles' && playersNeeded > 0 ? playersNeeded
-                    : 1  // casual or singles
+                  const maxAdditional = PLAYERS_BY_TYPE[matchType] ?? 0
                   const totalAdded = selectedFriends.length + directPlayers.length
                   const spotsLeft = Math.max(0, maxAdditional - totalAdded)
                   return (<>
@@ -524,8 +522,7 @@ export default function Bookings() {
                       <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 bg-white max-h-36 overflow-y-auto">
                         {bookingSearchResults.map(m => {
                           const already = directPlayers.some(p => p.userId === m.id)
-                          const maxAdditional = matchType === 'ball_machine' ? 0 : matchType === 'doubles' && playersNeeded > 0 ? playersNeeded : 1
-                          const full = selectedFriends.length + directPlayers.length >= maxAdditional
+                          const full = selectedFriends.length + directPlayers.length >= (PLAYERS_BY_TYPE[matchType] ?? 0)
                           return (
                             <div key={m.id} className="flex items-center justify-between px-3 py-1.5">
                               <div>
@@ -767,7 +764,7 @@ export default function Bookings() {
                           .filter(m => !m.ballMachineOnly || courts.find(c => c.id === b.court_id)?.has_ball_machine)
                           .map(m => (
                             <button key={m.value} type="button"
-                              onClick={() => setEditForm(f => ({ ...f, matchType: m.value, playersNeeded: 0 }))}
+                              onClick={() => setEditForm(f => ({ ...f, matchType: m.value, playersNeeded: PLAYERS_BY_TYPE[m.value] ?? 0 }))}
                               className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${editForm.matchType === m.value ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
                               {m.label}
                             </button>
@@ -775,21 +772,6 @@ export default function Bookings() {
                       </div>
                     </div>
 
-                    {/* Players needed */}
-                    {editForm.matchType !== 'casual' && editForm.matchType !== 'ball_machine' && (
-                      <div>
-                        <p className="text-xs font-medium text-gray-600 mb-2">Players Needed</p>
-                        <div className="flex gap-2">
-                          {(MATCH_TYPES.find(m => m.value === editForm.matchType)?.players ?? []).map(p => (
-                            <button key={p} type="button"
-                              onClick={() => setEditForm(f => ({ ...f, playersNeeded: p }))}
-                              className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${editForm.playersNeeded === p ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-                              Need {p} player{p !== 1 ? 's' : ''}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
 
                     {/* Notes */}
                     <div>

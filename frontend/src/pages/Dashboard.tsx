@@ -39,6 +39,7 @@ export default function Dashboard() {
   const [courts, setCourts] = useState<Court[]>([])
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [readIds, setReadIds] = useState<Set<string>>(new Set())
+  const [cameraURL, setCameraURL] = useState<string | null>(null)
 
   useEffect(() => {
     if (user?.id) setReadIds(loadRead(user.id))
@@ -47,6 +48,7 @@ export default function Dashboard() {
   useEffect(() => {
     api.courts.list().then(d => setCourts(d as Court[]))
     api.announcements.list().then(d => setAnnouncements(d as Announcement[]))
+    api.camera.embedURL().then(d => setCameraURL(d.url)).catch(() => setCameraURL('/camera'))
   }, [])
 
   useEffect(() => {
@@ -194,27 +196,35 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Weather Camera */}
+      {/* Court Camera */}
       <div>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold text-gray-700">Court Camera</h2>
-          <a
-            href="https://autotrader.webgoserver.com/camera"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-green-700 hover:underline"
-          >
-            Open full screen ↗
-          </a>
+          {cameraURL && (
+            <a
+              href={cameraURL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-green-700 hover:underline"
+            >
+              Open full screen ↗
+            </a>
+          )}
         </div>
         <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-          <iframe
-            src="https://autotrader.webgoserver.com/camera"
-            title="Court Camera"
-            className="w-full aspect-video"
-            style={{ border: 'none' }}
-            allowFullScreen
-          />
+          {cameraURL ? (
+            <iframe
+              src={cameraURL}
+              title="Court Camera"
+              className="w-full aspect-video"
+              style={{ border: 'none' }}
+              allowFullScreen
+            />
+          ) : (
+            <div className="w-full aspect-video bg-gray-100 flex items-center justify-center text-gray-400 text-sm">
+              Loading camera…
+            </div>
+          )}
         </div>
       </div>
 

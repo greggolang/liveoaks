@@ -34,12 +34,12 @@ export default function AdminBookingDocs() {
       <Section title="Match Types">
         <p className="mb-3">Match type controls the roster capacity and whether open spots can be advertised.</p>
         <Table
-          headers={['Type', 'Roster Max', 'Open Spots', 'Notes']}
+          headers={['Type', 'Total Players', 'Additional (excl. host)', 'Notes']}
           rows={[
-            ['Hit Session', '2 (host + 1)', 'No', 'Informal hitting. Guest fee applies if a guest is added.'],
-            ['Singles', '2 (host + 1)', '0 or 1', 'One-on-one match.'],
-            ['Doubles', '4 (host + 3)', '1, 2, or 3', 'Two-on-two match.'],
-            ['Ball Machine', '1 (host only)', 'No', 'Solo machine session. Court 3 only.'],
+            ['Hit Session', '2', '1', 'Informal hitting. Guest fee applies if a guest is added.'],
+            ['Singles', '2', '1', 'One-on-one match.'],
+            ['Doubles', '4', '3', 'Two-on-two match. All 3 additional spots must be filled.'],
+            ['Ball Machine', '1', '0', 'Solo machine session. Court 3 only.'],
           ]}
         />
       </Section>

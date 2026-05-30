@@ -234,6 +234,7 @@ func main() {
 	e.GET("/camera", camera.Page)
 	e.GET("/camera/status", camera.Status)
 	e.GET("/camera/api/*", camera.Proxy)
+	authed.GET("/camera/embed", camera.EmbedURL)
 
 	// Serve uploaded files
 	e.GET("/uploads/documents/:filename", uploads.ServeDocument)
