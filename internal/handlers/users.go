@@ -8,8 +8,14 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+type UserMailer interface {
+	SendWelcome(to, firstName, siteURL string) error
+}
+
 type UsersHandler struct {
-	DB *pgxpool.Pool
+	DB      *pgxpool.Pool
+	SiteURL string
+	Mailer  UserMailer
 }
 
 func (h *UsersHandler) List(c echo.Context) error {
@@ -64,11 +70,22 @@ func (h *UsersHandler) UpdateStatus(c echo.Context) error {
 	if body.Status != models.StatusActive && body.Status != models.StatusInactive && body.Status != models.StatusPending {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid status")
 	}
+
+	var email, firstName, prevStatus string
+	h.DB.QueryRow(c.Request().Context(),
+		`SELECT email, first_name, status::text FROM users WHERE id = $1`, id,
+	).Scan(&email, &firstName, &prevStatus)
+
 	_, err := h.DB.Exec(c.Request().Context(),
 		`UPDATE users SET status = $1, updated_at = NOW() WHERE id = $2`, body.Status, id)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not update status")
 	}
+
+	if body.Status == models.StatusActive && prevStatus != "active" && email != "" {
+		go h.Mailer.SendWelcome(email, firstName, h.SiteURL)
+	}
+
 	return c.JSON(http.StatusOK, map[string]string{"message": "status updated"})
 }
 

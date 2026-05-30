@@ -14,9 +14,15 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+type Mailer interface {
+	SendPasswordReset(to, firstName, resetURL string) error
+}
+
 type AuthHandler struct {
 	DB        *pgxpool.Pool
 	JWTSecret string
+	SiteURL   string
+	Mailer    Mailer
 }
 
 type registerRequest struct {
@@ -150,13 +156,12 @@ func (h *AuthHandler) ForgotPassword(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "email required")
 	}
 
-	var userID string
+	var userID, firstName string
 	err := h.DB.QueryRow(c.Request().Context(),
-		`SELECT id FROM users WHERE email = $1 AND status = 'active'`, req.Email,
-	).Scan(&userID)
+		`SELECT id, first_name FROM users WHERE email = $1 AND status = 'active'`, req.Email,
+	).Scan(&userID, &firstName)
 	if err != nil {
-		// Don't reveal whether the email exists
-		return c.JSON(http.StatusOK, map[string]string{"message": "If that email is registered, a reset link has been created."})
+		return c.JSON(http.StatusOK, map[string]string{"message": "If that email is registered, you'll receive a reset link shortly."})
 	}
 
 	b := make([]byte, 24)
@@ -164,13 +169,15 @@ func (h *AuthHandler) ForgotPassword(c echo.Context) error {
 	token := hex.EncodeToString(b)
 
 	_, err = h.DB.Exec(c.Request().Context(),
-		`INSERT INTO password_resets (token, user_id) VALUES ($1, $2)
-		 ON CONFLICT DO NOTHING`, token, userID)
+		`INSERT INTO password_resets (token, user_id) VALUES ($1, $2)`, token, userID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not create reset token")
 	}
 
-	return c.JSON(http.StatusOK, map[string]string{"message": "If that email is registered, a reset link has been created."})
+	resetURL := h.SiteURL + "/reset-password?token=" + token
+	go h.Mailer.SendPasswordReset(req.Email, firstName, resetURL)
+
+	return c.JSON(http.StatusOK, map[string]string{"message": "If that email is registered, you'll receive a reset link shortly."})
 }
 
 func (h *AuthHandler) ResetPassword(c echo.Context) error {

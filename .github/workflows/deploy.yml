@@ -50,9 +50,12 @@ jobs:
           host: 172.236.228.11
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: JWT_SECRET
+          envs: JWT_SECRET,SMTP_PASS
           script: |
             chmod +x /opt/liveoaks/liveoaks
+
+            # Add SMTP env vars to service file if not already present
+            grep -q 'SMTP_HOST' /etc/systemd/system/liveoaks.service || sed -i '/Environment=PORT/a Environment=SMTP_HOST=smtp.gmail.com\nEnvironment=SMTP_PORT=587\nEnvironment=SMTP_USER=admin@liveoakstennis.com\nEnvironment=SMTP_FROM=admin@liveoakstennis.com\nEnvironment=SMTP_PASS=placeholder\nEnvironment=SITE_URL=http://liveoaks.webgoserver.com' /etc/systemd/system/liveoaks.service
 
             # Harden SSH: disable password auth, only allow key-based login
             sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
@@ -67,7 +70,9 @@ jobs:
             chmod +x /opt/liveoaks/resetpw
             DATABASE_URL="postgres://liveoaks:liveoaks2026@localhost/liveoaks" /opt/liveoaks/resetpw
             sed -i "s|Environment=JWT_SECRET=.*|Environment=JWT_SECRET=$JWT_SECRET|" /etc/systemd/system/liveoaks.service
+            sed -i "s|Environment=SMTP_PASS=.*|Environment=SMTP_PASS=$SMTP_PASS|" /etc/systemd/system/liveoaks.service
             systemctl daemon-reload
             systemctl restart liveoaks
         env:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}

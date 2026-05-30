@@ -9,6 +9,7 @@ import (
 
 	"github.com/greggolang/liveoaks/internal/config"
 	"github.com/greggolang/liveoaks/internal/db"
+	"github.com/greggolang/liveoaks/internal/email"
 	"github.com/greggolang/liveoaks/internal/handlers"
 	mw "github.com/greggolang/liveoaks/internal/middleware"
 	"github.com/labstack/echo/v4"
@@ -37,8 +38,16 @@ func main() {
 		AllowCredentials: true,
 	}))
 
-	auth := &handlers.AuthHandler{DB: pool, JWTSecret: cfg.JWTSecret}
-	users := &handlers.UsersHandler{DB: pool}
+	mailer := &email.Mailer{
+		Host:     cfg.SMTPHost,
+		Port:     cfg.SMTPPort,
+		Username: cfg.SMTPUser,
+		Password: cfg.SMTPPass,
+		From:     cfg.SMTPFrom,
+	}
+
+	auth := &handlers.AuthHandler{DB: pool, JWTSecret: cfg.JWTSecret, SiteURL: cfg.SiteURL, Mailer: mailer}
+	users := &handlers.UsersHandler{DB: pool, SiteURL: cfg.SiteURL, Mailer: mailer}
 	courts := &handlers.CourtsHandler{DB: pool}
 	bookings := &handlers.BookingsHandler{DB: pool}
 	announcements := &handlers.AnnouncementsHandler{DB: pool}
