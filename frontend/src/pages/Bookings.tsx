@@ -87,6 +87,10 @@ export default function Bookings() {
   const [guestAddForm, setGuestAddForm] = useState({ name: '', email: '' })
   const [addingPlayer, setAddingPlayer] = useState(false)
   const [bookingDetail, setBookingDetail] = useState<Booking | null>(null)
+  const [editingBooking, setEditingBooking] = useState(false)
+  const [editForm, setEditForm] = useState({ notes: '', matchType: 'casual', playersNeeded: 0, duration: 1.5 })
+  const [editLoading, setEditLoading] = useState(false)
+  const [editError, setEditError] = useState('')
   const [showTutorial, setShowTutorial] = useState(false)
 
   const load = useCallback(() => {
@@ -294,6 +298,40 @@ export default function Bookings() {
     await api.bookings.delete(id)
     load()
     loadMine()
+  }
+
+  const openEdit = (b: Booking) => {
+    const dHours = (new Date(b.end_time).getTime() - new Date(b.start_time).getTime()) / 3600000
+    setEditForm({
+      notes: b.notes ?? '',
+      matchType: b.match_type ?? 'casual',
+      playersNeeded: b.players_needed ?? 0,
+      duration: dHours <= 1 ? 1 : 1.5,
+    })
+    setEditError('')
+    setEditingBooking(true)
+  }
+
+  const saveEdit = async (b: Booking) => {
+    setEditLoading(true)
+    setEditError('')
+    try {
+      const newEnd = new Date(new Date(b.start_time).getTime() + editForm.duration * 3600000)
+      await api.bookings.update(b.id, {
+        notes: editForm.notes,
+        match_type: editForm.matchType,
+        players_needed: editForm.playersNeeded,
+        end_time: newEnd.toISOString(),
+      })
+      setEditingBooking(false)
+      setBookingDetail(null)
+      load()
+      loadMine()
+    } catch (err: any) {
+      setEditError(err.message)
+    } finally {
+      setEditLoading(false)
+    }
   }
 
   const isPast = (hour: number) => {
@@ -650,6 +688,7 @@ export default function Bookings() {
             const bEnd = new Date(b.end_time)
             const dMins = (bEnd.getTime() - bStart.getTime()) / 60000
             const isMe = b.user_id === user?.id
+            const canEdit = isMe || isBoard
             const isBallMachine = b.match_type === 'ball_machine'
             const matchLabel = isBallMachine ? '🤖 Ball Machine'
               : b.match_type === 'singles' ? 'Singles'
@@ -659,53 +698,151 @@ export default function Bookings() {
             return (
               <div className="mb-4 bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
                 <div className="flex items-center justify-between px-5 py-3 bg-gray-50 border-b border-gray-100">
-                  <h3 className="font-semibold text-gray-800 text-sm">Booking Details</h3>
-                  <button onClick={() => setBookingDetail(null)} className="text-gray-400 hover:text-gray-600 transition text-lg leading-none">×</button>
+                  <h3 className="font-semibold text-gray-800 text-sm">
+                    {editingBooking ? 'Edit Booking' : 'Booking Details'}
+                  </h3>
+                  <button onClick={() => { setBookingDetail(null); setEditingBooking(false) }}
+                    className="text-gray-400 hover:text-gray-600 transition text-lg leading-none">×</button>
                 </div>
-                <div className="px-5 py-4 grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-3 text-sm">
-                  <div>
-                    <p className="text-xs text-gray-400 uppercase tracking-wide">Court</p>
-                    <p className="font-semibold text-gray-800 mt-0.5">{b.court.name}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-400 uppercase tracking-wide">Date</p>
-                    <p className="font-semibold text-gray-800 mt-0.5">{bStart.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-400 uppercase tracking-wide">Time</p>
-                    <p className="font-semibold text-gray-800 mt-0.5">
-                      {bStart.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} – {bEnd.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-400 uppercase tracking-wide">Duration</p>
-                    <p className="font-semibold text-gray-800 mt-0.5">{dMins >= 60 ? `${dMins / 60} hr${dMins > 60 ? 's' : ''}` : `${dMins} min`}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-400 uppercase tracking-wide">Type</p>
-                    <p className="font-semibold text-gray-800 mt-0.5">{matchLabel}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-400 uppercase tracking-wide">Booked by</p>
-                    <p className="font-semibold text-gray-800 mt-0.5">
-                      {isMe ? 'You' : `${b.user.first_name} ${b.user.last_name}`}
-                    </p>
-                  </div>
-                  {b.notes && (
-                    <div className="col-span-2">
-                      <p className="text-xs text-gray-400 uppercase tracking-wide">Notes</p>
-                      <p className="font-semibold text-gray-800 mt-0.5">{b.notes}</p>
+
+                {editingBooking ? (
+                  /* ── Edit mode ── */
+                  <div className="px-5 py-4 space-y-4">
+                    {/* Read-only context */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2 text-sm pb-3 border-b border-gray-100">
+                      <div>
+                        <p className="text-xs text-gray-400 uppercase tracking-wide">Court</p>
+                        <p className="font-semibold text-gray-800 mt-0.5">{b.court.name}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400 uppercase tracking-wide">Date</p>
+                        <p className="font-semibold text-gray-800 mt-0.5">{bStart.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400 uppercase tracking-wide">Start Time</p>
+                        <p className="font-semibold text-gray-800 mt-0.5">{bStart.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</p>
+                      </div>
                     </div>
-                  )}
-                </div>
-                {(isMe || isBoard) && (
-                  <div className="px-5 pb-4">
-                    <button
-                      onClick={() => { handleCancel(b.id); setBookingDetail(null) }}
-                      className="text-sm text-red-500 hover:text-red-700 font-medium transition">
-                      Cancel this booking
-                    </button>
+
+                    {/* Duration */}
+                    <div>
+                      <p className="text-xs font-medium text-gray-600 mb-2">Duration</p>
+                      <div className="flex gap-2">
+                        {DURATIONS.map(d => (
+                          <button key={d.hours} type="button" onClick={() => setEditForm(f => ({ ...f, duration: d.hours }))}
+                            className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${editForm.duration === d.hours ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                            {d.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Match type */}
+                    <div>
+                      <p className="text-xs font-medium text-gray-600 mb-2">Match Type</p>
+                      <div className="flex flex-wrap gap-2">
+                        {MATCH_TYPES
+                          .filter(m => !m.ballMachineOnly || courts.find(c => c.id === b.court_id)?.has_ball_machine)
+                          .map(m => (
+                            <button key={m.value} type="button"
+                              onClick={() => setEditForm(f => ({ ...f, matchType: m.value, playersNeeded: 0 }))}
+                              className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${editForm.matchType === m.value ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                              {m.label}
+                            </button>
+                          ))}
+                      </div>
+                    </div>
+
+                    {/* Players needed */}
+                    {editForm.matchType !== 'casual' && editForm.matchType !== 'ball_machine' && (
+                      <div>
+                        <p className="text-xs font-medium text-gray-600 mb-2">Players Needed</p>
+                        <div className="flex gap-2">
+                          {(MATCH_TYPES.find(m => m.value === editForm.matchType)?.players ?? []).map(p => (
+                            <button key={p} type="button"
+                              onClick={() => setEditForm(f => ({ ...f, playersNeeded: p }))}
+                              className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${editForm.playersNeeded === p ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                              Need {p} player{p !== 1 ? 's' : ''}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Notes */}
+                    <div>
+                      <p className="text-xs font-medium text-gray-600 mb-1">Notes</p>
+                      <input value={editForm.notes} onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
+                        placeholder="Optional notes…" maxLength={80}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                    </div>
+
+                    {editError && <p className="text-red-600 text-sm">{editError}</p>}
+
+                    <div className="flex gap-3 pt-1">
+                      <button onClick={() => saveEdit(b)} disabled={editLoading}
+                        className="px-5 py-2 bg-green-700 hover:bg-green-800 text-white rounded-lg text-sm font-semibold transition disabled:opacity-50">
+                        {editLoading ? 'Saving…' : 'Save Changes'}
+                      </button>
+                      <button onClick={() => setEditingBooking(false)}
+                        className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition">
+                        Back
+                      </button>
+                    </div>
                   </div>
+                ) : (
+                  /* ── View mode ── */
+                  <>
+                    <div className="px-5 py-4 grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-3 text-sm">
+                      <div>
+                        <p className="text-xs text-gray-400 uppercase tracking-wide">Court</p>
+                        <p className="font-semibold text-gray-800 mt-0.5">{b.court.name}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400 uppercase tracking-wide">Date</p>
+                        <p className="font-semibold text-gray-800 mt-0.5">{bStart.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400 uppercase tracking-wide">Time</p>
+                        <p className="font-semibold text-gray-800 mt-0.5">
+                          {bStart.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} – {bEnd.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400 uppercase tracking-wide">Duration</p>
+                        <p className="font-semibold text-gray-800 mt-0.5">{dMins >= 60 ? `${dMins / 60} hr${dMins > 60 ? 's' : ''}` : `${dMins} min`}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400 uppercase tracking-wide">Type</p>
+                        <p className="font-semibold text-gray-800 mt-0.5">{matchLabel}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400 uppercase tracking-wide">Booked by</p>
+                        <p className="font-semibold text-gray-800 mt-0.5">
+                          {isMe ? 'You' : `${b.user.first_name} ${b.user.last_name}`}
+                        </p>
+                      </div>
+                      {b.notes && (
+                        <div className="col-span-2">
+                          <p className="text-xs text-gray-400 uppercase tracking-wide">Notes</p>
+                          <p className="font-semibold text-gray-800 mt-0.5">{b.notes}</p>
+                        </div>
+                      )}
+                    </div>
+                    {canEdit && (
+                      <div className="px-5 pb-4 flex items-center gap-4">
+                        <button onClick={() => openEdit(b)}
+                          className="text-sm text-green-700 hover:text-green-900 font-medium transition">
+                          Edit booking
+                        </button>
+                        <span className="text-gray-200">|</span>
+                        <button onClick={() => { handleCancel(b.id); setBookingDetail(null) }}
+                          className="text-sm text-red-500 hover:text-red-700 font-medium transition">
+                          Cancel this booking
+                        </button>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )

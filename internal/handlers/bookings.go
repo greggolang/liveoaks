@@ -153,6 +153,75 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 	return c.JSON(http.StatusCreated, booking)
 }
 
+func (h *BookingsHandler) Update(c echo.Context) error {
+	id := c.Param("id")
+	userID := c.Get("user_id").(string)
+	role := c.Get("role").(string)
+
+	var ownerID string
+	var currentStart, currentEnd time.Time
+	if err := h.DB.QueryRow(c.Request().Context(),
+		`SELECT user_id, start_time, end_time FROM bookings WHERE id = $1`, id,
+	).Scan(&ownerID, &currentStart, &currentEnd); err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, "booking not found")
+	}
+	if ownerID != userID && role != "admin" && role != "board" {
+		return echo.NewHTTPError(http.StatusForbidden, "cannot edit another member's booking")
+	}
+
+	var req struct {
+		Notes         string    `json:"notes"`
+		MatchType     string    `json:"match_type"`
+		PlayersNeeded int       `json:"players_needed"`
+		EndTime       time.Time `json:"end_time"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
+	}
+
+	newEnd := currentEnd
+	if !req.EndTime.IsZero() {
+		newEnd = req.EndTime
+		if !newEnd.After(currentStart) {
+			return echo.NewHTTPError(http.StatusBadRequest, "end time must be after start time")
+		}
+		loc, locErr := time.LoadLocation("America/Los_Angeles")
+		if locErr != nil {
+			loc = time.UTC
+		}
+		localEnd := newEnd.In(loc)
+		if localEnd.Hour() > 20 || (localEnd.Hour() == 20 && localEnd.Minute() > 0) {
+			return echo.NewHTTPError(http.StatusBadRequest, "bookings must end by 8:00 PM")
+		}
+		// Check for conflicts on the new end time (only matters if extending)
+		var conflicts int
+		h.DB.QueryRow(c.Request().Context(),
+			`SELECT COUNT(*) FROM bookings
+			 WHERE court_id = (SELECT court_id FROM bookings WHERE id = $1)
+			   AND id != $1
+			   AND start_time < $2
+			   AND end_time > (SELECT start_time FROM bookings WHERE id = $1)`,
+			id, newEnd,
+		).Scan(&conflicts)
+		if conflicts > 0 {
+			return echo.NewHTTPError(http.StatusConflict, "court is already booked during that time")
+		}
+	}
+
+	if req.MatchType == "" {
+		req.MatchType = "casual"
+	}
+
+	_, err := h.DB.Exec(c.Request().Context(),
+		`UPDATE bookings SET notes = NULLIF($1,''), match_type = $2, players_needed = $3, end_time = $4
+		 WHERE id = $5`,
+		req.Notes, req.MatchType, req.PlayersNeeded, newEnd, id)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not update booking")
+	}
+	return c.JSON(http.StatusOK, map[string]string{"id": id})
+}
+
 func (h *BookingsHandler) Delete(c echo.Context) error {
 	id := c.Param("id")
 	userID := c.Get("user_id").(string)

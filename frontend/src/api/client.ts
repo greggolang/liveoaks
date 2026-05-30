@@ -58,6 +58,7 @@ export const api = {
   bookings: {
     list: (date?: string) => request(`/bookings${date ? `?date=${date}` : ''}`),
     create: (data: object) => request('/bookings', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: object) => request(`/bookings/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => request(`/bookings/${id}`, { method: 'DELETE' }),
   },
   announcements: {

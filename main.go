@@ -112,6 +112,7 @@ func main() {
 
 	authed.GET("/bookings", bookings.List)
 	authed.POST("/bookings", bookings.Create)
+	authed.PUT("/bookings/:id", bookings.Update)
 	authed.DELETE("/bookings/:id", bookings.Delete)
 
 	authed.GET("/announcements", announcements.List)
