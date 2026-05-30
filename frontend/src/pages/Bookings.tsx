@@ -745,37 +745,37 @@ export default function Bookings() {
                         const extraPlayers = (booking.players ?? []).slice(1)
                         return (
                           <td key={c.id} className="px-2 py-1 align-top">
-                            <div
-                              onClick={() => showDetails && setBookingDetail(bookingDetail?.id === booking.id ? null : booking)}
-                              className={`rounded-lg px-2 py-1.5 flex flex-col gap-0.5 ${isMe ? 'bg-green-600 text-white' : 'bg-green-100 text-green-800'} ${showDetails ? 'cursor-pointer hover:opacity-90 transition' : ''}`}>
-                              {showDetails && (
-                                <>
-                                  <div className="flex items-center justify-between gap-1">
-                                    <span className="text-xs font-semibold truncate">
-                                      {isBallMachine ? '🤖 Ball Machine' : isMe ? 'Me' : `${booking.user.first_name} ${booking.user.last_name[0]}.`}
-                                    </span>
-                                    {(isMe || isBoard) && (
-                                      <button
-                                        onClick={e => { e.stopPropagation(); handleCancel(booking.id) }}
-                                        className={`text-xs shrink-0 hover:opacity-70 transition ${isMe ? 'text-green-200' : 'text-green-600'}`}>
-                                        ✕
-                                      </button>
-                                    )}
+                            {showDetails ? (
+                              <div
+                                onClick={() => setBookingDetail(bookingDetail?.id === booking.id ? null : booking)}
+                                className={`rounded-lg px-2 py-1.5 flex flex-col gap-0.5 cursor-pointer hover:opacity-90 transition ${isMe ? 'bg-green-600 text-white' : 'bg-green-100 text-green-800'}`}>
+                                <div className="flex items-center justify-between gap-1">
+                                  <span className="text-xs font-semibold truncate">
+                                    {isBallMachine ? '🤖 Ball Machine' : isMe ? 'Me' : `${booking.user.first_name} ${booking.user.last_name[0]}.`}
+                                  </span>
+                                  {(isMe || isBoard) && (
+                                    <button
+                                      onClick={e => { e.stopPropagation(); handleCancel(booking.id) }}
+                                      className={`text-xs shrink-0 hover:opacity-70 transition ${isMe ? 'text-green-200' : 'text-green-600'}`}>
+                                      ✕
+                                    </button>
+                                  )}
+                                </div>
+                                <span className={`text-xs truncate ${isMe ? 'text-green-200' : 'text-green-600'}`}>{timeRange}</span>
+                                {matchLabel && !isBallMachine && (
+                                  <span className={`text-xs truncate ${isMe ? 'text-green-200' : 'text-green-600'}`}>{matchLabel}</span>
+                                )}
+                                {extraPlayers.length > 0 && (
+                                  <div className={`text-xs mt-0.5 pt-0.5 border-t space-y-0.5 ${isMe ? 'border-green-500' : 'border-green-200'}`}>
+                                    {extraPlayers.map((name, i) => (
+                                      <div key={i} className="truncate leading-tight">{name.split(' ')[0]}</div>
+                                    ))}
                                   </div>
-                                  <span className={`text-xs truncate ${isMe ? 'text-green-200' : 'text-green-600'}`}>{timeRange}</span>
-                                  {matchLabel && !isBallMachine && (
-                                    <span className={`text-xs truncate ${isMe ? 'text-green-200' : 'text-green-600'}`}>{matchLabel}</span>
-                                  )}
-                                  {extraPlayers.length > 0 && (
-                                    <div className={`text-xs mt-0.5 pt-0.5 border-t space-y-0.5 ${isMe ? 'border-green-500' : 'border-green-200'}`}>
-                                      {extraPlayers.map((name, i) => (
-                                        <div key={i} className="truncate leading-tight">{name.split(' ')[0]}</div>
-                                      ))}
-                                    </div>
-                                  )}
-                                </>
-                              )}
-                            </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className={`rounded h-5 ${isMe ? 'bg-green-600' : 'bg-green-100'}`} />
+                            )}
                           </td>
                         )
                       }
