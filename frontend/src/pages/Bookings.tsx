@@ -82,6 +82,7 @@ export default function Bookings() {
   const [guestAddForm, setGuestAddForm] = useState({ name: '', email: '' })
   const [addingPlayer, setAddingPlayer] = useState(false)
   const [bookingDetail, setBookingDetail] = useState<Booking | null>(null)
+  const [showTutorial, setShowTutorial] = useState(false)
 
   const load = useCallback(() => {
     api.bookings.list(date).then(d => setBookings(d as Booking[]))
@@ -296,7 +297,15 @@ export default function Bookings() {
     <div>
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Court Bookings</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-gray-800">Court Bookings</h1>
+          <button
+            onClick={() => setShowTutorial(true)}
+            title="How to book a court"
+            className="w-6 h-6 rounded-full bg-gray-200 hover:bg-green-100 hover:text-green-700 text-gray-500 text-xs font-bold transition flex items-center justify-center shrink-0">
+            ?
+          </button>
+        </div>
         <div className="flex gap-2">
           <button onClick={() => setTab('grid')}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition ${tab === 'grid' ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
@@ -1019,6 +1028,126 @@ export default function Bookings() {
           )}
         </div>
       )}
+
+      {showTutorial && <BookingTutorial onClose={() => setShowTutorial(false)} />}
+    </div>
+  )
+}
+
+const TUTORIAL_STEPS = [
+  {
+    icon: '📅',
+    title: 'Pick a Date',
+    body: 'Use the ← Prev / Next → arrows to browse days, or click Today to jump back. You can also type a date directly into the date field. Courts can be booked up to the number of days ahead set by the admin.',
+  },
+  {
+    icon: '🟩',
+    title: 'Choose an Open Slot',
+    body: 'The grid shows every court across the top and hours down the side (8 AM – 8 PM). White cells are available — click one to start a booking. Gray cells are in the past. Green cells are already taken.',
+  },
+  {
+    icon: '⏱',
+    title: 'Set Duration & Match Type',
+    body: 'After clicking a slot, choose 1 hour or 1½ hours. Then select your match type: Hit Session (casual solo or informal play), Singles (1v1), Doubles (2v2), or Ball Machine (Court 3 only).',
+  },
+  {
+    icon: '👥',
+    title: 'Add Players (Optional)',
+    body: 'You can invite friends by email or add them directly to your roster. Use "Invite" to send an email invite they can accept or decline. Use "Add Directly" to place a member or guest on the roster immediately without waiting for a response.',
+  },
+  {
+    icon: '✅',
+    title: 'Review & Confirm',
+    body: 'Click "Review Booking →" to see a full summary — court, date, time, duration, match type, and any players. If everything looks right, click Confirm to lock in the reservation.',
+  },
+  {
+    icon: '🔍',
+    title: 'View Booking Details',
+    body: 'Click any booked slot on the grid to see full details: who booked it, the time range, duration, match type, and notes. You can cancel your own bookings from the detail panel.',
+  },
+  {
+    icon: '📋',
+    title: 'My Bookings Tab',
+    body: 'Switch to "My Bookings" to see all your upcoming reservations in one place. From there you can manage your roster, send additional invites, add players, and cancel bookings.',
+  },
+  {
+    icon: '🚫',
+    title: 'Cancellations',
+    body: 'To cancel, click the ✕ on a booked cell in the grid, use the "Cancel this booking" link in the detail panel, or click Cancel on the booking card in the My Bookings tab.',
+  },
+]
+
+function BookingTutorial({ onClose }: { onClose: () => void }) {
+  const [step, setStep] = useState(0)
+  const current = TUTORIAL_STEPS[step]
+  const isLast = step === TUTORIAL_STEPS.length - 1
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden">
+        {/* Header */}
+        <div className="bg-green-700 text-white px-6 py-4 flex items-center justify-between">
+          <div>
+            <h2 className="font-bold text-base">How to Book a Court</h2>
+            <p className="text-green-200 text-xs mt-0.5">Step {step + 1} of {TUTORIAL_STEPS.length}</p>
+          </div>
+          <button onClick={onClose} className="text-green-200 hover:text-white transition text-xl leading-none">×</button>
+        </div>
+
+        {/* Progress bar */}
+        <div className="h-1 bg-green-100">
+          <div
+            className="h-1 bg-green-600 transition-all duration-300"
+            style={{ width: `${((step + 1) / TUTORIAL_STEPS.length) * 100}%` }}
+          />
+        </div>
+
+        {/* Step content */}
+        <div className="px-6 py-6">
+          <div className="flex items-start gap-4">
+            <span className="text-4xl shrink-0">{current.icon}</span>
+            <div>
+              <h3 className="font-bold text-gray-800 text-lg mb-2">{current.title}</h3>
+              <p className="text-gray-600 text-sm leading-relaxed">{current.body}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Step dots */}
+        <div className="flex justify-center gap-1.5 pb-2">
+          {TUTORIAL_STEPS.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => setStep(i)}
+              className={`w-2 h-2 rounded-full transition ${i === step ? 'bg-green-600' : 'bg-gray-200 hover:bg-gray-300'}`}
+            />
+          ))}
+        </div>
+
+        {/* Navigation */}
+        <div className="px-6 pb-6 flex gap-3">
+          <button
+            onClick={() => setStep(s => s - 1)}
+            disabled={step === 0}
+            className="flex-1 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition disabled:opacity-30 disabled:cursor-not-allowed">
+            ← Back
+          </button>
+          {isLast ? (
+            <button
+              onClick={onClose}
+              className="flex-1 px-4 py-2.5 bg-green-700 hover:bg-green-800 text-white rounded-lg text-sm font-bold transition">
+              Done — Let's Book!
+            </button>
+          ) : (
+            <button
+              onClick={() => setStep(s => s + 1)}
+              className="flex-1 px-4 py-2.5 bg-green-700 hover:bg-green-800 text-white rounded-lg text-sm font-bold transition">
+              Next →
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
