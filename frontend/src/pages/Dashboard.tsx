@@ -14,7 +14,7 @@ interface Announcement {
   author: { first_name: string; last_name: string }
 }
 
-const HOURS = Array.from({ length: 14 }, (_, i) => i + 7) // 7am–8pm
+const HOURS = Array.from({ length: 10 }, (_, i) => i + 8) // 8am–5pm (last slot ends by 6pm)
 
 export default function Dashboard() {
   const { user } = useAuth()

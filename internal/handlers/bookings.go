@@ -80,6 +80,14 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 	if req.StartTime.Before(time.Now()) {
 		return echo.NewHTTPError(http.StatusBadRequest, "cannot book in the past")
 	}
+	localStart := req.StartTime.Local()
+	localEnd := req.EndTime.Local()
+	if localStart.Hour() < 8 {
+		return echo.NewHTTPError(http.StatusBadRequest, "bookings cannot start before 8:00 AM")
+	}
+	if localEnd.Hour() > 18 || (localEnd.Hour() == 18 && localEnd.Minute() > 0) {
+		return echo.NewHTTPError(http.StatusBadRequest, "bookings must end by 6:00 PM")
+	}
 
 	if req.MatchType == "" {
 		req.MatchType = "casual"

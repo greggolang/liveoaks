@@ -21,7 +21,7 @@ const MATCH_TYPES = [
   { value: 'doubles', label: 'Doubles', players: [1, 2, 3] },
 ]
 
-const HOURS = Array.from({ length: 14 }, (_, i) => i + 7) // 7am–8pm
+const HOURS = Array.from({ length: 10 }, (_, i) => i + 8) // 8am–5pm (last slot ends by 6pm)
 const DURATIONS = [{ label: '1 hr', hours: 1 }, { label: '1½ hr', hours: 1.5 }]
 
 function fmt12(hour: number) {
