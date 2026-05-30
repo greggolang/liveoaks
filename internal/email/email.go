@@ -21,8 +21,7 @@ func (m *Mailer) Send(to, subject, body string) error {
 	msg.SetHeader("Subject", subject)
 	msg.SetBody("text/html", body)
 
-	// IP-based auth: no username/password needed
-	d := gomail.NewDialer(m.Host, m.Port, "", "")
+	d := gomail.NewDialer(m.Host, m.Port, m.Username, m.Password)
 	return d.DialAndSend(msg)
 }
 
