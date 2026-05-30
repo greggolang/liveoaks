@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	_ "time/tzdata" // embed IANA timezone data so America/Los_Angeles works on any server
 
 	"github.com/greggolang/liveoaks/internal/config"
 	"github.com/greggolang/liveoaks/internal/db"

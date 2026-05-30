@@ -34,10 +34,14 @@ function fmt12(hour: number) {
   return `${h}:00 ${hour < 12 ? 'AM' : 'PM'}`
 }
 
+function localDateStr(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 function addDays(dateStr: string, days: number) {
   const d = new Date(dateStr + 'T12:00:00')
   d.setDate(d.getDate() + days)
-  return d.toISOString().split('T')[0]
+  return localDateStr(d)
 }
 
 function formatDate(dateStr: string) {
@@ -48,7 +52,7 @@ function formatDate(dateStr: string) {
 
 export default function Bookings() {
   const { user, isBoard } = useAuth()
-  const today = new Date().toISOString().split('T')[0]
+  const today = localDateStr(new Date())
   const [date, setDate] = useState(today)
   const [courts, setCourts] = useState<Court[]>([])
   const [bookings, setBookings] = useState<Booking[]>([])

@@ -89,8 +89,12 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 	if req.StartTime.Before(time.Now()) {
 		return echo.NewHTTPError(http.StatusBadRequest, "cannot book in the past")
 	}
-	localStart := req.StartTime.Local()
-	localEnd := req.EndTime.Local()
+	loc, err := time.LoadLocation("America/Los_Angeles")
+	if err != nil {
+		loc = time.UTC
+	}
+	localStart := req.StartTime.In(loc)
+	localEnd := req.EndTime.In(loc)
 	if localStart.Hour() < 8 {
 		return echo.NewHTTPError(http.StatusBadRequest, "bookings cannot start before 8:00 AM")
 	}
@@ -103,7 +107,7 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 	}
 
 	var booking models.Booking
-	err := h.DB.QueryRow(c.Request().Context(),
+	err = h.DB.QueryRow(c.Request().Context(),
 		`INSERT INTO bookings (user_id, court_id, start_time, end_time, notes, match_type, players_needed)
 		 VALUES ($1, $2, $3, $4, NULLIF($5, ''), $6, $7)
 		 RETURNING id, user_id, court_id, start_time, end_time, notes, created_at`,
