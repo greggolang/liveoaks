@@ -65,7 +65,7 @@ func main() {
 	users := &handlers.UsersHandler{DB: pool, SiteURL: cfg.SiteURL, Mailer: mailer, Logger: actlog}
 	courts := &handlers.CourtsHandler{DB: pool}
 	bookings := &handlers.BookingsHandler{DB: pool, Logger: actlog}
-	announcements := &handlers.AnnouncementsHandler{DB: pool}
+	announcements := &handlers.AnnouncementsHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	admin := &handlers.AdminHandler{DB: pool, Mailer: mailer}
 	members := &handlers.MembersHandler{DB: pool}
 	events := &handlers.EventsHandler{DB: pool}

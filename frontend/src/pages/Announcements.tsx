@@ -10,7 +10,7 @@ interface Announcement {
 export default function Announcements() {
   const { isBoard } = useAuth()
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
-  const [form, setForm] = useState({ title: '', body: '' })
+  const [form, setForm] = useState({ title: '', body: '', send_email: false })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [showForm, setShowForm] = useState(false)
@@ -24,7 +24,7 @@ export default function Announcements() {
     setLoading(true)
     try {
       await api.announcements.create(form)
-      setForm({ title: '', body: '' })
+      setForm({ title: '', body: '', send_email: false })
       setShowForm(false)
       load()
     } catch (err: any) {
@@ -64,10 +64,21 @@ export default function Announcements() {
             <textarea value={form.body} onChange={e => setForm(f => ({ ...f, body: e.target.value }))} required rows={4}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
           </div>
+          <div className="flex items-start gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <input type="checkbox" id="send_email" checked={form.send_email}
+              onChange={e => setForm(f => ({ ...f, send_email: e.target.checked }))}
+              className="w-4 h-4 mt-0.5 text-green-600 rounded cursor-pointer" />
+            <label htmlFor="send_email" className="cursor-pointer">
+              <div className="text-sm font-medium text-blue-800">📧 Email to all active members</div>
+              <div className="text-xs text-blue-600 mt-0.5">
+                If unchecked, the announcement will only appear on the dashboard.
+              </div>
+            </label>
+          </div>
           {error && <p className="text-red-600 text-sm">{error}</p>}
           <button type="submit" disabled={loading}
             className="bg-green-700 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-green-800 transition disabled:opacity-50">
-            {loading ? 'Posting...' : 'Post Announcement'}
+            {loading ? 'Posting...' : form.send_email ? 'Post & Email Members' : 'Post Announcement'}
           </button>
         </form>
       )}
