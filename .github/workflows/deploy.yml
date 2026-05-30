@@ -1,0 +1,39 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Build
+        run: go build -o liveoaks .
+
+      - name: Copy binary to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: 172.236.228.11
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: liveoaks
+          target: /opt/liveoaks/
+
+      - name: Restart service
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: 172.236.228.11
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            chmod +x /opt/liveoaks/liveoaks
+            systemctl restart liveoaks
