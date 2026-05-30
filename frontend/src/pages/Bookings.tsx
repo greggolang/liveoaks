@@ -59,6 +59,7 @@ export default function Bookings() {
   // Invite state
   const [friends, setFriends] = useState<Friend[]>([])
   const [selectedFriends, setSelectedFriends] = useState<string[]>([]) // friend ids to invite at booking time
+  const [confirming, setConfirming] = useState(false)
   const [activeBookingRoster, setActiveBookingRoster] = useState<{ bookingId: string; players: MatchPlayer[]; invitations: Invitation[] } | null>(null)
   const [inviting, setInviting] = useState(false)
 
@@ -130,6 +131,7 @@ export default function Bookings() {
     if (booking) return
     setSelected({ courtId, hour, courtName })
     setSelectedFriends([])
+    setConfirming(false)
     setDuration(1.5)
     setNotes('')
     setError('')
@@ -169,6 +171,7 @@ export default function Bookings() {
 
       setSelected(null)
       setSelectedFriends([])
+      setConfirming(false)
       load()
       loadMine()
     } catch (err: any) {
@@ -230,8 +233,8 @@ export default function Bookings() {
             </button>
           </div>
 
-          {/* Booking panel */}
-          {selected && (
+          {/* Booking panel — Step 1: Configure */}
+          {selected && !confirming && (
             <div className="mb-4 bg-green-50 border border-green-200 rounded-xl p-4 shadow-sm flex flex-col sm:flex-row gap-4 items-start sm:items-center">
               <div className="font-semibold text-green-800 shrink-0">
                 📅 {selected.courtName} · {fmt12(selected.hour)}
@@ -247,7 +250,7 @@ export default function Bookings() {
                     {d.label}
                   </button>
                 ))}
-                <select value={matchType} onChange={e => { setMatchType(e.target.value); setPlayersNeeded(0) }}
+                <select value={matchType} onChange={e => { setMatchType(e.target.value); setPlayersNeeded(0); setSelectedFriends([]) }}
                   className="border border-green-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white text-green-800">
                   {MATCH_TYPES.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
                 </select>
@@ -289,18 +292,97 @@ export default function Bookings() {
                   className="border border-green-200 rounded-lg px-3 py-1 text-sm flex-1 min-w-32 focus:outline-none focus:ring-2 focus:ring-green-500 bg-white" />
               </div>
               <div className="flex gap-2 shrink-0">
-                {error && <span className="text-red-600 text-xs self-center">{error}</span>}
                 <button onClick={() => setSelected(null)}
                   className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 transition">
                   Cancel
                 </button>
-                <button onClick={handleBook} disabled={loading}
-                  className="px-5 py-2 bg-green-700 hover:bg-green-800 text-white rounded-lg text-sm font-semibold transition disabled:opacity-50">
-                  {loading ? 'Booking…' : selectedFriends.length > 0 ? `Book & Invite ${selectedFriends.length}` : 'Confirm'}
+                <button onClick={() => setConfirming(true)}
+                  className="px-5 py-2 bg-green-700 hover:bg-green-800 text-white rounded-lg text-sm font-semibold transition">
+                  Review Booking →
                 </button>
               </div>
             </div>
           )}
+
+          {/* Booking panel — Step 2: Confirm */}
+          {selected && confirming && (() => {
+            const start = new Date(`${date}T${String(selected.hour).padStart(2, '0')}:00:00`)
+            const end = new Date(start.getTime() + duration * 60 * 60 * 1000)
+            const invitedFriends = friends.filter(f => selectedFriends.includes(f.id))
+            return (
+              <div className="mb-4 bg-white border-2 border-green-500 rounded-xl shadow-md overflow-hidden">
+                <div className="bg-green-700 text-white px-5 py-3">
+                  <h3 className="font-bold text-base">Confirm Your Booking</h3>
+                  <p className="text-green-200 text-xs mt-0.5">Please review the details below before confirming.</p>
+                </div>
+                <div className="p-5 space-y-3">
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                    <div>
+                      <span className="text-gray-500 text-xs uppercase tracking-wide">Court</span>
+                      <p className="font-semibold text-gray-800 mt-0.5">
+                        {selected.courtName}
+                        {courts.find(c => c.id === selected.courtId)?.has_ball_machine && (
+                          <span className="ml-1 text-xs text-green-600">🤖</span>
+                        )}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 text-xs uppercase tracking-wide">Date</span>
+                      <p className="font-semibold text-gray-800 mt-0.5">{formatDate(date)}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 text-xs uppercase tracking-wide">Time</span>
+                      <p className="font-semibold text-gray-800 mt-0.5">
+                        {start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} – {end.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 text-xs uppercase tracking-wide">Duration</span>
+                      <p className="font-semibold text-gray-800 mt-0.5">{duration === 1 ? '1 hour' : '1½ hours'}</p>
+                    </div>
+                    {matchType !== 'casual' && (
+                      <div>
+                        <span className="text-gray-500 text-xs uppercase tracking-wide">Match Type</span>
+                        <p className="font-semibold text-gray-800 mt-0.5 capitalize">{matchType} — need {playersNeeded} more player{playersNeeded !== 1 ? 's' : ''}</p>
+                      </div>
+                    )}
+                    {notes && (
+                      <div className="col-span-2">
+                        <span className="text-gray-500 text-xs uppercase tracking-wide">Notes</span>
+                        <p className="font-semibold text-gray-800 mt-0.5">{notes}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {invitedFriends.length > 0 && (
+                    <div className="border-t border-gray-100 pt-3">
+                      <span className="text-gray-500 text-xs uppercase tracking-wide">Invitations will be sent to</span>
+                      <div className="flex flex-wrap gap-2 mt-1.5">
+                        {invitedFriends.map(f => (
+                          <span key={f.id} className="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-1 rounded-full">
+                            ✉️ {f.friend_name}{f.is_guest ? ' (Guest)' : ''}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {error && <p className="text-red-600 text-sm">{error}</p>}
+
+                  <div className="flex gap-3 pt-2 border-t border-gray-100">
+                    <button onClick={() => setConfirming(false)}
+                      className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium text-gray-600 border border-gray-200 hover:bg-gray-50 transition">
+                      ← Back
+                    </button>
+                    <button onClick={handleBook} disabled={loading}
+                      className="flex-1 px-5 py-2.5 bg-green-700 hover:bg-green-800 text-white rounded-lg text-sm font-bold transition disabled:opacity-50">
+                      {loading ? 'Booking…' : invitedFriends.length > 0 ? `Confirm & Send ${invitedFriends.length} Invite${invitedFriends.length !== 1 ? 's' : ''}` : 'Confirm Booking'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
 
           {/* Grid */}
           <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-x-auto">
