@@ -1,15 +1,24 @@
 package handlers
 
 import (
+	"context"
+	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
 )
 
+type EventMailer interface {
+	Send(to, subject, body string) error
+}
+
 type EventsHandler struct {
-	DB *pgxpool.Pool
+	DB      *pgxpool.Pool
+	Mailer  EventMailer
+	SiteURL string
 }
 
 type Event struct {
@@ -48,12 +57,12 @@ func (h *EventsHandler) List(c echo.Context) error {
 func (h *EventsHandler) Create(c echo.Context) error {
 	authorID := c.Get("user_id").(string)
 	var req struct {
-		Title       string  `json:"title"`
-		Description string  `json:"description"`
-		StartTime   string  `json:"start_time"`
-		EndTime     string  `json:"end_time"`
-		EventType   string  `json:"event_type"`
-		Location    string  `json:"location"`
+		Title       string `json:"title"`
+		Description string `json:"description"`
+		StartTime   string `json:"start_time"`
+		EndTime     string `json:"end_time"`
+		EventType   string `json:"event_type"`
+		Location    string `json:"location"`
 	}
 	if err := c.Bind(&req); err != nil || req.Title == "" || req.StartTime == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "title and start time required")
@@ -69,7 +78,29 @@ func (h *EventsHandler) Create(c echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not create event")
 	}
+
+	// Auto-create a dashboard announcement for this event
+	go h.createAnnouncement(ev, authorID)
+
 	return c.JSON(http.StatusCreated, ev)
+}
+
+func (h *EventsHandler) createAnnouncement(ev Event, authorID string) {
+	desc := ""
+	if ev.Description != nil {
+		desc = "\n\n" + *ev.Description
+	}
+	loc := ""
+	if ev.Location != nil {
+		loc = "\n📍 " + *ev.Location
+	}
+	body := fmt.Sprintf("%s%s%s",
+		ev.StartTime.Format("Monday, January 2, 2006 at 3:04 PM"),
+		loc, desc)
+
+	h.DB.Exec(context.Background(),
+		`INSERT INTO announcements (title, body, author_id) VALUES ($1, $2, $3)`,
+		"New Event: "+ev.Title, body, authorID)
 }
 
 func (h *EventsHandler) Get(c echo.Context) error {
@@ -85,7 +116,6 @@ func (h *EventsHandler) Get(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusNotFound, "event not found")
 	}
 
-	// Re-scan with full struct including signup fields
 	var signupEnabled bool
 	var signupDeadline *string
 	var maxPlayers *int
@@ -105,4 +135,84 @@ func (h *EventsHandler) Delete(c echo.Context) error {
 	id := c.Param("id")
 	h.DB.Exec(c.Request().Context(), `DELETE FROM events WHERE id = $1`, id)
 	return c.NoContent(http.StatusNoContent)
+}
+
+// SendEmail sends an event email to all active members using a named template.
+func (h *EventsHandler) SendEmail(c echo.Context) error {
+	if h.Mailer == nil {
+		return echo.NewHTTPError(http.StatusServiceUnavailable, "email not configured")
+	}
+
+	eventID := c.Param("id")
+	var req struct {
+		TemplateName string `json:"template_name"`
+	}
+	c.Bind(&req)
+	if req.TemplateName == "" {
+		req.TemplateName = "event_announcement"
+	}
+
+	// Load event
+	var ev Event
+	err := h.DB.QueryRow(c.Request().Context(),
+		`SELECT id, title, description, start_time, end_time, location FROM events WHERE id = $1`, eventID,
+	).Scan(&ev.ID, &ev.Title, &ev.Description, &ev.StartTime, &ev.EndTime, &ev.Location)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, "event not found")
+	}
+
+	// Load template
+	var subject, body string
+	err = h.DB.QueryRow(c.Request().Context(),
+		`SELECT subject, body FROM email_templates WHERE name = $1`, req.TemplateName,
+	).Scan(&subject, &body)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, "email template not found")
+	}
+
+	// Build replacement map
+	desc := ""
+	if ev.Description != nil {
+		desc = *ev.Description
+	}
+	loc := ""
+	if ev.Location != nil {
+		loc = *ev.Location
+	}
+	dateStr := ev.StartTime.Format("Monday, January 2, 2006 at 3:04 PM")
+	if ev.EndTime != nil {
+		dateStr += " – " + ev.EndTime.Format("3:04 PM")
+	}
+	signupURL := fmt.Sprintf("%s/events/%s/signup", h.SiteURL, ev.ID)
+
+	replacer := strings.NewReplacer(
+		"{{event_title}}", ev.Title,
+		"{{event_date}}", dateStr,
+		"{{event_location}}", loc,
+		"{{event_description}}", desc,
+		"{{signup_url}}", signupURL,
+		"{{site_url}}", h.SiteURL,
+	)
+	subject = replacer.Replace(subject)
+	body = replacer.Replace(body)
+
+	// Send to all active members
+	rows, err := h.DB.Query(c.Request().Context(),
+		`SELECT email, first_name FROM users WHERE status = 'active'`)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch members")
+	}
+	defer rows.Close()
+
+	var sent int
+	for rows.Next() {
+		var email, firstName string
+		if err := rows.Scan(&email, &firstName); err != nil {
+			continue
+		}
+		go h.Mailer.Send(email, subject, body)
+		sent++
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{"sent": sent, "subject": subject})
 }

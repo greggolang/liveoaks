@@ -71,7 +71,8 @@ func main() {
 	announcements := &handlers.AnnouncementsHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	admin := &handlers.AdminHandler{DB: pool, Mailer: mailer}
 	members := &handlers.MembersHandler{DB: pool}
-	events := &handlers.EventsHandler{DB: pool}
+	events := &handlers.EventsHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
+	emailTemplates := &handlers.EmailTemplatesHandler{DB: pool}
 	dues := &handlers.DuesHandler{DB: pool}
 	waitlist := &handlers.WaitlistHandler{DB: pool}
 	guests := &handlers.GuestsHandler{DB: pool}
@@ -148,6 +149,7 @@ func main() {
 	boardPlus.DELETE("/contacts/:id", contacts.Delete)
 	boardPlus.POST("/events", events.Create)
 	boardPlus.DELETE("/events/:id", events.Delete)
+	boardPlus.POST("/events/:id/send-email", events.SendEmail)
 	boardPlus.POST("/admin/documents", uploads.UploadDocument)
 	boardPlus.DELETE("/admin/documents/:id", uploads.DeleteDocument)
 	boardPlus.POST("/admin/photos", uploads.UploadPhoto)
@@ -183,6 +185,10 @@ func main() {
 	adminOnly.GET("/feedback", feedback.AdminList)
 	adminOnly.PUT("/feedback/:id/status", feedback.UpdateStatus)
 	adminOnly.DELETE("/feedback/:id", feedback.Delete)
+	adminOnly.GET("/email-templates", emailTemplates.List)
+	adminOnly.POST("/email-templates", emailTemplates.Create)
+	adminOnly.PUT("/email-templates/:id", emailTemplates.Update)
+	adminOnly.DELETE("/email-templates/:id", emailTemplates.Delete)
 
 	authed.GET("/family-members", family.List)
 	authed.POST("/family-members", family.Create)

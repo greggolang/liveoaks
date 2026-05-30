@@ -75,6 +75,14 @@ export const api = {
     get: (id: string) => request(`/events/${id}`),
     create: (data: object) => request('/events', { method: 'POST', body: JSON.stringify(data) }),
     delete: (id: string) => request(`/events/${id}`, { method: 'DELETE' }),
+    sendEmail: (id: string, templateName: string) =>
+      request(`/events/${id}/send-email`, { method: 'POST', body: JSON.stringify({ template_name: templateName }) }),
+  },
+  emailTemplates: {
+    list: () => request('/admin/email-templates'),
+    create: (data: object) => request('/admin/email-templates', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: object) => request(`/admin/email-templates/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    delete: (id: string) => request(`/admin/email-templates/${id}`, { method: 'DELETE' }),
   },
   signups: {
     submit: (eventId: string, data: object) => request(`/events/${eventId}/signup`, { method: 'POST', body: JSON.stringify(data) }),
