@@ -3,22 +3,13 @@ import { api } from '../api/client'
 
 export default function RoleEmail() {
   const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [showPass, setShowPass] = useState(false)
-  const [copied, setCopied] = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     api.google.credentials()
-      .then(d => { setEmail(d.email); setPassword(d.password) })
+      .then(d => { setEmail(d.email) })
       .finally(() => setLoading(false))
   }, [])
-
-  const copy = async () => {
-    await navigator.clipboard.writeText(password)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
 
   if (loading) return <div className="text-sm text-gray-400 py-8">Loading…</div>
 
@@ -26,7 +17,7 @@ export default function RoleEmail() {
     <div className="max-w-lg">
       <h1 className="text-2xl font-bold text-gray-800 mb-1">Email</h1>
       <p className="text-sm text-gray-500 mb-6">
-        Your role's mailbox credentials. Use these to sign in to Gmail in a new tab.
+        Your role's mailbox. Click below to sign in to Gmail.
       </p>
 
       <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 space-y-5">
@@ -40,35 +31,6 @@ export default function RoleEmail() {
               Not configured — ask an admin to set this up in Admin → Settings.
             </p>
           )}
-        </div>
-
-        {/* Password */}
-        <div>
-          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Password</label>
-          <div className="flex items-center gap-2 mt-1">
-            <span className="flex-1 text-sm font-mono bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 min-h-[38px] flex items-center">
-              {password
-                ? (showPass ? password : '••••••••••••')
-                : <span className="text-gray-400 italic text-xs font-sans">Not set</span>
-              }
-            </span>
-            {password && (
-              <>
-                <button
-                  onClick={() => setShowPass(s => !s)}
-                  className="px-3 py-2 border border-gray-200 rounded-lg text-xs text-gray-600 hover:bg-gray-50 transition shrink-0">
-                  {showPass ? 'Hide' : 'Show'}
-                </button>
-                <button
-                  onClick={copy}
-                  className={`px-3 py-2 border rounded-lg text-xs font-medium transition shrink-0 ${
-                    copied ? 'border-green-300 bg-green-50 text-green-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-                  }`}>
-                  {copied ? 'Copied!' : 'Copy'}
-                </button>
-              </>
-            )}
-          </div>
         </div>
 
         {/* Open Gmail button */}
@@ -88,8 +50,7 @@ export default function RoleEmail() {
       </div>
 
       <p className="text-xs text-gray-400 mt-4">
-        Sign in to Gmail with the mailbox address and password shown above.
-        Contact an admin if credentials are missing or need updating.
+        Contact an admin if the mailbox is missing or needs updating.
       </p>
     </div>
   )

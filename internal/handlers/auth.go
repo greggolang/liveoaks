@@ -158,19 +158,20 @@ func (h *AuthHandler) Me(c echo.Context) error {
 func (h *AuthHandler) UpdateProfile(c echo.Context) error {
 	userID := c.Get("user_id").(string)
 	var req struct {
-		FirstName string `json:"first_name"`
-		LastName  string `json:"last_name"`
-		Phone     string `json:"phone"`
-		Address   string `json:"address"`
-		Family    string `json:"family"`
+		FirstName   string `json:"first_name"`
+		LastName    string `json:"last_name"`
+		Phone       string `json:"phone"`
+		Address     string `json:"address"`
+		Family      string `json:"family"`
+		USTARanking string `json:"usta_ranking"`
 	}
 	if err := c.Bind(&req); err != nil || req.FirstName == "" || req.LastName == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "first and last name required")
 	}
 	_, err := h.DB.Exec(c.Request().Context(),
 		`UPDATE users SET first_name=$1, last_name=$2, phone=NULLIF($3,''),
-		 address=NULLIF($4,''), family=NULLIF($5,''), updated_at=NOW() WHERE id=$6`,
-		req.FirstName, req.LastName, req.Phone, req.Address, req.Family, userID)
+		 address=NULLIF($4,''), family=NULLIF($5,''), usta_ranking=NULLIF($6,''), updated_at=NOW() WHERE id=$7`,
+		req.FirstName, req.LastName, req.Phone, req.Address, req.Family, req.USTARanking, userID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not update profile")
 	}
