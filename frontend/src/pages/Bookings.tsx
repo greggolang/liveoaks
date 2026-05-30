@@ -156,6 +156,18 @@ export default function Bookings() {
     }
   }, [tab])
 
+  // Load rosters for my bookings whenever the grid booking list changes
+  useEffect(() => {
+    bookings.filter(b => b.user_id === user?.id).forEach(b => {
+      api.invitations.getRoster(b.id).then((d: any) => {
+        setRosterMap(prev => ({
+          ...prev,
+          [b.id]: { players: d.players || [], invitations: d.invitations || [] },
+        }))
+      }).catch(() => {})
+    })
+  }, [bookings])
+
   const refreshRoster = async (bookingId: string) => {
     const data = await api.invitations.getRoster(bookingId) as any
     const players = data.players || []
@@ -1122,13 +1134,24 @@ export default function Bookings() {
                                 {matchLabel && !isBallMachine && (
                                   <span className={`text-xs truncate ${isMe ? 'text-green-200' : 'text-green-600'}`}>{matchLabel}</span>
                                 )}
-                                {extraPlayers.length > 0 && (
-                                  <div className={`text-xs mt-0.5 pt-0.5 border-t space-y-0.5 ${isMe ? 'border-green-500' : 'border-green-200'}`}>
-                                    {extraPlayers.map((name, i) => (
-                                      <div key={i} className="truncate leading-tight">{name.split(' ')[0]}</div>
-                                    ))}
-                                  </div>
-                                )}
+                                {(() => {
+                                  const r = isMe ? rosterMap[booking.id] : null
+                                  const pending = r?.invitations.filter(i => i.status === 'pending') ?? []
+                                  const showPlayers = extraPlayers.length > 0 || pending.length > 0
+                                  if (!showPlayers) return null
+                                  return (
+                                    <div className={`text-xs mt-0.5 pt-0.5 border-t space-y-0.5 ${isMe ? 'border-green-500' : 'border-green-200'}`}>
+                                      {extraPlayers.map((name, i) => (
+                                        <div key={i} className="truncate leading-tight">{name.split(' ')[0]}</div>
+                                      ))}
+                                      {pending.map(inv => (
+                                        <div key={inv.id} className="truncate leading-tight text-yellow-300">
+                                          ⏳ {inv.invitee_name.split(' ')[0]}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )
+                                })()}
                               </div>
                             ) : (
                               <div className={`rounded h-7 ${isMe ? 'bg-green-600' : 'bg-green-100'}`} />
