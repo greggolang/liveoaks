@@ -17,15 +17,12 @@ interface Booking {
   user: { first_name: string; last_name: string }
   court: { name: string; number: number }
 }
-interface Court { id: number; name: string; number: number; has_ball_machine?: boolean }
 type SubmitState = 'idle' | 'sending' | 'done' | 'error'
 
 interface Announcement {
   id: string; title: string; body: string; created_at: string
   author: { first_name: string; last_name: string }
 }
-
-const HOURS = Array.from({ length: 12 }, (_, i) => i + 8) // 8am–7pm
 
 function readKey(userId: string) { return `news_read_${userId}` }
 
@@ -40,11 +37,10 @@ function saveRead(userId: string, ids: Set<string>) {
 
 export default function Dashboard() {
   const { user } = useAuth()
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [idea, setIdea] = useState('')
   const [ideaState, setIdeaState] = useState<SubmitState>('idle')
-  const [bookings, setBookings] = useState<Booking[]>([])
-  const [courts, setCourts] = useState<Court[]>([])
+  const [myBookings, setMyBookings] = useState<Booking[]>([])
+  const [bookingCountdown, setBookingCountdown] = useState(30)
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [readIds, setReadIds] = useState<Set<string>>(new Set())
   const [cameraURL, setCameraURL] = useState<string | null>(null)
@@ -75,14 +71,18 @@ export default function Dashboard() {
   }, [user?.id])
 
   useEffect(() => {
-    api.courts.list().then(d => setCourts(d as Court[]))
     api.announcements.list().then(d => setAnnouncements(d as Announcement[]))
     api.camera.embedURL().then(d => setCameraURL(d.url)).catch(() => setCameraURL('/camera'))
+    const refreshBookings = () => api.bookings.mine().then(d => setMyBookings(d as Booking[]))
+    refreshBookings()
+    const timer = setInterval(() => {
+      setBookingCountdown(c => {
+        if (c <= 1) { refreshBookings(); return 30 }
+        return c - 1
+      })
+    }, 1000)
+    return () => clearInterval(timer)
   }, [])
-
-  useEffect(() => {
-    api.bookings.list(date).then(d => setBookings(d as Booking[]))
-  }, [date])
 
   const markRead = (id: string) => {
     if (!user?.id) return
@@ -92,13 +92,6 @@ export default function Dashboard() {
   }
 
   const unread = announcements.filter(a => !readIds.has(a.id))
-
-  const getBooking = (courtId: number, hour: number) =>
-    bookings.find(b => {
-      const start = new Date(b.start_time).getHours()
-      const end = new Date(b.end_time).getHours()
-      return b.court_id === courtId && hour >= start && hour < end
-    })
 
   return (
     <div className="space-y-8">
@@ -163,74 +156,56 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Court availability */}
+      {/* My Bookings */}
       <div>
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-          <h2 className="text-lg font-semibold text-gray-700">Court Availability</h2>
-          <div className="flex items-center gap-2 flex-wrap">
-            <input
-              type="date"
-              value={date}
-              onChange={e => setDate(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-            />
-            <Link
-              to="/bookings"
-              className="bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-4 py-1.5 rounded-lg transition whitespace-nowrap"
-            >
-              Book a Court
-            </Link>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold text-gray-700">My Upcoming Bookings</h2>
+            <span className="text-xs text-gray-400">↻ {bookingCountdown}s</span>
           </div>
+          <Link to="/bookings"
+            className="bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-4 py-1.5 rounded-lg transition whitespace-nowrap">
+            Book a Court
+          </Link>
         </div>
-
-        <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="px-4 py-3 text-left text-gray-500 text-xs font-medium w-20">Time</th>
-                {courts.map(c => (
-                  <th key={c.id} className="px-4 py-3 text-center text-gray-700 font-semibold">
-                    {c.name}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {HOURS.map(hour => (
-                <tr key={hour} className="border-b border-gray-100 last:border-0">
-                  <td className="px-4 py-2 text-gray-400 text-xs font-medium whitespace-nowrap">
-                    {hour % 12 || 12}{hour < 12 ? 'am' : 'pm'}
-                  </td>
-                  {courts.map(c => {
-                    const b = getBooking(c.id, hour)
-                    return (
-                      <td key={c.id} className="px-2 py-1 text-center">
-                        {b ? (
-                          <div className="bg-green-100 border border-green-300 rounded px-2 py-1 text-xs text-green-800 font-medium">
-                            {b.match_type === 'ball_machine'
-                              ? '🤖 Ball Machine'
-                              : `${b.user.first_name} ${b.user.last_name[0]}.`}
-                          </div>
-                        ) : (
-                          <div className="text-gray-200 text-xs">—</div>
-                        )}
-                      </td>
-                    )
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="mt-2 flex gap-4 text-xs text-gray-400">
-          <span className="flex items-center gap-1">
-            <span className="inline-block w-3 h-3 bg-green-100 border border-green-300 rounded" /> Booked
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="inline-block w-3 h-3 bg-white border border-gray-200 rounded" /> Available
-          </span>
-        </div>
+        {myBookings.length === 0 ? (
+          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm text-center text-sm text-gray-400">
+            No upcoming bookings. <Link to="/bookings" className="text-green-700 hover:underline font-medium">Book a court →</Link>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {myBookings.map(b => {
+              const start = new Date(b.start_time)
+              const end = new Date(b.end_time)
+              return (
+                <div key={b.id} className="bg-white border border-gray-200 rounded-xl px-4 py-3 shadow-sm flex items-center gap-4">
+                  <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center text-green-700 font-bold text-base shrink-0">
+                    {b.court.number}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-gray-800 text-sm">{b.court.name}
+                      {b.match_type && b.match_type !== 'casual' && (
+                        <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-normal">
+                          {b.match_type === 'ball_machine' ? '🤖 Ball Machine'
+                            : b.match_type === 'singles' ? 'Singles'
+                            : b.match_type === 'doubles' ? 'Doubles'
+                            : b.match_type}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-0.5">
+                      {start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                      {' · '}
+                      {start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                      {' – '}
+                      {end.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {/* Court Camera */}

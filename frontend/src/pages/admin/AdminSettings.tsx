@@ -48,6 +48,7 @@ const BOOKING_KEYS = new Set(BOOKING_SECTIONS.flatMap(s => s.settings.map(x => x
 // Keys managed elsewhere or in dedicated sections — hide from the generic list
 const HIDDEN_KEYS = new Set([
   ...BOOKING_KEYS,
+  'timezone',
   'smtp_host','smtp_port','smtp_user','smtp_pass','smtp_from',
   'google_email_president','google_email_vice_president','google_email_secretary',
   'google_email_treasurer','google_email_billing','google_email_entertainment','google_email_house_grounds',
@@ -130,6 +131,28 @@ export default function AdminSettings() {
             </button>
           </div>
         ))}
+      </div>
+
+      {/* Timezone */}
+      <h2 className="text-xl font-bold text-gray-800 mt-8 mb-1">Club Timezone</h2>
+      <p className="text-sm text-gray-500 mb-4">Used to format times in all email notifications.</p>
+      <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+        <div className="flex items-center gap-4">
+          <label className="w-56 text-sm font-medium text-gray-700 shrink-0">Timezone</label>
+          <input
+            value={settings['timezone'] ?? 'America/Los_Angeles'}
+            onChange={e => setSettings(s => ({ ...s, timezone: e.target.value }))}
+            placeholder="America/Los_Angeles"
+            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+          />
+          <button onClick={() => save('timezone')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition shrink-0 ${saved['timezone'] ? 'bg-green-100 text-green-700' : 'bg-green-700 text-white hover:bg-green-800'}`}>
+            {saved['timezone'] ? 'Saved!' : 'Save'}
+          </button>
+        </div>
+        <p className="text-xs text-gray-400 mt-2 ml-[calc(224px+1rem)]">
+          IANA timezone name — e.g. <span className="font-mono">America/Los_Angeles</span>, <span className="font-mono">America/New_York</span>, <span className="font-mono">America/Chicago</span>
+        </p>
       </div>
 
       {/* Booking System */}

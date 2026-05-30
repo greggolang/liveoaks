@@ -57,6 +57,7 @@ export const api = {
   courts: { list: () => request('/courts') },
   bookings: {
     list: (date?: string) => request(`/bookings${date ? `?date=${date}` : ''}`),
+    mine: () => request('/bookings/mine'),
     create: (data: object) => request('/bookings', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: object) => request(`/bookings/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => request(`/bookings/${id}`, { method: 'DELETE' }),
@@ -242,6 +243,7 @@ export const api = {
   },
   admin: {
     users: () => request('/admin/users'),
+    createUser: (data: object) => request('/admin/users', { method: 'POST', body: JSON.stringify(data) }),
     updateProfile: (id: string, data: object) =>
       request(`/admin/users/${id}/profile`, { method: 'PUT', body: JSON.stringify(data) }),
     updateRole: (id: string, role: string) =>

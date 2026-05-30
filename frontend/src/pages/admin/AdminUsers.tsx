@@ -10,6 +10,7 @@ interface User {
 }
 
 const emptyEdit = { first_name: '', last_name: '', email: '', phone: '', address: '', family: '', usta_ranking: '' }
+const emptyNew = { first_name: '', last_name: '', email: '', phone: '', password: '', role: 'member', status: 'active' }
 const RELATIONSHIPS = ['spouse', 'child', 'parent', 'sibling', 'other']
 
 interface FamilyMember { id: string; first_name: string; last_name: string; relationship: string; phone?: string; email?: string; birthday?: string }
@@ -22,6 +23,10 @@ export default function AdminUsers() {
   const [editing, setEditing] = useState<User | null>(null)
   const [editForm, setEditForm] = useState(emptyEdit)
   const [saving, setSaving] = useState(false)
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [addForm, setAddForm] = useState(emptyNew)
+  const [addError, setAddError] = useState('')
+  const [addSaving, setAddSaving] = useState(false)
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([])
   const [showFamilyForm, setShowFamilyForm] = useState(false)
   const [familyForm, setFamilyForm] = useState({ first_name: '', last_name: '', relationship: 'spouse', birthday: '' })
@@ -40,9 +45,8 @@ export default function AdminUsers() {
     loadFamily(u.id)
   }
 
-  const addFamilyMember = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!editing) return
+  const addFamilyMember = async () => {
+    if (!editing || !familyForm.first_name || !familyForm.last_name || !familyForm.birthday) return
     setSavingFamily(true)
     try {
       await api.family.adminCreate(editing.id, familyForm)
@@ -82,6 +86,20 @@ export default function AdminUsers() {
     if (!confirm(`Delete ${name}? This cannot be undone.`)) return
     await api.admin.deleteUser(id)
     load()
+  }
+
+  const handleAddMember = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setAddError('')
+    setAddSaving(true)
+    try {
+      await api.admin.createUser(addForm)
+      setShowAddModal(false)
+      setAddForm(emptyNew)
+      load()
+    } catch (err: any) {
+      setAddError(err.message)
+    } finally { setAddSaving(false) }
   }
 
   const filtered = users.filter(u => {
@@ -135,7 +153,13 @@ export default function AdminUsers() {
     <div>
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-bold text-gray-800">Members</h2>
-        <span className="text-xs text-gray-400">{filtered.length} of {users.length} shown</span>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-gray-400">{filtered.length} of {users.length} shown</span>
+          <button onClick={() => { setShowAddModal(true); setAddForm(emptyNew); setAddError('') }}
+            className="bg-green-700 hover:bg-green-800 text-white text-sm font-medium px-4 py-1.5 rounded-lg transition">
+            + Add Member
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -336,27 +360,27 @@ export default function AdminUsers() {
                 <p className="text-xs text-gray-400">No family members added.</p>
               )}
               {showFamilyForm && (
-                <form onSubmit={addFamilyMember} className="flex flex-wrap gap-2 items-end bg-gray-50 rounded-lg p-2">
+                <div className="flex flex-wrap gap-2 items-end bg-gray-50 rounded-lg p-2">
                   <input value={familyForm.first_name} onChange={e => setFamilyForm(f => ({ ...f, first_name: e.target.value }))}
-                    placeholder="First name" required
+                    placeholder="First name"
                     className="border border-gray-300 rounded px-2 py-1 text-xs w-28 focus:outline-none focus:ring-1 focus:ring-green-500" />
                   <input value={familyForm.last_name} onChange={e => setFamilyForm(f => ({ ...f, last_name: e.target.value }))}
-                    placeholder="Last name" required
+                    placeholder="Last name"
                     className="border border-gray-300 rounded px-2 py-1 text-xs w-28 focus:outline-none focus:ring-1 focus:ring-green-500" />
                   <select value={familyForm.relationship} onChange={e => setFamilyForm(f => ({ ...f, relationship: e.target.value }))}
                     className="border border-gray-300 rounded px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500">
                     {RELATIONSHIPS.map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
                   <input type="date" value={familyForm.birthday} onChange={e => setFamilyForm(f => ({ ...f, birthday: e.target.value }))}
-                    title="Birthday" required
+                    title="Birthday"
                     className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-green-500" />
-                  <button type="submit" disabled={savingFamily}
+                  <button type="button" onClick={addFamilyMember} disabled={savingFamily}
                     className="text-xs bg-green-700 text-white px-2 py-1 rounded hover:bg-green-800 transition disabled:opacity-50">
                     {savingFamily ? 'Adding…' : 'Add'}
                   </button>
                   <button type="button" onClick={() => setShowFamilyForm(false)}
                     className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
-                </form>
+                </div>
               )}
             </div>
 
@@ -366,6 +390,90 @@ export default function AdminUsers() {
                 {saving ? 'Saving…' : 'Save Changes'}
               </button>
               <button type="button" onClick={() => setEditing(null)}
+                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition">
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Add Member modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowAddModal(false)}>
+          <form onSubmit={handleAddMember} onClick={e => e.stopPropagation()}
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+            <div className="flex justify-between items-center">
+              <h2 className="text-lg font-bold text-gray-800">Add Member</h2>
+              <button type="button" onClick={() => setShowAddModal(false)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">First Name *</label>
+                <input value={addForm.first_name} onChange={e => setAddForm(f => ({ ...f, first_name: e.target.value }))} required
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Last Name *</label>
+                <input value={addForm.last_name} onChange={e => setAddForm(f => ({ ...f, last_name: e.target.value }))} required
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Email *</label>
+                <input type="email" value={addForm.email} onChange={e => setAddForm(f => ({ ...f, email: e.target.value }))} required
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
+                <input type="tel" value={addForm.phone} onChange={e => setAddForm(f => ({ ...f, phone: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Temporary Password *</label>
+                <input type="text" value={addForm.password} onChange={e => setAddForm(f => ({ ...f, password: e.target.value }))} required minLength={8}
+                  placeholder="Min 8 characters"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Role</label>
+                <select value={addForm.role} onChange={e => setAddForm(f => ({ ...f, role: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white">
+                  <option value="member">Member</option>
+                  <optgroup label="Committee">
+                    <option value="billing">Billing</option>
+                    <option value="membership">Membership</option>
+                    <option value="usta">USTA</option>
+                  </optgroup>
+                  <optgroup label="Board">
+                    <option value="entertainment">Entertainment</option>
+                    <option value="house_grounds">House &amp; Grounds</option>
+                    <option value="secretary">Secretary</option>
+                    <option value="treasurer">Treasurer</option>
+                    <option value="vice_president">Vice President</option>
+                    <option value="president">President</option>
+                  </optgroup>
+                  <optgroup label="System">
+                    <option value="admin">Admin</option>
+                  </optgroup>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Status</label>
+                <select value={addForm.status} onChange={e => setAddForm(f => ({ ...f, status: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white">
+                  <option value="active">Active</option>
+                  <option value="pending">Pending</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+            </div>
+            {addError && <p className="text-red-600 text-sm">{addError}</p>}
+            <div className="flex gap-3 pt-1">
+              <button type="submit" disabled={addSaving}
+                className="bg-green-700 hover:bg-green-800 text-white font-semibold px-6 py-2 rounded-lg text-sm transition disabled:opacity-50">
+                {addSaving ? 'Adding…' : 'Add Member'}
+              </button>
+              <button type="button" onClick={() => setShowAddModal(false)}
                 className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition">
                 Cancel
               </button>

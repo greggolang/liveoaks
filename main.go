@@ -111,6 +111,7 @@ func main() {
 	authed.GET("/courts", courts.List)
 
 	authed.GET("/bookings", bookings.List)
+	authed.GET("/bookings/mine", bookings.Mine)
 	authed.POST("/bookings", bookings.Create)
 	authed.PUT("/bookings/:id", bookings.Update)
 	authed.DELETE("/bookings/:id", bookings.Delete)
@@ -169,6 +170,7 @@ func main() {
 	// Admin only
 	adminOnly := authed.Group("/admin", mw.RequireRole("admin"))
 	adminOnly.GET("/users", users.List)
+	adminOnly.POST("/users", users.Create)
 	adminOnly.PUT("/users/:id/profile", users.UpdateProfile)
 	adminOnly.PUT("/users/:id/role", users.UpdateRole)
 	adminOnly.PUT("/users/:id/status", users.UpdateStatus)

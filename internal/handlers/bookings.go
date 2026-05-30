@@ -45,15 +45,14 @@ func (h *BookingsHandler) emailRoster(bookingID, subject, body string) {
 	}
 }
 
-func bookingCard(courtName string, start, end time.Time) string {
-	loc, _ := time.LoadLocation("America/Los_Angeles")
+func bookingCard(courtName string, start, end time.Time, loc *time.Location) string {
 	if loc == nil {
 		loc = time.UTC
 	}
 	return fmt.Sprintf("<strong>%s</strong><br>%s – %s",
 		courtName,
-		start.In(loc).Format("Mon Jan 2 at 3:04 PM"),
-		end.In(loc).Format("3:04 PM"))
+		start.In(loc).Format("Mon Jan 2 at 3:04 PM MST"),
+		end.In(loc).Format("3:04 PM MST"))
 }
 
 func (h *BookingsHandler) List(c echo.Context) error {
@@ -86,6 +85,45 @@ func (h *BookingsHandler) List(c echo.Context) error {
 		rows, err = h.DB.Query(c.Request().Context(),
 			baseQuery+` WHERE b.start_time >= NOW()`+groupBy+` ORDER BY b.start_time LIMIT 100`)
 	}
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch bookings")
+	}
+	defer rows.Close()
+
+	bookings := []models.Booking{}
+	for rows.Next() {
+		var b models.Booking
+		b.User = &models.User{}
+		b.Court = &models.Court{}
+		if err := rows.Scan(&b.ID, &b.UserID, &b.CourtID, &b.StartTime, &b.EndTime, &b.Notes, &b.CreatedAt,
+			&b.MatchType, &b.PlayersNeeded,
+			&b.User.FirstName, &b.User.LastName, &b.Court.Name, &b.Court.Number,
+			&b.Players); err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "could not scan booking")
+		}
+		bookings = append(bookings, b)
+	}
+	return c.JSON(http.StatusOK, bookings)
+}
+
+// Mine returns only the authenticated user's upcoming bookings.
+func (h *BookingsHandler) Mine(c echo.Context) error {
+	userID := c.Get("user_id").(string)
+	rows, err := h.DB.Query(c.Request().Context(), `
+		SELECT b.id, b.user_id, b.court_id, b.start_time, b.end_time, b.notes, b.created_at,
+		       COALESCE(b.match_type, ''), b.players_needed,
+		       u.first_name, u.last_name, ct.name, ct.number,
+		       COALESCE(array_agg(mp.player_name ORDER BY mp.is_host DESC, mp.added_at)
+		                FILTER (WHERE mp.player_name IS NOT NULL), ARRAY[]::text[]) AS players
+		FROM bookings b
+		JOIN users u ON u.id = b.user_id
+		JOIN courts ct ON ct.id = b.court_id
+		LEFT JOIN match_players mp ON mp.booking_id = b.id
+		WHERE b.user_id = $1 AND b.start_time >= NOW()
+		GROUP BY b.id, b.user_id, b.court_id, b.start_time, b.end_time, b.notes,
+		         b.created_at, b.match_type, b.players_needed,
+		         u.first_name, u.last_name, ct.name, ct.number
+		ORDER BY b.start_time`, userID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch bookings")
 	}
@@ -263,7 +301,7 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 	if h.Mailer != nil && hostEmail != "" {
 		var courtName string
 		h.DB.QueryRow(c.Request().Context(), `SELECT name FROM courts WHERE id = $1`, req.CourtID).Scan(&courtName)
-		card := bookingCard(courtName, req.StartTime, req.EndTime)
+		card := bookingCard(courtName, req.StartTime, req.EndTime, loadTimezone(c.Request().Context(), h.DB))
 		body := fmt.Sprintf(`
 <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
   <h2 style="color:#15803d">🎾 Booking Confirmed</h2>
@@ -362,7 +400,7 @@ func (h *BookingsHandler) Update(c echo.Context) error {
 	if h.Mailer != nil && (newCourtID != currentCourtID || newEnd != currentEnd) {
 		var courtName string
 		h.DB.QueryRow(c.Request().Context(), `SELECT name FROM courts WHERE id = $1`, newCourtID).Scan(&courtName)
-		card := bookingCard(courtName, currentStart, newEnd)
+		card := bookingCard(courtName, currentStart, newEnd, loadTimezone(c.Request().Context(), h.DB))
 		body := fmt.Sprintf(`
 <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
   <h2 style="color:#15803d">📋 Booking Updated</h2>
@@ -401,7 +439,7 @@ func (h *BookingsHandler) Delete(c echo.Context) error {
 			 JOIN courts ct ON ct.id = b.court_id WHERE b.id = $1`, id,
 		).Scan(&courtName, &startTime, &endTime)
 		if courtName != "" {
-			card := bookingCard(courtName, startTime, endTime)
+			card := bookingCard(courtName, startTime, endTime, loadTimezone(c.Request().Context(), h.DB))
 			body := fmt.Sprintf(`
 <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
   <h2 style="color:#dc2626">❌ Booking Cancelled</h2>

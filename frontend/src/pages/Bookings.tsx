@@ -89,7 +89,9 @@ export default function Bookings() {
   const [playersNeeded, setPlayersNeeded] = useState(PLAYERS_BY_TYPE['casual'])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [tab, setTab] = useState<'grid' | 'mine'>('grid')
+  const [tab, setTab] = useState<'grid' | 'mine'>('mine')
+  const [gridCountdown, setGridCountdown] = useState(30)
+  const [mineCountdown, setMineCountdown] = useState(20)
   const [myBookings, setMyBookings] = useState<Booking[]>([])
   // Invite state
   const [friends, setFriends] = useState<Friend[]>([])
@@ -126,10 +128,7 @@ export default function Bookings() {
   }, [date])
 
   const loadMine = async () => {
-    const data = await api.bookings.list()
-    const mine = (data as Booking[]).filter(b =>
-      b.user_id === user?.id && new Date(b.start_time) >= new Date()
-    )
+    const mine = await api.bookings.mine() as Booking[]
     setMyBookings(mine)
     const map: Record<string, { players: MatchPlayer[]; invitations: Invitation[] }> = {}
     await Promise.all(mine.map(async b => {
@@ -151,8 +150,14 @@ export default function Bookings() {
 
   useEffect(() => {
     load()
-    const interval = setInterval(load, 30000)
-    return () => clearInterval(interval)
+    setGridCountdown(30)
+    const timer = setInterval(() => {
+      setGridCountdown(c => {
+        if (c <= 1) { load(); return 30 }
+        return c - 1
+      })
+    }, 1000)
+    return () => clearInterval(timer)
   }, [load])
 
   // Auto-load and keep refreshing the roster when a booking detail is open
@@ -177,10 +182,16 @@ export default function Bookings() {
   useEffect(() => {
     if (tab !== 'mine') return
     loadMine()
+    setMineCountdown(20)
     api.friends.list().then(d => setFriends(d as Friend[]))
     api.groups.list().then(d => setFriendGroups(d as FriendGroup[]))
-    const interval = setInterval(loadMine, 20000)
-    return () => clearInterval(interval)
+    const timer = setInterval(() => {
+      setMineCountdown(c => {
+        if (c <= 1) { loadMine(); return 20 }
+        return c - 1
+      })
+    }, 1000)
+    return () => clearInterval(timer)
   }, [tab])
 
   // Load rosters for my bookings whenever the grid booking list changes
@@ -451,15 +462,18 @@ export default function Bookings() {
                     Today
                   </button>
                   <span className="font-semibold text-gray-800 text-sm sm:text-base">{formatDate(date)}</span>
-                  <input type="date" value={date} min={today} max={maxDate}
+                  <input type="date" value={date} max={maxDate}
                     onChange={e => setDate(e.target.value <= maxDate ? e.target.value : maxDate)}
                     className="text-xs border border-gray-200 rounded px-2 py-1 text-gray-500 focus:outline-none focus:ring-1 focus:ring-green-500" />
                 </div>
-                <button onClick={() => !atMax && setDate(d => addDays(d, 1))}
-                  disabled={atMax}
-                  className={`flex items-center gap-1 transition text-sm font-medium ${atMax ? 'text-gray-300 cursor-not-allowed' : 'text-gray-600 hover:text-green-700'}`}>
-                  Next →
-                </button>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-gray-400">↻ {gridCountdown}s</span>
+                  <button onClick={() => !atMax && setDate(d => addDays(d, 1))}
+                    disabled={atMax}
+                    className={`flex items-center gap-1 transition text-sm font-medium ${atMax ? 'text-gray-300 cursor-not-allowed' : 'text-gray-600 hover:text-green-700'}`}>
+                    Next →
+                  </button>
+                </div>
               </div>
             )
           })()}
@@ -1245,7 +1259,10 @@ export default function Bookings() {
 
       {tab === 'mine' && (
         <div>
-          <h2 className="text-lg font-semibold text-gray-700 mb-4">My Upcoming Bookings</h2>
+          <div className="flex items-center gap-2 mb-4">
+            <h2 className="text-lg font-semibold text-gray-700">My Upcoming Bookings</h2>
+            <span className="text-xs text-gray-400">↻ {mineCountdown}s</span>
+          </div>
           {myBookings.length === 0 ? (
             <div className="bg-white border border-gray-200 rounded-xl p-8 text-center shadow-sm">
               <p className="text-gray-400 text-sm mb-3">You have no upcoming bookings.</p>

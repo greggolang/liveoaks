@@ -114,10 +114,11 @@ func (h *InvitationsHandler) Send(c echo.Context) error {
 	}
 
 	// Get booking details
-	var courtName, inviterName, startTime, endTime string
+	var courtName, inviterName string
+	var startTime, endTime time.Time
 	err := h.DB.QueryRow(c.Request().Context(), `
 		SELECT ct.name, u.first_name || ' ' || u.last_name,
-		       b.start_time::text, b.end_time::text
+		       b.start_time, b.end_time
 		FROM bookings b
 		JOIN courts ct ON ct.id = b.court_id
 		JOIN users u ON u.id = b.user_id
@@ -126,6 +127,9 @@ func (h *InvitationsHandler) Send(c echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "booking not found")
 	}
+	loc := loadTimezone(c.Request().Context(), h.DB)
+	startStr := startTime.In(loc).Format("Mon Jan 2 at 3:04 PM MST")
+	endStr := endTime.In(loc).Format("3:04 PM MST")
 
 	// Generate unique token
 	b := make([]byte, 20)
@@ -150,7 +154,7 @@ func (h *InvitationsHandler) Send(c echo.Context) error {
 	// Send email async
 	acceptURL := fmt.Sprintf("%s/invite/%s/accept", h.SiteURL, token)
 	declineURL := fmt.Sprintf("%s/invite/%s/decline", h.SiteURL, token)
-	go h.sendInvitationEmail(req.InviteeEmail, req.InviteeName, inviterName, courtName, startTime, endTime, acceptURL, declineURL)
+	go h.sendInvitationEmail(req.InviteeEmail, req.InviteeName, inviterName, courtName, startStr, endStr, acceptURL, declineURL)
 
 	return c.JSON(http.StatusCreated, inv)
 }

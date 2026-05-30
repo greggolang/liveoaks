@@ -7,6 +7,7 @@ import (
 	"github.com/greggolang/liveoaks/internal/models"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type UserMailer interface {
@@ -20,6 +21,50 @@ type UsersHandler struct {
 	Logger  interface {
 		Log(ctx context.Context, event, details, userID, ip string)
 	}
+}
+
+func (h *UsersHandler) Create(c echo.Context) error {
+	var req struct {
+		FirstName string `json:"first_name"`
+		LastName  string `json:"last_name"`
+		Email     string `json:"email"`
+		Phone     string `json:"phone"`
+		Password  string `json:"password"`
+		Role      string `json:"role"`
+		Status    string `json:"status"`
+	}
+	if err := c.Bind(&req); err != nil || req.FirstName == "" || req.LastName == "" || req.Email == "" || req.Password == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "first name, last name, email, and password are required")
+	}
+	if len(req.Password) < 8 {
+		return echo.NewHTTPError(http.StatusBadRequest, "password must be at least 8 characters")
+	}
+	if req.Role == "" {
+		req.Role = "member"
+	}
+	if req.Status == "" {
+		req.Status = "active"
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not hash password")
+	}
+	var u models.User
+	var role, status string
+	err = h.DB.QueryRow(c.Request().Context(),
+		`INSERT INTO users (first_name, last_name, email, password_hash, phone, role, status)
+		 VALUES ($1, $2, $3, $4, NULLIF($5,''), $6::user_role, $7::user_status)
+		 RETURNING id, first_name, last_name, email, role::text, status::text, created_at`,
+		req.FirstName, req.LastName, req.Email, string(hash), req.Phone, req.Role, req.Status,
+	).Scan(&u.ID, &u.FirstName, &u.LastName, &u.Email, &role, &status, &u.CreatedAt)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusConflict, "email already registered")
+	}
+	u.Role = models.Role(role)
+	u.Status = models.Status(status)
+	adminID := c.Get("user_id").(string)
+	h.Logger.Log(c.Request().Context(), "user_created", u.FirstName+" "+u.LastName+" ("+u.Email+")", adminID, c.RealIP())
+	return c.JSON(http.StatusCreated, u)
 }
 
 func (h *UsersHandler) List(c echo.Context) error {

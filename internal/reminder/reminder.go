@@ -37,7 +37,22 @@ func nextHour() time.Time {
 	return now.Truncate(time.Hour).Add(time.Hour)
 }
 
+func (s *Service) loadTimezone(ctx context.Context) *time.Location {
+	var tz string
+	s.DB.QueryRow(ctx, `SELECT value FROM settings WHERE key = 'timezone'`).Scan(&tz)
+	if tz != "" {
+		if loc, err := time.LoadLocation(tz); err == nil {
+			return loc
+		}
+	}
+	if loc, err := time.LoadLocation("America/Los_Angeles"); err == nil {
+		return loc
+	}
+	return time.UTC
+}
+
 func (s *Service) sendReminders(ctx context.Context) {
+	loc := s.loadTimezone(ctx)
 	// Find bookings starting in 2 hours that haven't been reminded yet
 	rows, err := s.DB.Query(ctx,
 		`SELECT b.id, b.start_time, b.end_time, ct.name, u.first_name, u.email
@@ -73,8 +88,8 @@ func (s *Service) sendReminders(ctx context.Context) {
   </div>
   <p><a href="%s/bookings" style="color:#15803d">View your bookings</a></p>
 </div>`, firstName, courtName,
-			startTime.Format("Mon Jan 2 at 3:04 PM"),
-			endTime.Format("3:04 PM"), s.SiteURL)
+			startTime.In(loc).Format("Mon Jan 2 at 3:04 PM MST"),
+			endTime.In(loc).Format("3:04 PM MST"), s.SiteURL)
 
 		if err := s.Mailer.Send(email, "Reminder: Court booking in 2 hours", body); err != nil {
 			log.Printf("reminder email error for %s: %v", email, err)
