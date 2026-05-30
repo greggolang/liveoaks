@@ -21,8 +21,8 @@ interface Invitation { id: string; invitee_name: string; invitee_email: string; 
 const MATCH_TYPES = [
   { value: 'singles',      label: 'Singles',            players: [1] },
   { value: 'doubles',      label: 'Doubles',            players: [1, 2, 3] },
-  { value: 'ball_machine', label: 'Ball Machine',       players: [0], ballMachineOnly: true },
   { value: 'casual',       label: 'Hit Session',        players: [0] },
+  { value: 'ball_machine', label: 'Ball Machine',       players: [0], ballMachineOnly: true },
 ]
 
 const HOURS = Array.from({ length: 10 }, (_, i) => i + 8) // 8am–5pm (last slot ends by 6pm)
