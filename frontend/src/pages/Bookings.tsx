@@ -238,9 +238,6 @@ export default function Bookings() {
             <div className="mb-4 bg-green-50 border border-green-200 rounded-xl p-4 shadow-sm flex flex-col sm:flex-row gap-4 items-start sm:items-center">
               <div className="font-semibold text-green-800 shrink-0">
                 📅 {selected.courtName} · {fmt12(selected.hour)}
-                {courts.find(c => c.id === selected.courtId)?.has_ball_machine && (
-                  <span className="ml-2 text-xs font-normal text-green-600">🤖 Ball Machine available</span>
-                )}
               </div>
               <div className="flex flex-wrap gap-2 items-center flex-1">
                 <span className="text-sm text-green-700 font-medium">Duration:</span>
@@ -441,13 +438,16 @@ export default function Bookings() {
                           <button
                             onClick={() => !past && handleSlotClick(c.id, hour, c.name)}
                             disabled={past}
-                            className={`w-full h-10 rounded-lg border transition text-xs font-medium
+                            className={`w-full h-10 rounded-lg border transition text-xs font-medium flex flex-col items-center justify-center gap-0.5
                               ${past ? 'bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed' :
                                 isSelectedSlot ? 'bg-green-100 border-green-400 text-green-700 ring-2 ring-green-400' :
+                                c.has_ball_machine ? 'bg-green-50 border-green-200 text-green-600 hover:bg-green-100 hover:border-green-400 cursor-pointer' :
                                 'bg-white border-gray-200 text-gray-400 hover:bg-green-50 hover:border-green-300 hover:text-green-700 cursor-pointer'
                               }`}>
-                            {!past && !isSelectedSlot && <span className="opacity-0 group-hover:opacity-100">+</span>}
                             {isSelectedSlot && '✓'}
+                            {!isSelectedSlot && !past && c.has_ball_machine && (
+                              <span className="text-base leading-none">🤖</span>
+                            )}
                           </button>
                         </td>
                       )

@@ -77,9 +77,6 @@ export default function Dashboard() {
                 {courts.map(c => (
                   <th key={c.id} className="px-4 py-3 text-center text-gray-700 font-semibold">
                     {c.name}
-                    {c.has_ball_machine && (
-                      <div className="text-xs font-normal text-green-600">🤖 Ball Machine</div>
-                    )}
                   </th>
                 ))}
               </tr>
@@ -98,6 +95,8 @@ export default function Dashboard() {
                           <div className="bg-green-100 border border-green-300 rounded px-2 py-1 text-xs text-green-800 font-medium">
                             {b.user.first_name} {b.user.last_name[0]}.
                           </div>
+                        ) : c.has_ball_machine ? (
+                          <div className="text-lg leading-none">🤖</div>
                         ) : (
                           <div className="text-gray-200 text-xs">—</div>
                         )}
