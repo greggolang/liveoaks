@@ -182,16 +182,18 @@ func (h *AuthHandler) ForgotPassword(c echo.Context) error {
 	}
 
 	resetURL := h.SiteURL + "/reset-password?token=" + token
-	ctx := c.Request().Context()
 	ip := c.RealIP()
+	bgCtx := context.Background()
 	go func() {
 		if err := h.Mailer.SendPasswordReset(req.Email, firstName, resetURL); err != nil {
-			h.Logger.Log(ctx, "email_error", "password reset to "+req.Email+": "+err.Error(), userID, ip)
+			println("EMAIL ERROR:", err.Error())
+			h.Logger.Log(bgCtx, "email_error", "password reset to "+req.Email+": "+err.Error(), userID, ip)
 		} else {
-			h.Logger.Log(ctx, "email_sent", "password reset to "+req.Email, userID, ip)
+			println("EMAIL SENT to", req.Email)
+			h.Logger.Log(bgCtx, "email_sent", "password reset to "+req.Email, userID, ip)
 		}
 	}()
-	h.Logger.Log(ctx, "password_reset_requested", req.Email, userID, ip)
+	h.Logger.Log(bgCtx, "password_reset_requested", req.Email, userID, ip)
 
 	return c.JSON(http.StatusOK, map[string]string{"message": "If that email is registered, you'll receive a reset link shortly."})
 }
