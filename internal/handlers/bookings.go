@@ -63,10 +63,12 @@ func (h *BookingsHandler) List(c echo.Context) error {
 func (h *BookingsHandler) Create(c echo.Context) error {
 	userID := c.Get("user_id").(string)
 	var req struct {
-		CourtID   int       `json:"court_id"`
-		StartTime time.Time `json:"start_time"`
-		EndTime   time.Time `json:"end_time"`
-		Notes     string    `json:"notes"`
+		CourtID       int       `json:"court_id"`
+		StartTime     time.Time `json:"start_time"`
+		EndTime       time.Time `json:"end_time"`
+		Notes         string    `json:"notes"`
+		MatchType     string    `json:"match_type"`
+		PlayersNeeded int       `json:"players_needed"`
 	}
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
@@ -79,16 +81,29 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "cannot book in the past")
 	}
 
+	if req.MatchType == "" {
+		req.MatchType = "casual"
+	}
+
 	var booking models.Booking
 	err := h.DB.QueryRow(c.Request().Context(),
-		`INSERT INTO bookings (user_id, court_id, start_time, end_time, notes)
-		 VALUES ($1, $2, $3, $4, NULLIF($5, ''))
+		`INSERT INTO bookings (user_id, court_id, start_time, end_time, notes, match_type, players_needed)
+		 VALUES ($1, $2, $3, $4, NULLIF($5, ''), $6, $7)
 		 RETURNING id, user_id, court_id, start_time, end_time, notes, created_at`,
-		userID, req.CourtID, req.StartTime, req.EndTime, req.Notes,
+		userID, req.CourtID, req.StartTime, req.EndTime, req.Notes, req.MatchType, req.PlayersNeeded,
 	).Scan(&booking.ID, &booking.UserID, &booking.CourtID, &booking.StartTime, &booking.EndTime, &booking.Notes, &booking.CreatedAt)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusConflict, "court already booked for that time")
 	}
+
+	// Add host to match roster
+	var hostName string
+	h.DB.QueryRow(c.Request().Context(),
+		`SELECT first_name || ' ' || last_name FROM users WHERE id = $1`, userID).Scan(&hostName)
+	h.DB.Exec(c.Request().Context(),
+		`INSERT INTO match_players (booking_id, user_id, player_name, is_host) VALUES ($1, $2, $3, true)`,
+		booking.ID, userID, hostName)
+
 	h.Logger.Log(c.Request().Context(), "booking_created",
 		fmt.Sprintf("Court %d on %s", req.CourtID, req.StartTime.Format("2006-01-02 15:04")),
 		userID, c.RealIP())

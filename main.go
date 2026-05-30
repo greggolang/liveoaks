@@ -72,6 +72,8 @@ func main() {
 	usta := &handlers.USTAHandler{DB: pool}
 	uploads := &handlers.UploadsHandler{DB: pool, UploadDir: uploadDir}
 	contacts := &handlers.ContactsHandler{DB: pool}
+	friends := &handlers.FriendsHandler{DB: pool}
+	invitations := &handlers.InvitationsHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 
 	api := e.Group("/api")
 
@@ -106,6 +108,21 @@ func main() {
 	authed.GET("/dues/me", dues.MyDues)
 	authed.GET("/guests/me", guests.MyGuests)
 	authed.POST("/guests", guests.Log)
+
+	// Friends
+	authed.GET("/friends", friends.List)
+	authed.GET("/friends/search", friends.SearchMembers)
+	authed.POST("/friends/member", friends.AddMember)
+	authed.POST("/friends/guest", friends.AddGuest)
+	authed.DELETE("/friends/:id", friends.Remove)
+
+	// Match invitations
+	authed.GET("/bookings/:id/roster", invitations.GetRoster)
+	authed.POST("/bookings/:id/invite", invitations.Send)
+	authed.PUT("/invitations/:id/cancel", invitations.Cancel)
+
+	// Public invite response (no auth needed)
+	api.POST("/invite/:token/:action", invitations.Respond)
 
 	// Board+
 	boardPlus := authed.Group("", mw.RequireRole(mw.BoardRoleList()...))

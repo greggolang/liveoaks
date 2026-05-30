@@ -30,6 +30,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <NavLink to="/usta-teams" className={navLink}>USTA Teams</NavLink>
               <NavLink to="/directory" className={navLink}>Directory</NavLink>
               <NavLink to="/guests" className={navLink}>Guests</NavLink>
+              <NavLink to="/friends" className={navLink}>Friends</NavLink>
               <NavLink to="/dues" className={navLink}>Dues</NavLink>
               <NavLink to="/club-info" className={navLink}>About</NavLink>
               {isBoard && <NavLink to="/admin" className={navLink}>Admin</NavLink>}
@@ -60,7 +61,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               {[
                 ['/bookings', 'Book Court'], ['/court-grid', 'Availability'], ['/events', 'Events'],
                 ['/announcements', 'News'], ['/documents', 'Documents'], ['/photos', 'Photos'],
-                ['/usta-teams', 'USTA Teams'], ['/directory', 'Directory'], ['/guests', 'Guests'],
+                ['/usta-teams', 'USTA Teams'], ['/directory', 'Directory'], ['/guests', 'Guests'], ['/friends', 'Friends'],
                 ['/dues', 'Dues'], ['/club-info', 'About'],
                 ...(isBoard ? [['/admin', 'Admin']] : []),
               ].map(([to, label]) => (

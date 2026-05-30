@@ -51,6 +51,19 @@ export const api = {
     delete: (id: string) => request(`/announcements/${id}`, { method: 'DELETE' }),
   },
   members: { directory: () => request('/members/directory') },
+  friends: {
+    list: () => request('/friends'),
+    searchMembers: (q: string) => request(`/friends/search?q=${encodeURIComponent(q)}`),
+    addMember: (friendUserId: string) => request('/friends/member', { method: 'POST', body: JSON.stringify({ friend_user_id: friendUserId }) }),
+    addGuest: (data: object) => request('/friends/guest', { method: 'POST', body: JSON.stringify(data) }),
+    remove: (id: string) => request(`/friends/${id}`, { method: 'DELETE' }),
+  },
+  invitations: {
+    getRoster: (bookingId: string) => request(`/bookings/${bookingId}/roster`),
+    send: (bookingId: string, data: object) => request(`/bookings/${bookingId}/invite`, { method: 'POST', body: JSON.stringify(data) }),
+    respond: (token: string, action: 'accept' | 'decline') => request(`/invite/${token}/${action}`, { method: 'POST' }),
+    cancel: (id: string) => request(`/invitations/${id}/cancel`, { method: 'PUT' }),
+  },
   contacts: {
     list: () => request('/contacts'),
     create: (data: object) => request('/contacts', { method: 'POST', body: JSON.stringify(data) }),

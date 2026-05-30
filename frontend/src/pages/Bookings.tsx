@@ -6,10 +6,20 @@ interface Court { id: number; name: string; number: number; has_ball_machine?: b
 interface Booking {
   id: string; user_id: string; court_id: number
   start_time: string; end_time: string; notes?: string
+  match_type?: string; players_needed?: number
   user: { first_name: string; last_name: string }
   court: { name: string; number: number }
 }
 interface Selected { courtId: number; hour: number; courtName: string }
+interface Friend { id: string; friend_user_id?: string; friend_name: string; friend_email?: string; is_guest: boolean }
+interface MatchPlayer { id: string; player_name: string; player_email?: string; is_guest: boolean; is_host: boolean }
+interface Invitation { id: string; invitee_name: string; invitee_email: string; status: string; is_guest: boolean }
+
+const MATCH_TYPES = [
+  { value: 'casual', label: 'Casual / Practice', players: [0] },
+  { value: 'singles', label: 'Singles', players: [1] },
+  { value: 'doubles', label: 'Doubles', players: [1, 2, 3] },
+]
 
 const HOURS = Array.from({ length: 14 }, (_, i) => i + 7) // 7am–8pm
 const DURATIONS = [{ label: '1 hr', hours: 1 }, { label: '1½ hr', hours: 1.5 }, { label: '2 hr', hours: 2 }]
@@ -40,10 +50,16 @@ export default function Bookings() {
   const [selected, setSelected] = useState<Selected | null>(null)
   const [duration, setDuration] = useState(1)
   const [notes, setNotes] = useState('')
+  const [matchType, setMatchType] = useState('casual')
+  const [playersNeeded, setPlayersNeeded] = useState(0)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [tab, setTab] = useState<'grid' | 'mine'>('grid')
   const [myBookings, setMyBookings] = useState<Booking[]>([])
+  // Invite state
+  const [friends, setFriends] = useState<Friend[]>([])
+  const [activeBookingRoster, setActiveBookingRoster] = useState<{ bookingId: string; players: MatchPlayer[]; invitations: Invitation[] } | null>(null)
+  const [inviting, setInviting] = useState(false)
 
   const load = useCallback(() => {
     api.bookings.list(date).then(d => setBookings(d as Booking[]))
@@ -62,7 +78,35 @@ export default function Bookings() {
   }, [])
 
   useEffect(() => { load() }, [load])
-  useEffect(() => { if (tab === 'mine') loadMine() }, [tab])
+  useEffect(() => {
+    if (tab === 'mine') {
+      loadMine()
+      api.friends.list().then(d => setFriends(d as Friend[]))
+    }
+  }, [tab])
+
+  const loadRoster = async (bookingId: string) => {
+    if (activeBookingRoster?.bookingId === bookingId) {
+      setActiveBookingRoster(null)
+      return
+    }
+    const data = await api.invitations.getRoster(bookingId) as any
+    setActiveBookingRoster({ bookingId, players: data.players || [], invitations: data.invitations || [] })
+  }
+
+  const sendInvite = async (bookingId: string, friend: Friend) => {
+    setInviting(true)
+    try {
+      await api.invitations.send(bookingId, {
+        invitee_user_id: friend.friend_user_id || null,
+        invitee_name: friend.friend_name,
+        invitee_email: friend.friend_email || '',
+        is_guest: friend.is_guest,
+      })
+      await loadRoster(bookingId)
+      await loadRoster(bookingId) // reload after toggle
+    } finally { setInviting(false) }
+  }
 
   const getBooking = (courtId: number, hour: number): Booking | null => {
     return bookings.find(b => {
@@ -100,6 +144,8 @@ export default function Bookings() {
         start_time: start.toISOString(),
         end_time: end.toISOString(),
         notes,
+        match_type: matchType,
+        players_needed: playersNeeded,
       })
       setSelected(null)
       load()
@@ -180,6 +226,18 @@ export default function Bookings() {
                     {d.label}
                   </button>
                 ))}
+                <select value={matchType} onChange={e => { setMatchType(e.target.value); setPlayersNeeded(0) }}
+                  className="border border-green-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white text-green-800">
+                  {MATCH_TYPES.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                </select>
+                {matchType !== 'casual' && (
+                  <select value={playersNeeded} onChange={e => setPlayersNeeded(+e.target.value)}
+                    className="border border-green-200 rounded-lg px-2 py-1 text-sm focus:outline-none bg-white text-green-800">
+                    {MATCH_TYPES.find(m => m.value === matchType)?.players.map(p => (
+                      <option key={p} value={p}>Need {p} player{p !== 1 ? 's' : ''}</option>
+                    ))}
+                  </select>
+                )}
                 <input value={notes} onChange={e => setNotes(e.target.value)}
                   placeholder="Notes (optional)" maxLength={80}
                   className="border border-green-200 rounded-lg px-3 py-1 text-sm flex-1 min-w-32 focus:outline-none focus:ring-2 focus:ring-green-500 bg-white" />
@@ -305,34 +363,125 @@ export default function Bookings() {
               </button>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {myBookings.map(b => {
                 const start = new Date(b.start_time)
                 const end = new Date(b.end_time)
                 const durationMins = (end.getTime() - start.getTime()) / 60000
+                const isActive = activeBookingRoster?.bookingId === b.id
+                const roster = isActive ? activeBookingRoster : null
+                const alreadyInvited = (email: string) => roster?.invitations.some(i => i.invitee_email === email && i.status !== 'declined')
+                const alreadyJoined = (email: string) => roster?.players.some(p => p.player_email === email)
+
                 return (
-                  <div key={b.id} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm flex justify-between items-center">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center text-green-700 font-bold text-lg">
-                        {b.court.number}
+                  <div key={b.id} className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+                    <div className="p-5 flex justify-between items-center">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center text-green-700 font-bold text-lg">
+                          {b.court.number}
+                        </div>
+                        <div>
+                          <div className="font-semibold text-gray-800 flex items-center gap-2">
+                            {b.court.name}
+                            {b.match_type && b.match_type !== 'casual' && (
+                              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full capitalize">{b.match_type}</span>
+                            )}
+                          </div>
+                          <div className="text-sm text-gray-600">
+                            {start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} ·{' '}
+                            {start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} –{' '}
+                            {end.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                          </div>
+                          <div className="text-xs text-gray-400 mt-0.5">
+                            {durationMins >= 60 ? `${durationMins / 60} hr${durationMins > 60 ? 's' : ''}` : `${durationMins} min`}
+                            {b.notes && ` · ${b.notes}`}
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <div className="font-semibold text-gray-800">{b.court.name}</div>
-                        <div className="text-sm text-gray-600">
-                          {start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} ·{' '}
-                          {start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} –{' '}
-                          {end.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
-                        </div>
-                        <div className="text-xs text-gray-400 mt-0.5">
-                          {durationMins >= 60 ? `${durationMins / 60} hour${durationMins > 60 ? 's' : ''}` : `${durationMins} minutes`}
-                          {b.notes && ` · ${b.notes}`}
-                        </div>
+                      <div className="flex gap-3 items-center shrink-0">
+                        <button onClick={() => loadRoster(b.id)}
+                          className={`text-sm px-3 py-1.5 rounded-lg font-medium transition ${isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                          👥 {isActive ? 'Hide' : 'Roster & Invite'}
+                        </button>
+                        <button onClick={() => handleCancel(b.id)}
+                          className="text-red-400 hover:text-red-600 text-sm font-medium transition">
+                          Cancel
+                        </button>
                       </div>
                     </div>
-                    <button onClick={() => handleCancel(b.id)}
-                      className="text-red-400 hover:text-red-600 text-sm font-medium transition">
-                      Cancel
-                    </button>
+
+                    {isActive && roster && (
+                      <div className="border-t border-gray-100 p-5 bg-gray-50 grid grid-cols-1 md:grid-cols-2 gap-5">
+                        {/* Roster */}
+                        <div>
+                          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Match Roster</h3>
+                          <div className="space-y-2">
+                            {roster.players.map(p => (
+                              <div key={p.id} className="flex items-center gap-2 text-sm">
+                                <span className="w-5 h-5 bg-green-100 text-green-700 rounded-full flex items-center justify-center text-xs">✓</span>
+                                <span className="font-medium text-gray-800">{p.player_name}</span>
+                                {p.is_host && <span className="text-xs text-gray-400">(Host)</span>}
+                                {p.is_guest && <span className="text-xs bg-orange-100 text-orange-600 px-1.5 rounded">Guest</span>}
+                              </div>
+                            ))}
+                            {roster.invitations.filter(i => i.status === 'pending').map(i => (
+                              <div key={i.id} className="flex items-center gap-2 text-sm">
+                                <span className="w-5 h-5 bg-yellow-100 text-yellow-600 rounded-full flex items-center justify-center text-xs">⏳</span>
+                                <span className="text-gray-600">{i.invitee_name}</span>
+                                {i.is_guest && <span className="text-xs bg-orange-100 text-orange-600 px-1.5 rounded">Guest</span>}
+                                <button onClick={() => api.invitations.cancel(i.id).then(() => loadRoster(b.id))}
+                                  className="text-xs text-red-400 hover:text-red-600 ml-auto">✕</button>
+                              </div>
+                            ))}
+                            {roster.invitations.filter(i => i.status === 'declined').map(i => (
+                              <div key={i.id} className="flex items-center gap-2 text-sm text-gray-400">
+                                <span className="w-5 h-5 bg-gray-100 rounded-full flex items-center justify-center text-xs">✗</span>
+                                <span>{i.invitee_name} <span className="text-xs">declined</span></span>
+                              </div>
+                            ))}
+                            {(b.players_needed || 0) > 0 && (() => {
+                              const open = (b.players_needed! + 1) - roster.players.length
+                              return open > 0 ? Array.from({ length: open }).map((_, i) => (
+                                <div key={`open-${i}`} className="flex items-center gap-2 text-sm text-gray-400 italic">
+                                  <span className="w-5 h-5 bg-gray-100 rounded-full flex items-center justify-center text-xs">○</span>
+                                  Open Spot
+                                </div>
+                              )) : null
+                            })()}
+                          </div>
+                        </div>
+
+                        {/* Invite */}
+                        <div>
+                          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Invite from Friends</h3>
+                          {friends.length === 0 ? (
+                            <p className="text-xs text-gray-400">
+                              <a href="/friends" className="text-green-700 hover:underline">Add friends</a> to invite them quickly.
+                            </p>
+                          ) : (
+                            <div className="flex flex-wrap gap-2">
+                              {friends.map(f => {
+                                const email = f.friend_email || ''
+                                const joined = alreadyJoined(email)
+                                const invited = alreadyInvited(email)
+                                return (
+                                  <button key={f.id}
+                                    onClick={() => !invited && !joined && !inviting && sendInvite(b.id, f)}
+                                    disabled={invited || joined || inviting}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition
+                                      ${joined ? 'bg-green-100 text-green-700 cursor-default' :
+                                        invited ? 'bg-yellow-50 text-yellow-600 border border-yellow-200 cursor-default' :
+                                        'bg-white border border-gray-200 text-gray-700 hover:border-green-400 hover:text-green-700 cursor-pointer'}`}>
+                                    {joined ? '✓ ' : invited ? '⏳ ' : '+ '}{f.friend_name}
+                                    {f.is_guest && <span className="ml-1 opacity-50 text-xs">(G)</span>}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )
               })}

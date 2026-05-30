@@ -20,6 +20,8 @@ import GuestPasses from './pages/GuestPasses'
 import MyDues from './pages/MyDues'
 import ClubInfo from './pages/ClubInfo'
 import Profile from './pages/Profile'
+import Friends from './pages/Friends'
+import InviteResponse from './pages/InviteResponse'
 import Admin from './pages/admin/Admin'
 import AdminUsers from './pages/admin/AdminUsers'
 import AdminSettings from './pages/admin/AdminSettings'
@@ -54,6 +56,7 @@ function AppRoutes() {
       <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
       <Route path="/reset-password" element={<PublicRoute><ResetPassword /></PublicRoute>} />
       <Route path="/waitlist" element={<Waitlist />} />
+      <Route path="/invite/:token/:action" element={<InviteResponse />} />
 
       {/* Member pages */}
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
@@ -69,6 +72,7 @@ function AppRoutes() {
       <Route path="/dues" element={<ProtectedRoute><MyDues /></ProtectedRoute>} />
       <Route path="/club-info" element={<ProtectedRoute><ClubInfo /></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+      <Route path="/friends" element={<ProtectedRoute><Friends /></ProtectedRoute>} />
 
       {/* Admin */}
       <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>}>
