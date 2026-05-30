@@ -107,6 +107,44 @@ func (h *FamilyHandler) Delete(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
+// AdminCreate adds a family member on behalf of any user (board+)
+func (h *FamilyHandler) AdminCreate(c echo.Context) error {
+	targetUserID := c.Param("userId")
+	var req struct {
+		FirstName    string `json:"first_name"`
+		LastName     string `json:"last_name"`
+		Relationship string `json:"relationship"`
+		Phone        string `json:"phone"`
+		Email        string `json:"email"`
+		Notes        string `json:"notes"`
+	}
+	if err := c.Bind(&req); err != nil || req.FirstName == "" || req.LastName == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "first and last name required")
+	}
+	if req.Relationship == "" {
+		req.Relationship = "other"
+	}
+	var m FamilyMember
+	err := h.DB.QueryRow(c.Request().Context(),
+		`INSERT INTO family_members (user_id, first_name, last_name, relationship, phone, email, notes)
+		 VALUES ($1, $2, $3, $4, NULLIF($5,''), NULLIF($6,''), NULLIF($7,''))
+		 RETURNING id, user_id, first_name, last_name, relationship, phone, email, notes, created_at`,
+		targetUserID, req.FirstName, req.LastName, req.Relationship, req.Phone, req.Email, req.Notes,
+	).Scan(&m.ID, &m.UserID, &m.FirstName, &m.LastName, &m.Relationship, &m.Phone, &m.Email, &m.Notes, &m.CreatedAt)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not add family member")
+	}
+	return c.JSON(http.StatusCreated, m)
+}
+
+// AdminDelete removes a family member for any user (board+)
+func (h *FamilyHandler) AdminDelete(c echo.Context) error {
+	h.DB.Exec(c.Request().Context(),
+		`DELETE FROM family_members WHERE id=$1 AND user_id=$2`,
+		c.Param("id"), c.Param("userId"))
+	return c.NoContent(http.StatusNoContent)
+}
+
 // AdminList returns all family members for a given user (board+)
 func (h *FamilyHandler) AdminList(c echo.Context) error {
 	targetUserID := c.Param("userId")

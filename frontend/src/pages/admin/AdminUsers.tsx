@@ -10,6 +10,9 @@ interface User {
 }
 
 const emptyEdit = { first_name: '', last_name: '', email: '', phone: '', address: '', family: '', usta_ranking: '' }
+const RELATIONSHIPS = ['spouse', 'child', 'parent', 'sibling', 'other']
+
+interface FamilyMember { id: string; first_name: string; last_name: string; relationship: string; phone?: string; email?: string }
 
 export default function AdminUsers() {
   const [users, setUsers] = useState<User[]>([])
@@ -19,13 +22,40 @@ export default function AdminUsers() {
   const [editing, setEditing] = useState<User | null>(null)
   const [editForm, setEditForm] = useState(emptyEdit)
   const [saving, setSaving] = useState(false)
+  const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([])
+  const [showFamilyForm, setShowFamilyForm] = useState(false)
+  const [familyForm, setFamilyForm] = useState({ first_name: '', last_name: '', relationship: 'spouse' })
+  const [savingFamily, setSavingFamily] = useState(false)
 
   const load = () => api.admin.users().then(d => setUsers(d as User[]))
+  const loadFamily = (userId: string) => api.family.adminList(userId).then(d => setFamilyMembers(d as FamilyMember[]))
 
   const openEdit = (u: User) => {
     setEditing(u)
     setEditForm({ first_name: u.first_name, last_name: u.last_name, email: u.email,
       phone: u.phone ?? '', address: u.address ?? '', family: u.family ?? '', usta_ranking: u.usta_ranking ?? '' })
+    setFamilyMembers([])
+    setShowFamilyForm(false)
+    setFamilyForm({ first_name: '', last_name: '', relationship: 'spouse' })
+    loadFamily(u.id)
+  }
+
+  const addFamilyMember = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editing) return
+    setSavingFamily(true)
+    try {
+      await api.family.adminCreate(editing.id, familyForm)
+      setFamilyForm({ first_name: '', last_name: '', relationship: 'spouse' })
+      setShowFamilyForm(false)
+      loadFamily(editing.id)
+    } finally { setSavingFamily(false) }
+  }
+
+  const removeFamilyMember = async (memberId: string) => {
+    if (!editing) return
+    await api.family.adminDelete(editing.id, memberId)
+    loadFamily(editing.id)
   }
 
   const handleSaveEdit = async (e: React.FormEvent) => {
@@ -279,6 +309,53 @@ export default function AdminUsers() {
                 </select>
               </div>
             </div>
+            {/* Family members */}
+            <div className="border-t border-gray-100 pt-3">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-medium text-gray-600">Family Members</p>
+                {!showFamilyForm && (
+                  <button type="button" onClick={() => setShowFamilyForm(true)}
+                    className="text-xs text-green-700 hover:underline font-medium">+ Add</button>
+                )}
+              </div>
+              {familyMembers.length > 0 && (
+                <div className="space-y-1.5 mb-2">
+                  {familyMembers.map(m => (
+                    <div key={m.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-1.5 text-sm">
+                      <span className="text-gray-800 font-medium">{m.first_name} {m.last_name}
+                        <span className="ml-2 text-xs font-normal text-gray-400 capitalize">{m.relationship}</span>
+                      </span>
+                      <button type="button" onClick={() => removeFamilyMember(m.id)}
+                        className="text-xs text-red-400 hover:text-red-600 transition">Remove</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {familyMembers.length === 0 && !showFamilyForm && (
+                <p className="text-xs text-gray-400">No family members added.</p>
+              )}
+              {showFamilyForm && (
+                <form onSubmit={addFamilyMember} className="flex flex-wrap gap-2 items-end bg-gray-50 rounded-lg p-2">
+                  <input value={familyForm.first_name} onChange={e => setFamilyForm(f => ({ ...f, first_name: e.target.value }))}
+                    placeholder="First name" required
+                    className="border border-gray-300 rounded px-2 py-1 text-xs w-28 focus:outline-none focus:ring-1 focus:ring-green-500" />
+                  <input value={familyForm.last_name} onChange={e => setFamilyForm(f => ({ ...f, last_name: e.target.value }))}
+                    placeholder="Last name" required
+                    className="border border-gray-300 rounded px-2 py-1 text-xs w-28 focus:outline-none focus:ring-1 focus:ring-green-500" />
+                  <select value={familyForm.relationship} onChange={e => setFamilyForm(f => ({ ...f, relationship: e.target.value }))}
+                    className="border border-gray-300 rounded px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500">
+                    {RELATIONSHIPS.map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                  <button type="submit" disabled={savingFamily}
+                    className="text-xs bg-green-700 text-white px-2 py-1 rounded hover:bg-green-800 transition disabled:opacity-50">
+                    {savingFamily ? 'Adding…' : 'Add'}
+                  </button>
+                  <button type="button" onClick={() => setShowFamilyForm(false)}
+                    className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+                </form>
+              )}
+            </div>
+
             <div className="flex gap-3 pt-2">
               <button type="submit" disabled={saving}
                 className="bg-green-700 hover:bg-green-800 text-white font-semibold px-6 py-2 rounded-lg text-sm transition disabled:opacity-50">

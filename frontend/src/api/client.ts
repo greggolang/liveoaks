@@ -223,6 +223,8 @@ export const api = {
     update: (id: string, data: object) => request(`/family-members/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => request(`/family-members/${id}`, { method: 'DELETE' }),
     adminList: (userId: string) => request(`/admin/users/${userId}/family`),
+    adminCreate: (userId: string, data: object) => request(`/admin/users/${userId}/family`, { method: 'POST', body: JSON.stringify(data) }),
+    adminDelete: (userId: string, id: string) => request(`/admin/users/${userId}/family/${id}`, { method: 'DELETE' }),
   },
   feedback: {
     submit: (message: string, type: 'idea' | 'bug') =>

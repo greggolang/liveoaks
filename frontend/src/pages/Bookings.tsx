@@ -16,6 +16,7 @@ interface Friend { id: string; friend_user_id?: string; friend_name: string; fri
 interface GroupMember { friend_id: string; friend_name: string; friend_email?: string; is_guest: boolean }
 interface FriendGroup { id: string; name: string; members: GroupMember[] }
 interface DirectPlayer { name: string; email: string; userId?: string; isGuest: boolean }
+interface FamilyMember { id: string; first_name: string; last_name: string; relationship: string; email?: string }
 interface MatchPlayer { id: string; player_name: string; player_email?: string; is_guest: boolean; is_host: boolean }
 interface Invitation { id: string; invitee_name: string; invitee_email: string; status: string; is_guest: boolean }
 
@@ -82,6 +83,7 @@ export default function Bookings() {
   const [myBookings, setMyBookings] = useState<Booking[]>([])
   // Invite state
   const [friends, setFriends] = useState<Friend[]>([])
+  const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([])
   const [friendGroups, setFriendGroups] = useState<FriendGroup[]>([])
   const [selectedFriends, setSelectedFriends] = useState<string[]>([]) // friend ids to invite at booking time
   const [confirming, setConfirming] = useState(false)
@@ -133,6 +135,7 @@ export default function Bookings() {
     api.courts.list().then(d => setCourts(d as Court[]))
     api.friends.list().then(d => setFriends(d as Friend[]))
     api.groups.list().then(d => setFriendGroups(d as FriendGroup[]))
+    api.family.list().then(d => setFamilyMembers(d as FamilyMember[]))
     api.members.directory().then(d => setDirectory((d as any[]).map(m => ({ id: m.id, first_name: m.first_name, last_name: m.last_name, email: m.email }))))
   }, [])
 
@@ -534,6 +537,16 @@ export default function Bookings() {
                           <button type="button" onClick={() => setDirectPlayers(s => s.filter((_, j) => j !== i))}
                             className="ml-0.5 opacity-60 hover:opacity-100">✕</button>
                         </span>
+                      ))}
+                      {/* Family members as quick-add */}
+                      {familyMembers.filter(fm => !directPlayers.some(p => p.name === `${fm.first_name} ${fm.last_name}`)).map(fm => (
+                        spotsLeft > 0 && (
+                          <button key={fm.id} type="button"
+                            onClick={() => setDirectPlayers(s => [...s, { name: `${fm.first_name} ${fm.last_name}`, email: fm.email ?? '', isGuest: false }])}
+                            className="px-2.5 py-1 rounded-full text-xs font-medium bg-purple-50 border border-purple-200 text-purple-700 hover:bg-purple-100 transition">
+                            + {fm.first_name} <span className="opacity-60 capitalize">({fm.relationship})</span>
+                          </button>
+                        )
                       ))}
                       {bookingSearchMode === null && (
                         spotsLeft === 0
@@ -1407,6 +1420,22 @@ export default function Bookings() {
                             if (full) return null
                             return (
                             <div className="flex gap-2 flex-wrap">
+                              {/* Family member quick-add */}
+                              {familyMembers.filter(fm =>
+                                !roster?.players.some(p => p.player_name === `${fm.first_name} ${fm.last_name}`)
+                              ).map(fm => (
+                                <button key={fm.id} onClick={async () => {
+                                  await api.invitations.addPlayer(b.id, {
+                                    player_name: `${fm.first_name} ${fm.last_name}`,
+                                    player_email: fm.email ?? '',
+                                    is_guest: false,
+                                  })
+                                  refreshRoster(b.id)
+                                }}
+                                  className="px-3 py-1.5 rounded-lg text-xs font-medium bg-purple-50 border border-purple-200 text-purple-700 hover:bg-purple-100 transition">
+                                  + {fm.first_name} <span className="opacity-60 capitalize">({fm.relationship})</span>
+                                </button>
+                              ))}
                               <button onClick={() => setAddPlayerMode('member')}
                                 className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-gray-200 text-gray-700 hover:border-green-400 hover:text-green-700 transition">
                                 + Search Member

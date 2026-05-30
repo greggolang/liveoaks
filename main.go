@@ -209,6 +209,8 @@ func main() {
 	authed.PUT("/family-members/:id", family.Update)
 	authed.DELETE("/family-members/:id", family.Delete)
 	boardPlus.GET("/admin/users/:userId/family", family.AdminList)
+	boardPlus.POST("/admin/users/:userId/family", family.AdminCreate)
+	boardPlus.DELETE("/admin/users/:userId/family/:id", family.AdminDelete)
 
 	authed.GET("/friend-groups", groups.List)
 	authed.POST("/friend-groups", groups.Create)
