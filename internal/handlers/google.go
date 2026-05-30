@@ -30,6 +30,19 @@ var roleEmailKey = map[string]string{
 	"admin":          "google_email_admin",
 }
 
+// rolePassKey maps a portal role to the settings table key that holds its mailbox password.
+var rolePassKey = map[string]string{
+	"president":      "google_pass_president",
+	"vice_president": "google_pass_vice_president",
+	"secretary":      "google_pass_secretary",
+	"treasurer":      "google_pass_treasurer",
+	"billing":        "google_pass_billing",
+	"entertainment":  "google_pass_entertainment",
+	"house_grounds":  "google_pass_house_grounds",
+	"usta":           "google_pass_usta",
+	"admin":          "google_pass_admin",
+}
+
 type GoogleHandler struct {
 	DB             *pgxpool.Pool
 	ServiceAccount []byte // GOOGLE_SA_JSON env var contents
@@ -403,6 +416,27 @@ func (h *GoogleHandler) TrashThread(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not trash thread")
 	}
 	return c.NoContent(http.StatusNoContent)
+}
+
+// ─── Credentials endpoint ────────────────────────────────────────────────────
+
+// GetCredentials returns the email address and password stored for the calling user's role.
+func (h *GoogleHandler) GetCredentials(c echo.Context) error {
+	ctx := c.Request().Context()
+	role := c.Get("role").(string)
+
+	emailKey := roleEmailKey[role]
+	passKey := rolePassKey[role]
+
+	var emailAddr, pass string
+	if emailKey != "" {
+		h.DB.QueryRow(ctx, `SELECT value FROM settings WHERE key = $1`, emailKey).Scan(&emailAddr)
+	}
+	if passKey != "" {
+		h.DB.QueryRow(ctx, `SELECT value FROM settings WHERE key = $1`, passKey).Scan(&pass)
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{"email": emailAddr, "password": pass})
 }
 
 // ─── Drive endpoints ─────────────────────────────────────────────────────────

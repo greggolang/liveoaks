@@ -16,23 +16,27 @@ const HIDDEN_KEYS = new Set([
   'google_email_president','google_email_vice_president','google_email_secretary',
   'google_email_treasurer','google_email_billing','google_email_entertainment','google_email_house_grounds',
   'google_email_usta','google_email_admin',
+  'google_pass_president','google_pass_vice_president','google_pass_secretary',
+  'google_pass_treasurer','google_pass_billing','google_pass_entertainment','google_pass_house_grounds',
+  'google_pass_usta','google_pass_admin',
 ])
 
-const GOOGLE_ROLE_KEYS: { key: string; label: string }[] = [
-  { key: 'google_email_president',      label: 'President' },
-  { key: 'google_email_vice_president',  label: 'Vice President' },
-  { key: 'google_email_secretary',       label: 'Secretary' },
-  { key: 'google_email_treasurer',       label: 'Treasurer' },
-  { key: 'google_email_billing',         label: 'Billing' },
-  { key: 'google_email_entertainment',   label: 'Entertainment' },
-  { key: 'google_email_house_grounds',   label: 'House & Grounds' },
-  { key: 'google_email_usta',            label: 'USTA' },
-  { key: 'google_email_admin',           label: 'Administrator' },
+const GOOGLE_ROLE_KEYS: { emailKey: string; passKey: string; label: string }[] = [
+  { emailKey: 'google_email_president',     passKey: 'google_pass_president',     label: 'President' },
+  { emailKey: 'google_email_vice_president', passKey: 'google_pass_vice_president', label: 'Vice President' },
+  { emailKey: 'google_email_secretary',      passKey: 'google_pass_secretary',      label: 'Secretary' },
+  { emailKey: 'google_email_treasurer',      passKey: 'google_pass_treasurer',      label: 'Treasurer' },
+  { emailKey: 'google_email_billing',        passKey: 'google_pass_billing',        label: 'Billing' },
+  { emailKey: 'google_email_entertainment',  passKey: 'google_pass_entertainment',  label: 'Entertainment' },
+  { emailKey: 'google_email_house_grounds',  passKey: 'google_pass_house_grounds',  label: 'House & Grounds' },
+  { emailKey: 'google_email_usta',           passKey: 'google_pass_usta',           label: 'USTA' },
+  { emailKey: 'google_email_admin',          passKey: 'google_pass_admin',          label: 'Administrator' },
 ]
 
 export default function AdminSettings() {
   const [settings, setSettings] = useState<Record<string, string>>({})
   const [saved, setSaved] = useState<Record<string, boolean>>({})
+  const [showPass, setShowPass] = useState<Record<string, boolean>>({})
   const load = () => api.admin.settings().then(d => setSettings(d as Record<string, string>))
   useEffect(() => { load() }, [])
 
@@ -99,21 +103,48 @@ export default function AdminSettings() {
         to read, compose, and send email from the matching mailbox — and browse its Drive — without needing
         the Gmail password. Requires <span className="font-medium">GOOGLE_SA_JSON</span> set on the server.
       </p>
-      <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 space-y-4">
-        {GOOGLE_ROLE_KEYS.map(({ key, label }) => (
-          <div key={key} className="flex items-center gap-4">
-            <label className="w-48 text-sm font-medium text-gray-700 shrink-0">{label}</label>
-            <input
-              value={settings[key] ?? ''}
-              onChange={e => setSettings(s => ({ ...s, [key]: e.target.value }))}
-              placeholder="role@yourclub.org"
-              type="email"
-              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-            />
-            <button onClick={() => save(key)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition shrink-0 ${saved[key] ? 'bg-green-100 text-green-700' : 'bg-green-700 text-white hover:bg-green-800'}`}>
-              {saved[key] ? 'Saved!' : 'Save'}
-            </button>
+      <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 space-y-6">
+        {GOOGLE_ROLE_KEYS.map(({ emailKey, passKey, label }) => (
+          <div key={emailKey} className="space-y-2">
+            <p className="text-sm font-semibold text-gray-700">{label}</p>
+            {/* Email */}
+            <div className="flex items-center gap-3">
+              <label className="w-24 text-xs text-gray-500 shrink-0">Email</label>
+              <input
+                value={settings[emailKey] ?? ''}
+                onChange={e => setSettings(s => ({ ...s, [emailKey]: e.target.value }))}
+                placeholder="role@yourclub.org"
+                type="email"
+                className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+              <button onClick={() => save(emailKey)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition shrink-0 ${saved[emailKey] ? 'bg-green-100 text-green-700' : 'bg-green-700 text-white hover:bg-green-800'}`}>
+                {saved[emailKey] ? 'Saved!' : 'Save'}
+              </button>
+            </div>
+            {/* Password */}
+            <div className="flex items-center gap-3">
+              <label className="w-24 text-xs text-gray-500 shrink-0">Password</label>
+              <div className="flex-1 flex items-center gap-2">
+                <input
+                  value={settings[passKey] ?? ''}
+                  onChange={e => setSettings(s => ({ ...s, [passKey]: e.target.value }))}
+                  placeholder="mailbox password"
+                  type={showPass[passKey] ? 'text' : 'password'}
+                  className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPass(s => ({ ...s, [passKey]: !s[passKey] }))}
+                  className="text-xs text-gray-400 hover:text-gray-600 transition shrink-0 px-2">
+                  {showPass[passKey] ? 'Hide' : 'Show'}
+                </button>
+              </div>
+              <button onClick={() => save(passKey)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition shrink-0 ${saved[passKey] ? 'bg-green-100 text-green-700' : 'bg-green-700 text-white hover:bg-green-800'}`}>
+                {saved[passKey] ? 'Saved!' : 'Save'}
+              </button>
+            </div>
           </div>
         ))}
       </div>

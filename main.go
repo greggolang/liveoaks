@@ -216,7 +216,8 @@ func main() {
 	adminOnly.GET("/bylaws/meta", uploads.BylawsMeta)
 	adminOnly.POST("/bylaws", uploads.UploadBylaws)
 
-	// Google Workspace — Gmail + Drive (board members and above)
+	// Google Workspace — credentials + Gmail + Drive (board members and above)
+	boardPlus.GET("/google/credentials", google.GetCredentials)
 	boardPlus.GET("/google/email/threads", google.ListThreads)
 	boardPlus.GET("/google/email/threads/:threadId", google.GetThread)
 	boardPlus.POST("/google/email/send", google.SendEmail)

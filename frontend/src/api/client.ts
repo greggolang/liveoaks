@@ -123,6 +123,7 @@ export const api = {
     toggleSignup: (eventId: string, data: object) => request(`/events/${eventId}/signup-toggle`, { method: 'PUT', body: JSON.stringify(data) }),
   },
   google: {
+    credentials: () => request<{ email: string; password: string }>('/google/credentials'),
     email: {
       listThreads: (params?: { label?: string; q?: string; pageToken?: string }) => {
         const p = new URLSearchParams()
