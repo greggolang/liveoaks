@@ -34,6 +34,7 @@ import AdminWaitlist from './pages/admin/AdminWaitlist'
 import AdminGuests from './pages/admin/AdminGuests'
 import AdminTestEmail from './pages/admin/AdminTestEmail'
 import AdminPermissions from './pages/admin/AdminPermissions'
+import AdminFeedback from './pages/admin/AdminFeedback'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -91,6 +92,7 @@ function AppRoutes() {
         <Route path="test-email" element={<AdminTestEmail />} />
         <Route path="log" element={<AdminLog />} />
         <Route path="permissions" element={<AdminPermissions />} />
+        <Route path="feedback" element={<AdminFeedback />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -9,6 +9,8 @@ interface Booking {
   court: { name: string; number: number }
 }
 interface Court { id: number; name: string; number: number; has_ball_machine?: boolean }
+type SubmitState = 'idle' | 'sending' | 'done' | 'error'
+
 interface Announcement {
   id: string; title: string; body: string; created_at: string
   author: { first_name: string; last_name: string }
@@ -19,6 +21,8 @@ const HOURS = Array.from({ length: 10 }, (_, i) => i + 8) // 8am–5pm (last slo
 export default function Dashboard() {
   const { user } = useAuth()
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
+  const [idea, setIdea] = useState('')
+  const [submitState, setSubmitState] = useState<SubmitState>('idle')
   const [bookings, setBookings] = useState<Booking[]>([])
   const [courts, setCourts] = useState<Court[]>([])
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
@@ -117,6 +121,47 @@ export default function Dashboard() {
             <span className="inline-block w-3 h-3 bg-white border border-gray-200 rounded" /> Available
           </span>
         </div>
+      </div>
+
+      {/* Site feedback */}
+      <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+        <h2 className="text-base font-semibold text-gray-700 mb-1">Got an idea for the site?</h2>
+        <p className="text-xs text-gray-400 mb-3">Suggestions go straight to the admin team.</p>
+        {submitState === 'done' ? (
+          <div className="flex items-center gap-2 text-green-700 text-sm font-medium">
+            <span>✓</span> Thanks — your idea was sent!
+            <button onClick={() => { setSubmitState('idle'); setIdea('') }}
+              className="ml-2 text-xs text-gray-400 hover:text-gray-600">Submit another</button>
+          </div>
+        ) : (
+          <form onSubmit={async e => {
+            e.preventDefault()
+            if (!idea.trim()) return
+            setSubmitState('sending')
+            try {
+              await api.feedback.submit(idea.trim())
+              setSubmitState('done')
+            } catch {
+              setSubmitState('error')
+            }
+          }} className="flex gap-2 items-start">
+            <textarea
+              value={idea}
+              onChange={e => { setIdea(e.target.value); if (submitState === 'error') setSubmitState('idle') }}
+              placeholder="Describe your idea or request…"
+              maxLength={1000}
+              rows={2}
+              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-green-500"
+            />
+            <button type="submit" disabled={submitState === 'sending' || !idea.trim()}
+              className="bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-4 py-2 rounded-lg transition disabled:opacity-50 shrink-0">
+              {submitState === 'sending' ? 'Sending…' : 'Send'}
+            </button>
+          </form>
+        )}
+        {submitState === 'error' && (
+          <p className="text-red-500 text-xs mt-1">Something went wrong — please try again.</p>
+        )}
       </div>
 
       {/* Latest announcements */}

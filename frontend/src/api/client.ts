@@ -124,6 +124,14 @@ export const api = {
     },
     delete: (id: string) => request(`/admin/photos/${id}`, { method: 'DELETE' }),
   },
+  feedback: {
+    submit: (message: string) =>
+      request('/feedback', { method: 'POST', body: JSON.stringify({ message }) }),
+    adminList: () => request('/admin/feedback'),
+    updateStatus: (id: string, status: string) =>
+      request(`/admin/feedback/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),
+    delete: (id: string) => request(`/admin/feedback/${id}`, { method: 'DELETE' }),
+  },
   permissions: {
     getAll: () => request<Record<string, string[]>>('/admin/permissions'),
     toggle: (page: string, role: string, allowed: boolean) =>

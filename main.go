@@ -80,6 +80,7 @@ func main() {
 	contacts := &handlers.ContactsHandler{DB: pool}
 	friends := &handlers.FriendsHandler{DB: pool}
 	perms := &handlers.PermissionsHandler{DB: pool}
+	feedback := &handlers.FeedbackHandler{DB: pool}
 	invitations := &handlers.InvitationsHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	signups := &handlers.SignupsHandler{DB: pool}
 
@@ -176,6 +177,10 @@ func main() {
 	adminOnly.POST("/test-email", admin.TestEmail)
 	adminOnly.GET("/permissions", perms.GetAll)
 	adminOnly.PUT("/permissions/:page/:role", perms.Toggle)
+	authed.POST("/feedback", feedback.Submit)
+	adminOnly.GET("/feedback", feedback.AdminList)
+	adminOnly.PUT("/feedback/:id/status", feedback.UpdateStatus)
+	adminOnly.DELETE("/feedback/:id", feedback.Delete)
 
 	// Serve uploaded files
 	e.GET("/uploads/documents/:filename", uploads.ServeDocument)

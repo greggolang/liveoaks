@@ -31,6 +31,12 @@ const sections: Section[] = [
     ],
   },
   {
+    heading: 'Feedback',
+    links: [
+      { to: '/admin/feedback', label: 'Site Ideas' },
+    ],
+  },
+  {
     heading: 'System',
     links: [
       { to: '/admin/settings', label: 'Settings' },
