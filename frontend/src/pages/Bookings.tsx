@@ -14,6 +14,7 @@ interface Selected { courtId: number; hour: number; courtName: string }
 interface Friend { id: string; friend_user_id?: string; friend_name: string; friend_email?: string; is_guest: boolean }
 interface GroupMember { friend_id: string; friend_name: string; friend_email?: string; is_guest: boolean }
 interface FriendGroup { id: string; name: string; members: GroupMember[] }
+interface DirectPlayer { name: string; email: string; userId?: string; isGuest: boolean }
 interface MatchPlayer { id: string; player_name: string; player_email?: string; is_guest: boolean; is_host: boolean }
 interface Invitation { id: string; invitee_name: string; invitee_email: string; status: string; is_guest: boolean }
 
@@ -66,7 +67,14 @@ export default function Bookings() {
   const [confirming, setConfirming] = useState(false)
   const [activeBookingRoster, setActiveBookingRoster] = useState<{ bookingId: string; players: MatchPlayer[]; invitations: Invitation[] } | null>(null)
   const [inviting, setInviting] = useState(false)
-  // Add player directly
+  // Direct players at booking creation time
+  const [directPlayers, setDirectPlayers] = useState<DirectPlayer[]>([])
+  const [bookingSearchMode, setBookingSearchMode] = useState<'member' | 'guest' | null>(null)
+  const [bookingSearchQuery, setBookingSearchQuery] = useState('')
+  const [bookingSearchResults, setBookingSearchResults] = useState<{id: string; first_name: string; last_name: string; email: string}[]>([])
+  const [bookingSearching, setBookingSearching] = useState(false)
+  const [bookingGuestForm, setBookingGuestForm] = useState({ name: '', email: '' })
+  // Add player directly (roster panel)
   const [addPlayerMode, setAddPlayerMode] = useState<'member' | 'guest' | null>(null)
   const [addPlayerQuery, setAddPlayerQuery] = useState('')
   const [addPlayerResults, setAddPlayerResults] = useState<{id: string; first_name: string; last_name: string; email: string}[]>([])
@@ -93,6 +101,16 @@ export default function Bookings() {
   }, [])
 
   useEffect(() => { load() }, [load])
+  useEffect(() => {
+    if (bookingSearchMode !== 'member') return
+    if (bookingSearchQuery.length < 2) { setBookingSearchResults([]); return }
+    const t = setTimeout(async () => {
+      setBookingSearching(true)
+      try { setBookingSearchResults(await api.friends.searchMembers(bookingSearchQuery) as any) }
+      finally { setBookingSearching(false) }
+    }, 300)
+    return () => clearTimeout(t)
+  }, [bookingSearchQuery, bookingSearchMode])
   useEffect(() => {
     if (tab === 'mine') {
       loadMine()
@@ -186,6 +204,11 @@ export default function Bookings() {
     if (booking) return
     setSelected({ courtId, hour, courtName })
     setSelectedFriends([])
+    setDirectPlayers([])
+    setBookingSearchMode(null)
+    setBookingSearchQuery('')
+    setBookingSearchResults([])
+    setBookingGuestForm({ name: '', email: '' })
     setConfirming(false)
     setDuration(1.5)
     setNotes('')
@@ -224,8 +247,27 @@ export default function Bookings() {
         )
       }
 
+      // Add direct players to the roster immediately
+      if (directPlayers.length > 0) {
+        await Promise.all(
+          directPlayers.map(p =>
+            api.invitations.addPlayer(booked.id, {
+              user_id: p.userId || null,
+              player_name: p.name,
+              player_email: p.email,
+              is_guest: p.isGuest,
+            })
+          )
+        )
+      }
+
       setSelected(null)
       setSelectedFriends([])
+      setDirectPlayers([])
+      setBookingSearchMode(null)
+      setBookingSearchQuery('')
+      setBookingSearchResults([])
+      setBookingGuestForm({ name: '', email: '' })
       setConfirming(false)
       load()
       loadMine()
@@ -366,6 +408,103 @@ export default function Bookings() {
                     </div>
                   )
                 })()}
+                {/* Add players directly to roster */}
+                <div className="w-full flex flex-wrap gap-1.5 items-start pt-1 border-t border-green-100">
+                  <span className="text-xs text-green-700 font-medium self-center">Add Directly:</span>
+                  {directPlayers.map((p, i) => (
+                    <span key={i} className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium
+                      ${p.isGuest ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                      {p.name}{p.isGuest ? ' (G)' : ''}
+                      <button type="button" onClick={() => setDirectPlayers(s => s.filter((_, j) => j !== i))}
+                        className="ml-0.5 opacity-60 hover:opacity-100">✕</button>
+                    </span>
+                  ))}
+                  {bookingSearchMode === null && (
+                    <>
+                      <button type="button" onClick={() => setBookingSearchMode('member')}
+                        className="px-2.5 py-1 rounded-full text-xs font-medium bg-white border border-blue-300 text-blue-700 hover:bg-blue-50 transition">
+                        + Member
+                      </button>
+                      <button type="button" onClick={() => setBookingSearchMode('guest')}
+                        className="px-2.5 py-1 rounded-full text-xs font-medium bg-white border border-orange-300 text-orange-700 hover:bg-orange-50 transition">
+                        + Guest
+                      </button>
+                    </>
+                  )}
+                </div>
+                {bookingSearchMode === 'member' && (
+                  <div className="w-full space-y-1.5">
+                    <div className="relative">
+                      <input
+                        value={bookingSearchQuery}
+                        onChange={e => setBookingSearchQuery(e.target.value)}
+                        placeholder="Search member by name or email…"
+                        autoFocus
+                        className="w-full border border-green-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
+                      />
+                      {bookingSearching && <span className="absolute right-2 top-1.5 text-xs text-gray-400">…</span>}
+                    </div>
+                    {bookingSearchResults.length > 0 && (
+                      <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 bg-white max-h-36 overflow-y-auto">
+                        {bookingSearchResults.map(m => {
+                          const already = directPlayers.some(p => p.userId === m.id)
+                          return (
+                            <div key={m.id} className="flex items-center justify-between px-3 py-1.5">
+                              <div>
+                                <div className="text-xs font-medium text-gray-800">{m.first_name} {m.last_name}</div>
+                                <div className="text-xs text-gray-400">{m.email}</div>
+                              </div>
+                              <button type="button"
+                                disabled={already}
+                                onClick={() => {
+                                  if (already) return
+                                  setDirectPlayers(s => [...s, { name: `${m.first_name} ${m.last_name}`, email: m.email, userId: m.id, isGuest: false }])
+                                  setBookingSearchQuery('')
+                                  setBookingSearchResults([])
+                                  setBookingSearchMode(null)
+                                }}
+                                className="text-xs bg-blue-700 text-white px-2 py-0.5 rounded hover:bg-blue-800 transition disabled:opacity-40">
+                                {already ? '✓' : 'Add'}
+                              </button>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                    <button type="button" onClick={() => { setBookingSearchMode(null); setBookingSearchQuery(''); setBookingSearchResults([]) }}
+                      className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+                  </div>
+                )}
+                {bookingSearchMode === 'guest' && (
+                  <div className="w-full flex flex-wrap gap-2 items-center">
+                    <input
+                      value={bookingGuestForm.name}
+                      onChange={e => setBookingGuestForm(f => ({ ...f, name: e.target.value }))}
+                      placeholder="Guest name *"
+                      autoFocus
+                      className="border border-green-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500 bg-white w-40"
+                    />
+                    <input
+                      type="email"
+                      value={bookingGuestForm.email}
+                      onChange={e => setBookingGuestForm(f => ({ ...f, email: e.target.value }))}
+                      placeholder="Email (optional)"
+                      className="border border-green-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500 bg-white w-44"
+                    />
+                    <button type="button"
+                      onClick={() => {
+                        if (!bookingGuestForm.name.trim()) return
+                        setDirectPlayers(s => [...s, { name: bookingGuestForm.name.trim(), email: bookingGuestForm.email.trim(), isGuest: true }])
+                        setBookingGuestForm({ name: '', email: '' })
+                        setBookingSearchMode(null)
+                      }}
+                      className="text-xs bg-orange-600 text-white px-3 py-1.5 rounded-lg hover:bg-orange-700 transition">
+                      Add Guest
+                    </button>
+                    <button type="button" onClick={() => { setBookingSearchMode(null); setBookingGuestForm({ name: '', email: '' }) }}
+                      className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+                  </div>
+                )}
                 <input value={notes} onChange={e => setNotes(e.target.value)}
                   placeholder="Notes (optional)" maxLength={80}
                   className="border border-green-200 rounded-lg px-3 py-1 text-sm flex-1 min-w-32 focus:outline-none focus:ring-2 focus:ring-green-500 bg-white" />
@@ -449,6 +588,19 @@ export default function Bookings() {
                     </div>
                   )}
 
+                  {directPlayers.length > 0 && (
+                    <div className="border-t border-gray-100 pt-3">
+                      <span className="text-gray-500 text-xs uppercase tracking-wide">Added directly to roster</span>
+                      <div className="flex flex-wrap gap-2 mt-1.5">
+                        {directPlayers.map((p, i) => (
+                          <span key={i} className={`text-xs font-medium px-2.5 py-1 rounded-full ${p.isGuest ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-800'}`}>
+                            ✓ {p.name}{p.isGuest ? ' (Guest)' : ''}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {error && <p className="text-red-600 text-sm">{error}</p>}
 
                   <div className="flex gap-3 pt-2 border-t border-gray-100">
@@ -458,7 +610,14 @@ export default function Bookings() {
                     </button>
                     <button onClick={handleBook} disabled={loading}
                       className="flex-1 px-5 py-2.5 bg-green-700 hover:bg-green-800 text-white rounded-lg text-sm font-bold transition disabled:opacity-50">
-                      {loading ? 'Booking…' : invitedFriends.length > 0 ? `Confirm & Send ${invitedFriends.length} Invite${invitedFriends.length !== 1 ? 's' : ''}` : 'Confirm Booking'}
+                      {loading ? 'Booking…' : (() => {
+                        const inv = invitedFriends.length
+                        const dir = directPlayers.length
+                        if (inv > 0 && dir > 0) return `Confirm, Add ${dir} & Send ${inv} Invite${inv !== 1 ? 's' : ''}`
+                        if (inv > 0) return `Confirm & Send ${inv} Invite${inv !== 1 ? 's' : ''}`
+                        if (dir > 0) return `Confirm & Add ${dir} Player${dir !== 1 ? 's' : ''}`
+                        return 'Confirm Booking'
+                      })()}
                     </button>
                   </div>
                 </div>
