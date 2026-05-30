@@ -52,15 +52,18 @@ type Court struct {
 }
 
 type Booking struct {
-	ID        string    `json:"id"`
-	UserID    string    `json:"user_id"`
-	CourtID   int       `json:"court_id"`
-	StartTime time.Time `json:"start_time"`
-	EndTime   time.Time `json:"end_time"`
-	Notes     *string   `json:"notes,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
-	User      *User     `json:"user,omitempty"`
-	Court     *Court    `json:"court,omitempty"`
+	ID            string    `json:"id"`
+	UserID        string    `json:"user_id"`
+	CourtID       int       `json:"court_id"`
+	StartTime     time.Time `json:"start_time"`
+	EndTime       time.Time `json:"end_time"`
+	Notes         *string   `json:"notes,omitempty"`
+	MatchType     string    `json:"match_type,omitempty"`
+	PlayersNeeded int       `json:"players_needed,omitempty"`
+	Players       []string  `json:"players,omitempty"`
+	CreatedAt     time.Time `json:"created_at"`
+	User          *User     `json:"user,omitempty"`
+	Court         *Court    `json:"court,omitempty"`
 }
 
 type Announcement struct {

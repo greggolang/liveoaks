@@ -27,19 +27,26 @@ func (h *BookingsHandler) List(c echo.Context) error {
 	}
 	var err error
 
-	query := `
+	const baseQuery = `
 		SELECT b.id, b.user_id, b.court_id, b.start_time, b.end_time, b.notes, b.created_at,
-		       u.first_name, u.last_name, ct.name, ct.number
+		       COALESCE(b.match_type, ''), b.players_needed,
+		       u.first_name, u.last_name, ct.name, ct.number,
+		       COALESCE(array_agg(mp.player_name ORDER BY mp.is_host DESC, mp.added_at)
+		                FILTER (WHERE mp.player_name IS NOT NULL), ARRAY[]::text[]) AS players
 		FROM bookings b
 		JOIN users u ON u.id = b.user_id
-		JOIN courts ct ON ct.id = b.court_id`
+		JOIN courts ct ON ct.id = b.court_id
+		LEFT JOIN match_players mp ON mp.booking_id = b.id`
+	const groupBy = ` GROUP BY b.id, b.user_id, b.court_id, b.start_time, b.end_time, b.notes,
+		       b.created_at, b.match_type, b.players_needed,
+		       u.first_name, u.last_name, ct.name, ct.number`
 
 	if date != "" {
 		rows, err = h.DB.Query(c.Request().Context(),
-			query+` WHERE b.start_time::date = $1 ORDER BY b.start_time`, date)
+			baseQuery+` WHERE b.start_time::date = $1`+groupBy+` ORDER BY b.start_time`, date)
 	} else {
 		rows, err = h.DB.Query(c.Request().Context(),
-			query+` WHERE b.start_time >= NOW() ORDER BY b.start_time LIMIT 100`)
+			baseQuery+` WHERE b.start_time >= NOW()`+groupBy+` ORDER BY b.start_time LIMIT 100`)
 	}
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch bookings")
@@ -52,7 +59,9 @@ func (h *BookingsHandler) List(c echo.Context) error {
 		b.User = &models.User{}
 		b.Court = &models.Court{}
 		if err := rows.Scan(&b.ID, &b.UserID, &b.CourtID, &b.StartTime, &b.EndTime, &b.Notes, &b.CreatedAt,
-			&b.User.FirstName, &b.User.LastName, &b.Court.Name, &b.Court.Number); err != nil {
+			&b.MatchType, &b.PlayersNeeded,
+			&b.User.FirstName, &b.User.LastName, &b.Court.Name, &b.Court.Number,
+			&b.Players); err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "could not scan booking")
 		}
 		bookings = append(bookings, b)

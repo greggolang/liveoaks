@@ -16,6 +16,8 @@ type Config struct {
 	SMTPPass        string
 	SMTPFrom        string
 	GoogleSAJSON    string // service account JSON for Gmail/Drive integration
+	CameraToken     string // optional token to protect the camera page
+	CameraHLSDir    string // directory where camera-hls systemd service writes HLS files
 }
 
 func Load() Config {
@@ -31,16 +33,22 @@ func Load() Config {
 	if siteURL == "" {
 		siteURL = "http://liveoaks.webgoserver.com"
 	}
+	cameraHLSDir := os.Getenv("CAMERA_HLS_DIR")
+	if cameraHLSDir == "" {
+		cameraHLSDir = "/var/cache/camera-hls"
+	}
 	return Config{
-		DatabaseURL: os.Getenv("DATABASE_URL"),
-		JWTSecret:   os.Getenv("JWT_SECRET"),
-		Port:        port,
-		SiteURL:     siteURL,
-		SMTPHost:    os.Getenv("SMTP_HOST"),
-		SMTPPort:    smtpPort,
-		SMTPUser:    os.Getenv("SMTP_USER"),
-		SMTPPass:    os.Getenv("SMTP_PASS"),
+		DatabaseURL:  os.Getenv("DATABASE_URL"),
+		JWTSecret:    os.Getenv("JWT_SECRET"),
+		Port:         port,
+		SiteURL:      siteURL,
+		SMTPHost:     os.Getenv("SMTP_HOST"),
+		SMTPPort:     smtpPort,
+		SMTPUser:     os.Getenv("SMTP_USER"),
+		SMTPPass:     os.Getenv("SMTP_PASS"),
 		SMTPFrom:     os.Getenv("SMTP_FROM"),
 		GoogleSAJSON: os.Getenv("GOOGLE_SA_JSON"),
+		CameraToken:  os.Getenv("CAMERA_TOKEN"),
+		CameraHLSDir: cameraHLSDir,
 	}
 }

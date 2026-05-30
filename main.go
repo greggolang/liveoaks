@@ -79,6 +79,8 @@ func main() {
 	usta := &handlers.USTAHandler{DB: pool}
 	uploads := &handlers.UploadsHandler{DB: pool, UploadDir: uploadDir}
 	google := &handlers.GoogleHandler{DB: pool, ServiceAccount: []byte(cfg.GoogleSAJSON)}
+	camera := &handlers.CameraHandler{DB: pool, CameraToken: cfg.CameraToken, HLSDir: cfg.CameraHLSDir}
+	camera.Init()
 	contacts := &handlers.ContactsHandler{DB: pool}
 	friends := &handlers.FriendsHandler{DB: pool}
 	perms := &handlers.PermissionsHandler{DB: pool}
@@ -224,6 +226,11 @@ func main() {
 	boardPlus.PUT("/google/email/threads/:threadId/read", google.MarkRead)
 	boardPlus.DELETE("/google/email/threads/:threadId", google.TrashThread)
 	boardPlus.GET("/google/drive/files", google.ListDriveFiles)
+
+	// Camera viewer (HLS proxy + status)
+	e.GET("/camera", camera.Page)
+	e.GET("/camera/status", camera.Status)
+	e.GET("/camera/api/*", camera.Proxy)
 
 	// Serve uploaded files
 	e.GET("/uploads/documents/:filename", uploads.ServeDocument)

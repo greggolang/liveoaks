@@ -7,6 +7,7 @@ interface Booking {
   id: string; user_id: string; court_id: number
   start_time: string; end_time: string; notes?: string
   match_type?: string; players_needed?: number
+  players?: string[]
   user: { first_name: string; last_name: string }
   court: { name: string; number: number }
 }
@@ -735,6 +736,7 @@ export default function Bookings() {
                           : booking.match_type === 'doubles' ? 'Doubles'
                           : booking.match_type === 'casual' ? 'Hit Session'
                           : ''
+                        const extraPlayers = (booking.players ?? []).slice(1)
                         return (
                           <td key={c.id} className="px-2 py-1 align-top">
                             <div
@@ -757,6 +759,13 @@ export default function Bookings() {
                                   <span className={`text-xs truncate ${isMe ? 'text-green-200' : 'text-green-600'}`}>{timeRange}</span>
                                   {matchLabel && !isBallMachine && (
                                     <span className={`text-xs truncate ${isMe ? 'text-green-200' : 'text-green-600'}`}>{matchLabel}</span>
+                                  )}
+                                  {extraPlayers.length > 0 && (
+                                    <div className={`text-xs mt-0.5 pt-0.5 border-t space-y-0.5 ${isMe ? 'border-green-500' : 'border-green-200'}`}>
+                                      {extraPlayers.map((name, i) => (
+                                        <div key={i} className="truncate leading-tight">{name.split(' ')[0]}</div>
+                                      ))}
+                                    </div>
                                   )}
                                 </>
                               )}
