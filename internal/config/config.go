@@ -31,7 +31,7 @@ func Load() Config {
 	}
 	siteURL := os.Getenv("SITE_URL")
 	if siteURL == "" {
-		siteURL = "http://liveoaks.webgoserver.com"
+		siteURL = "http://172.236.228.11"
 	}
 	cameraHLSDir := os.Getenv("CAMERA_HLS_DIR")
 	if cameraHLSDir == "" {
