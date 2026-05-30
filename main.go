@@ -49,6 +49,8 @@ func main() {
 
 	actlog := &logger.Logger{DB: pool}
 
+	e.Use(mw.ErrorLogger(actlog))
+
 	auth := &handlers.AuthHandler{DB: pool, JWTSecret: cfg.JWTSecret, SiteURL: cfg.SiteURL, Mailer: mailer, Logger: actlog}
 	users := &handlers.UsersHandler{DB: pool, SiteURL: cfg.SiteURL, Mailer: mailer, Logger: actlog}
 	courts := &handlers.CourtsHandler{DB: pool}

@@ -21,6 +21,7 @@ const EVENT_LABELS: Record<string, { label: string; color: string }> = {
   user_role_changed:        { label: 'Role Changed',      color: 'bg-purple-100 text-purple-700' },
   email_sent:               { label: 'Email Sent',        color: 'bg-blue-100 text-blue-700' },
   email_error:              { label: 'Email Error',       color: 'bg-red-100 text-red-700' },
+  app_error:                { label: 'App Error',         color: 'bg-red-100 text-red-800' },
 }
 
 export default function AdminLog() {
