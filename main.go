@@ -34,12 +34,15 @@ func main() {
 	}
 	defer pool.Close()
 
-	mailer := &email.Mailer{
-		Host:     cfg.SMTPHost,
-		Port:     cfg.SMTPPort,
-		Username: cfg.SMTPUser,
-		Password: cfg.SMTPPass,
-		From:     cfg.SMTPFrom,
+	mailer := &email.DBMailer{
+		DB: pool,
+		Fallback: &email.Mailer{
+			Host:     cfg.SMTPHost,
+			Port:     cfg.SMTPPort,
+			Username: cfg.SMTPUser,
+			Password: cfg.SMTPPass,
+			From:     cfg.SMTPFrom,
+		},
 	}
 
 	actlog := &logger.Logger{DB: pool}

@@ -27,16 +27,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <div className="hidden md:flex items-center gap-5 text-sm font-medium flex-wrap justify-end">
               <NavLink to="/bookings" className={navLink}>Book Court</NavLink>
               <NavLink to="/court-grid" className={navLink}>Availability</NavLink>
-              <NavLink to="/events" className={navLink}>Events</NavLink>
-              <NavLink to="/announcements" className={navLink}>News</NavLink>
-              <NavLink to="/documents" className={navLink}>Documents</NavLink>
-              <NavLink to="/photos" className={navLink}>Photos</NavLink>
-              <NavLink to="/usta-teams" className={navLink}>USTA Teams</NavLink>
               <NavLink to="/directory" className={navLink}>Directory</NavLink>
               <NavLink to="/guests" className={navLink}>Guests</NavLink>
               <NavLink to="/friends" className={navLink}>Friends</NavLink>
-              <NavLink to="/dues" className={navLink}>Dues</NavLink>
-              <NavLink to="/club-info" className={navLink}>About</NavLink>
               {isBoard && <NavLink to="/admin" className={navLink}>Admin</NavLink>}
               <div className="flex items-center gap-2 ml-2 pl-2 border-l border-green-600">
                 <Link to="/profile" className="text-green-200 hover:text-white text-xs transition">
@@ -63,10 +56,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           {menuOpen && (
             <div className="md:hidden mt-3 pb-2 border-t border-green-600 flex flex-col gap-2 pt-3 text-sm">
               {[
-                ['/bookings', 'Book Court'], ['/court-grid', 'Availability'], ['/events', 'Events'],
-                ['/announcements', 'News'], ['/documents', 'Documents'], ['/photos', 'Photos'],
-                ['/usta-teams', 'USTA Teams'], ['/directory', 'Directory'], ['/guests', 'Guests'], ['/friends', 'Friends'],
-                ['/dues', 'Dues'], ['/club-info', 'About'],
+                ['/bookings', 'Book Court'], ['/court-grid', 'Availability'],
+                ['/directory', 'Directory'], ['/guests', 'Guests'], ['/friends', 'Friends'],
                 ...(isBoard ? [['/admin', 'Admin']] : []),
               ].map(([to, label]) => (
                 <Link key={to} to={to} onClick={() => setMenuOpen(false)}
