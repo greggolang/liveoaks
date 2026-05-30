@@ -494,33 +494,38 @@ export default function Bookings() {
                   </div>
                 )}
                 {bookingSearchMode === 'guest' && (
-                  <div className="w-full flex flex-wrap gap-2 items-center">
-                    <input
-                      value={bookingGuestForm.name}
-                      onChange={e => setBookingGuestForm(f => ({ ...f, name: e.target.value }))}
-                      placeholder="Guest name *"
-                      autoFocus
-                      className="border border-green-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500 bg-white w-40"
-                    />
-                    <input
-                      type="email"
-                      value={bookingGuestForm.email}
-                      onChange={e => setBookingGuestForm(f => ({ ...f, email: e.target.value }))}
-                      placeholder="Email (optional)"
-                      className="border border-green-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500 bg-white w-44"
-                    />
-                    <button type="button"
-                      onClick={() => {
-                        if (!bookingGuestForm.name.trim()) return
-                        setDirectPlayers(s => [...s, { name: bookingGuestForm.name.trim(), email: bookingGuestForm.email.trim(), isGuest: true }])
-                        setBookingGuestForm({ name: '', email: '' })
-                        setBookingSearchMode(null)
-                      }}
-                      className="text-xs bg-orange-600 text-white px-3 py-1.5 rounded-lg hover:bg-orange-700 transition">
-                      Add Guest
-                    </button>
-                    <button type="button" onClick={() => { setBookingSearchMode(null); setBookingGuestForm({ name: '', email: '' }) }}
-                      className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+                  <div className="w-full flex flex-col gap-2">
+                    <p className="text-xs text-orange-700 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
+                      ⚠️ A <strong>$5.00 guest fee</strong> will be added to your next quarterly dues for each guest.
+                    </p>
+                    <div className="flex flex-wrap gap-2 items-center">
+                      <input
+                        value={bookingGuestForm.name}
+                        onChange={e => setBookingGuestForm(f => ({ ...f, name: e.target.value }))}
+                        placeholder="Guest name *"
+                        autoFocus
+                        className="border border-green-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500 bg-white w-40"
+                      />
+                      <input
+                        type="email"
+                        value={bookingGuestForm.email}
+                        onChange={e => setBookingGuestForm(f => ({ ...f, email: e.target.value }))}
+                        placeholder="Email (optional)"
+                        className="border border-green-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500 bg-white w-44"
+                      />
+                      <button type="button"
+                        onClick={() => {
+                          if (!bookingGuestForm.name.trim()) return
+                          setDirectPlayers(s => [...s, { name: bookingGuestForm.name.trim(), email: bookingGuestForm.email.trim(), isGuest: true }])
+                          setBookingGuestForm({ name: '', email: '' })
+                          setBookingSearchMode(null)
+                        }}
+                        className="text-xs bg-orange-600 text-white px-3 py-1.5 rounded-lg hover:bg-orange-700 transition">
+                        Add Guest
+                      </button>
+                      <button type="button" onClick={() => { setBookingSearchMode(null); setBookingGuestForm({ name: '', email: '' }) }}
+                        className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+                    </div>
                   </div>
                 )}
                 <input value={notes} onChange={e => setNotes(e.target.value)}
@@ -1014,6 +1019,9 @@ export default function Bookings() {
 
                           {addPlayerMode === 'guest' && (
                             <form onSubmit={e => addGuestPlayer(e, b.id)} className="space-y-2">
+                              <p className="text-xs text-orange-700 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
+                                ⚠️ A <strong>$5.00 guest fee</strong> will be added to your next quarterly dues for each guest.
+                              </p>
                               <input value={guestAddForm.name} onChange={e => setGuestAddForm(f => ({ ...f, name: e.target.value }))}
                                 placeholder="Guest name *" required autoFocus
                                 className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500 bg-white" />

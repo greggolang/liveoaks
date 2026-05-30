@@ -205,8 +205,9 @@ func (h *InvitationsHandler) AddPlayer(c echo.Context) error {
 
 	// Only the host (or board) may add players directly
 	var hostID string
+	var bookingStart time.Time
 	if err := h.DB.QueryRow(c.Request().Context(),
-		`SELECT user_id FROM bookings WHERE id = $1`, bookingID).Scan(&hostID); err != nil {
+		`SELECT user_id, start_time FROM bookings WHERE id = $1`, bookingID).Scan(&hostID, &bookingStart); err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "booking not found")
 	}
 	role, _ := c.Get("role").(string)
@@ -250,6 +251,16 @@ func (h *InvitationsHandler) AddPlayer(c echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not add player")
 	}
+
+	// Auto-log a $5 guest fee in guest_passes when a guest is added to a booking.
+	// The fee is billed to the booking's host (regardless of who adds the guest).
+	if req.IsGuest {
+		h.DB.Exec(c.Request().Context(),
+			`INSERT INTO guest_passes (member_id, guest_name, guest_email, visit_date, fee, source, notes)
+			 VALUES ($1, $2, NULLIF($3,''), $4::date, 5.00, 'booking', 'Court booking guest fee')`,
+			hostID, req.PlayerName, req.PlayerEmail, bookingStart.Format("2006-01-02"))
+	}
+
 	return c.JSON(http.StatusCreated, p)
 }
 

@@ -20,8 +20,14 @@ export default function AdminTestEmail() {
   const [saveResult, setSaveResult] = useState<'saved' | 'error' | null>(null)
 
   const [to, setTo] = useState(user?.email ?? '')
+  const [toError, setToError] = useState('')
   const [sending, setSending] = useState(false)
   const [testResult, setTestResult] = useState<{ success: boolean; error?: string } | null>(null)
+
+  // Sync to email field once user is available (useState only captures initial value)
+  useEffect(() => {
+    if (user?.email && !to) setTo(user.email)
+  }, [user?.email])
 
   useEffect(() => {
     api.admin.settings().then(d => {
@@ -58,10 +64,12 @@ export default function AdminTestEmail() {
 
   const sendTest = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!to.trim()) { setToError('Enter an email address to send the test to.'); return }
+    setToError('')
     setSending(true)
     setTestResult(null)
     try {
-      const res = await api.admin.testEmail(to) as { success: boolean; error?: string }
+      const res = await api.admin.testEmail(to.trim()) as { success: boolean; error?: string }
       setTestResult(res)
     } catch (err: any) {
       setTestResult({ success: false, error: err.message })
@@ -162,39 +170,46 @@ export default function AdminTestEmail() {
       {/* Test email */}
       <form onSubmit={sendTest} className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm space-y-4">
         <p className="text-sm font-semibold text-gray-700">Send Test Email</p>
-        <p className="text-xs text-gray-500">Sends a test using the settings currently saved in the database.</p>
-        <div className="flex items-center gap-4">
-          <label className="w-44 shrink-0 text-sm font-medium text-gray-600">Send to</label>
-          <input
-            type="email"
-            value={to}
-            onChange={e => setTo(e.target.value)}
-            required
-            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-          />
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="w-44 shrink-0" />
-          <button
-            type="submit"
-            disabled={sending}
-            className="bg-green-700 hover:bg-green-800 text-white font-semibold px-5 py-2 rounded-lg text-sm transition disabled:opacity-50"
-          >
-            {sending ? 'Sending…' : 'Send Test Email'}
-          </button>
-        </div>
+        <p className="text-xs text-gray-500">
+          Sends a test using the settings currently saved in the database.
+          Make sure you click <strong>Save Settings</strong> above before testing.
+        </p>
+
+        {/* Result shown first so it's always visible without scrolling */}
         {testResult && (
           <div className={`rounded-lg p-4 text-sm font-medium ${testResult.success ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-red-50 border border-red-200 text-red-800'}`}>
             {testResult.success ? (
               <>✅ Email sent successfully to <strong>{to}</strong>. Check your inbox.</>
             ) : (
               <>
-                ❌ Failed to send email.
+                ❌ Failed to send.
                 <span className="font-normal text-xs mt-1 block opacity-80">{testResult.error}</span>
               </>
             )}
           </div>
         )}
+
+        <div className="space-y-1">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+            <label className="sm:w-44 sm:shrink-0 text-sm font-medium text-gray-600">Send to</label>
+            <input
+              type="email"
+              value={to}
+              onChange={e => { setTo(e.target.value); setToError('') }}
+              placeholder="you@example.com"
+              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+            />
+          </div>
+          {toError && <p className="text-red-500 text-xs sm:ml-[calc(176px+0.5rem)]">{toError}</p>}
+        </div>
+
+        <button
+          type="submit"
+          disabled={sending}
+          className="w-full sm:w-auto bg-green-700 hover:bg-green-800 text-white font-semibold px-6 py-2.5 rounded-lg text-sm transition disabled:opacity-50"
+        >
+          {sending ? 'Sending…' : 'Send Test Email'}
+        </button>
       </form>
     </div>
   )

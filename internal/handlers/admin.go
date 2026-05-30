@@ -142,7 +142,9 @@ func (h *AdminHandler) UpdateSetting(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
 	}
 	_, err := h.DB.Exec(c.Request().Context(),
-		`UPDATE settings SET value = $1, updated_at = NOW() WHERE key = $2`, body.Value, key)
+		`INSERT INTO settings (key, value) VALUES ($1, $2)
+		 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+		key, body.Value)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not update setting")
 	}

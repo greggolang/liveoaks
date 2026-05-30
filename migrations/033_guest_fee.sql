@@ -1,0 +1,3 @@
+ALTER TABLE guest_passes
+  ADD COLUMN fee    NUMERIC(10,2) NOT NULL DEFAULT 0.00,
+  ADD COLUMN source TEXT          NOT NULL DEFAULT 'manual';
