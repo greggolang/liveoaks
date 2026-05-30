@@ -22,6 +22,11 @@ func (m *Mailer) Send(to, subject, body string) error {
 	msg.SetBody("text/html", body)
 
 	d := gomail.NewDialer(m.Host, m.Port, m.Username, m.Password)
+	// For unauthenticated relay (e.g. smtp-relay.gmail.com via IP allowlist),
+	// gomail skips SMTP AUTH when Username is empty.
+	if m.Username == "" {
+		d.Auth = nil
+	}
 	return d.DialAndSend(msg)
 }
 

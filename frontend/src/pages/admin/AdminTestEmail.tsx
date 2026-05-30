@@ -3,9 +3,9 @@ import { useAuth } from '../../contexts/AuthContext'
 import { api } from '../../api/client'
 
 const SMTP_FIELDS = [
-  { key: 'smtp_host', label: 'SMTP Host', placeholder: 'smtp.gmail.com', type: 'text' },
+  { key: 'smtp_host', label: 'SMTP Host', placeholder: 'smtp-relay.gmail.com', type: 'text' },
   { key: 'smtp_port', label: 'SMTP Port', placeholder: '587', type: 'text' },
-  { key: 'smtp_user', label: 'Username', placeholder: 'admin@liveoakstennis.com', type: 'text' },
+  { key: 'smtp_user', label: 'Username', placeholder: 'admin@liveoakstennis.com (or leave blank)', type: 'text' },
   { key: 'smtp_pass', label: 'Password / App Password', placeholder: '••••••••••••••••', type: 'password' },
   { key: 'smtp_from', label: 'From Address', placeholder: 'admin@liveoakstennis.com', type: 'text' },
 ]
@@ -77,28 +77,48 @@ export default function AdminTestEmail() {
         <p className="text-sm text-gray-500">Configure SMTP credentials for outgoing email.</p>
       </div>
 
-      {/* Google Workspace setup guide */}
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 text-sm space-y-3">
-        <p className="font-semibold text-blue-800">Google Workspace / Gmail Setup</p>
-        <ol className="list-decimal list-inside space-y-1.5 text-blue-700">
-          <li>Sign in to your Google Workspace account at <strong>myaccount.google.com</strong></li>
-          <li>Go to <strong>Security → 2-Step Verification</strong> and make sure it is enabled</li>
-          <li>Under 2-Step Verification, scroll to the bottom and click <strong>App passwords</strong></li>
-          <li>Select app: <strong>Mail</strong>, device: <strong>Other</strong> — type "Liveoaks Server" then click Generate</li>
-          <li>Copy the 16-character app password (no spaces) and paste it in the Password field below</li>
-        </ol>
-        <div className="mt-2 bg-white rounded-lg border border-blue-100 p-3 grid grid-cols-2 gap-x-6 gap-y-1 text-xs font-mono text-gray-700">
-          <span className="text-gray-500 font-sans font-medium col-span-2 mb-1 text-xs">Recommended settings:</span>
-          <span className="text-gray-500 font-sans">Host</span><span>smtp.gmail.com</span>
+      {/* Google Workspace SMTP Relay setup guide */}
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 text-sm space-y-4">
+        <p className="font-semibold text-blue-800">Google Workspace — SMTP Relay Setup</p>
+
+        {/* Settings table */}
+        <div className="bg-white rounded-lg border border-blue-100 p-3 grid grid-cols-2 gap-x-6 gap-y-1 text-xs font-mono text-gray-700">
+          <span className="text-gray-500 font-sans font-medium col-span-2 mb-1 text-xs">Use these settings:</span>
+          <span className="text-gray-500 font-sans">Host</span><span>smtp-relay.gmail.com</span>
           <span className="text-gray-500 font-sans">Port</span><span>587</span>
-          <span className="text-gray-500 font-sans">Username</span><span>admin@liveoakstennis.com</span>
-          <span className="text-gray-500 font-sans">Password</span><span>16-char app password</span>
-          <span className="text-gray-500 font-sans">From</span><span>admin@liveoakstennis.com</span>
+          <span className="text-gray-500 font-sans">Encryption</span><span>TLS (STARTTLS)</span>
+          <span className="text-gray-500 font-sans">Username</span><span>your Workspace account email</span>
+          <span className="text-gray-500 font-sans">Password</span><span>App Password (see below)</span>
+          <span className="text-gray-500 font-sans">From</span><span>your Workspace account email</span>
         </div>
+
+        {/* Option A — SMTP Auth with App Password */}
+        <div>
+          <p className="font-semibold text-blue-700 mb-1">Option A — Authenticate with an App Password</p>
+          <ol className="list-decimal list-inside space-y-1.5 text-blue-700">
+            <li>Sign in to your Google Workspace account at <strong>myaccount.google.com</strong></li>
+            <li>Go to <strong>Security → 2-Step Verification</strong> and confirm it is enabled</li>
+            <li>Scroll to the bottom of 2-Step Verification and click <strong>App passwords</strong></li>
+            <li>App: <strong>Mail</strong> · Device: <strong>Other</strong> → type "Liveoaks Server" → click Generate</li>
+            <li>Copy the 16-character password and paste it in the Password field below (no spaces)</li>
+            <li>Enter your Workspace email as the Username and From address</li>
+          </ol>
+        </div>
+
+        {/* Option B — IP Allowlist */}
+        <div>
+          <p className="font-semibold text-blue-700 mb-1">Option B — IP Allowlist (no password needed)</p>
+          <ol className="list-decimal list-inside space-y-1.5 text-blue-700">
+            <li>Sign in to the <strong>Google Workspace Admin Console</strong> at <strong>admin.google.com</strong></li>
+            <li>Go to <strong>Apps → Google Workspace → Gmail → Routing</strong></li>
+            <li>Under <strong>SMTP relay service</strong>, click <strong>Configure</strong></li>
+            <li>Add the server's IP address (<strong>172.236.228.11</strong>) as an allowed sender</li>
+            <li>Leave Username and Password blank below — just set Host, Port, and From</li>
+          </ol>
+        </div>
+
         <p className="text-xs text-blue-600">
-          Note: Regular Gmail passwords won't work — you must use an App Password. If you use Google Workspace's
-          SMTP relay (<code className="bg-blue-100 px-1 rounded">smtp-relay.gmail.com</code>) via IP allowlist,
-          leave Username and Password blank and set the host to <code className="bg-blue-100 px-1 rounded">smtp-relay.gmail.com</code>.
+          <strong>Tip:</strong> Option A is simpler — just needs an App Password. Option B requires Google Workspace admin access but doesn't need credentials stored on the server.
         </p>
       </div>
 
