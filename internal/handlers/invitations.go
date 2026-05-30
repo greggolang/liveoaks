@@ -103,6 +103,16 @@ func (h *InvitationsHandler) Send(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "name and email required")
 	}
 
+	// Block re-invitation of a player who is already pending or has declined
+	var existing int
+	h.DB.QueryRow(c.Request().Context(),
+		`SELECT COUNT(*) FROM match_invitations
+		 WHERE booking_id = $1 AND invitee_email = $2 AND status IN ('pending','declined')`,
+		bookingID, req.InviteeEmail).Scan(&existing)
+	if existing > 0 {
+		return echo.NewHTTPError(http.StatusConflict, "this player has already been invited or has declined")
+	}
+
 	// Get booking details
 	var courtName, inviterName, startTime, endTime string
 	err := h.DB.QueryRow(c.Request().Context(), `

@@ -883,17 +883,19 @@ export default function Bookings() {
                               <div className="flex flex-wrap gap-1.5">
                                 {friends.map(f => {
                                   const email = f.friend_email || ''
-                                  const joined = roster?.players.some(p => p.player_email === email)
-                                  const invited = roster?.invitations.some(i => i.invitee_email === email && i.status !== 'declined')
+                                  const joined   = roster?.players.some(p => p.player_email === email)
+                                  const invited  = roster?.invitations.some(i => i.invitee_email === email && i.status === 'pending')
+                                  const declined = roster?.invitations.some(i => i.invitee_email === email && i.status === 'declined')
                                   return (
                                     <button key={f.id}
-                                      onClick={() => !invited && !joined && !inviting && sendInvite(b.id, f)}
-                                      disabled={invited || joined || inviting}
+                                      onClick={() => !invited && !joined && !declined && !inviting && sendInvite(b.id, f)}
+                                      disabled={invited || joined || declined || inviting}
                                       className={`px-2.5 py-1 rounded-full text-xs font-medium transition
-                                        ${joined ? 'bg-green-100 text-green-700 cursor-default' :
-                                          invited ? 'bg-yellow-50 text-yellow-600 border border-yellow-200 cursor-default' :
+                                        ${joined   ? 'bg-green-100 text-green-700 cursor-default' :
+                                          invited  ? 'bg-yellow-50 text-yellow-600 border border-yellow-200 cursor-default' :
+                                          declined ? 'bg-gray-100 text-gray-400 cursor-not-allowed line-through' :
                                           'bg-white border border-gray-200 text-gray-700 hover:border-green-400 hover:text-green-700'}`}>
-                                      {joined ? '✓ ' : invited ? '⏳ ' : '✉️ '}{f.friend_name}
+                                      {joined ? '✓ ' : invited ? '⏳ ' : declined ? '✗ ' : '✉️ '}{f.friend_name}
                                       {f.is_guest && <span className="ml-1 opacity-50">(G)</span>}
                                     </button>
                                   )
@@ -1228,8 +1230,9 @@ export default function Bookings() {
                 const durationMins = (end.getTime() - start.getTime()) / 60000
                 const isActive = activeBookingRoster?.bookingId === b.id
                 const roster = isActive ? activeBookingRoster : null
-                const alreadyInvited = (email: string) => roster?.invitations.some(i => i.invitee_email === email && i.status !== 'declined')
+                const alreadyInvited = (email: string) => roster?.invitations.some(i => i.invitee_email === email && i.status === 'pending')
                 const alreadyJoined = (email: string) => roster?.players.some(p => p.player_email === email)
+                const alreadyDeclined = (email: string) => roster?.invitations.some(i => i.invitee_email === email && i.status === 'declined')
 
                 return (
                   <div key={b.id} className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
@@ -1354,17 +1357,19 @@ export default function Bookings() {
                             <div className="flex flex-wrap gap-2">
                               {friends.map(f => {
                                 const email = f.friend_email || ''
-                                const joined = alreadyJoined(email)
-                                const invited = alreadyInvited(email)
+                                const joined   = alreadyJoined(email)
+                                const invited  = alreadyInvited(email)
+                                const declined = alreadyDeclined(email)
                                 return (
                                   <button key={f.id}
-                                    onClick={() => !invited && !joined && !inviting && sendInvite(b.id, f)}
-                                    disabled={invited || joined || inviting}
+                                    onClick={() => !invited && !joined && !declined && !inviting && sendInvite(b.id, f)}
+                                    disabled={invited || joined || declined || inviting}
                                     className={`px-3 py-1.5 rounded-lg text-xs font-medium transition
-                                      ${joined ? 'bg-green-100 text-green-700 cursor-default' :
-                                        invited ? 'bg-yellow-50 text-yellow-600 border border-yellow-200 cursor-default' :
+                                      ${joined   ? 'bg-green-100 text-green-700 cursor-default' :
+                                        invited  ? 'bg-yellow-50 text-yellow-600 border border-yellow-200 cursor-default' :
+                                        declined ? 'bg-gray-100 text-gray-400 cursor-not-allowed line-through' :
                                         'bg-white border border-gray-200 text-gray-700 hover:border-green-400 hover:text-green-700 cursor-pointer'}`}>
-                                    {joined ? '✓ ' : invited ? '⏳ ' : '✉️ '}{f.friend_name}
+                                    {joined ? '✓ ' : invited ? '⏳ ' : declined ? '✗ ' : '✉️ '}{f.friend_name}
                                     {f.is_guest && <span className="ml-1 opacity-50 text-xs">(G)</span>}
                                   </button>
                                 )
