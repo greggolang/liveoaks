@@ -25,8 +25,10 @@ const EVENT_LABELS: Record<string, { label: string; color: string }> = {
 
 export default function AdminLog() {
   const [entries, setEntries] = useState<Entry[]>([])
-  const [filter, setFilter] = useState('')
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const [eventFilter, setEventFilter] = useState('')
+  const [search, setSearch] = useState('')
+  const [dateFilter, setDateFilter] = useState('')
 
   const load = () =>
     api.admin.activityLog().then(d => {
@@ -40,11 +42,29 @@ export default function AdminLog() {
     return () => clearInterval(interval)
   }, [])
 
-  const filtered = filter
-    ? entries.filter(e => e.event === filter)
-    : entries
-
   const eventTypes = [...new Set(entries.map(e => e.event))]
+
+  const filtered = entries.filter(e => {
+    if (eventFilter && e.event !== eventFilter) return false
+    if (dateFilter && !e.created_at.startsWith(dateFilter)) return false
+    if (search) {
+      const q = search.toLowerCase()
+      return (
+        e.actor.toLowerCase().includes(q) ||
+        (e.details ?? '').toLowerCase().includes(q) ||
+        (e.ip ?? '').includes(q)
+      )
+    }
+    return true
+  })
+
+  const clearFilters = () => {
+    setEventFilter('')
+    setSearch('')
+    setDateFilter('')
+  }
+
+  const hasFilters = eventFilter || search || dateFilter
 
   return (
     <div>
@@ -53,23 +73,46 @@ export default function AdminLog() {
           <h2 className="text-xl font-bold text-gray-800">Activity Log</h2>
           {lastUpdated && (
             <p className="text-xs text-gray-400 mt-0.5">
-              Updated {lastUpdated.toLocaleTimeString()} · refreshes every 30s
+              Updated {lastUpdated.toLocaleTimeString()} · auto-refreshes every 30s
             </p>
           )}
         </div>
-        <div className="flex items-center gap-3">
-          <select value={filter} onChange={e => setFilter(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
-            <option value="">All events</option>
-            {eventTypes.map(t => (
-              <option key={t} value={t}>{EVENT_LABELS[t]?.label ?? t}</option>
-            ))}
-          </select>
-          <button onClick={load}
-            className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg text-sm font-medium transition">
-            Refresh
+        <button onClick={load}
+          className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg text-sm font-medium transition">
+          Refresh
+        </button>
+      </div>
+
+      <div className="flex flex-wrap gap-3 mb-4">
+        <input
+          type="text"
+          placeholder="Search actor, details, IP..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 w-56"
+        />
+        <select value={eventFilter} onChange={e => setEventFilter(e.target.value)}
+          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
+          <option value="">All event types</option>
+          {eventTypes.map(t => (
+            <option key={t} value={t}>{EVENT_LABELS[t]?.label ?? t}</option>
+          ))}
+        </select>
+        <input
+          type="date"
+          value={dateFilter}
+          onChange={e => setDateFilter(e.target.value)}
+          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+        />
+        {hasFilters && (
+          <button onClick={clearFilters}
+            className="text-sm text-red-500 hover:text-red-700 font-medium px-2">
+            Clear filters
           </button>
-        </div>
+        )}
+        <span className="text-xs text-gray-400 self-center">
+          {filtered.length} of {entries.length} entries
+        </span>
       </div>
 
       {filtered.length === 0 ? (
