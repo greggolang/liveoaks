@@ -119,10 +119,11 @@ export default function Bookings() {
     const q = bookingSearchQuery.toLowerCase()
     setBookingSearchResults(
       directory.filter(m =>
-        `${m.first_name} ${m.last_name}`.toLowerCase().includes(q) || m.email.toLowerCase().includes(q)
+        m.id !== user?.id &&
+        (`${m.first_name} ${m.last_name}`.toLowerCase().includes(q) || m.email.toLowerCase().includes(q))
       ).slice(0, 20)
     )
-  }, [bookingSearchQuery, bookingSearchMode, directory])
+  }, [bookingSearchQuery, bookingSearchMode, directory, user?.id])
   useEffect(() => {
     if (tab === 'mine') {
       loadMine()
@@ -164,7 +165,8 @@ export default function Bookings() {
     const lower = q.toLowerCase()
     setAddPlayerResults(
       directory.filter(m =>
-        `${m.first_name} ${m.last_name}`.toLowerCase().includes(lower) || m.email.toLowerCase().includes(lower)
+        m.id !== user?.id &&
+        (`${m.first_name} ${m.last_name}`.toLowerCase().includes(lower) || m.email.toLowerCase().includes(lower))
       ).slice(0, 20)
     )
   }
@@ -1107,7 +1109,25 @@ export default function Bookings() {
                         {/* Add Player Directly */}
                         <div>
                           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Add Player Directly</h3>
-                          {addPlayerMode === null && (
+                          {(() => {
+                            const maxPlayers: Record<string, number> = { casual: 2, singles: 2, doubles: 4, ball_machine: 1 }
+                            const cap = maxPlayers[b.match_type ?? 'casual'] ?? 2
+                            const full = roster !== null && roster.players.length >= cap
+                            if (full) {
+                              return (
+                                <p className="text-xs text-gray-400 italic">
+                                  Booking is full ({roster!.players.length}/{cap} players).
+                                </p>
+                              )
+                            }
+                            return null
+                          })()}
+                          {addPlayerMode === null && (() => {
+                            const maxPlayers: Record<string, number> = { casual: 2, singles: 2, doubles: 4, ball_machine: 1 }
+                            const cap = maxPlayers[b.match_type ?? 'casual'] ?? 2
+                            const full = roster !== null && roster.players.length >= cap
+                            if (full) return null
+                            return (
                             <div className="flex gap-2 flex-wrap">
                               <button onClick={() => setAddPlayerMode('member')}
                                 className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-gray-200 text-gray-700 hover:border-green-400 hover:text-green-700 transition">
@@ -1118,7 +1138,8 @@ export default function Bookings() {
                                 + Add Guest
                               </button>
                             </div>
-                          )}
+                            )
+                          })()}
 
                           {addPlayerMode === 'member' && (
                             <div className="space-y-2">

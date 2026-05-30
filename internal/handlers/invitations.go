@@ -206,8 +206,10 @@ func (h *InvitationsHandler) AddPlayer(c echo.Context) error {
 	// Only the host (or board) may add players directly
 	var hostID string
 	var bookingStart time.Time
+	var matchType string
 	if err := h.DB.QueryRow(c.Request().Context(),
-		`SELECT user_id, start_time FROM bookings WHERE id = $1`, bookingID).Scan(&hostID, &bookingStart); err != nil {
+		`SELECT user_id, start_time, match_type FROM bookings WHERE id = $1`, bookingID,
+	).Scan(&hostID, &bookingStart, &matchType); err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "booking not found")
 	}
 	role, _ := c.Get("role").(string)
@@ -223,6 +225,25 @@ func (h *InvitationsHandler) AddPlayer(c echo.Context) error {
 	}
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
+	}
+
+	// Prevent the host from adding themselves
+	if req.UserID != nil && *req.UserID == hostID {
+		return echo.NewHTTPError(http.StatusBadRequest, "you are already on this booking as the host")
+	}
+
+	// Enforce player capacity by match type
+	maxPlayers := map[string]int{
+		"casual": 2, "singles": 2, "doubles": 4, "ball_machine": 1,
+	}[matchType]
+	if maxPlayers > 0 {
+		var playerCount int
+		h.DB.QueryRow(c.Request().Context(),
+			`SELECT COUNT(*) FROM match_players WHERE booking_id = $1`, bookingID,
+		).Scan(&playerCount)
+		if playerCount >= maxPlayers {
+			return echo.NewHTTPError(http.StatusBadRequest, "this booking is already full")
+		}
 	}
 
 	// If a member user_id is given, resolve name/email from DB
