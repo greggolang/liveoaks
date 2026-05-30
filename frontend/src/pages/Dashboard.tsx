@@ -194,6 +194,30 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Weather Camera */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-semibold text-gray-700">Court Camera</h2>
+          <a
+            href="https://autotrader.webgoserver.com/camera"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-green-700 hover:underline"
+          >
+            Open full screen ↗
+          </a>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+          <iframe
+            src="https://autotrader.webgoserver.com/camera"
+            title="Court Camera"
+            className="w-full"
+            style={{ height: '400px', border: 'none' }}
+            allowFullScreen
+          />
+        </div>
+      </div>
+
       {/* Feedback */}
       <FeedbackBox
         title="Got an idea for the site?"
