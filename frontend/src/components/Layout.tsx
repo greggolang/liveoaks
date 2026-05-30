@@ -48,6 +48,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <NavLink to="/bookings" className={navLink}>Book Court</NavLink>
               <NavLink to="/directory" className={navLink}>Directory</NavLink>
               <NavLink to="/friends" className={navLink}>Friends</NavLink>
+              {isBoard && <NavLink to="/email" className={navLink}>Email</NavLink>}
+              {isBoard && <NavLink to="/drive" className={navLink}>Drive</NavLink>}
               {isBoard && <NavLink to="/admin" className={navLink}>Admin</NavLink>}
               <button onClick={openBug}
                 title="Report a bug"
@@ -85,7 +87,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               {[
                 ['/bookings', 'Book Court'],
                 ['/directory', 'Directory'], ['/friends', 'Friends'],
-                ...(isBoard ? [['/admin', 'Admin']] : []),
+                ...(isBoard ? [['/email', 'Email'], ['/drive', 'Drive'], ['/admin', 'Admin']] : []),
               ].map(([to, label]) => (
                 <Link key={to} to={to} onClick={() => setMenuOpen(false)}
                   className="text-green-100 hover:text-white">{label}</Link>

@@ -78,6 +78,7 @@ func main() {
 	guests := &handlers.GuestsHandler{DB: pool}
 	usta := &handlers.USTAHandler{DB: pool}
 	uploads := &handlers.UploadsHandler{DB: pool, UploadDir: uploadDir}
+	google := &handlers.GoogleHandler{DB: pool, ServiceAccount: []byte(cfg.GoogleSAJSON)}
 	contacts := &handlers.ContactsHandler{DB: pool}
 	friends := &handlers.FriendsHandler{DB: pool}
 	perms := &handlers.PermissionsHandler{DB: pool}
@@ -214,6 +215,14 @@ func main() {
 	authed.GET("/bylaws", uploads.ServeBylaws)
 	adminOnly.GET("/bylaws/meta", uploads.BylawsMeta)
 	adminOnly.POST("/bylaws", uploads.UploadBylaws)
+
+	// Google Workspace — Gmail + Drive (board members and above)
+	boardPlus.GET("/google/email/threads", google.ListThreads)
+	boardPlus.GET("/google/email/threads/:threadId", google.GetThread)
+	boardPlus.POST("/google/email/send", google.SendEmail)
+	boardPlus.PUT("/google/email/threads/:threadId/read", google.MarkRead)
+	boardPlus.DELETE("/google/email/threads/:threadId", google.TrashThread)
+	boardPlus.GET("/google/drive/files", google.ListDriveFiles)
 
 	// Serve uploaded files
 	e.GET("/uploads/documents/:filename", uploads.ServeDocument)

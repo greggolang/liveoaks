@@ -11,7 +11,23 @@ const LABELS: Record<string, string> = {
 }
 
 // Keys managed elsewhere — hide from this page
-const HIDDEN_KEYS = new Set(['smtp_host','smtp_port','smtp_user','smtp_pass','smtp_from'])
+const HIDDEN_KEYS = new Set([
+  'smtp_host','smtp_port','smtp_user','smtp_pass','smtp_from',
+  'google_email_president','google_email_vice_president','google_email_secretary',
+  'google_email_treasurer','google_email_entertainment','google_email_house_grounds',
+  'google_email_usta','google_email_admin',
+])
+
+const GOOGLE_ROLE_KEYS: { key: string; label: string }[] = [
+  { key: 'google_email_president',      label: 'President' },
+  { key: 'google_email_vice_president',  label: 'Vice President' },
+  { key: 'google_email_secretary',       label: 'Secretary' },
+  { key: 'google_email_treasurer',       label: 'Billing / Treasurer' },
+  { key: 'google_email_entertainment',   label: 'Entertainment' },
+  { key: 'google_email_house_grounds',   label: 'House & Grounds' },
+  { key: 'google_email_usta',            label: 'USTA' },
+  { key: 'google_email_admin',           label: 'Administrator' },
+]
 
 export default function AdminSettings() {
   const [settings, setSettings] = useState<Record<string, string>>({})
@@ -69,6 +85,32 @@ export default function AdminSettings() {
             />
             <button onClick={() => save(key)}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition ${saved[key] ? 'bg-green-100 text-green-700' : 'bg-green-700 text-white hover:bg-green-800'}`}>
+              {saved[key] ? 'Saved!' : 'Save'}
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* Google Workspace role email mapping */}
+      <h2 className="text-xl font-bold text-gray-800 mt-8 mb-2">Google Workspace — Role Mailboxes</h2>
+      <p className="text-sm text-gray-500 mb-4">
+        Map each board role to its Google Workspace email address. Board members with that role will be able
+        to read, compose, and send email from the matching mailbox — and browse its Drive — without needing
+        the Gmail password. Requires <span className="font-medium">GOOGLE_SA_JSON</span> set on the server.
+      </p>
+      <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 space-y-4">
+        {GOOGLE_ROLE_KEYS.map(({ key, label }) => (
+          <div key={key} className="flex items-center gap-4">
+            <label className="w-48 text-sm font-medium text-gray-700 shrink-0">{label}</label>
+            <input
+              value={settings[key] ?? ''}
+              onChange={e => setSettings(s => ({ ...s, [key]: e.target.value }))}
+              placeholder="role@yourclub.org"
+              type="email"
+              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+            />
+            <button onClick={() => save(key)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition shrink-0 ${saved[key] ? 'bg-green-100 text-green-700' : 'bg-green-700 text-white hover:bg-green-800'}`}>
               {saved[key] ? 'Saved!' : 'Save'}
             </button>
           </div>

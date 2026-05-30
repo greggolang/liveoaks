@@ -21,6 +21,8 @@ import MyDues from './pages/MyDues'
 import ClubInfo from './pages/ClubInfo'
 import Bylaws from './pages/Bylaws'
 import ProShop from './pages/ProShop'
+import RoleEmail from './pages/RoleEmail'
+import RoleDrive from './pages/RoleDrive'
 import Profile from './pages/Profile'
 import Friends from './pages/Friends'
 import InviteResponse from './pages/InviteResponse'
@@ -82,6 +84,8 @@ function AppRoutes() {
       <Route path="/club-info" element={<ProtectedRoute><ClubInfo /></ProtectedRoute>} />
       <Route path="/bylaws" element={<ProtectedRoute><Bylaws /></ProtectedRoute>} />
       <Route path="/pro-shop" element={<ProtectedRoute><ProShop /></ProtectedRoute>} />
+      <Route path="/email" element={<ProtectedRoute><RoleEmail /></ProtectedRoute>} />
+      <Route path="/drive" element={<ProtectedRoute><RoleDrive /></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
       <Route path="/friends" element={<ProtectedRoute><Friends /></ProtectedRoute>} />
 

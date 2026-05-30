@@ -1,3 +1,18 @@
+export interface EmailThread {
+  id: string; subject: string; from: string; snippet: string
+  date: string; unread: boolean; message_count: number
+}
+export interface EmailMessage {
+  id: string; from: string; to: string; cc?: string
+  subject: string; date: string; body: string; unread: boolean
+}
+export interface EmailThreadDetail { id: string; subject: string; messages: EmailMessage[] }
+
+export interface DriveFile {
+  id: string; name: string; mime_type: string; modified_time: string
+  size?: number; web_view_link?: string; icon_link?: string; is_folder: boolean
+}
+
 const BASE = '/api'
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -106,6 +121,37 @@ export const api = {
     summary: (eventId: string) => request(`/admin/events/${eventId}/signups/summary`),
     delete: (eventId: string, signupId: string) => request(`/admin/events/${eventId}/signups/${signupId}`, { method: 'DELETE' }),
     toggleSignup: (eventId: string, data: object) => request(`/events/${eventId}/signup-toggle`, { method: 'PUT', body: JSON.stringify(data) }),
+  },
+  google: {
+    email: {
+      listThreads: (params?: { label?: string; q?: string; pageToken?: string }) => {
+        const p = new URLSearchParams()
+        if (params?.label) p.set('label', params.label)
+        if (params?.q) p.set('q', params.q)
+        if (params?.pageToken) p.set('pageToken', params.pageToken)
+        return request<{ threads: EmailThread[]; next_page_token: string; mailbox: string }>(
+          `/google/email/threads${p.toString() ? '?' + p : ''}`
+        )
+      },
+      getThread: (threadId: string) =>
+        request<EmailThreadDetail>(`/google/email/threads/${threadId}`),
+      send: (data: { to: string; subject: string; body: string; thread_id?: string; reply_to_message_id?: string }) =>
+        request<{ id: string; thread_id: string }>('/google/email/send', { method: 'POST', body: JSON.stringify(data) }),
+      markRead: (threadId: string) =>
+        request(`/google/email/threads/${threadId}/read`, { method: 'PUT' }),
+      trash: (threadId: string) =>
+        request(`/google/email/threads/${threadId}`, { method: 'DELETE' }),
+    },
+    drive: {
+      listFiles: (folderId?: string, pageToken?: string) => {
+        const p = new URLSearchParams()
+        if (folderId) p.set('folderId', folderId)
+        if (pageToken) p.set('pageToken', pageToken)
+        return request<{ files: DriveFile[]; next_page_token: string; mailbox: string }>(
+          `/google/drive/files${p.toString() ? '?' + p : ''}`
+        )
+      },
+    },
   },
   bylaws: {
     meta: () => request<{ uploaded_at: string | null }>('/admin/bylaws/meta'),

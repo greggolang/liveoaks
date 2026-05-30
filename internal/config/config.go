@@ -6,15 +6,16 @@ import (
 )
 
 type Config struct {
-	DatabaseURL string
-	JWTSecret   string
-	Port        string
-	SiteURL     string
-	SMTPHost    string
-	SMTPPort    int
-	SMTPUser    string
-	SMTPPass    string
-	SMTPFrom    string
+	DatabaseURL     string
+	JWTSecret       string
+	Port            string
+	SiteURL         string
+	SMTPHost        string
+	SMTPPort        int
+	SMTPUser        string
+	SMTPPass        string
+	SMTPFrom        string
+	GoogleSAJSON    string // service account JSON for Gmail/Drive integration
 }
 
 func Load() Config {
@@ -39,6 +40,7 @@ func Load() Config {
 		SMTPPort:    smtpPort,
 		SMTPUser:    os.Getenv("SMTP_USER"),
 		SMTPPass:    os.Getenv("SMTP_PASS"),
-		SMTPFrom:    os.Getenv("SMTP_FROM"),
+		SMTPFrom:     os.Getenv("SMTP_FROM"),
+		GoogleSAJSON: os.Getenv("GOOGLE_SA_JSON"),
 	}
 }
