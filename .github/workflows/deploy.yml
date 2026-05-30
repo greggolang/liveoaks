@@ -68,6 +68,7 @@ jobs:
 
             sudo -u postgres psql -d liveoaks -f /opt/liveoaks/migrations/004_password_resets.sql 2>/dev/null || true
             sudo -u postgres psql -d liveoaks -f /opt/liveoaks/migrations/005_activity_log.sql 2>/dev/null || true
+            sudo -u postgres psql -d liveoaks -f /opt/liveoaks/migrations/006_fix_permissions.sql 2>/dev/null || true
             chmod +x /opt/liveoaks/resetpw
             DATABASE_URL="postgres://liveoaks:liveoaks2026@localhost/liveoaks" /opt/liveoaks/resetpw
             sed -i "s|Environment=JWT_SECRET=.*|Environment=JWT_SECRET=$JWT_SECRET|" /etc/systemd/system/liveoaks.service
