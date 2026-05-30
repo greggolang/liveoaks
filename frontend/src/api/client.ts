@@ -81,6 +81,7 @@ export const api = {
     removePlayer: (bookingId: string, playerId: string) => request(`/bookings/${bookingId}/players/${playerId}`, { method: 'DELETE' }),
     respond: (token: string, action: 'accept' | 'decline') => request(`/invite/${token}/${action}`, { method: 'POST' }),
     cancel: (id: string) => request(`/invitations/${id}/cancel`, { method: 'PUT' }),
+    responses: () => request('/invitations/responses'),
   },
   contacts: {
     list: () => request('/contacts'),

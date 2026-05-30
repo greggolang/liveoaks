@@ -1,7 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { api } from '../api/client'
+
+interface InviteResponse {
+  id: string
+  invitee_name: string
+  status: 'accepted' | 'declined'
+  court_name: string
+  start_time: string
+}
 
 interface Booking {
   id: string; court_id: number; start_time: string; end_time: string
@@ -40,6 +48,27 @@ export default function Dashboard() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [readIds, setReadIds] = useState<Set<string>>(new Set())
   const [cameraURL, setCameraURL] = useState<string | null>(null)
+  const [toasts, setToasts] = useState<InviteResponse[]>([])
+  const seenIds = useRef<Set<string>>(new Set())
+
+  const dismissToast = (id: string) => setToasts(prev => prev.filter(t => t.id !== id))
+
+  const checkResponses = useCallback(async () => {
+    try {
+      const data = await api.invitations.responses() as InviteResponse[]
+      const unseen = data.filter(r => !seenIds.current.has(r.id))
+      if (unseen.length > 0) {
+        unseen.forEach(r => seenIds.current.add(r.id))
+        setToasts(prev => [...prev, ...unseen])
+      }
+    } catch {}
+  }, [])
+
+  useEffect(() => {
+    checkResponses()
+    const interval = setInterval(checkResponses, 60000)
+    return () => clearInterval(interval)
+  }, [checkResponses])
 
   useEffect(() => {
     if (user?.id) setReadIds(loadRead(user.id))
@@ -73,6 +102,14 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8">
+      {/* Invite response toasts */}
+      {toasts.length > 0 && (
+        <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-2 items-end">
+          {toasts.map(t => (
+            <Toast key={t.id} response={t} onDismiss={() => dismissToast(t.id)} />
+          ))}
+        </div>
+      )}
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-800">
@@ -285,6 +322,33 @@ function FeedbackBox({ title, placeholder, buttonLabel, value, onChange, state, 
       {state === 'error' && (
         <p className="text-red-500 text-xs mt-1">Something went wrong — please try again.</p>
       )}
+    </div>
+  )
+}
+
+function Toast({ response, onDismiss }: { response: InviteResponse; onDismiss: () => void }) {
+  useEffect(() => {
+    const t = setTimeout(onDismiss, 7000)
+    return () => clearTimeout(t)
+  }, [])
+
+  const accepted = response.status === 'accepted'
+  const date = new Date(response.start_time).toLocaleDateString('en-US', {
+    weekday: 'short', month: 'short', day: 'numeric',
+  })
+  const time = new Date(response.start_time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+
+  return (
+    <div className={`flex items-start gap-3 w-80 rounded-xl shadow-lg border px-4 py-3 text-sm
+      ${accepted ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+      <span className="text-xl shrink-0">{accepted ? '✅' : '❌'}</span>
+      <div className="flex-1 min-w-0">
+        <p className="font-semibold text-gray-800">
+          {response.invitee_name} {accepted ? 'accepted' : 'declined'}
+        </p>
+        <p className="text-xs text-gray-500 mt-0.5">{response.court_name} · {date} at {time}</p>
+      </div>
+      <button onClick={onDismiss} className="text-gray-400 hover:text-gray-600 shrink-0 leading-none">×</button>
     </div>
   )
 }

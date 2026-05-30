@@ -144,6 +144,7 @@ func main() {
 	authed.POST("/bookings/:id/players", invitations.AddPlayer)
 	authed.DELETE("/bookings/:id/players/:playerId", invitations.RemovePlayer)
 	authed.PUT("/invitations/:id/cancel", invitations.Cancel)
+	authed.GET("/invitations/responses", invitations.GetResponses)
 
 	// Public invite response (no auth needed)
 	api.POST("/invite/:token/:action", invitations.Respond)

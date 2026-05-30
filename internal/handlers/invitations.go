@@ -193,6 +193,9 @@ func (h *InvitationsHandler) Respond(c echo.Context) error {
 
 		// Check if match is now full and cancel remaining
 		go h.checkMatchFull(bookingID, inv.InviterID, inviterEmail)
+	} else {
+		// Notify host of decline
+		go h.sendDeclinedEmail(inviterEmail, inv.InviteeName)
 	}
 
 	return c.JSON(http.StatusOK, map[string]string{"status": newStatus})
@@ -340,6 +343,45 @@ func (h *InvitationsHandler) Cancel(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
+// GetResponses returns recent accept/decline responses for bookings the user hosts.
+func (h *InvitationsHandler) GetResponses(c echo.Context) error {
+	userID := c.Get("user_id").(string)
+	rows, err := h.DB.Query(c.Request().Context(), `
+		SELECT i.id, i.invitee_name, i.status, ct.name, b.start_time, i.responded_at
+		FROM match_invitations i
+		JOIN bookings b ON b.id = i.booking_id
+		JOIN courts ct ON ct.id = b.court_id
+		WHERE b.user_id = $1
+		  AND i.status IN ('accepted', 'declined')
+		  AND i.responded_at > NOW() - INTERVAL '48 hours'
+		ORDER BY i.responded_at DESC
+		LIMIT 20`, userID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch responses")
+	}
+	defer rows.Close()
+	type Response struct {
+		ID          string `json:"id"`
+		InviteeName string `json:"invitee_name"`
+		Status      string `json:"status"`
+		CourtName   string `json:"court_name"`
+		StartTime   string `json:"start_time"`
+		RespondedAt string `json:"responded_at"`
+	}
+	results := []Response{}
+	for rows.Next() {
+		var r Response
+		var start, responded interface{}
+		if err := rows.Scan(&r.ID, &r.InviteeName, &r.Status, &r.CourtName, &start, &responded); err != nil {
+			continue
+		}
+		r.StartTime = fmt.Sprintf("%v", start)
+		r.RespondedAt = fmt.Sprintf("%v", responded)
+		results = append(results, r)
+	}
+	return c.JSON(http.StatusOK, results)
+}
+
 func (h *InvitationsHandler) checkMatchFull(bookingID, inviterID, inviterEmail string) {
 	var playersNeeded, confirmedCount int
 	h.DB.QueryRow(context.Background(),
@@ -386,6 +428,17 @@ func (h *InvitationsHandler) sendInvitationEmail(to, toName, fromName, court, st
   <p style="color:#9ca3af;font-size:12px">This invitation expires in 7 days.</p>
 </div>`, toName, fromName, court, start, end, acceptURL, declineURL)
 	h.Mailer.Send(to, fmt.Sprintf("%s invited you to play at Liveoaks!", fromName), body)
+}
+
+func (h *InvitationsHandler) sendDeclinedEmail(to, playerName string) {
+	body := fmt.Sprintf(`
+<div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
+  <h2 style="color:#dc2626">Invitation Declined</h2>
+  <p><strong>%s</strong> has declined your match invitation.</p>
+  <p>You may want to invite another player to fill the spot.</p>
+  <a href="%s/bookings" style="color:#15803d">View your booking →</a>
+</div>`, playerName, h.SiteURL)
+	h.Mailer.Send(to, playerName+" declined your match invitation", body)
 }
 
 func (h *InvitationsHandler) sendAcceptedEmail(to, playerName string) {
