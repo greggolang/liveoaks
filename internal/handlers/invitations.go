@@ -309,28 +309,28 @@ func (h *InvitationsHandler) RemovePlayer(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
-// Cancel an invitation (by inviter)
+// Cancel an invitation (by inviter) — only sends an email if the invite was
+// still pending at cancel time. Players who already declined are not emailed.
 func (h *InvitationsHandler) Cancel(c echo.Context) error {
 	inviterID := c.Get("user_id").(string)
 	id := c.Param("id")
 
-	// Fetch details before cancelling so we can email the invitee
+	// Single atomic UPDATE+RETURNING: only succeeds (and returns data) when the
+	// invitation is still pending. If the player already declined, nothing happens.
 	var inviteeName, inviteeEmail, courtName, startTime, endTime string
-	h.DB.QueryRow(c.Request().Context(),
-		`SELECT i.invitee_name, i.invitee_email, ct.name,
-		        b.start_time::text, b.end_time::text
-		 FROM match_invitations i
-		 JOIN bookings b ON b.id = i.booking_id
-		 JOIN courts ct ON ct.id = b.court_id
-		 WHERE i.id = $1 AND i.inviter_id = $2 AND i.status = 'pending'`,
+	err := h.DB.QueryRow(c.Request().Context(),
+		`UPDATE match_invitations SET status='cancelled', responded_at=NOW()
+		 WHERE id=$1 AND inviter_id=$2 AND status='pending'
+		 RETURNING invitee_name, invitee_email,
+		           (SELECT ct.name FROM courts ct
+		            JOIN bookings b ON b.court_id = ct.id
+		            WHERE b.id = match_invitations.booking_id),
+		           (SELECT b.start_time::text FROM bookings b WHERE b.id = match_invitations.booking_id),
+		           (SELECT b.end_time::text   FROM bookings b WHERE b.id = match_invitations.booking_id)`,
 		id, inviterID,
 	).Scan(&inviteeName, &inviteeEmail, &courtName, &startTime, &endTime)
 
-	tag, _ := h.DB.Exec(c.Request().Context(),
-		`UPDATE match_invitations SET status='cancelled', responded_at=NOW()
-		 WHERE id=$1 AND inviter_id=$2 AND status='pending'`, id, inviterID)
-
-	if tag.RowsAffected() > 0 && inviteeEmail != "" {
+	if err == nil && inviteeEmail != "" {
 		body := fmt.Sprintf(`
 <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
   <h2 style="color:#6b7280">Invitation Cancelled</h2>
