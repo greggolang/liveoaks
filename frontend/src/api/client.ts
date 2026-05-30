@@ -22,6 +22,10 @@ export const api = {
       request('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
     logout: () => request('/auth/logout', { method: 'POST' }),
     me: () => request('/auth/me'),
+    forgotPassword: (email: string) =>
+      request('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
+    resetPassword: (token: string, password: string) =>
+      request('/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, password }) }),
   },
   courts: {
     list: () => request('/courts'),
@@ -48,5 +52,6 @@ export const api = {
     settings: () => request('/admin/settings'),
     updateSetting: (key: string, value: string) =>
       request(`/admin/settings/${key}`, { method: 'PUT', body: JSON.stringify({ value }) }),
+    passwordResets: () => request('/admin/password-resets'),
   },
 }

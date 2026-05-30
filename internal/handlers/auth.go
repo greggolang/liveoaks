@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"net/http"
 	"time"
 
@@ -138,4 +140,66 @@ func (h *AuthHandler) Me(c echo.Context) error {
 	user.Role = models.Role(role)
 	user.Status = models.Status(status)
 	return c.JSON(http.StatusOK, user)
+}
+
+func (h *AuthHandler) ForgotPassword(c echo.Context) error {
+	var req struct {
+		Email string `json:"email"`
+	}
+	if err := c.Bind(&req); err != nil || req.Email == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "email required")
+	}
+
+	var userID string
+	err := h.DB.QueryRow(c.Request().Context(),
+		`SELECT id FROM users WHERE email = $1 AND status = 'active'`, req.Email,
+	).Scan(&userID)
+	if err != nil {
+		// Don't reveal whether the email exists
+		return c.JSON(http.StatusOK, map[string]string{"message": "If that email is registered, a reset link has been created."})
+	}
+
+	b := make([]byte, 24)
+	rand.Read(b)
+	token := hex.EncodeToString(b)
+
+	_, err = h.DB.Exec(c.Request().Context(),
+		`INSERT INTO password_resets (token, user_id) VALUES ($1, $2)
+		 ON CONFLICT DO NOTHING`, token, userID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not create reset token")
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{"message": "If that email is registered, a reset link has been created."})
+}
+
+func (h *AuthHandler) ResetPassword(c echo.Context) error {
+	var req struct {
+		Token    string `json:"token"`
+		Password string `json:"password"`
+	}
+	if err := c.Bind(&req); err != nil || req.Token == "" || req.Password == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "token and password required")
+	}
+	if len(req.Password) < 8 {
+		return echo.NewHTTPError(http.StatusBadRequest, "password must be at least 8 characters")
+	}
+
+	var userID string
+	err := h.DB.QueryRow(c.Request().Context(),
+		`DELETE FROM password_resets WHERE token = $1 AND expires_at > NOW() RETURNING user_id`, req.Token,
+	).Scan(&userID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid or expired reset link")
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not hash password")
+	}
+
+	h.DB.Exec(c.Request().Context(),
+		`UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2`, string(hash), userID)
+
+	return c.JSON(http.StatusOK, map[string]string{"message": "Password updated. You can now log in."})
 }

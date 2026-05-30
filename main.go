@@ -49,6 +49,8 @@ func main() {
 	// Public routes
 	api.POST("/auth/register", auth.Register)
 	api.POST("/auth/login", auth.Login)
+	api.POST("/auth/forgot-password", auth.ForgotPassword)
+	api.POST("/auth/reset-password", auth.ResetPassword)
 
 	// Authenticated routes
 	authed := api.Group("", mw.JWTAuth(cfg.JWTSecret))
@@ -76,6 +78,7 @@ func main() {
 	adminOnly.DELETE("/users/:id", users.Delete)
 	adminOnly.GET("/settings", admin.GetSettings)
 	adminOnly.PUT("/settings/:key", admin.UpdateSetting)
+	adminOnly.GET("/password-resets", admin.PendingResets)
 
 	// Serve React frontend
 	distFS, err := fs.Sub(frontendFS, "frontend/dist")
