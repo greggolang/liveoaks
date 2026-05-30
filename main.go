@@ -175,6 +175,7 @@ func main() {
 	adminOnly.POST("/dues/generate", dues.Generate)
 	adminOnly.GET("/waitlist", waitlist.List)
 	adminOnly.PUT("/waitlist/:id/status", waitlist.UpdateStatus)
+	adminOnly.PUT("/waitlist/:id/contact", waitlist.UpdateContact)
 	adminOnly.DELETE("/waitlist/:id", waitlist.Delete)
 	adminOnly.GET("/guests", guests.AdminList)
 	adminOnly.GET("/events/:id/signups", signups.List)

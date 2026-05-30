@@ -1,26 +1,55 @@
 import { useEffect, useState } from 'react'
 import { api } from '../../api/client'
 
-interface Entry { id: string; first_name: string; last_name: string; email: string; phone?: string; notes?: string; status: string; created_at: string }
+interface Entry {
+  id: string; first_name: string; last_name: string
+  email?: string; phone?: string; notes?: string
+  status: string; position?: number; created_at: string
+}
 
 const STATUS_COLOR: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-700',
+  pending:   'bg-yellow-100 text-yellow-700',
   contacted: 'bg-blue-100 text-blue-700',
-  accepted: 'bg-green-100 text-green-700',
-  declined: 'bg-red-100 text-red-700',
+  accepted:  'bg-green-100 text-green-700',
+  declined:  'bg-red-100 text-red-700',
 }
 
 export default function AdminWaitlist() {
   const [entries, setEntries] = useState<Entry[]>([])
+  const [editContact, setEditContact] = useState<string | null>(null)
+  const [contactForm, setContactForm] = useState({ email: '', phone: '' })
+  const [savingContact, setSavingContact] = useState(false)
+
   const load = () => api.waitlist.list().then(d => setEntries(d as Entry[]))
   useEffect(() => { load() }, [])
 
+  const openContact = (w: Entry) => {
+    setEditContact(w.id)
+    setContactForm({ email: w.email ?? '', phone: w.phone ?? '' })
+  }
+
+  const saveContact = async (id: string) => {
+    setSavingContact(true)
+    try {
+      await api.waitlist.updateContact(id, contactForm.email, contactForm.phone)
+      setEditContact(null)
+      load()
+    } finally { setSavingContact(false) }
+  }
+
+  const missing = entries.filter(e => !e.email && !e.phone).length
+
   return (
     <div>
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex justify-between items-center mb-1">
         <h2 className="text-xl font-bold text-gray-800">Waitlist</h2>
         <span className="text-sm text-gray-400">{entries.length} entries</span>
       </div>
+      {missing > 0 && (
+        <p className="text-xs text-amber-600 mb-4">
+          {missing} entr{missing === 1 ? 'y has' : 'ies have'} no contact info — click the contact cell to add email / phone.
+        </p>
+      )}
 
       {entries.length === 0 ? (
         <p className="text-gray-400 text-sm">No one on the waitlist.</p>
@@ -29,26 +58,69 @@ export default function AdminWaitlist() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
               <tr>
+                <th className="px-3 py-3 text-left w-10">#</th>
                 <th className="px-4 py-3 text-left">Name</th>
                 <th className="px-4 py-3 text-left">Contact</th>
                 <th className="px-4 py-3 text-left">Notes</th>
-                <th className="px-4 py-3 text-left">Applied</th>
                 <th className="px-4 py-3 text-left">Status</th>
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {entries.map(w => (
+              {entries.map((w, idx) => (
                 <tr key={w.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium text-gray-800">{w.first_name} {w.last_name}</td>
+                  <td className="px-3 py-3 text-gray-400 text-xs font-mono">
+                    {w.position ?? idx + 1}
+                  </td>
+                  <td className="px-4 py-3 font-medium text-gray-800">
+                    {w.first_name} {w.last_name}
+                  </td>
                   <td className="px-4 py-3">
-                    <div className="text-gray-600">{w.email}</div>
-                    {w.phone && <div className="text-xs text-gray-400">{w.phone}</div>}
+                    {editContact === w.id ? (
+                      <div className="flex flex-col gap-1.5">
+                        <input
+                          type="email"
+                          value={contactForm.email}
+                          onChange={e => setContactForm(f => ({ ...f, email: e.target.value }))}
+                          placeholder="Email"
+                          className="border border-gray-300 rounded px-2 py-1 text-xs w-48 focus:outline-none focus:ring-1 focus:ring-green-500"
+                        />
+                        <input
+                          type="tel"
+                          value={contactForm.phone}
+                          onChange={e => setContactForm(f => ({ ...f, phone: e.target.value }))}
+                          placeholder="Phone"
+                          className="border border-gray-300 rounded px-2 py-1 text-xs w-48 focus:outline-none focus:ring-1 focus:ring-green-500"
+                        />
+                        <div className="flex gap-2">
+                          <button onClick={() => saveContact(w.id)} disabled={savingContact}
+                            className="text-xs bg-green-700 text-white px-2 py-1 rounded hover:bg-green-800 transition disabled:opacity-50">
+                            {savingContact ? 'Saving…' : 'Save'}
+                          </button>
+                          <button onClick={() => setEditContact(null)}
+                            className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button onClick={() => openContact(w)}
+                        className="text-left hover:opacity-70 transition group">
+                        {w.email || w.phone ? (
+                          <>
+                            {w.email && <div className="text-gray-600 text-xs">{w.email}</div>}
+                            {w.phone && <div className="text-gray-400 text-xs">{w.phone}</div>}
+                          </>
+                        ) : (
+                          <span className="text-xs text-amber-500 group-hover:text-amber-600">
+                            + Add contact info
+                          </span>
+                        )}
+                      </button>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-gray-400 text-xs">{w.notes ?? '—'}</td>
-                  <td className="px-4 py-3 text-gray-400 text-xs">{new Date(w.created_at).toLocaleDateString()}</td>
                   <td className="px-4 py-3">
-                    <select value={w.status} onChange={async e => { await api.waitlist.updateStatus(w.id, e.target.value); load() }}
+                    <select value={w.status}
+                      onChange={async e => { await api.waitlist.updateStatus(w.id, e.target.value); load() }}
                       className={`text-xs font-medium px-2 py-1 rounded-full border-0 cursor-pointer ${STATUS_COLOR[w.status]}`}>
                       <option value="pending">Pending</option>
                       <option value="contacted">Contacted</option>
@@ -57,8 +129,11 @@ export default function AdminWaitlist() {
                     </select>
                   </td>
                   <td className="px-4 py-3">
-                    <button onClick={async () => { if (confirm('Remove from waitlist?')) { await api.waitlist.delete(w.id); load() } }}
-                      className="text-red-400 hover:text-red-600 text-xs">Remove</button>
+                    <button onClick={async () => {
+                      if (confirm(`Remove ${w.first_name} ${w.last_name} from waitlist?`)) {
+                        await api.waitlist.delete(w.id); load()
+                      }
+                    }} className="text-red-400 hover:text-red-600 text-xs">Remove</button>
                   </td>
                 </tr>
               ))}
