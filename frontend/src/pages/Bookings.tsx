@@ -68,18 +68,18 @@ export default function Bookings() {
   const [confirming, setConfirming] = useState(false)
   const [activeBookingRoster, setActiveBookingRoster] = useState<{ bookingId: string; players: MatchPlayer[]; invitations: Invitation[] } | null>(null)
   const [inviting, setInviting] = useState(false)
+  // Directory — loaded once at mount, used for all member searches
+  const [directory, setDirectory] = useState<{id: string; first_name: string; last_name: string; email: string}[]>([])
   // Direct players at booking creation time
   const [directPlayers, setDirectPlayers] = useState<DirectPlayer[]>([])
   const [bookingSearchMode, setBookingSearchMode] = useState<'member' | 'guest' | null>(null)
   const [bookingSearchQuery, setBookingSearchQuery] = useState('')
   const [bookingSearchResults, setBookingSearchResults] = useState<{id: string; first_name: string; last_name: string; email: string}[]>([])
-  const [bookingSearching, setBookingSearching] = useState(false)
   const [bookingGuestForm, setBookingGuestForm] = useState({ name: '', email: '' })
   // Add player directly (roster panel)
   const [addPlayerMode, setAddPlayerMode] = useState<'member' | 'guest' | null>(null)
   const [addPlayerQuery, setAddPlayerQuery] = useState('')
   const [addPlayerResults, setAddPlayerResults] = useState<{id: string; first_name: string; last_name: string; email: string}[]>([])
-  const [addPlayerSearching, setAddPlayerSearching] = useState(false)
   const [guestAddForm, setGuestAddForm] = useState({ name: '', email: '' })
   const [addingPlayer, setAddingPlayer] = useState(false)
   const [bookingDetail, setBookingDetail] = useState<Booking | null>(null)
@@ -101,19 +101,20 @@ export default function Bookings() {
     api.courts.list().then(d => setCourts(d as Court[]))
     api.friends.list().then(d => setFriends(d as Friend[]))
     api.groups.list().then(d => setFriendGroups(d as FriendGroup[]))
+    api.members.directory().then(d => setDirectory((d as any[]).map(m => ({ id: m.id, first_name: m.first_name, last_name: m.last_name, email: m.email }))))
   }, [])
 
   useEffect(() => { load() }, [load])
   useEffect(() => {
     if (bookingSearchMode !== 'member') return
     if (bookingSearchQuery.length < 2) { setBookingSearchResults([]); return }
-    const t = setTimeout(async () => {
-      setBookingSearching(true)
-      try { setBookingSearchResults(await api.friends.searchMembers(bookingSearchQuery) as any) }
-      finally { setBookingSearching(false) }
-    }, 300)
-    return () => clearTimeout(t)
-  }, [bookingSearchQuery, bookingSearchMode])
+    const q = bookingSearchQuery.toLowerCase()
+    setBookingSearchResults(
+      directory.filter(m =>
+        `${m.first_name} ${m.last_name}`.toLowerCase().includes(q) || m.email.toLowerCase().includes(q)
+      ).slice(0, 20)
+    )
+  }, [bookingSearchQuery, bookingSearchMode, directory])
   useEffect(() => {
     if (tab === 'mine') {
       loadMine()
@@ -149,13 +150,15 @@ export default function Bookings() {
     } finally { setInviting(false) }
   }
 
-  const searchPlayers = async (q: string) => {
+  const searchPlayers = (q: string) => {
     setAddPlayerQuery(q)
     if (q.length < 2) { setAddPlayerResults([]); return }
-    setAddPlayerSearching(true)
-    try {
-      setAddPlayerResults(await api.friends.searchMembers(q) as any)
-    } finally { setAddPlayerSearching(false) }
+    const lower = q.toLowerCase()
+    setAddPlayerResults(
+      directory.filter(m =>
+        `${m.first_name} ${m.last_name}`.toLowerCase().includes(lower) || m.email.toLowerCase().includes(lower)
+      ).slice(0, 20)
+    )
   }
 
   const addMemberPlayer = async (bookingId: string, userId: string) => {
@@ -454,7 +457,6 @@ export default function Bookings() {
                         autoFocus
                         className="w-full border border-green-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
                       />
-                      {bookingSearching && <span className="absolute right-2 top-1.5 text-xs text-gray-400">…</span>}
                     </div>
                     {bookingSearchResults.length > 0 && (
                       <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 bg-white max-h-36 overflow-y-auto">
@@ -982,9 +984,6 @@ export default function Bookings() {
                                   autoFocus
                                   className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
                                 />
-                                {addPlayerSearching && (
-                                  <span className="absolute right-2 top-1.5 text-xs text-gray-400">…</span>
-                                )}
                               </div>
                               {addPlayerResults.length > 0 && (
                                 <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 bg-white max-h-40 overflow-y-auto">
