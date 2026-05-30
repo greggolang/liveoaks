@@ -124,6 +124,12 @@ export const api = {
     },
     delete: (id: string) => request(`/admin/photos/${id}`, { method: 'DELETE' }),
   },
+  permissions: {
+    getAll: () => request<Record<string, string[]>>('/admin/permissions'),
+    toggle: (page: string, role: string, allowed: boolean) =>
+      request(`/admin/permissions/${encodeURIComponent(page)}/${encodeURIComponent(role)}`,
+        { method: 'PUT', body: JSON.stringify({ allowed }) }),
+  },
   admin: {
     users: () => request('/admin/users'),
     updateProfile: (id: string, data: object) =>

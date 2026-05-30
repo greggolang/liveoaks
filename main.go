@@ -79,6 +79,7 @@ func main() {
 	uploads := &handlers.UploadsHandler{DB: pool, UploadDir: uploadDir}
 	contacts := &handlers.ContactsHandler{DB: pool}
 	friends := &handlers.FriendsHandler{DB: pool}
+	perms := &handlers.PermissionsHandler{DB: pool}
 	invitations := &handlers.InvitationsHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	signups := &handlers.SignupsHandler{DB: pool}
 
@@ -173,6 +174,8 @@ func main() {
 	adminOnly.GET("/events/:id/signups/summary", signups.Summary)
 	adminOnly.DELETE("/events/:id/signups/:signupId", signups.Delete)
 	adminOnly.POST("/test-email", admin.TestEmail)
+	adminOnly.GET("/permissions", perms.GetAll)
+	adminOnly.PUT("/permissions/:page/:role", perms.Toggle)
 
 	// Serve uploaded files
 	e.GET("/uploads/documents/:filename", uploads.ServeDocument)
