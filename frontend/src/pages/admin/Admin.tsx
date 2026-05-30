@@ -28,6 +28,7 @@ const sections: Section[] = [
     heading: 'Billing',
     links: [
       { to: '/admin/dues', label: 'Dues' },
+      { to: '/admin/receipts', label: 'Receipts' },
     ],
   },
   {

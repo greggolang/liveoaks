@@ -36,6 +36,7 @@ import AdminTestEmail from './pages/admin/AdminTestEmail'
 import AdminPermissions from './pages/admin/AdminPermissions'
 import AdminFeedback from './pages/admin/AdminFeedback'
 import AdminEmailTemplates from './pages/admin/AdminEmailTemplates'
+import AdminReceipts from './pages/admin/AdminReceipts'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -95,6 +96,7 @@ function AppRoutes() {
         <Route path="permissions" element={<AdminPermissions />} />
         <Route path="feedback" element={<AdminFeedback />} />
         <Route path="email-templates" element={<AdminEmailTemplates />} />
+        <Route path="receipts" element={<AdminReceipts />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

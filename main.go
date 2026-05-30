@@ -193,6 +193,9 @@ func main() {
 	adminOnly.POST("/email-templates", emailTemplates.Create)
 	adminOnly.PUT("/email-templates/:id", emailTemplates.Update)
 	adminOnly.DELETE("/email-templates/:id", emailTemplates.Delete)
+	adminOnly.GET("/receipts", uploads.ListReceipts)
+	adminOnly.POST("/receipts", uploads.UploadReceipt)
+	adminOnly.DELETE("/receipts/:id", uploads.DeleteReceipt)
 
 	authed.GET("/family-members", family.List)
 	authed.POST("/family-members", family.Create)
@@ -210,6 +213,7 @@ func main() {
 	// Serve uploaded files
 	e.GET("/uploads/documents/:filename", uploads.ServeDocument)
 	e.GET("/uploads/photos/:filename", uploads.ServePhoto)
+	e.GET("/uploads/receipts/:filename", uploads.ServeReceipt)
 
 	// Serve React frontend — fall back to index.html for SPA routes
 	distFS, err := fs.Sub(frontendFS, "frontend/dist")

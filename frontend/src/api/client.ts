@@ -80,6 +80,20 @@ export const api = {
     sendEmail: (id: string, templateName: string) =>
       request(`/events/${id}/send-email`, { method: 'POST', body: JSON.stringify({ template_name: templateName }) }),
   },
+  receipts: {
+    list: () => request('/admin/receipts'),
+    upload: (data: { title: string; amount: string; receipt_date: string; category: string; notes: string; file: File }) => {
+      const f = new FormData()
+      f.append('title', data.title)
+      f.append('amount', data.amount)
+      f.append('receipt_date', data.receipt_date)
+      f.append('category', data.category)
+      f.append('notes', data.notes)
+      f.append('file', data.file)
+      return upload('/admin/receipts', f)
+    },
+    delete: (id: string) => request(`/admin/receipts/${id}`, { method: 'DELETE' }),
+  },
   emailTemplates: {
     list: () => request('/admin/email-templates'),
     create: (data: object) => request('/admin/email-templates', { method: 'POST', body: JSON.stringify(data) }),

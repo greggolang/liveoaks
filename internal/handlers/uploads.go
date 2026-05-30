@@ -174,3 +174,87 @@ func (h *UploadsHandler) ServePhoto(c echo.Context) error {
 	path := filepath.Join(h.UploadDir, "photos", filepath.Base(filename))
 	return c.File(path)
 }
+
+type Receipt struct {
+	ID           string    `json:"id"`
+	Title        string    `json:"title"`
+	Filename     string    `json:"filename"`
+	OriginalName string    `json:"original_name"`
+	Amount       *string   `json:"amount,omitempty"`
+	ReceiptDate  *string   `json:"receipt_date,omitempty"`
+	Category     string    `json:"category"`
+	Notes        *string   `json:"notes,omitempty"`
+	UploadedBy   *string   `json:"uploaded_by,omitempty"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+
+func (h *UploadsHandler) ListReceipts(c echo.Context) error {
+	rows, err := h.DB.Query(c.Request().Context(),
+		`SELECT id, title, filename, original_name, amount::text, receipt_date::text,
+		        category, notes, uploaded_by, created_at
+		 FROM billing_receipts ORDER BY receipt_date DESC NULLS LAST, created_at DESC`)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch receipts")
+	}
+	defer rows.Close()
+	receipts := []Receipt{}
+	for rows.Next() {
+		var r Receipt
+		if err := rows.Scan(&r.ID, &r.Title, &r.Filename, &r.OriginalName,
+			&r.Amount, &r.ReceiptDate, &r.Category, &r.Notes, &r.UploadedBy, &r.CreatedAt); err != nil {
+			continue
+		}
+		receipts = append(receipts, r)
+	}
+	return c.JSON(http.StatusOK, receipts)
+}
+
+func (h *UploadsHandler) UploadReceipt(c echo.Context) error {
+	userID := c.Get("user_id").(string)
+	title := c.FormValue("title")
+	if title == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "title required")
+	}
+	amount := c.FormValue("amount")
+	receiptDate := c.FormValue("receipt_date")
+	category := c.FormValue("category")
+	notes := c.FormValue("notes")
+	if category == "" {
+		category = "general"
+	}
+
+	filename, original, err := h.saveFile(c, "file", "receipts")
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "could not upload file")
+	}
+
+	var r Receipt
+	h.DB.QueryRow(c.Request().Context(),
+		`INSERT INTO billing_receipts
+		   (title, filename, original_name, amount, receipt_date, category, notes, uploaded_by)
+		 VALUES ($1,$2,$3,NULLIF($4,'')::numeric,NULLIF($5,'')::date,
+		         $6,NULLIF($7,''),$8)
+		 RETURNING id, title, filename, original_name, amount::text, receipt_date::text,
+		           category, notes, uploaded_by, created_at`,
+		title, filename, original, amount, receiptDate, category, notes, userID,
+	).Scan(&r.ID, &r.Title, &r.Filename, &r.OriginalName,
+		&r.Amount, &r.ReceiptDate, &r.Category, &r.Notes, &r.UploadedBy, &r.CreatedAt)
+	return c.JSON(http.StatusCreated, r)
+}
+
+func (h *UploadsHandler) DeleteReceipt(c echo.Context) error {
+	id := c.Param("id")
+	var filename string
+	h.DB.QueryRow(c.Request().Context(),
+		`DELETE FROM billing_receipts WHERE id = $1 RETURNING filename`, id).Scan(&filename)
+	if filename != "" {
+		os.Remove(filepath.Join(h.UploadDir, "receipts", filename))
+	}
+	return c.NoContent(http.StatusNoContent)
+}
+
+func (h *UploadsHandler) ServeReceipt(c echo.Context) error {
+	filename := c.Param("filename")
+	path := filepath.Join(h.UploadDir, "receipts", filepath.Base(filename))
+	return c.File(path)
+}
