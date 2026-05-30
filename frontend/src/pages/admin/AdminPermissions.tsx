@@ -1,18 +1,18 @@
 import { useEffect, useState } from 'react'
 import { api } from '../../api/client'
 
-const PAGES: { key: string; label: string }[] = [
-  { key: 'bookings',     label: 'Book Court' },
-  { key: 'court_grid',   label: 'Court Availability' },
-  { key: 'events',       label: 'Events' },
-  { key: 'announcements',label: 'News' },
-  { key: 'documents',    label: 'Documents' },
-  { key: 'photos',       label: 'Photos' },
-  { key: 'usta_teams',   label: 'USTA Teams' },
-  { key: 'directory',    label: 'Directory' },
-  { key: 'guests',       label: 'Guests' },
-  { key: 'dues',         label: 'Dues' },
-  { key: 'club_info',    label: 'About' },
+const PAGES: { key: string; label: string; desc: string }[] = [
+  { key: 'bookings',      label: 'Book Court',          desc: 'Reserve, view, and cancel personal court bookings (/bookings)' },
+  { key: 'court_grid',    label: 'Court Availability',  desc: 'Read-only grid showing who has each court booked (/court-grid)' },
+  { key: 'events',        label: 'Events',              desc: 'Browse upcoming club events and sign up (/events)' },
+  { key: 'announcements', label: 'News & Announcements',desc: 'View board announcements and club news (/announcements)' },
+  { key: 'documents',     label: 'Documents',           desc: 'Download club documents and forms (/documents)' },
+  { key: 'photos',        label: 'Photo Gallery',       desc: 'Browse club photo albums (/photos)' },
+  { key: 'usta_teams',    label: 'USTA Teams',          desc: 'View USTA league teams and rosters (/usta-teams)' },
+  { key: 'directory',     label: 'Member Directory',    desc: 'Search and view member contact info (/directory)' },
+  { key: 'guests',        label: 'Guest Passes',        desc: 'Log guest visits and view personal guest pass history (/guests)' },
+  { key: 'dues',          label: 'My Dues',             desc: 'View personal dues balance and payment history (/dues)' },
+  { key: 'club_info',     label: 'About / Club Info',   desc: 'Club hours, contact details, and general information (/club-info)' },
 ]
 
 const ROLES: { key: string; label: string; group: string }[] = [
@@ -79,15 +79,16 @@ export default function AdminPermissions() {
   return (
     <div>
       <h2 className="text-xl font-bold text-gray-800 mb-1">Page Permissions</h2>
-      <p className="text-sm text-gray-500 mb-6">
-        Control which roles can view each page. Admin always has full access.
+      <p className="text-sm text-gray-500 mb-1">
+        Control which roles can access each <strong>member-facing</strong> page. These permissions do not affect admin-only areas (Users, Settings, Dues management, etc.) — those are always restricted to admins.
       </p>
+      <p className="text-sm text-gray-400 mb-6">Admin always has full access to everything.</p>
 
       <div className="overflow-x-auto">
         <table className="text-sm border-collapse w-full">
           <thead>
             <tr>
-              <th className="text-left text-gray-500 font-medium text-xs px-3 py-2 w-36">
+              <th className="text-left text-gray-500 font-medium text-xs px-3 py-2 w-72">
                 {/* group header row */}
               </th>
               {groups.map(group => {
@@ -104,8 +105,8 @@ export default function AdminPermissions() {
               </th>
             </tr>
             <tr className="bg-gray-50">
-              <th className="text-left text-xs font-semibold text-gray-500 px-3 py-2 rounded-tl-lg">
-                Page
+              <th className="text-left text-xs font-semibold text-gray-500 px-3 py-2 rounded-tl-lg w-72">
+                Page / Description
               </th>
               {ROLES.map(r => (
                 <th key={r.key} className="text-center text-xs font-medium text-gray-600 px-2 py-2 min-w-[72px]">
@@ -121,8 +122,9 @@ export default function AdminPermissions() {
             {PAGES.map((page, pi) => (
               <tr key={page.key}
                 className={pi % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                <td className="px-3 py-2.5 font-medium text-gray-700 whitespace-nowrap">
-                  {page.label}
+                <td className="px-3 py-2.5">
+                  <span className="font-medium text-gray-800 block">{page.label}</span>
+                  <span className="text-xs text-gray-400 font-normal">{page.desc}</span>
                 </td>
                 {ROLES.map(role => {
                   const allowed = perms[page.key]?.has(role.key) ?? false
