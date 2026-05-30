@@ -34,9 +34,7 @@ export default function Dashboard() {
   const { user } = useAuth()
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [idea, setIdea] = useState('')
-  const [bug, setBug] = useState('')
   const [ideaState, setIdeaState] = useState<SubmitState>('idle')
-  const [bugState, setBugState] = useState<SubmitState>('idle')
   const [bookings, setBookings] = useState<Booking[]>([])
   const [courts, setCourts] = useState<Court[]>([])
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
@@ -194,39 +192,22 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Feedback row */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <FeedbackBox
-          title="Got an idea for the site?"
-          placeholder="Describe your idea or request…"
-          buttonLabel="Send Idea"
-          value={idea}
-          onChange={setIdea}
-          state={ideaState}
-          onSubmit={async () => {
-            setIdeaState('sending')
-            try { await api.feedback.submit(idea.trim(), 'idea'); setIdeaState('done') }
-            catch { setIdeaState('error') }
-          }}
-          onReset={() => { setIdeaState('idle'); setIdea('') }}
-          doneMessage="Thanks — your idea was sent!"
-        />
-        <FeedbackBox
-          title="Found a bug?"
-          placeholder="Describe what happened and how to reproduce it…"
-          buttonLabel="Report Bug"
-          value={bug}
-          onChange={setBug}
-          state={bugState}
-          onSubmit={async () => {
-            setBugState('sending')
-            try { await api.feedback.submit(bug.trim(), 'bug'); setBugState('done') }
-            catch { setBugState('error') }
-          }}
-          onReset={() => { setBugState('idle'); setBug('') }}
-          doneMessage="Bug reported — thanks!"
-        />
-      </div>
+      {/* Feedback */}
+      <FeedbackBox
+        title="Got an idea for the site?"
+        placeholder="Describe your idea or feature request…"
+        buttonLabel="Send Idea"
+        value={idea}
+        onChange={setIdea}
+        state={ideaState}
+        onSubmit={async () => {
+          setIdeaState('sending')
+          try { await api.feedback.submit(idea.trim(), 'idea'); setIdeaState('done') }
+          catch { setIdeaState('error') }
+        }}
+        onReset={() => { setIdeaState('idle'); setIdea('') }}
+        doneMessage="Thanks — your idea was sent!"
+      />
     </div>
   )
 }
