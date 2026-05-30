@@ -3,16 +3,29 @@ import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Layout from './components/Layout'
 import Login from './pages/Login'
 import Register from './pages/Register'
+import ForgotPassword from './pages/ForgotPassword'
+import ResetPassword from './pages/ResetPassword'
+import Waitlist from './pages/Waitlist'
 import Dashboard from './pages/Dashboard'
 import Bookings from './pages/Bookings'
+import CourtGrid from './pages/CourtGrid'
 import Announcements from './pages/Announcements'
+import Events from './pages/Events'
+import Documents from './pages/Documents'
+import PhotoGallery from './pages/PhotoGallery'
+import USTATeams from './pages/USTATeams'
+import MemberDirectory from './pages/MemberDirectory'
+import GuestPasses from './pages/GuestPasses'
+import MyDues from './pages/MyDues'
+import ClubInfo from './pages/ClubInfo'
 import Admin from './pages/admin/Admin'
 import AdminUsers from './pages/admin/AdminUsers'
 import AdminSettings from './pages/admin/AdminSettings'
 import AdminResets from './pages/admin/AdminResets'
 import AdminLog from './pages/admin/AdminLog'
-import ForgotPassword from './pages/ForgotPassword'
-import ResetPassword from './pages/ResetPassword'
+import AdminDues from './pages/admin/AdminDues'
+import AdminWaitlist from './pages/admin/AdminWaitlist'
+import AdminGuests from './pages/admin/AdminGuests'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -31,20 +44,39 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 function AppRoutes() {
   return (
     <Routes>
+      {/* Public */}
       <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
       <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
       <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
       <Route path="/reset-password" element={<PublicRoute><ResetPassword /></PublicRoute>} />
+      <Route path="/waitlist" element={<Waitlist />} />
+
+      {/* Member pages */}
       <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/bookings" element={<ProtectedRoute><Bookings /></ProtectedRoute>} />
+      <Route path="/court-grid" element={<ProtectedRoute><CourtGrid /></ProtectedRoute>} />
       <Route path="/announcements" element={<ProtectedRoute><Announcements /></ProtectedRoute>} />
+      <Route path="/events" element={<ProtectedRoute><Events /></ProtectedRoute>} />
+      <Route path="/documents" element={<ProtectedRoute><Documents /></ProtectedRoute>} />
+      <Route path="/photos" element={<ProtectedRoute><PhotoGallery /></ProtectedRoute>} />
+      <Route path="/usta-teams" element={<ProtectedRoute><USTATeams /></ProtectedRoute>} />
+      <Route path="/directory" element={<ProtectedRoute><MemberDirectory /></ProtectedRoute>} />
+      <Route path="/guests" element={<ProtectedRoute><GuestPasses /></ProtectedRoute>} />
+      <Route path="/dues" element={<ProtectedRoute><MyDues /></ProtectedRoute>} />
+      <Route path="/club-info" element={<ProtectedRoute><ClubInfo /></ProtectedRoute>} />
+
+      {/* Admin */}
       <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>}>
         <Route index element={<Navigate to="/admin/users" replace />} />
         <Route path="users" element={<AdminUsers />} />
+        <Route path="dues" element={<AdminDues />} />
+        <Route path="waitlist" element={<AdminWaitlist />} />
+        <Route path="guests" element={<AdminGuests />} />
         <Route path="settings" element={<AdminSettings />} />
         <Route path="resets" element={<AdminResets />} />
         <Route path="log" element={<AdminLog />} />
       </Route>
+
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

@@ -14,6 +14,7 @@ import (
 	"github.com/greggolang/liveoaks/internal/handlers"
 	"github.com/greggolang/liveoaks/internal/logger"
 	mw "github.com/greggolang/liveoaks/internal/middleware"
+	"github.com/greggolang/liveoaks/internal/reminder"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 )
@@ -30,16 +31,6 @@ func main() {
 	}
 	defer pool.Close()
 
-	e := echo.New()
-	e.HideBanner = true
-	e.Use(middleware.Logger())
-	e.Use(middleware.Recover())
-	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-		AllowOrigins:     []string{"*"},
-		AllowMethods:     []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete},
-		AllowCredentials: true,
-	}))
-
 	mailer := &email.Mailer{
 		Host:     cfg.SMTPHost,
 		Port:     cfg.SMTPPort,
@@ -50,7 +41,22 @@ func main() {
 
 	actlog := &logger.Logger{DB: pool}
 
+	// Start booking reminder service
+	reminderSvc := &reminder.Service{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
+	reminderSvc.Start(context.Background())
+
+	e := echo.New()
+	e.HideBanner = true
+	e.Use(middleware.Logger())
+	e.Use(middleware.Recover())
+	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+		AllowOrigins:     []string{"*"},
+		AllowMethods:     []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete},
+		AllowCredentials: true,
+	}))
 	e.Use(mw.ErrorLogger(actlog))
+
+	uploadDir := "/opt/liveoaks/uploads"
 
 	auth := &handlers.AuthHandler{DB: pool, JWTSecret: cfg.JWTSecret, SiteURL: cfg.SiteURL, Mailer: mailer, Logger: actlog}
 	users := &handlers.UsersHandler{DB: pool, SiteURL: cfg.SiteURL, Mailer: mailer, Logger: actlog}
@@ -58,16 +64,24 @@ func main() {
 	bookings := &handlers.BookingsHandler{DB: pool, Logger: actlog}
 	announcements := &handlers.AnnouncementsHandler{DB: pool}
 	admin := &handlers.AdminHandler{DB: pool}
+	members := &handlers.MembersHandler{DB: pool}
+	events := &handlers.EventsHandler{DB: pool}
+	dues := &handlers.DuesHandler{DB: pool}
+	waitlist := &handlers.WaitlistHandler{DB: pool}
+	guests := &handlers.GuestsHandler{DB: pool}
+	usta := &handlers.USTAHandler{DB: pool}
+	uploads := &handlers.UploadsHandler{DB: pool, UploadDir: uploadDir}
 
 	api := e.Group("/api")
 
-	// Public routes
+	// Public
 	api.POST("/auth/register", auth.Register)
 	api.POST("/auth/login", auth.Login)
 	api.POST("/auth/forgot-password", auth.ForgotPassword)
 	api.POST("/auth/reset-password", auth.ResetPassword)
+	api.POST("/waitlist", waitlist.Join)
 
-	// Authenticated routes
+	// Authenticated
 	authed := api.Group("", mw.JWTAuth(cfg.JWTSecret))
 	authed.POST("/auth/logout", auth.Logout)
 	authed.GET("/auth/me", auth.Me)
@@ -80,12 +94,29 @@ func main() {
 
 	authed.GET("/announcements", announcements.List)
 
-	// Board + admin routes
+	authed.GET("/members/directory", members.Directory)
+	authed.GET("/events", events.List)
+	authed.GET("/documents", uploads.ListDocuments)
+	authed.GET("/photos", uploads.ListPhotos)
+	authed.GET("/usta-teams", usta.List)
+	authed.GET("/dues/me", dues.MyDues)
+	authed.GET("/guests/me", guests.MyGuests)
+	authed.POST("/guests", guests.Log)
+
+	// Board+
 	boardPlus := authed.Group("", mw.RequireRole("board", "admin"))
 	boardPlus.POST("/announcements", announcements.Create)
 	boardPlus.DELETE("/announcements/:id", announcements.Delete)
+	boardPlus.POST("/events", events.Create)
+	boardPlus.DELETE("/events/:id", events.Delete)
+	boardPlus.POST("/admin/documents", uploads.UploadDocument)
+	boardPlus.DELETE("/admin/documents/:id", uploads.DeleteDocument)
+	boardPlus.POST("/admin/photos", uploads.UploadPhoto)
+	boardPlus.DELETE("/admin/photos/:id", uploads.DeletePhoto)
+	boardPlus.POST("/usta-teams", usta.Create)
+	boardPlus.DELETE("/usta-teams/:id", usta.Delete)
 
-	// Admin-only routes
+	// Admin only
 	adminOnly := authed.Group("/admin", mw.RequireRole("admin"))
 	adminOnly.GET("/users", users.List)
 	adminOnly.PUT("/users/:id/role", users.UpdateRole)
@@ -95,6 +126,17 @@ func main() {
 	adminOnly.PUT("/settings/:key", admin.UpdateSetting)
 	adminOnly.GET("/password-resets", admin.PendingResets)
 	adminOnly.GET("/activity-log", admin.ActivityLog)
+	adminOnly.GET("/dues", dues.AdminList)
+	adminOnly.PUT("/dues/:id/status", dues.UpdateStatus)
+	adminOnly.POST("/dues/generate", dues.Generate)
+	adminOnly.GET("/waitlist", waitlist.List)
+	adminOnly.PUT("/waitlist/:id/status", waitlist.UpdateStatus)
+	adminOnly.DELETE("/waitlist/:id", waitlist.Delete)
+	adminOnly.GET("/guests", guests.AdminList)
+
+	// Serve uploaded files
+	e.GET("/uploads/documents/:filename", uploads.ServeDocument)
+	e.GET("/uploads/photos/:filename", uploads.ServePhoto)
 
 	// Serve React frontend — fall back to index.html for SPA routes
 	distFS, err := fs.Sub(frontendFS, "frontend/dist")
@@ -111,7 +153,6 @@ func main() {
 		}
 		f, err := distFS.Open(path)
 		if err != nil {
-			// Not a real file — let React Router handle it
 			req.URL.Path = "/"
 		} else {
 			f.Close()
