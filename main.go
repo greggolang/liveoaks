@@ -22,6 +22,9 @@ import (
 //go:embed frontend/dist
 var frontendFS embed.FS
 
+// Version is injected at build time via -ldflags
+var Version = "dev"
+
 func main() {
 	cfg := config.Load()
 
@@ -195,6 +198,6 @@ func main() {
 		return nil
 	})
 
-	log.Printf("starting server on :%s", cfg.Port)
+	log.Printf("Liveoaks %s starting on :%s", Version, cfg.Port)
 	e.Logger.Fatal(e.Start(":" + cfg.Port))
 }

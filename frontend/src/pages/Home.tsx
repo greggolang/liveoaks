@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { APP_VERSION } from '../version'
 
 export default function Home() {
   return (
@@ -6,7 +7,10 @@ export default function Home() {
 
       {/* Nav */}
       <nav className="bg-green-700 text-white px-6 py-4 flex justify-between items-center">
-        <span className="font-bold text-lg tracking-wide">🎾 Live Oaks Tennis Association</span>
+        <span className="font-bold text-lg tracking-wide">
+          🎾 Live Oaks Tennis Association
+          <span className="ml-2 text-green-300 text-xs font-normal">v{APP_VERSION}</span>
+        </span>
         <div className="flex gap-4 text-sm font-medium">
           <a href="#about" className="text-green-200 hover:text-white transition">About</a>
           <a href="#facilities" className="text-green-200 hover:text-white transition">Facilities</a>
