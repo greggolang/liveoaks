@@ -19,6 +19,8 @@ const EVENT_LABELS: Record<string, { label: string; color: string }> = {
   booking_cancelled:        { label: 'Booking Cancelled', color: 'bg-orange-100 text-orange-700' },
   user_status_changed:      { label: 'Status Changed',    color: 'bg-purple-100 text-purple-700' },
   user_role_changed:        { label: 'Role Changed',      color: 'bg-purple-100 text-purple-700' },
+  email_sent:               { label: 'Email Sent',        color: 'bg-blue-100 text-blue-700' },
+  email_error:              { label: 'Email Error',       color: 'bg-red-100 text-red-700' },
 }
 
 export default function AdminLog() {

@@ -90,7 +90,15 @@ func (h *UsersHandler) UpdateStatus(c echo.Context) error {
 	}
 
 	if body.Status == models.StatusActive && prevStatus != "active" && email != "" {
-		go h.Mailer.SendWelcome(email, firstName, h.SiteURL)
+		ctx := c.Request().Context()
+		adminIP := c.RealIP()
+		go func() {
+			if err := h.Mailer.SendWelcome(email, firstName, h.SiteURL); err != nil {
+				h.Logger.Log(ctx, "email_error", "welcome to "+email+": "+err.Error(), id, adminIP)
+			} else {
+				h.Logger.Log(ctx, "email_sent", "welcome to "+email, id, adminIP)
+			}
+		}()
 	}
 
 	adminID := c.Get("user_id").(string)
