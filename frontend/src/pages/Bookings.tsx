@@ -58,6 +58,7 @@ export default function Bookings() {
   const [myBookings, setMyBookings] = useState<Booking[]>([])
   // Invite state
   const [friends, setFriends] = useState<Friend[]>([])
+  const [selectedFriends, setSelectedFriends] = useState<string[]>([]) // friend ids to invite at booking time
   const [activeBookingRoster, setActiveBookingRoster] = useState<{ bookingId: string; players: MatchPlayer[]; invitations: Invitation[] } | null>(null)
   const [inviting, setInviting] = useState(false)
 
@@ -75,6 +76,7 @@ export default function Bookings() {
 
   useEffect(() => {
     api.courts.list().then(d => setCourts(d as Court[]))
+    api.friends.list().then(d => setFriends(d as Friend[]))
   }, [])
 
   useEffect(() => { load() }, [load])
@@ -127,7 +129,8 @@ export default function Bookings() {
     const booking = getBooking(courtId, hour)
     if (booking) return
     setSelected({ courtId, hour, courtName })
-    setDuration(1)
+    setSelectedFriends([])
+    setDuration(1.5)
     setNotes('')
     setError('')
   }
@@ -139,15 +142,33 @@ export default function Bookings() {
     try {
       const start = new Date(`${date}T${String(selected.hour).padStart(2, '0')}:00:00`)
       const end = new Date(start.getTime() + duration * 60 * 60 * 1000)
-      await api.bookings.create({
+      const booked = await api.bookings.create({
         court_id: selected.courtId,
         start_time: start.toISOString(),
         end_time: end.toISOString(),
         notes,
         match_type: matchType,
         players_needed: playersNeeded,
-      })
+      }) as { id: string }
+
+      // Send invitations to selected friends
+      if (selectedFriends.length > 0) {
+        await Promise.all(
+          selectedFriends.map(fid => {
+            const f = friends.find(fr => fr.id === fid)
+            if (!f) return Promise.resolve()
+            return api.invitations.send(booked.id, {
+              invitee_user_id: f.friend_user_id || null,
+              invitee_name: f.friend_name,
+              invitee_email: f.friend_email || '',
+              is_guest: f.is_guest,
+            })
+          })
+        )
+      }
+
       setSelected(null)
+      setSelectedFriends([])
       load()
       loadMine()
     } catch (err: any) {
@@ -231,12 +252,37 @@ export default function Bookings() {
                   {MATCH_TYPES.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
                 </select>
                 {matchType !== 'casual' && (
-                  <select value={playersNeeded} onChange={e => setPlayersNeeded(+e.target.value)}
+                  <select value={playersNeeded} onChange={e => { setPlayersNeeded(+e.target.value); setSelectedFriends([]) }}
                     className="border border-green-200 rounded-lg px-2 py-1 text-sm focus:outline-none bg-white text-green-800">
                     {MATCH_TYPES.find(m => m.value === matchType)?.players.map(p => (
                       <option key={p} value={p}>Need {p} player{p !== 1 ? 's' : ''}</option>
                     ))}
                   </select>
+                )}
+                {matchType !== 'casual' && playersNeeded > 0 && friends.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 items-center">
+                    <span className="text-xs text-green-700 font-medium">Invite:</span>
+                    {friends.map(f => {
+                      const picked = selectedFriends.includes(f.id)
+                      const atLimit = selectedFriends.length >= playersNeeded && !picked
+                      return (
+                        <button key={f.id} type="button"
+                          onClick={() => setSelectedFriends(s =>
+                            picked ? s.filter(x => x !== f.id) : atLimit ? s : [...s, f.id]
+                          )}
+                          disabled={atLimit}
+                          className={`px-2.5 py-1 rounded-full text-xs font-medium transition
+                            ${picked ? 'bg-green-700 text-white' :
+                              atLimit ? 'bg-gray-100 text-gray-300 cursor-not-allowed' :
+                              'bg-white border border-green-300 text-green-700 hover:bg-green-50'}`}>
+                          {picked ? '✓ ' : ''}{f.friend_name}{f.is_guest ? ' (G)' : ''}
+                        </button>
+                      )
+                    })}
+                    {selectedFriends.length > 0 && (
+                      <span className="text-xs text-green-600">{selectedFriends.length}/{playersNeeded} selected</span>
+                    )}
+                  </div>
                 )}
                 <input value={notes} onChange={e => setNotes(e.target.value)}
                   placeholder="Notes (optional)" maxLength={80}
@@ -250,7 +296,7 @@ export default function Bookings() {
                 </button>
                 <button onClick={handleBook} disabled={loading}
                   className="px-5 py-2 bg-green-700 hover:bg-green-800 text-white rounded-lg text-sm font-semibold transition disabled:opacity-50">
-                  {loading ? 'Booking…' : 'Confirm'}
+                  {loading ? 'Booking…' : selectedFriends.length > 0 ? `Book & Invite ${selectedFriends.length}` : 'Confirm'}
                 </button>
               </div>
             </div>
