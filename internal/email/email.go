@@ -2,6 +2,7 @@ package email
 
 import (
 	"fmt"
+	"time"
 
 	gomail "gopkg.in/mail.v2"
 )
@@ -22,8 +23,7 @@ func (m *Mailer) Send(to, subject, body string) error {
 	msg.SetBody("text/html", body)
 
 	d := gomail.NewDialer(m.Host, m.Port, m.Username, m.Password)
-	// For unauthenticated relay (e.g. smtp-relay.gmail.com via IP allowlist),
-	// gomail skips SMTP AUTH when Username is empty.
+	d.Timeout = 15 * time.Second
 	if m.Username == "" {
 		d.Auth = nil
 	}
