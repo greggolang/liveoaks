@@ -13,7 +13,7 @@ interface FriendGroup {
 }
 interface MemberResult { id: string; first_name: string; last_name: string; email: string; usta_ranking?: string }
 
-const USTA_RATINGS = ['NR', '2.0', '2.5', '3.0', '3.5', '4.0', '4.5', '5.0', '5.5+']
+const USTA_RATINGS = ['2.5', '3.0', '3.5', '4.0', '4.5', '5.0']
 
 export default function Friends() {
   const [friends, setFriends] = useState<Friend[]>([])
