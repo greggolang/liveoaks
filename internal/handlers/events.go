@@ -72,6 +72,35 @@ func (h *EventsHandler) Create(c echo.Context) error {
 	return c.JSON(http.StatusCreated, ev)
 }
 
+func (h *EventsHandler) Get(c echo.Context) error {
+	id := c.Param("id")
+	var ev Event
+	err := h.DB.QueryRow(c.Request().Context(),
+		`SELECT id, title, description, start_time, end_time, event_type, location, author_id,
+		        signup_enabled, signup_deadline, max_players, created_at
+		 FROM events WHERE id = $1`, id,
+	).Scan(&ev.ID, &ev.Title, &ev.Description, &ev.StartTime, &ev.EndTime, &ev.EventType, &ev.Location, &ev.AuthorID,
+		new(bool), new(interface{}), new(interface{}), &ev.CreatedAt)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, "event not found")
+	}
+
+	// Re-scan with full struct including signup fields
+	var signupEnabled bool
+	var signupDeadline *string
+	var maxPlayers *int
+	h.DB.QueryRow(c.Request().Context(),
+		`SELECT signup_enabled, signup_deadline::text, max_players FROM events WHERE id = $1`, id,
+	).Scan(&signupEnabled, &signupDeadline, &maxPlayers)
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"id": ev.ID, "title": ev.Title, "description": ev.Description,
+		"start_time": ev.StartTime, "end_time": ev.EndTime, "event_type": ev.EventType,
+		"location": ev.Location, "signup_enabled": signupEnabled,
+		"signup_deadline": signupDeadline, "max_players": maxPlayers,
+	})
+}
+
 func (h *EventsHandler) Delete(c echo.Context) error {
 	id := c.Param("id")
 	h.DB.Exec(c.Request().Context(), `DELETE FROM events WHERE id = $1`, id)

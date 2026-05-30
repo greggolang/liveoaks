@@ -22,6 +22,8 @@ import ClubInfo from './pages/ClubInfo'
 import Profile from './pages/Profile'
 import Friends from './pages/Friends'
 import InviteResponse from './pages/InviteResponse'
+import EventSignup from './pages/EventSignup'
+import AdminEventSignups from './pages/admin/AdminEventSignups'
 import Admin from './pages/admin/Admin'
 import AdminUsers from './pages/admin/AdminUsers'
 import AdminSettings from './pages/admin/AdminSettings'
@@ -57,6 +59,7 @@ function AppRoutes() {
       <Route path="/reset-password" element={<PublicRoute><ResetPassword /></PublicRoute>} />
       <Route path="/waitlist" element={<Waitlist />} />
       <Route path="/invite/:token/:action" element={<InviteResponse />} />
+      <Route path="/events/:id/signup" element={<EventSignup />} />
 
       {/* Member pages */}
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
@@ -83,6 +86,7 @@ function AppRoutes() {
         <Route path="guests" element={<AdminGuests />} />
         <Route path="settings" element={<AdminSettings />} />
         <Route path="resets" element={<AdminResets />} />
+        <Route path="events/:id/signups" element={<AdminEventSignups />} />
         <Route path="test-email" element={<AdminTestEmail />} />
         <Route path="log" element={<AdminLog />} />
       </Route>

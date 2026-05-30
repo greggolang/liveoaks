@@ -74,6 +74,7 @@ func main() {
 	contacts := &handlers.ContactsHandler{DB: pool}
 	friends := &handlers.FriendsHandler{DB: pool}
 	invitations := &handlers.InvitationsHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
+	signups := &handlers.SignupsHandler{DB: pool}
 
 	api := e.Group("/api")
 
@@ -102,6 +103,10 @@ func main() {
 	authed.GET("/members/directory", members.Directory)
 	authed.GET("/contacts", contacts.List)
 	authed.GET("/events", events.List)
+	authed.GET("/events/:id", events.Get)
+	// Public signup (no auth required — guests can sign up too)
+	api.POST("/events/:id/signup", signups.Submit)
+	authed.PUT("/events/:id/signup-toggle", signups.ToggleSignup)
 	authed.GET("/documents", uploads.ListDocuments)
 	authed.GET("/photos", uploads.ListPhotos)
 	authed.GET("/usta-teams", usta.List)
@@ -158,6 +163,9 @@ func main() {
 	adminOnly.PUT("/waitlist/:id/status", waitlist.UpdateStatus)
 	adminOnly.DELETE("/waitlist/:id", waitlist.Delete)
 	adminOnly.GET("/guests", guests.AdminList)
+	adminOnly.GET("/events/:id/signups", signups.List)
+	adminOnly.GET("/events/:id/signups/summary", signups.Summary)
+	adminOnly.DELETE("/events/:id/signups/:signupId", signups.Delete)
 	adminOnly.POST("/test-email", admin.TestEmail)
 
 	// Serve uploaded files

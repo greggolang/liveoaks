@@ -72,8 +72,16 @@ export const api = {
   },
   events: {
     list: () => request('/events'),
+    get: (id: string) => request(`/events/${id}`),
     create: (data: object) => request('/events', { method: 'POST', body: JSON.stringify(data) }),
     delete: (id: string) => request(`/events/${id}`, { method: 'DELETE' }),
+  },
+  signups: {
+    submit: (eventId: string, data: object) => request(`/events/${eventId}/signup`, { method: 'POST', body: JSON.stringify(data) }),
+    list: (eventId: string) => request(`/admin/events/${eventId}/signups`),
+    summary: (eventId: string) => request(`/admin/events/${eventId}/signups/summary`),
+    delete: (eventId: string, signupId: string) => request(`/admin/events/${eventId}/signups/${signupId}`, { method: 'DELETE' }),
+    toggleSignup: (eventId: string, data: object) => request(`/events/${eventId}/signup-toggle`, { method: 'PUT', body: JSON.stringify(data) }),
   },
   documents: {
     list: () => request('/documents'),
