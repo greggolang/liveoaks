@@ -17,7 +17,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <nav className="bg-green-700 text-white shadow-md">
         <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
-            <Link to="/" className="text-lg font-bold tracking-wide shrink-0">🎾 Liveoaks TC</Link>
+            <Link to="/dashboard" className="text-lg font-bold tracking-wide shrink-0">🎾 Liveoaks TC</Link>
 
             {/* Desktop nav */}
             <div className="hidden md:flex items-center gap-5 text-sm font-medium flex-wrap justify-end">

@@ -6,6 +6,7 @@ import Register from './pages/Register'
 import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
 import Waitlist from './pages/Waitlist'
+import Home from './pages/Home'
 import Dashboard from './pages/Dashboard'
 import Bookings from './pages/Bookings'
 import CourtGrid from './pages/CourtGrid'
@@ -30,14 +31,14 @@ import AdminGuests from './pages/admin/AdminGuests'
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
   if (loading) return <div className="min-h-screen flex items-center justify-center text-gray-400">Loading...</div>
-  if (!user) return <Navigate to="/login" replace />
+  if (!user) return <Navigate to="/" replace />
   return <Layout>{children}</Layout>
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
   if (loading) return null
-  if (user) return <Navigate to="/" replace />
+  if (user) return <Navigate to="/dashboard" replace />
   return <>{children}</>
 }
 
@@ -45,6 +46,7 @@ function AppRoutes() {
   return (
     <Routes>
       {/* Public */}
+      <Route path="/" element={<PublicRoute><Home /></PublicRoute>} />
       <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
       <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
       <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
@@ -52,7 +54,7 @@ function AppRoutes() {
       <Route path="/waitlist" element={<Waitlist />} />
 
       {/* Member pages */}
-      <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+      <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/bookings" element={<ProtectedRoute><Bookings /></ProtectedRoute>} />
       <Route path="/court-grid" element={<ProtectedRoute><CourtGrid /></ProtectedRoute>} />
       <Route path="/announcements" element={<ProtectedRoute><Announcements /></ProtectedRoute>} />
