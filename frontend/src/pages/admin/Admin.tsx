@@ -21,7 +21,6 @@ const sections: Section[] = [
     links: [
       { to: '/admin/users', label: 'Members' },
       { to: '/admin/waitlist', label: 'Waitlist' },
-      { to: '/admin/guests', label: 'Guest Passes' },
     ],
   },
   {

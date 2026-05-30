@@ -35,7 +35,6 @@ import AdminResets from './pages/admin/AdminResets'
 import AdminLog from './pages/admin/AdminLog'
 import AdminDues from './pages/admin/AdminDues'
 import AdminWaitlist from './pages/admin/AdminWaitlist'
-import AdminGuests from './pages/admin/AdminGuests'
 import AdminTestEmail from './pages/admin/AdminTestEmail'
 import AdminPermissions from './pages/admin/AdminPermissions'
 import AdminFeedback from './pages/admin/AdminFeedback'
@@ -96,7 +95,6 @@ function AppRoutes() {
         <Route path="users" element={<AdminUsers />} />
         <Route path="dues" element={<AdminDues />} />
         <Route path="waitlist" element={<AdminWaitlist />} />
-        <Route path="guests" element={<AdminGuests />} />
         <Route path="settings" element={<AdminSettings />} />
         <Route path="resets" element={<AdminResets />} />
         <Route path="events/:id/signups" element={<AdminEventSignups />} />
