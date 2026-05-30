@@ -654,7 +654,9 @@ export default function Bookings() {
                               {showDetails && (
                                 <>
                                   <span className="text-xs font-medium truncate">
-                                    {isBallMachine ? '🤖' : ''}{isMe ? ' Me' : ` ${booking.user.first_name} ${booking.user.last_name[0]}.`}
+                                    {isBallMachine
+                                      ? `🤖 Ball Machine${isMe ? ' (Me)' : ''}`
+                                      : isMe ? 'Me' : `${booking.user.first_name} ${booking.user.last_name[0]}.`}
                                   </span>
                                   {(isMe || isBoard) && (
                                     <button onClick={() => handleCancel(booking.id)}
@@ -745,7 +747,12 @@ export default function Bookings() {
                           <div className="font-semibold text-gray-800 flex items-center gap-2">
                             {b.court.name}
                             {b.match_type && b.match_type !== 'casual' && (
-                              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full capitalize">{b.match_type}</span>
+                              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                                {b.match_type === 'ball_machine' ? '🤖 Ball Machine'
+                                  : b.match_type === 'singles' ? 'Singles'
+                                  : b.match_type === 'doubles' ? 'Doubles'
+                                  : b.match_type}
+                              </span>
                             )}
                           </div>
                           <div className="text-sm text-gray-600">
