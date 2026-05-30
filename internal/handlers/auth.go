@@ -65,13 +65,16 @@ func (h *AuthHandler) Login(c echo.Context) error {
 	}
 
 	var user models.User
+	var role, status string
 	err := h.DB.QueryRow(c.Request().Context(),
-		`SELECT id, first_name, last_name, email, password_hash, role, status FROM users WHERE email = $1`,
+		`SELECT id, first_name, last_name, email, password_hash, role::text, status::text FROM users WHERE email = $1`,
 		req.Email,
-	).Scan(&user.ID, &user.FirstName, &user.LastName, &user.Email, &user.PasswordHash, &user.Role, &user.Status)
+	).Scan(&user.ID, &user.FirstName, &user.LastName, &user.Email, &user.PasswordHash, &role, &status)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusUnauthorized, "invalid credentials")
 	}
+	user.Role = models.Role(role)
+	user.Status = models.Status(status)
 
 	if user.Status == models.StatusPending {
 		return echo.NewHTTPError(http.StatusForbidden, "account pending approval")
@@ -124,12 +127,15 @@ func (h *AuthHandler) Logout(c echo.Context) error {
 func (h *AuthHandler) Me(c echo.Context) error {
 	userID := c.Get("user_id").(string)
 	var user models.User
+	var role, status string
 	err := h.DB.QueryRow(c.Request().Context(),
-		`SELECT id, first_name, last_name, email, role, status, phone, created_at FROM users WHERE id = $1`,
+		`SELECT id, first_name, last_name, email, role::text, status::text, phone, created_at FROM users WHERE id = $1`,
 		userID,
-	).Scan(&user.ID, &user.FirstName, &user.LastName, &user.Email, &user.Role, &user.Status, &user.Phone, &user.CreatedAt)
+	).Scan(&user.ID, &user.FirstName, &user.LastName, &user.Email, &role, &status, &user.Phone, &user.CreatedAt)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "user not found")
 	}
+	user.Role = models.Role(role)
+	user.Status = models.Status(status)
 	return c.JSON(http.StatusOK, user)
 }

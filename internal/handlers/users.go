@@ -14,7 +14,7 @@ type UsersHandler struct {
 
 func (h *UsersHandler) List(c echo.Context) error {
 	rows, err := h.DB.Query(c.Request().Context(),
-		`SELECT id, first_name, last_name, email, role, status, phone, created_at FROM users ORDER BY last_name, first_name`)
+		`SELECT id, first_name, last_name, email, role::text, status::text, phone, created_at FROM users ORDER BY last_name, first_name`)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch users")
 	}
@@ -23,9 +23,12 @@ func (h *UsersHandler) List(c echo.Context) error {
 	users := []models.User{}
 	for rows.Next() {
 		var u models.User
-		if err := rows.Scan(&u.ID, &u.FirstName, &u.LastName, &u.Email, &u.Role, &u.Status, &u.Phone, &u.CreatedAt); err != nil {
+		var role, status string
+		if err := rows.Scan(&u.ID, &u.FirstName, &u.LastName, &u.Email, &role, &status, &u.Phone, &u.CreatedAt); err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "could not scan user")
 		}
+		u.Role = models.Role(role)
+		u.Status = models.Status(status)
 		users = append(users, u)
 	}
 	return c.JSON(http.StatusOK, users)
