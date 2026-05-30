@@ -5,6 +5,7 @@ import { api } from '../api/client'
 
 interface Booking {
   id: string; court_id: number; start_time: string; end_time: string
+  match_type?: string
   user: { first_name: string; last_name: string }
   court: { name: string; number: number }
 }
@@ -100,10 +101,8 @@ export default function Dashboard() {
                       <td key={c.id} className="px-2 py-1 text-center">
                         {b ? (
                           <div className="bg-green-100 border border-green-300 rounded px-2 py-1 text-xs text-green-800 font-medium">
-                            {b.user.first_name} {b.user.last_name[0]}.
+                            {b.match_type === 'ball_machine' ? '🤖 ' : ''}{b.user.first_name} {b.user.last_name[0]}.
                           </div>
-                        ) : c.has_ball_machine ? (
-                          <div className="text-lg leading-none">🤖</div>
                         ) : (
                           <div className="text-gray-200 text-xs">—</div>
                         )}

@@ -16,9 +16,10 @@ interface MatchPlayer { id: string; player_name: string; player_email?: string; 
 interface Invitation { id: string; invitee_name: string; invitee_email: string; status: string; is_guest: boolean }
 
 const MATCH_TYPES = [
-  { value: 'casual', label: 'Casual / Practice', players: [0] },
-  { value: 'singles', label: 'Singles', players: [1] },
-  { value: 'doubles', label: 'Doubles', players: [1, 2, 3] },
+  { value: 'casual',       label: 'Casual / Practice', players: [0] },
+  { value: 'singles',      label: 'Singles',            players: [1] },
+  { value: 'doubles',      label: 'Doubles',            players: [1, 2, 3] },
+  { value: 'ball_machine', label: 'Ball Machine',       players: [0], ballMachineOnly: true },
 ]
 
 const HOURS = Array.from({ length: 10 }, (_, i) => i + 8) // 8am–5pm (last slot ends by 6pm)
@@ -249,9 +250,11 @@ export default function Bookings() {
                 ))}
                 <select value={matchType} onChange={e => { setMatchType(e.target.value); setPlayersNeeded(0); setSelectedFriends([]) }}
                   className="border border-green-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white text-green-800">
-                  {MATCH_TYPES.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                  {MATCH_TYPES
+                    .filter(m => !m.ballMachineOnly || courts.find(c => c.id === selected.courtId)?.has_ball_machine)
+                    .map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
                 </select>
-                {matchType !== 'casual' && (
+                {matchType !== 'casual' && matchType !== 'ball_machine' && (
                   <select value={playersNeeded} onChange={e => { setPlayersNeeded(+e.target.value); setSelectedFriends([]) }}
                     className="border border-green-200 rounded-lg px-2 py-1 text-sm focus:outline-none bg-white text-green-800">
                     {MATCH_TYPES.find(m => m.value === matchType)?.players.map(p => (
@@ -264,7 +267,7 @@ export default function Bookings() {
                     <span className="text-xs text-green-700 font-medium">Invite:</span>
                     {friends.map(f => {
                       const picked = selectedFriends.includes(f.id)
-                      const limit = matchType !== 'casual' && playersNeeded > 0 ? playersNeeded : Infinity
+                      const limit = matchType !== 'casual' && matchType !== 'ball_machine' && playersNeeded > 0 ? playersNeeded : Infinity
                       const atLimit = selectedFriends.length >= limit && !picked
                       return (
                         <button key={f.id} type="button"
@@ -280,7 +283,7 @@ export default function Bookings() {
                         </button>
                       )
                     })}
-                    {selectedFriends.length > 0 && matchType !== 'casual' && playersNeeded > 0 && (
+                    {selectedFriends.length > 0 && matchType !== 'casual' && matchType !== 'ball_machine' && playersNeeded > 0 && (
                       <span className="text-xs text-green-600">{selectedFriends.length}/{playersNeeded} selected</span>
                     )}
                   </div>
@@ -341,7 +344,10 @@ export default function Bookings() {
                     {matchType !== 'casual' && (
                       <div>
                         <span className="text-gray-500 text-xs uppercase tracking-wide">Match Type</span>
-                        <p className="font-semibold text-gray-800 mt-0.5 capitalize">{matchType} — need {playersNeeded} more player{playersNeeded !== 1 ? 's' : ''}</p>
+                        <p className="font-semibold text-gray-800 mt-0.5">
+                          {matchType === 'ball_machine' ? '🤖 Ball Machine'
+                            : `${matchType.charAt(0).toUpperCase() + matchType.slice(1)} — need ${playersNeeded} more player${playersNeeded !== 1 ? 's' : ''}`}
+                        </p>
                       </div>
                     )}
                     {notes && (
@@ -412,13 +418,14 @@ export default function Bookings() {
 
                       if (booking) {
                         const showDetails = isFirstHour(booking, hour)
+                        const isBallMachine = booking.match_type === 'ball_machine'
                         return (
                           <td key={c.id} className="px-2 py-1 align-top">
                             <div className={`rounded-lg px-2 py-2 h-10 flex items-center justify-between gap-1 ${isMe ? 'bg-green-600 text-white' : 'bg-green-100 text-green-800'}`}>
                               {showDetails && (
                                 <>
                                   <span className="text-xs font-medium truncate">
-                                    {isMe ? '✓ Me' : `${booking.user.first_name} ${booking.user.last_name[0]}.`}
+                                    {isBallMachine ? '🤖' : ''}{isMe ? ' Me' : ` ${booking.user.first_name} ${booking.user.last_name[0]}.`}
                                   </span>
                                   {(isMe || isBoard) && (
                                     <button onClick={() => handleCancel(booking.id)}
@@ -438,16 +445,12 @@ export default function Bookings() {
                           <button
                             onClick={() => !past && handleSlotClick(c.id, hour, c.name)}
                             disabled={past}
-                            className={`w-full h-10 rounded-lg border transition text-xs font-medium flex flex-col items-center justify-center gap-0.5
+                            className={`w-full h-10 rounded-lg border transition text-xs font-medium
                               ${past ? 'bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed' :
                                 isSelectedSlot ? 'bg-green-100 border-green-400 text-green-700 ring-2 ring-green-400' :
-                                c.has_ball_machine ? 'bg-green-50 border-green-200 text-green-600 hover:bg-green-100 hover:border-green-400 cursor-pointer' :
                                 'bg-white border-gray-200 text-gray-400 hover:bg-green-50 hover:border-green-300 hover:text-green-700 cursor-pointer'
                               }`}>
                             {isSelectedSlot && '✓'}
-                            {!isSelectedSlot && !past && c.has_ball_machine && (
-                              <span className="text-base leading-none">🤖</span>
-                            )}
                           </button>
                         </td>
                       )
