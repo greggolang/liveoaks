@@ -89,11 +89,38 @@ export default function AdminUsers() {
     inactive: 'bg-red-100 text-red-700',
   }
 
+  const counts = {
+    total: users.length,
+    active: users.filter(u => u.status === 'active').length,
+    pending: users.filter(u => u.status === 'pending').length,
+    inactive: users.filter(u => u.status === 'inactive').length,
+    board: users.filter(u => ['president','vice_president','secretary','treasurer','entertainment','house_grounds'].includes(u.role)).length,
+    admin: users.filter(u => u.role === 'admin').length,
+  }
+
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-bold text-gray-800">Members</h2>
-        <span className="text-xs text-gray-400">{filtered.length} of {users.length}</span>
+        <span className="text-xs text-gray-400">{filtered.length} of {users.length} shown</span>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-5">
+        {[
+          { label: 'Total', value: counts.total, color: 'bg-gray-50 border-gray-200 text-gray-700', click: () => { setStatusFilter(''); setRoleFilter('') } },
+          { label: 'Active', value: counts.active, color: 'bg-green-50 border-green-200 text-green-700', click: () => setStatusFilter('active') },
+          { label: 'Pending', value: counts.pending, color: 'bg-yellow-50 border-yellow-200 text-yellow-700', click: () => setStatusFilter('pending') },
+          { label: 'Inactive', value: counts.inactive, color: 'bg-red-50 border-red-200 text-red-700', click: () => setStatusFilter('inactive') },
+          { label: 'Board', value: counts.board, color: 'bg-blue-50 border-blue-200 text-blue-700', click: () => setRoleFilter('president') },
+          { label: 'Admin', value: counts.admin, color: 'bg-purple-50 border-purple-200 text-purple-700', click: () => setRoleFilter('admin') },
+        ].map(s => (
+          <button key={s.label} onClick={s.click}
+            className={`${s.color} border rounded-xl p-3 text-center hover:opacity-80 transition cursor-pointer`}>
+            <div className="text-2xl font-bold">{s.value}</div>
+            <div className="text-xs font-medium mt-0.5 opacity-75">{s.label}</div>
+          </button>
+        ))}
       </div>
 
       <div className="flex flex-wrap gap-3 mb-4">
