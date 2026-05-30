@@ -160,12 +160,6 @@ export default function MemberDirectory() {
                 placeholder="123 Main St, South Pasadena CA 91030"
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
             </div>
-            <div className="col-span-2">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Family Members</label>
-              <input value={form.family} onChange={e => setForm(f => ({ ...f, family: e.target.value }))}
-                placeholder="e.g. Beth (spouse), Tim (son)"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
-            </div>
           </div>
           <div className="flex gap-3">
             <button type="submit" disabled={saving}

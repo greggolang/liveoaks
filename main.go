@@ -81,6 +81,7 @@ func main() {
 	friends := &handlers.FriendsHandler{DB: pool}
 	perms := &handlers.PermissionsHandler{DB: pool}
 	feedback := &handlers.FeedbackHandler{DB: pool}
+	family := &handlers.FamilyHandler{DB: pool}
 	invitations := &handlers.InvitationsHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	signups := &handlers.SignupsHandler{DB: pool}
 
@@ -181,6 +182,12 @@ func main() {
 	adminOnly.GET("/feedback", feedback.AdminList)
 	adminOnly.PUT("/feedback/:id/status", feedback.UpdateStatus)
 	adminOnly.DELETE("/feedback/:id", feedback.Delete)
+
+	authed.GET("/family-members", family.List)
+	authed.POST("/family-members", family.Create)
+	authed.PUT("/family-members/:id", family.Update)
+	authed.DELETE("/family-members/:id", family.Delete)
+	boardPlus.GET("/admin/users/:userId/family", family.AdminList)
 
 	// Serve uploaded files
 	e.GET("/uploads/documents/:filename", uploads.ServeDocument)

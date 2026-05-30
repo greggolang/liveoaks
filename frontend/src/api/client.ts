@@ -124,6 +124,13 @@ export const api = {
     },
     delete: (id: string) => request(`/admin/photos/${id}`, { method: 'DELETE' }),
   },
+  family: {
+    list: () => request('/family-members'),
+    create: (data: object) => request('/family-members', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: object) => request(`/family-members/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    delete: (id: string) => request(`/family-members/${id}`, { method: 'DELETE' }),
+    adminList: (userId: string) => request(`/admin/users/${userId}/family`),
+  },
   feedback: {
     submit: (message: string, type: 'idea' | 'bug') =>
       request('/feedback', { method: 'POST', body: JSON.stringify({ message, type }) }),
