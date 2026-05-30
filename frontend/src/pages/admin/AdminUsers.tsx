@@ -3,16 +3,38 @@ import { api } from '../../api/client'
 
 interface User {
   id: string; first_name: string; last_name: string; email: string
-  role: string; status: string; phone?: string; created_at: string
+  role: string; status: string; phone?: string; address?: string; family?: string; created_at: string
 }
+
+const emptyEdit = { first_name: '', last_name: '', email: '', phone: '', address: '', family: '' }
 
 export default function AdminUsers() {
   const [users, setUsers] = useState<User[]>([])
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [editing, setEditing] = useState<User | null>(null)
+  const [editForm, setEditForm] = useState(emptyEdit)
+  const [saving, setSaving] = useState(false)
 
   const load = () => api.admin.users().then(d => setUsers(d as User[]))
+
+  const openEdit = (u: User) => {
+    setEditing(u)
+    setEditForm({ first_name: u.first_name, last_name: u.last_name, email: u.email,
+      phone: u.phone ?? '', address: u.address ?? '', family: u.family ?? '' })
+  }
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editing) return
+    setSaving(true)
+    try {
+      await api.admin.updateProfile(editing.id, editForm)
+      setEditing(null)
+      load()
+    } finally { setSaving(false) }
+  }
   useEffect(() => { load() }, [])
 
   const setRole = async (id: string, role: string) => {
@@ -162,7 +184,9 @@ export default function AdminUsers() {
                   </select>
                 </td>
                 <td className="px-4 py-3 text-gray-400 text-xs">{new Date(u.created_at).toLocaleDateString()}</td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-3 flex gap-3">
+                  <button onClick={() => openEdit(u)}
+                    className="text-blue-500 hover:text-blue-700 text-xs font-medium">Edit</button>
                   <button onClick={() => deleteUser(u.id, `${u.first_name} ${u.last_name}`)}
                     className="text-red-400 hover:text-red-600 text-xs">Delete</button>
                 </td>
@@ -171,6 +195,63 @@ export default function AdminUsers() {
           </tbody>
         </table>
       </div>
+
+      {/* Edit member modal */}
+      {editing && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setEditing(null)}>
+          <form onSubmit={handleSaveEdit} onClick={e => e.stopPropagation()}
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-4">
+            <div className="flex justify-between items-center">
+              <h2 className="text-lg font-bold text-gray-800">Edit Member</h2>
+              <button type="button" onClick={() => setEditing(null)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">First Name</label>
+                <input value={editForm.first_name} onChange={e => setEditForm(f => ({ ...f, first_name: e.target.value }))} required
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Last Name</label>
+                <input value={editForm.last_name} onChange={e => setEditForm(f => ({ ...f, last_name: e.target.value }))} required
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
+                <input type="email" value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} required
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
+                <input type="tel" value={editForm.phone} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Billing Address</label>
+                <input value={editForm.address} onChange={e => setEditForm(f => ({ ...f, address: e.target.value }))}
+                  placeholder="123 Main St, City CA 91030"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Family Members</label>
+                <textarea value={editForm.family} onChange={e => setEditForm(f => ({ ...f, family: e.target.value }))} rows={2}
+                  placeholder="e.g. Jennifer (spouse), Tim (son)"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none" />
+              </div>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button type="submit" disabled={saving}
+                className="bg-green-700 hover:bg-green-800 text-white font-semibold px-6 py-2 rounded-lg text-sm transition disabled:opacity-50">
+                {saving ? 'Saving…' : 'Save Changes'}
+              </button>
+              <button type="button" onClick={() => setEditing(null)}
+                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition">
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   )
 }

@@ -34,7 +34,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <NavLink to="/club-info" className={navLink}>About</NavLink>
               {isBoard && <NavLink to="/admin" className={navLink}>Admin</NavLink>}
               <div className="flex items-center gap-2 ml-2 pl-2 border-l border-green-600">
-                <span className="text-green-200 text-xs">{user?.first_name}</span>
+                <Link to="/profile" className="text-green-200 hover:text-white text-xs transition">
+                  {user?.first_name}
+                </Link>
                 <button onClick={handleLogout}
                   className="bg-green-800 hover:bg-green-900 px-3 py-1 rounded text-xs transition">
                   Logout

@@ -18,12 +18,14 @@ type MemberContact struct {
 	LastName  string    `json:"last_name"`
 	Email     string    `json:"email"`
 	Phone     *string   `json:"phone,omitempty"`
+	Address   *string   `json:"address,omitempty"`
+	Family    *string   `json:"family,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
 func (h *MembersHandler) Directory(c echo.Context) error {
 	rows, err := h.DB.Query(c.Request().Context(),
-		`SELECT id, first_name, last_name, email, phone, created_at
+		`SELECT id, first_name, last_name, email, phone, address, family, created_at
 		 FROM users WHERE status = 'active' ORDER BY last_name, first_name`)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch members")
@@ -33,7 +35,7 @@ func (h *MembersHandler) Directory(c echo.Context) error {
 	members := []MemberContact{}
 	for rows.Next() {
 		var m MemberContact
-		if err := rows.Scan(&m.ID, &m.FirstName, &m.LastName, &m.Email, &m.Phone, &m.CreatedAt); err != nil {
+		if err := rows.Scan(&m.ID, &m.FirstName, &m.LastName, &m.Email, &m.Phone, &m.Address, &m.Family, &m.CreatedAt); err != nil {
 			continue
 		}
 		members = append(members, m)

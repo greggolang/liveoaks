@@ -18,6 +18,8 @@ type Contact struct {
 	LastName  string    `json:"last_name"`
 	Email     *string   `json:"email,omitempty"`
 	Phone     *string   `json:"phone,omitempty"`
+	Address   *string   `json:"address,omitempty"`
+	Family    *string   `json:"family,omitempty"`
 	Category  string    `json:"category"`
 	Notes     *string   `json:"notes,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
@@ -25,7 +27,7 @@ type Contact struct {
 
 func (h *ContactsHandler) List(c echo.Context) error {
 	rows, err := h.DB.Query(c.Request().Context(),
-		`SELECT id, first_name, last_name, email, phone, category, notes, created_at
+		`SELECT id, first_name, last_name, email, phone, address, family, category, notes, created_at
 		 FROM contacts ORDER BY last_name, first_name`)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch contacts")
@@ -35,7 +37,7 @@ func (h *ContactsHandler) List(c echo.Context) error {
 	contacts := []Contact{}
 	for rows.Next() {
 		var ct Contact
-		if err := rows.Scan(&ct.ID, &ct.FirstName, &ct.LastName, &ct.Email, &ct.Phone, &ct.Category, &ct.Notes, &ct.CreatedAt); err != nil {
+		if err := rows.Scan(&ct.ID, &ct.FirstName, &ct.LastName, &ct.Email, &ct.Phone, &ct.Address, &ct.Family, &ct.Category, &ct.Notes, &ct.CreatedAt); err != nil {
 			continue
 		}
 		contacts = append(contacts, ct)
@@ -50,6 +52,8 @@ func (h *ContactsHandler) Create(c echo.Context) error {
 		LastName  string `json:"last_name"`
 		Email     string `json:"email"`
 		Phone     string `json:"phone"`
+		Address   string `json:"address"`
+		Family    string `json:"family"`
 		Category  string `json:"category"`
 		Notes     string `json:"notes"`
 	}
@@ -61,11 +65,11 @@ func (h *ContactsHandler) Create(c echo.Context) error {
 	}
 	var ct Contact
 	err := h.DB.QueryRow(c.Request().Context(),
-		`INSERT INTO contacts (first_name, last_name, email, phone, category, notes, created_by)
-		 VALUES ($1, $2, NULLIF($3,''), NULLIF($4,''), $5, NULLIF($6,''), $7)
-		 RETURNING id, first_name, last_name, email, phone, category, notes, created_at`,
-		req.FirstName, req.LastName, req.Email, req.Phone, req.Category, req.Notes, userID,
-	).Scan(&ct.ID, &ct.FirstName, &ct.LastName, &ct.Email, &ct.Phone, &ct.Category, &ct.Notes, &ct.CreatedAt)
+		`INSERT INTO contacts (first_name, last_name, email, phone, address, family, category, notes, created_by)
+		 VALUES ($1, $2, NULLIF($3,''), NULLIF($4,''), NULLIF($5,''), NULLIF($6,''), $7, NULLIF($8,''), $9)
+		 RETURNING id, first_name, last_name, email, phone, address, family, category, notes, created_at`,
+		req.FirstName, req.LastName, req.Email, req.Phone, req.Address, req.Family, req.Category, req.Notes, userID,
+	).Scan(&ct.ID, &ct.FirstName, &ct.LastName, &ct.Email, &ct.Phone, &ct.Address, &ct.Family, &ct.Category, &ct.Notes, &ct.CreatedAt)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not create contact")
 	}
@@ -79,6 +83,8 @@ func (h *ContactsHandler) Update(c echo.Context) error {
 		LastName  string `json:"last_name"`
 		Email     string `json:"email"`
 		Phone     string `json:"phone"`
+		Address   string `json:"address"`
+		Family    string `json:"family"`
 		Category  string `json:"category"`
 		Notes     string `json:"notes"`
 	}
@@ -87,9 +93,9 @@ func (h *ContactsHandler) Update(c echo.Context) error {
 	}
 	_, err := h.DB.Exec(c.Request().Context(),
 		`UPDATE contacts SET first_name=$1, last_name=$2, email=NULLIF($3,''),
-		 phone=NULLIF($4,''), category=$5, notes=NULLIF($6,''), updated_at=NOW()
-		 WHERE id=$7`,
-		req.FirstName, req.LastName, req.Email, req.Phone, req.Category, req.Notes, id)
+		 phone=NULLIF($4,''), address=NULLIF($5,''), family=NULLIF($6,''),
+		 category=$7, notes=NULLIF($8,''), updated_at=NOW() WHERE id=$9`,
+		req.FirstName, req.LastName, req.Email, req.Phone, req.Address, req.Family, req.Category, req.Notes, id)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not update contact")
 	}

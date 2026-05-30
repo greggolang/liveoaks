@@ -19,6 +19,7 @@ import MemberDirectory from './pages/MemberDirectory'
 import GuestPasses from './pages/GuestPasses'
 import MyDues from './pages/MyDues'
 import ClubInfo from './pages/ClubInfo'
+import Profile from './pages/Profile'
 import Admin from './pages/admin/Admin'
 import AdminUsers from './pages/admin/AdminUsers'
 import AdminSettings from './pages/admin/AdminSettings'
@@ -67,6 +68,7 @@ function AppRoutes() {
       <Route path="/guests" element={<ProtectedRoute><GuestPasses /></ProtectedRoute>} />
       <Route path="/dues" element={<ProtectedRoute><MyDues /></ProtectedRoute>} />
       <Route path="/club-info" element={<ProtectedRoute><ClubInfo /></ProtectedRoute>} />
+      <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
 
       {/* Admin */}
       <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>}>

@@ -86,6 +86,8 @@ func main() {
 	authed := api.Group("", mw.JWTAuth(cfg.JWTSecret))
 	authed.POST("/auth/logout", auth.Logout)
 	authed.GET("/auth/me", auth.Me)
+	authed.PUT("/auth/profile", auth.UpdateProfile)
+	authed.PUT("/auth/password", auth.ChangePassword)
 
 	authed.GET("/courts", courts.List)
 
@@ -124,6 +126,7 @@ func main() {
 	// Admin only
 	adminOnly := authed.Group("/admin", mw.RequireRole("admin"))
 	adminOnly.GET("/users", users.List)
+	adminOnly.PUT("/users/:id/profile", users.UpdateProfile)
 	adminOnly.PUT("/users/:id/role", users.UpdateRole)
 	adminOnly.PUT("/users/:id/status", users.UpdateStatus)
 	adminOnly.DELETE("/users/:id", users.Delete)

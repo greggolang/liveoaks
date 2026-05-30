@@ -31,6 +31,9 @@ export const api = {
       request('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
     logout: () => request('/auth/logout', { method: 'POST' }),
     me: () => request('/auth/me'),
+    updateProfile: (data: object) => request('/auth/profile', { method: 'PUT', body: JSON.stringify(data) }),
+    changePassword: (current: string, newPw: string) =>
+      request('/auth/password', { method: 'PUT', body: JSON.stringify({ current, new: newPw }) }),
     forgotPassword: (email: string) =>
       request('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
     resetPassword: (token: string, password: string) =>
@@ -102,6 +105,8 @@ export const api = {
   },
   admin: {
     users: () => request('/admin/users'),
+    updateProfile: (id: string, data: object) =>
+      request(`/admin/users/${id}/profile`, { method: 'PUT', body: JSON.stringify(data) }),
     updateRole: (id: string, role: string) =>
       request(`/admin/users/${id}/role`, { method: 'PUT', body: JSON.stringify({ role }) }),
     updateStatus: (id: string, status: string) =>

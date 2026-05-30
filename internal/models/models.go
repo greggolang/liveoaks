@@ -38,6 +38,8 @@ type User struct {
 	Role         Role      `json:"role"`
 	Status       Status    `json:"status"`
 	Phone        *string   `json:"phone,omitempty"`
+	Address      *string   `json:"address,omitempty"`
+	Family       *string   `json:"family,omitempty"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }

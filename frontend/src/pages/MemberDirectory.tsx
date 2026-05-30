@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 
-interface Member { id: string; first_name: string; last_name: string; email: string; phone?: string; type: 'member' }
-interface Contact { id: string; first_name: string; last_name: string; email?: string; phone?: string; category: string; notes?: string; type: 'contact' }
+interface Member { id: string; first_name: string; last_name: string; email: string; phone?: string; address?: string; family?: string; type: 'member' }
+interface Contact { id: string; first_name: string; last_name: string; email?: string; phone?: string; address?: string; family?: string; category: string; notes?: string; type: 'contact' }
 type Entry = Member | Contact
 
 const CATEGORIES = ['spouse', 'coach', 'staff', 'associate', 'other']
@@ -12,7 +12,7 @@ const CATEGORY_LABEL: Record<string, string> = {
   spouse: 'Spouse/Partner', coach: 'Coach', staff: 'Staff', associate: 'Associate', other: 'Other',
 }
 
-const emptyForm = { first_name: '', last_name: '', email: '', phone: '', category: 'other', notes: '' }
+const emptyForm = { first_name: '', last_name: '', email: '', phone: '', address: '', family: '', category: 'other', notes: '' }
 
 export default function MemberDirectory() {
   const { isBoard } = useAuth()
@@ -47,6 +47,7 @@ export default function MemberDirectory() {
     setForm({
       first_name: c.first_name, last_name: c.last_name,
       email: c.email ?? '', phone: c.phone ?? '',
+      address: c.address ?? '', family: c.family ?? '',
       category: c.category, notes: c.notes ?? '',
     })
     setShowForm(true)
@@ -146,6 +147,18 @@ export default function MemberDirectory() {
               <input value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
             </div>
+            <div className="col-span-2">
+              <label className="block text-xs font-medium text-gray-600 mb-1">Address</label>
+              <input value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))}
+                placeholder="123 Main St, South Pasadena CA 91030"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-xs font-medium text-gray-600 mb-1">Family Members</label>
+              <input value={form.family} onChange={e => setForm(f => ({ ...f, family: e.target.value }))}
+                placeholder="e.g. Beth (spouse), Tim (son)"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+            </div>
           </div>
           <div className="flex gap-3">
             <button type="submit" disabled={saving}
@@ -197,6 +210,8 @@ export default function MemberDirectory() {
                     <a href={`mailto:${e.email}`} className="text-green-700 text-xs hover:underline truncate block">{e.email}</a>
                   )}
                   {e.phone && <div className="text-gray-400 text-xs mt-0.5">{e.phone}</div>}
+                  {e.family && <div className="text-gray-500 text-xs mt-0.5">👨‍👩‍👧 {e.family}</div>}
+                  {e.address && <div className="text-gray-400 text-xs mt-0.5 truncate">📍 {e.address}</div>}
                   {e.type === 'contact' && (e as Contact).notes && (
                     <div className="text-gray-400 text-xs mt-0.5 italic">{(e as Contact).notes}</div>
                   )}

@@ -144,15 +144,66 @@ func (h *AuthHandler) Me(c echo.Context) error {
 	var user models.User
 	var role, status string
 	err := h.DB.QueryRow(c.Request().Context(),
-		`SELECT id, first_name, last_name, email, role::text, status::text, phone, created_at FROM users WHERE id = $1`,
+		`SELECT id, first_name, last_name, email, role::text, status::text, phone, address, family, created_at FROM users WHERE id = $1`,
 		userID,
-	).Scan(&user.ID, &user.FirstName, &user.LastName, &user.Email, &role, &status, &user.Phone, &user.CreatedAt)
+	).Scan(&user.ID, &user.FirstName, &user.LastName, &user.Email, &role, &status, &user.Phone, &user.Address, &user.Family, &user.CreatedAt)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "user not found")
 	}
 	user.Role = models.Role(role)
 	user.Status = models.Status(status)
 	return c.JSON(http.StatusOK, user)
+}
+
+func (h *AuthHandler) UpdateProfile(c echo.Context) error {
+	userID := c.Get("user_id").(string)
+	var req struct {
+		FirstName string `json:"first_name"`
+		LastName  string `json:"last_name"`
+		Phone     string `json:"phone"`
+		Address   string `json:"address"`
+		Family    string `json:"family"`
+	}
+	if err := c.Bind(&req); err != nil || req.FirstName == "" || req.LastName == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "first and last name required")
+	}
+	_, err := h.DB.Exec(c.Request().Context(),
+		`UPDATE users SET first_name=$1, last_name=$2, phone=NULLIF($3,''),
+		 address=NULLIF($4,''), family=NULLIF($5,''), updated_at=NOW() WHERE id=$6`,
+		req.FirstName, req.LastName, req.Phone, req.Address, req.Family, userID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not update profile")
+	}
+	return c.JSON(http.StatusOK, map[string]string{"message": "profile updated"})
+}
+
+func (h *AuthHandler) ChangePassword(c echo.Context) error {
+	userID := c.Get("user_id").(string)
+	var req struct {
+		Current string `json:"current"`
+		New     string `json:"new"`
+	}
+	if err := c.Bind(&req); err != nil || req.Current == "" || req.New == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "current and new password required")
+	}
+	if len(req.New) < 8 {
+		return echo.NewHTTPError(http.StatusBadRequest, "password must be at least 8 characters")
+	}
+	var hash string
+	if err := h.DB.QueryRow(c.Request().Context(),
+		`SELECT password_hash FROM users WHERE id = $1`, userID).Scan(&hash); err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, "user not found")
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(req.Current)); err != nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "current password is incorrect")
+	}
+	newHash, err := bcrypt.GenerateFromPassword([]byte(req.New), bcrypt.DefaultCost)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not hash password")
+	}
+	h.DB.Exec(c.Request().Context(),
+		`UPDATE users SET password_hash=$1, updated_at=NOW() WHERE id=$2`, string(newHash), userID)
+	return c.JSON(http.StatusOK, map[string]string{"message": "password changed"})
 }
 
 func (h *AuthHandler) ForgotPassword(c echo.Context) error {
