@@ -35,16 +35,16 @@ jobs:
       - name: Build
         run: go build -o liveoaks .
 
-      - name: Copy binary to server
+      - name: Copy binary and migrations to server
         uses: appleboy/scp-action@v0.1.7
         with:
           host: 172.236.228.11
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: liveoaks
+          source: liveoaks,migrations
           target: /opt/liveoaks/
 
-      - name: Restart service
+      - name: Run migrations and restart service
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: 172.236.228.11
@@ -53,6 +53,7 @@ jobs:
           envs: JWT_SECRET
           script: |
             chmod +x /opt/liveoaks/liveoaks
+            sudo -u postgres psql -d liveoaks -f /opt/liveoaks/migrations/003_fix_passwords.sql
             sed -i "s|Environment=JWT_SECRET=.*|Environment=JWT_SECRET=$JWT_SECRET|" /etc/systemd/system/liveoaks.service
             systemctl daemon-reload
             systemctl restart liveoaks
