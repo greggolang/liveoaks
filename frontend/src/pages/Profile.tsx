@@ -260,7 +260,7 @@ export default function Profile() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Birthday</label>
-                <input type="date" value={memberForm.birthday} onChange={setMf('birthday')}
+                <input type="date" value={memberForm.birthday} onChange={setMf('birthday')} required
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white" />
               </div>
               <div>
