@@ -1,0 +1,1 @@
+ALTER TABLE waitlist ADD COLUMN IF NOT EXISTS usta_ranking TEXT;

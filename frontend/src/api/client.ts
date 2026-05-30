@@ -185,8 +185,8 @@ export const api = {
     list: () => request('/admin/waitlist'),
     updateStatus: (id: string, status: string) =>
       request(`/admin/waitlist/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),
-    updateContact: (id: string, email: string, phone: string) =>
-      request(`/admin/waitlist/${id}/contact`, { method: 'PUT', body: JSON.stringify({ email, phone }) }),
+    updateContact: (id: string, email: string, phone: string, usta_ranking: string) =>
+      request(`/admin/waitlist/${id}/contact`, { method: 'PUT', body: JSON.stringify({ email, phone, usta_ranking }) }),
     delete: (id: string) => request(`/admin/waitlist/${id}`, { method: 'DELETE' }),
   },
   guests: {

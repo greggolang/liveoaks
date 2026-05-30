@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { api } from '../../api/client'
 
+const USTA_RATINGS = ['NR', '2.0', '2.5', '3.0', '3.5', '4.0', '4.5', '5.0', '5.5+']
+
 interface Entry {
   id: string; first_name: string; last_name: string
-  email?: string; phone?: string; notes?: string
+  email?: string; phone?: string; notes?: string; usta_ranking?: string
   status: string; position?: number; created_at: string
 }
 
@@ -17,7 +19,7 @@ const STATUS_COLOR: Record<string, string> = {
 export default function AdminWaitlist() {
   const [entries, setEntries] = useState<Entry[]>([])
   const [editContact, setEditContact] = useState<string | null>(null)
-  const [contactForm, setContactForm] = useState({ email: '', phone: '' })
+  const [contactForm, setContactForm] = useState({ email: '', phone: '', usta_ranking: '' })
   const [savingContact, setSavingContact] = useState(false)
 
   const load = () => api.waitlist.list().then(d => setEntries(d as Entry[]))
@@ -25,13 +27,13 @@ export default function AdminWaitlist() {
 
   const openContact = (w: Entry) => {
     setEditContact(w.id)
-    setContactForm({ email: w.email ?? '', phone: w.phone ?? '' })
+    setContactForm({ email: w.email ?? '', phone: w.phone ?? '', usta_ranking: w.usta_ranking ?? '' })
   }
 
   const saveContact = async (id: string) => {
     setSavingContact(true)
     try {
-      await api.waitlist.updateContact(id, contactForm.email, contactForm.phone)
+      await api.waitlist.updateContact(id, contactForm.email, contactForm.phone, contactForm.usta_ranking)
       setEditContact(null)
       load()
     } finally { setSavingContact(false) }
@@ -93,6 +95,13 @@ export default function AdminWaitlist() {
                           placeholder="Phone"
                           className="border border-gray-300 rounded px-2 py-1 text-xs w-full focus:outline-none focus:ring-1 focus:ring-green-500"
                         />
+                        <select
+                          value={contactForm.usta_ranking}
+                          onChange={e => setContactForm(f => ({ ...f, usta_ranking: e.target.value }))}
+                          className="border border-gray-300 rounded px-2 py-1 text-xs w-full focus:outline-none focus:ring-1 focus:ring-green-500 bg-white">
+                          <option value="">USTA Rating</option>
+                          {USTA_RATINGS.map(r => <option key={r} value={r}>{r}</option>)}
+                        </select>
                         <div className="flex gap-2">
                           <button onClick={() => saveContact(w.id)} disabled={savingContact}
                             className="text-xs bg-green-700 text-white px-2 py-1 rounded hover:bg-green-800 transition disabled:opacity-50">
@@ -109,6 +118,11 @@ export default function AdminWaitlist() {
                           <>
                             {w.email && <div className="text-gray-600 text-xs">{w.email}</div>}
                             {w.phone && <div className="text-gray-400 text-xs">{w.phone}</div>}
+                            {w.usta_ranking && (
+                              <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium mt-0.5 inline-block">
+                                USTA {w.usta_ranking}
+                              </span>
+                            )}
                           </>
                         ) : (
                           <span className="text-xs text-amber-500 group-hover:text-amber-600">

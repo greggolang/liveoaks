@@ -13,15 +13,16 @@ type WaitlistHandler struct {
 }
 
 type WaitlistEntry struct {
-	ID        string    `json:"id"`
-	FirstName string    `json:"first_name"`
-	LastName  string    `json:"last_name"`
-	Email     *string   `json:"email,omitempty"`
-	Phone     *string   `json:"phone,omitempty"`
-	Notes     *string   `json:"notes,omitempty"`
-	Status    string    `json:"status"`
-	Position  *int      `json:"position,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
+	ID          string    `json:"id"`
+	FirstName   string    `json:"first_name"`
+	LastName    string    `json:"last_name"`
+	Email       *string   `json:"email,omitempty"`
+	Phone       *string   `json:"phone,omitempty"`
+	Notes       *string   `json:"notes,omitempty"`
+	USTARanking *string   `json:"usta_ranking,omitempty"`
+	Status      string    `json:"status"`
+	Position    *int      `json:"position,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 func (h *WaitlistHandler) Join(c echo.Context) error {
@@ -47,7 +48,7 @@ func (h *WaitlistHandler) Join(c echo.Context) error {
 
 func (h *WaitlistHandler) List(c echo.Context) error {
 	rows, err := h.DB.Query(c.Request().Context(),
-		`SELECT id, first_name, last_name, email, phone, notes, status, position, created_at
+		`SELECT id, first_name, last_name, email, phone, notes, usta_ranking, status, position, created_at
 		 FROM waitlist
 		 ORDER BY COALESCE(position, 99999), created_at ASC`)
 	if err != nil {
@@ -59,7 +60,7 @@ func (h *WaitlistHandler) List(c echo.Context) error {
 	for rows.Next() {
 		var w WaitlistEntry
 		if err := rows.Scan(&w.ID, &w.FirstName, &w.LastName, &w.Email, &w.Phone,
-			&w.Notes, &w.Status, &w.Position, &w.CreatedAt); err != nil {
+			&w.Notes, &w.USTARanking, &w.Status, &w.Position, &w.CreatedAt); err != nil {
 			continue
 		}
 		entries = append(entries, w)
@@ -82,15 +83,16 @@ func (h *WaitlistHandler) UpdateStatus(c echo.Context) error {
 func (h *WaitlistHandler) UpdateContact(c echo.Context) error {
 	id := c.Param("id")
 	var body struct {
-		Email string `json:"email"`
-		Phone string `json:"phone"`
+		Email       string `json:"email"`
+		Phone       string `json:"phone"`
+		USTARanking string `json:"usta_ranking"`
 	}
 	if err := c.Bind(&body); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
 	}
 	_, err := h.DB.Exec(c.Request().Context(),
-		`UPDATE waitlist SET email = NULLIF($1,''), phone = NULLIF($2,'') WHERE id = $3`,
-		body.Email, body.Phone, id)
+		`UPDATE waitlist SET email = NULLIF($1,''), phone = NULLIF($2,''), usta_ranking = NULLIF($3,'') WHERE id = $4`,
+		body.Email, body.Phone, body.USTARanking, id)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not update contact")
 	}

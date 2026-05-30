@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react'
 import { api } from '../../api/client'
 
+const USTA_RATINGS = ['NR', '2.0', '2.5', '3.0', '3.5', '4.0', '4.5', '5.0', '5.5+']
+
 interface User {
   id: string; first_name: string; last_name: string; email: string
-  role: string; status: string; phone?: string; address?: string; family?: string; created_at: string
+  role: string; status: string; phone?: string; address?: string; family?: string
+  usta_ranking?: string; created_at: string
 }
 
-const emptyEdit = { first_name: '', last_name: '', email: '', phone: '', address: '', family: '' }
+const emptyEdit = { first_name: '', last_name: '', email: '', phone: '', address: '', family: '', usta_ranking: '' }
 
 export default function AdminUsers() {
   const [users, setUsers] = useState<User[]>([])
@@ -22,7 +25,7 @@ export default function AdminUsers() {
   const openEdit = (u: User) => {
     setEditing(u)
     setEditForm({ first_name: u.first_name, last_name: u.last_name, email: u.email,
-      phone: u.phone ?? '', address: u.address ?? '', family: u.family ?? '' })
+      phone: u.phone ?? '', address: u.address ?? '', family: u.family ?? '', usta_ranking: u.usta_ranking ?? '' })
   }
 
   const handleSaveEdit = async (e: React.FormEvent) => {
@@ -266,6 +269,14 @@ export default function AdminUsers() {
                 <textarea value={editForm.family} onChange={e => setEditForm(f => ({ ...f, family: e.target.value }))} rows={2}
                   placeholder="e.g. Jennifer (spouse), Tim (son)"
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">USTA Rating (NTRP)</label>
+                <select value={editForm.usta_ranking} onChange={e => setEditForm(f => ({ ...f, usta_ranking: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white">
+                  <option value="">Not set</option>
+                  {USTA_RATINGS.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
               </div>
             </div>
             <div className="flex gap-3 pt-2">
