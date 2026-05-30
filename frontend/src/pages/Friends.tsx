@@ -3,7 +3,7 @@ import { api } from '../api/client'
 
 interface Friend {
   id: string; friend_user_id?: string; friend_name: string
-  friend_email?: string; is_guest: boolean
+  friend_email?: string; is_guest: boolean; usta_ranking?: string
 }
 interface GroupMember {
   friend_id: string; friend_name: string; friend_email?: string; is_guest: boolean
@@ -31,6 +31,7 @@ export default function Friends() {
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
   const [editingGroupName, setEditingGroupName] = useState('')
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null)
+  const [groupUstaFilter, setGroupUstaFilter] = useState('')
 
   const loadFriends = () => api.friends.list().then(d => setFriends(d as Friend[]))
   const loadGroups = () => api.groups.list().then(d => setGroups(d as FriendGroup[]))
@@ -268,7 +269,7 @@ export default function Friends() {
                         className="text-xs text-gray-400 hover:text-gray-600">Rename</button>
                       <button onClick={() => deleteGroup(g.id, g.name)}
                         className="text-xs text-red-400 hover:text-red-600">Delete</button>
-                      <button onClick={() => setExpandedGroup(isExpanded ? null : g.id)}
+                      <button onClick={() => { setExpandedGroup(isExpanded ? null : g.id); setGroupUstaFilter('') }}
                         className="text-xs text-green-700 font-medium hover:underline">
                         {isExpanded ? 'Done' : 'Edit Players'}
                       </button>
@@ -292,12 +293,21 @@ export default function Friends() {
                 {/* Expanded: toggle friends in/out */}
                 {isExpanded && (
                   <div className="border-t border-gray-100 px-4 py-3 bg-gray-50">
-                    <p className="text-xs text-gray-500 mb-2">Check players to add them to this group:</p>
+                    <div className="flex items-center justify-between mb-2 gap-3">
+                      <p className="text-xs text-gray-500">Check players to add them to this group:</p>
+                      <select value={groupUstaFilter} onChange={e => setGroupUstaFilter(e.target.value)}
+                        className="border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white text-gray-600 focus:outline-none focus:ring-1 focus:ring-green-500">
+                        <option value="">All ratings</option>
+                        {USTA_RATINGS.map(r => <option key={r} value={r}>{r}</option>)}
+                      </select>
+                    </div>
                     {friends.length === 0 ? (
                       <p className="text-xs text-gray-400">Add friends first, then assign them to groups.</p>
                     ) : (
                       <div className="space-y-1.5">
-                        {friends.map(f => {
+                        {friends
+                          .filter(f => !groupUstaFilter || f.usta_ranking === groupUstaFilter)
+                          .map(f => {
                           const inGroup = g.members.some(m => m.friend_id === f.id)
                           return (
                             <label key={f.id} className="flex items-center gap-2.5 cursor-pointer group">
@@ -308,12 +318,18 @@ export default function Friends() {
                                 {f.friend_name}
                                 {f.is_guest && <span className="ml-1.5 text-xs text-orange-500">(Guest)</span>}
                               </span>
+                              {f.usta_ranking && (
+                                <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">{f.usta_ranking}</span>
+                              )}
                               {f.friend_email && (
                                 <span className="text-xs text-gray-400">{f.friend_email}</span>
                               )}
                             </label>
                           )
                         })}
+                        {friends.filter(f => !groupUstaFilter || f.usta_ranking === groupUstaFilter).length === 0 && (
+                          <p className="text-xs text-gray-400 italic">No friends with that rating.</p>
+                        )}
                       </div>
                     )}
                   </div>

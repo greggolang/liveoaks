@@ -19,6 +19,7 @@ type Friend struct {
 	FriendName   string    `json:"friend_name"`
 	FriendEmail  *string   `json:"friend_email,omitempty"`
 	IsGuest      bool      `json:"is_guest"`
+	USTARanking  *string   `json:"usta_ranking,omitempty"`
 	CreatedAt    time.Time `json:"created_at"`
 }
 
@@ -30,6 +31,7 @@ func (h *FriendsHandler) List(c echo.Context) error {
 		       COALESCE(u.first_name || ' ' || u.last_name, f.friend_name) as name,
 		       COALESCE(u.email, f.friend_email) as email,
 		       f.friend_user_id IS NULL as is_guest,
+		       u.usta_ranking,
 		       f.created_at
 		FROM friends f
 		LEFT JOIN users u ON u.id = f.friend_user_id
@@ -43,7 +45,7 @@ func (h *FriendsHandler) List(c echo.Context) error {
 	friends := []Friend{}
 	for rows.Next() {
 		var f Friend
-		if err := rows.Scan(&f.ID, &f.MemberID, &f.FriendUserID, &f.FriendName, &f.FriendEmail, &f.IsGuest, &f.CreatedAt); err != nil {
+		if err := rows.Scan(&f.ID, &f.MemberID, &f.FriendUserID, &f.FriendName, &f.FriendEmail, &f.IsGuest, &f.USTARanking, &f.CreatedAt); err != nil {
 			continue
 		}
 		friends = append(friends, f)
