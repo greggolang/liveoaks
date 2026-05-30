@@ -107,6 +107,13 @@ export const api = {
     delete: (eventId: string, signupId: string) => request(`/admin/events/${eventId}/signups/${signupId}`, { method: 'DELETE' }),
     toggleSignup: (eventId: string, data: object) => request(`/events/${eventId}/signup-toggle`, { method: 'PUT', body: JSON.stringify(data) }),
   },
+  bylaws: {
+    meta: () => request<{ uploaded_at: string | null }>('/admin/bylaws/meta'),
+    upload: (file: File) => {
+      const f = new FormData(); f.append('file', file)
+      return upload<{ uploaded_at: string }>('/admin/bylaws', f)
+    },
+  },
   documents: {
     list: () => request('/documents'),
     upload: (title: string, category: string, file: File) => {

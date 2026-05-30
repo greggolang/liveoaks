@@ -19,6 +19,7 @@ import MemberDirectory from './pages/MemberDirectory'
 import GuestPasses from './pages/GuestPasses'
 import MyDues from './pages/MyDues'
 import ClubInfo from './pages/ClubInfo'
+import Bylaws from './pages/Bylaws'
 import Profile from './pages/Profile'
 import Friends from './pages/Friends'
 import InviteResponse from './pages/InviteResponse'
@@ -78,6 +79,7 @@ function AppRoutes() {
       <Route path="/guests" element={<ProtectedRoute><GuestPasses /></ProtectedRoute>} />
       <Route path="/dues" element={<ProtectedRoute><MyDues /></ProtectedRoute>} />
       <Route path="/club-info" element={<ProtectedRoute><ClubInfo /></ProtectedRoute>} />
+      <Route path="/bylaws" element={<ProtectedRoute><Bylaws /></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
       <Route path="/friends" element={<ProtectedRoute><Friends /></ProtectedRoute>} />
 

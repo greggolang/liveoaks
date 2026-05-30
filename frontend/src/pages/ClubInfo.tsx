@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 
 export default function ClubInfo() {
@@ -14,6 +15,19 @@ export default function ClubInfo() {
         <p className="text-gray-600 leading-relaxed whitespace-pre-wrap">
           {settings.club_history || 'Founded in 1912, Live Oaks Tennis Association (LOTA) is one of the oldest private tennis clubs in Southern California. The club features four hard courts and a historic 1926 clubhouse in South Pasadena.'}
         </p>
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm mb-6 flex items-center justify-between">
+        <div>
+          <h2 className="font-semibold text-gray-800">📋 Association Bylaws</h2>
+          <p className="text-gray-500 text-sm mt-0.5">Restated January 1, 2007 including amendments to date</p>
+        </div>
+        <Link
+          to="/bylaws"
+          className="bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-4 py-2 rounded-lg transition shrink-0"
+        >
+          View Bylaws
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">

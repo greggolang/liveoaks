@@ -3,6 +3,7 @@ package handlers
 import (
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -14,8 +15,9 @@ import (
 )
 
 type UploadsHandler struct {
-	DB        *pgxpool.Pool
-	UploadDir string
+	DB         *pgxpool.Pool
+	UploadDir  string
+	FrontendFS fs.FS // fallback for bylaws.pdf embedded in the binary
 }
 
 type Document struct {
@@ -257,4 +259,55 @@ func (h *UploadsHandler) ServeReceipt(c echo.Context) error {
 	filename := c.Param("filename")
 	path := filepath.Join(h.UploadDir, "receipts", filepath.Base(filename))
 	return c.File(path)
+}
+
+// BylawsMeta returns the modification time of the uploaded bylaws PDF, or null if none exists.
+func (h *UploadsHandler) BylawsMeta(c echo.Context) error {
+	info, err := os.Stat(filepath.Join(h.UploadDir, "bylaws.pdf"))
+	if err != nil {
+		return c.JSON(http.StatusOK, map[string]interface{}{"uploaded_at": nil})
+	}
+	return c.JSON(http.StatusOK, map[string]interface{}{"uploaded_at": info.ModTime()})
+}
+
+// ServeBylaws serves the bylaws PDF, preferring an uploaded version over the embedded fallback.
+func (h *UploadsHandler) ServeBylaws(c echo.Context) error {
+	customPath := filepath.Join(h.UploadDir, "bylaws.pdf")
+	if _, err := os.Stat(customPath); err == nil {
+		c.Response().Header().Set("Content-Disposition", `attachment; filename="LiveOaks_Bylaws.pdf"`)
+		return c.File(customPath)
+	}
+	// Fall back to the copy embedded in the binary
+	if h.FrontendFS != nil {
+		f, err := h.FrontendFS.Open("bylaws.pdf")
+		if err == nil {
+			defer f.Close()
+			c.Response().Header().Set("Content-Disposition", `attachment; filename="LiveOaks_Bylaws.pdf"`)
+			return c.Stream(http.StatusOK, "application/pdf", f)
+		}
+	}
+	return echo.NewHTTPError(http.StatusNotFound, "bylaws not found")
+}
+
+// UploadBylaws replaces the active bylaws PDF.
+func (h *UploadsHandler) UploadBylaws(c echo.Context) error {
+	file, header, err := c.Request().FormFile("file")
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "file required")
+	}
+	defer file.Close()
+	if ext := strings.ToLower(filepath.Ext(header.Filename)); ext != ".pdf" {
+		return echo.NewHTTPError(http.StatusBadRequest, "only PDF files are accepted")
+	}
+	os.MkdirAll(h.UploadDir, 0755)
+	dst, err := os.Create(filepath.Join(h.UploadDir, "bylaws.pdf"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not save file")
+	}
+	defer dst.Close()
+	if _, err = io.Copy(dst, file); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not write file")
+	}
+	info, _ := os.Stat(filepath.Join(h.UploadDir, "bylaws.pdf"))
+	return c.JSON(http.StatusOK, map[string]interface{}{"uploaded_at": info.ModTime()})
 }

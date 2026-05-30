@@ -210,6 +210,11 @@ func main() {
 	authed.POST("/friend-groups/:id/members", groups.AddMember)
 	authed.DELETE("/friend-groups/:id/members/:friendId", groups.RemoveMember)
 
+	// Bylaws PDF — authenticated download, admin upload/meta
+	authed.GET("/bylaws", uploads.ServeBylaws)
+	adminOnly.GET("/bylaws/meta", uploads.BylawsMeta)
+	adminOnly.POST("/bylaws", uploads.UploadBylaws)
+
 	// Serve uploaded files
 	e.GET("/uploads/documents/:filename", uploads.ServeDocument)
 	e.GET("/uploads/photos/:filename", uploads.ServePhoto)
@@ -220,6 +225,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("could not load frontend: %v", err)
 	}
+	uploads.FrontendFS = distFS
 	e.GET("/*", func(c echo.Context) error {
 		req := c.Request()
 		path := req.URL.Path

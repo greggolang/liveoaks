@@ -537,12 +537,7 @@ export default function Bookings() {
                   <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
                     <div>
                       <span className="text-gray-500 text-xs uppercase tracking-wide">Court</span>
-                      <p className="font-semibold text-gray-800 mt-0.5">
-                        {selected.courtName}
-                        {courts.find(c => c.id === selected.courtId)?.has_ball_machine && (
-                          <span className="ml-1 text-xs text-green-600">🤖</span>
-                        )}
-                      </p>
+                      <p className="font-semibold text-gray-800 mt-0.5">{selected.courtName}</p>
                     </div>
                     <div>
                       <span className="text-gray-500 text-xs uppercase tracking-wide">Date</span>
@@ -634,9 +629,6 @@ export default function Bookings() {
                   {courts.map(c => (
                     <th key={c.id} className="py-3 px-2 text-center font-semibold text-gray-700 border-b border-gray-100">
                       {c.name}
-                      {c.has_ball_machine && (
-                        <div className="text-xs font-normal text-green-600 mt-0.5">🤖 Ball Machine</div>
-                      )}
                     </th>
                   ))}
                 </tr>
