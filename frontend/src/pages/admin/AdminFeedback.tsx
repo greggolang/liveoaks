@@ -5,6 +5,7 @@ interface FeedbackItem {
   id: string
   message: string
   status: string
+  type: string
   created_at: string
   first_name: string
   last_name: string
@@ -29,6 +30,7 @@ function statusLabel(status: string) {
 export default function AdminFeedback() {
   const [items, setItems] = useState<FeedbackItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [typeFilter, setTypeFilter] = useState<'all' | 'idea' | 'bug'>('all')
   const [filter, setFilter] = useState('all')
 
   const load = () =>
@@ -49,24 +51,39 @@ export default function AdminFeedback() {
     setItems(prev => prev.filter(i => i.id !== id))
   }
 
-  const visible = filter === 'all' ? items : items.filter(i => i.status === filter)
+  const visible = items
+    .filter(i => typeFilter === 'all' || i.type === typeFilter)
+    .filter(i => filter === 'all' || i.status === filter)
 
   return (
     <div>
       <h2 className="text-xl font-bold text-gray-800 mb-1">Site Ideas & Feedback</h2>
       <p className="text-sm text-gray-500 mb-5">Ideas submitted by members from the dashboard.</p>
 
-      {/* Filter bar */}
-      <div className="flex flex-wrap gap-2 mb-5">
-        {[{ value: 'all', label: `All (${items.length})` }, ...STATUSES].map(s => (
-          <button key={s.value} onClick={() => setFilter(s.value)}
-            className={`px-3 py-1 rounded-full text-xs font-medium transition border
-              ${filter === s.value
-                ? 'bg-green-700 text-white border-green-700'
-                : 'bg-white text-gray-600 border-gray-200 hover:border-green-400'}`}>
-            {s.label}
-          </button>
-        ))}
+      {/* Type + status filters */}
+      <div className="flex flex-wrap gap-4 mb-5">
+        <div className="flex gap-2">
+          {([['all', 'All Types'], ['idea', '💡 Ideas'], ['bug', '🐛 Bugs']] as const).map(([val, lbl]) => (
+            <button key={val} onClick={() => setTypeFilter(val)}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition border
+                ${typeFilter === val
+                  ? 'bg-gray-800 text-white border-gray-800'
+                  : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'}`}>
+              {lbl}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-2">
+          {[{ value: 'all', label: 'All Statuses' }, ...STATUSES].map(s => (
+            <button key={s.value} onClick={() => setFilter(s.value)}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition border
+                ${filter === s.value
+                  ? 'bg-green-700 text-white border-green-700'
+                  : 'bg-white text-gray-600 border-gray-200 hover:border-green-400'}`}>
+              {s.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {loading ? (
@@ -82,12 +99,15 @@ export default function AdminFeedback() {
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-gray-800 whitespace-pre-wrap">{item.message}</p>
-                  <p className="text-xs text-gray-400 mt-1.5">
-                    {item.first_name} {item.last_name}
-                    <span className="mx-1">·</span>
-                    {new Date(item.created_at).toLocaleDateString('en-US', {
+                  <p className="text-xs text-gray-400 mt-1.5 flex items-center gap-1.5">
+                    <span className={`font-medium px-1.5 py-0.5 rounded text-xs ${item.type === 'bug' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'}`}>
+                      {item.type === 'bug' ? '🐛 Bug' : '💡 Idea'}
+                    </span>
+                    <span>{item.first_name} {item.last_name}</span>
+                    <span>·</span>
+                    <span>{new Date(item.created_at).toLocaleDateString('en-US', {
                       month: 'short', day: 'numeric', year: 'numeric'
-                    })}
+                    })}</span>
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">

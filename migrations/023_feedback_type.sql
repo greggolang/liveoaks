@@ -1,0 +1,1 @@
+ALTER TABLE feedback ADD COLUMN type TEXT NOT NULL DEFAULT 'idea';

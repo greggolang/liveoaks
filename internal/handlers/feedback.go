@@ -16,6 +16,7 @@ func (h *FeedbackHandler) Submit(c echo.Context) error {
 	userID := c.Get("user_id").(string)
 	var req struct {
 		Message string `json:"message"`
+		Type    string `json:"type"`
 	}
 	if err := c.Bind(&req); err != nil || len(req.Message) == 0 {
 		return echo.NewHTTPError(http.StatusBadRequest, "message required")
@@ -23,9 +24,12 @@ func (h *FeedbackHandler) Submit(c echo.Context) error {
 	if len(req.Message) > 1000 {
 		return echo.NewHTTPError(http.StatusBadRequest, "message too long (max 1000 characters)")
 	}
+	if req.Type != "idea" && req.Type != "bug" {
+		req.Type = "idea"
+	}
 	_, err := h.DB.Exec(c.Request().Context(),
-		`INSERT INTO feedback (user_id, message) VALUES ($1, $2)`,
-		userID, req.Message)
+		`INSERT INTO feedback (user_id, message, type) VALUES ($1, $2, $3)`,
+		userID, req.Message, req.Type)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not save feedback")
 	}
@@ -34,7 +38,7 @@ func (h *FeedbackHandler) Submit(c echo.Context) error {
 
 func (h *FeedbackHandler) AdminList(c echo.Context) error {
 	rows, err := h.DB.Query(c.Request().Context(),
-		`SELECT f.id, f.message, f.status, f.created_at,
+		`SELECT f.id, f.message, f.status, f.type, f.created_at,
 		        u.first_name, u.last_name, u.email
 		 FROM feedback f
 		 JOIN users u ON u.id = f.user_id
@@ -48,6 +52,7 @@ func (h *FeedbackHandler) AdminList(c echo.Context) error {
 		ID        string    `json:"id"`
 		Message   string    `json:"message"`
 		Status    string    `json:"status"`
+		Type      string    `json:"type"`
 		CreatedAt time.Time `json:"created_at"`
 		FirstName string    `json:"first_name"`
 		LastName  string    `json:"last_name"`
@@ -56,7 +61,7 @@ func (h *FeedbackHandler) AdminList(c echo.Context) error {
 	items := []Item{}
 	for rows.Next() {
 		var i Item
-		if err := rows.Scan(&i.ID, &i.Message, &i.Status, &i.CreatedAt, &i.FirstName, &i.LastName, &i.Email); err != nil {
+		if err := rows.Scan(&i.ID, &i.Message, &i.Status, &i.Type, &i.CreatedAt, &i.FirstName, &i.LastName, &i.Email); err != nil {
 			continue
 		}
 		items = append(items, i)

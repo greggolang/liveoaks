@@ -125,8 +125,8 @@ export const api = {
     delete: (id: string) => request(`/admin/photos/${id}`, { method: 'DELETE' }),
   },
   feedback: {
-    submit: (message: string) =>
-      request('/feedback', { method: 'POST', body: JSON.stringify({ message }) }),
+    submit: (message: string, type: 'idea' | 'bug') =>
+      request('/feedback', { method: 'POST', body: JSON.stringify({ message, type }) }),
     adminList: () => request('/admin/feedback'),
     updateStatus: (id: string, status: string) =>
       request(`/admin/feedback/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),

@@ -10,6 +10,7 @@ interface Booking {
 }
 interface Court { id: number; name: string; number: number; has_ball_machine?: boolean }
 type SubmitState = 'idle' | 'sending' | 'done' | 'error'
+type FeedbackType = 'idea' | 'bug'
 
 interface Announcement {
   id: string; title: string; body: string; created_at: string
@@ -22,7 +23,9 @@ export default function Dashboard() {
   const { user } = useAuth()
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [idea, setIdea] = useState('')
-  const [submitState, setSubmitState] = useState<SubmitState>('idle')
+  const [bug, setBug] = useState('')
+  const [ideaState, setIdeaState] = useState<SubmitState>('idle')
+  const [bugState, setBugState] = useState<SubmitState>('idle')
   const [bookings, setBookings] = useState<Booking[]>([])
   const [courts, setCourts] = useState<Court[]>([])
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
@@ -123,45 +126,40 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Site feedback */}
-      <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-        <h2 className="text-base font-semibold text-gray-700 mb-1">Got an idea for the site?</h2>
-        <p className="text-xs text-gray-400 mb-3">Suggestions go straight to the admin team.</p>
-        {submitState === 'done' ? (
-          <div className="flex items-center gap-2 text-green-700 text-sm font-medium">
-            <span>✓</span> Thanks — your idea was sent!
-            <button onClick={() => { setSubmitState('idle'); setIdea('') }}
-              className="ml-2 text-xs text-gray-400 hover:text-gray-600">Submit another</button>
-          </div>
-        ) : (
-          <form onSubmit={async e => {
-            e.preventDefault()
-            if (!idea.trim()) return
-            setSubmitState('sending')
-            try {
-              await api.feedback.submit(idea.trim())
-              setSubmitState('done')
-            } catch {
-              setSubmitState('error')
-            }
-          }} className="flex gap-2 items-start">
-            <textarea
-              value={idea}
-              onChange={e => { setIdea(e.target.value); if (submitState === 'error') setSubmitState('idle') }}
-              placeholder="Describe your idea or request…"
-              maxLength={1000}
-              rows={2}
-              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-green-500"
-            />
-            <button type="submit" disabled={submitState === 'sending' || !idea.trim()}
-              className="bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-4 py-2 rounded-lg transition disabled:opacity-50 shrink-0">
-              {submitState === 'sending' ? 'Sending…' : 'Send'}
-            </button>
-          </form>
-        )}
-        {submitState === 'error' && (
-          <p className="text-red-500 text-xs mt-1">Something went wrong — please try again.</p>
-        )}
+      {/* Feedback row */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Site idea */}
+        <FeedbackBox
+          title="Got an idea for the site?"
+          placeholder="Describe your idea or request…"
+          buttonLabel="Send Idea"
+          value={idea}
+          onChange={setIdea}
+          state={ideaState}
+          onSubmit={async () => {
+            setIdeaState('sending')
+            try { await api.feedback.submit(idea.trim(), 'idea'); setIdeaState('done') }
+            catch { setIdeaState('error') }
+          }}
+          onReset={() => { setIdeaState('idle'); setIdea('') }}
+          doneMessage="Thanks — your idea was sent!"
+        />
+        {/* Bug report */}
+        <FeedbackBox
+          title="Found a bug?"
+          placeholder="Describe what happened and how to reproduce it…"
+          buttonLabel="Report Bug"
+          value={bug}
+          onChange={setBug}
+          state={bugState}
+          onSubmit={async () => {
+            setBugState('sending')
+            try { await api.feedback.submit(bug.trim(), 'bug'); setBugState('done') }
+            catch { setBugState('error') }
+          }}
+          onReset={() => { setBugState('idle'); setBug('') }}
+          doneMessage="Bug reported — thanks!"
+        />
       </div>
 
       {/* Latest announcements */}
@@ -180,6 +178,47 @@ export default function Dashboard() {
             ))}
           </div>
         </div>
+      )}
+    </div>
+  )
+}
+
+function FeedbackBox({ title, placeholder, buttonLabel, value, onChange, state, onSubmit, onReset, doneMessage }: {
+  title: string; placeholder: string; buttonLabel: string
+  value: string; onChange: (v: string) => void
+  state: SubmitState; onSubmit: () => void; onReset: () => void
+  doneMessage: string
+}) {
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+      <h2 className="text-base font-semibold text-gray-700 mb-1">{title}</h2>
+      <p className="text-xs text-gray-400 mb-3">Sent straight to the admin team.</p>
+      {state === 'done' ? (
+        <div className="flex items-center gap-2 text-green-700 text-sm font-medium">
+          <span>✓</span> {doneMessage}
+          <button onClick={onReset} className="ml-2 text-xs text-gray-400 hover:text-gray-600">
+            Submit another
+          </button>
+        </div>
+      ) : (
+        <form onSubmit={e => { e.preventDefault(); if (value.trim()) onSubmit() }}
+          className="flex gap-2 items-start">
+          <textarea
+            value={value}
+            onChange={e => onChange(e.target.value)}
+            placeholder={placeholder}
+            maxLength={1000}
+            rows={2}
+            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-green-500"
+          />
+          <button type="submit" disabled={state === 'sending' || !value.trim()}
+            className="bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-4 py-2 rounded-lg transition disabled:opacity-50 shrink-0">
+            {state === 'sending' ? 'Sending…' : buttonLabel}
+          </button>
+        </form>
+      )}
+      {state === 'error' && (
+        <p className="text-red-500 text-xs mt-1">Something went wrong — please try again.</p>
       )}
     </div>
   )
