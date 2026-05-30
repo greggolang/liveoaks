@@ -12,6 +12,8 @@ interface Booking {
 }
 interface Selected { courtId: number; hour: number; courtName: string }
 interface Friend { id: string; friend_user_id?: string; friend_name: string; friend_email?: string; is_guest: boolean }
+interface GroupMember { friend_id: string; friend_name: string; friend_email?: string; is_guest: boolean }
+interface FriendGroup { id: string; name: string; members: GroupMember[] }
 interface MatchPlayer { id: string; player_name: string; player_email?: string; is_guest: boolean; is_host: boolean }
 interface Invitation { id: string; invitee_name: string; invitee_email: string; status: string; is_guest: boolean }
 
@@ -59,6 +61,7 @@ export default function Bookings() {
   const [myBookings, setMyBookings] = useState<Booking[]>([])
   // Invite state
   const [friends, setFriends] = useState<Friend[]>([])
+  const [friendGroups, setFriendGroups] = useState<FriendGroup[]>([])
   const [selectedFriends, setSelectedFriends] = useState<string[]>([]) // friend ids to invite at booking time
   const [confirming, setConfirming] = useState(false)
   const [activeBookingRoster, setActiveBookingRoster] = useState<{ bookingId: string; players: MatchPlayer[]; invitations: Invitation[] } | null>(null)
@@ -79,6 +82,7 @@ export default function Bookings() {
   useEffect(() => {
     api.courts.list().then(d => setCourts(d as Court[]))
     api.friends.list().then(d => setFriends(d as Friend[]))
+    api.groups.list().then(d => setFriendGroups(d as FriendGroup[]))
   }, [])
 
   useEffect(() => { load() }, [load])
@@ -86,6 +90,7 @@ export default function Bookings() {
     if (tab === 'mine') {
       loadMine()
       api.friends.list().then(d => setFriends(d as Friend[]))
+      api.groups.list().then(d => setFriendGroups(d as FriendGroup[]))
     }
   }, [tab])
 
@@ -288,6 +293,30 @@ export default function Bookings() {
                     )}
                   </div>
                 )}
+                {/* Group invite — show groups whose size exactly fills the open spots */}
+                {matchType !== 'casual' && matchType !== 'ball_machine' && playersNeeded > 0 && (() => {
+                  const matchingGroups = friendGroups.filter(g => g.members.length === playersNeeded)
+                  if (matchingGroups.length === 0) return null
+                  return (
+                    <div className="flex flex-wrap gap-1.5 items-center">
+                      <span className="text-xs text-green-700 font-medium">Groups:</span>
+                      {matchingGroups.map(g => {
+                        const allPicked = g.members.every(m => selectedFriends.includes(m.friend_id))
+                        return (
+                          <button key={g.id} type="button"
+                            onClick={() => setSelectedFriends(allPicked ? [] : g.members.map(m => m.friend_id))}
+                            className={`px-2.5 py-1 rounded-full text-xs font-medium transition
+                              ${allPicked
+                                ? 'bg-green-700 text-white'
+                                : 'bg-white border border-green-300 text-green-700 hover:bg-green-50'}`}>
+                            {allPicked ? '✓ ' : ''}{g.name}
+                            <span className="ml-1 opacity-70">({g.members.length})</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )
+                })()}
                 <input value={notes} onChange={e => setNotes(e.target.value)}
                   placeholder="Notes (optional)" maxLength={80}
                   className="border border-green-200 rounded-lg px-3 py-1 text-sm flex-1 min-w-32 focus:outline-none focus:ring-2 focus:ring-green-500 bg-white" />

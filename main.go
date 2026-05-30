@@ -82,6 +82,7 @@ func main() {
 	perms := &handlers.PermissionsHandler{DB: pool}
 	feedback := &handlers.FeedbackHandler{DB: pool}
 	family := &handlers.FamilyHandler{DB: pool}
+	groups := &handlers.GroupsHandler{DB: pool}
 	invitations := &handlers.InvitationsHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	signups := &handlers.SignupsHandler{DB: pool}
 
@@ -188,6 +189,13 @@ func main() {
 	authed.PUT("/family-members/:id", family.Update)
 	authed.DELETE("/family-members/:id", family.Delete)
 	boardPlus.GET("/admin/users/:userId/family", family.AdminList)
+
+	authed.GET("/friend-groups", groups.List)
+	authed.POST("/friend-groups", groups.Create)
+	authed.PUT("/friend-groups/:id", groups.Update)
+	authed.DELETE("/friend-groups/:id", groups.Delete)
+	authed.POST("/friend-groups/:id/members", groups.AddMember)
+	authed.DELETE("/friend-groups/:id/members/:friendId", groups.RemoveMember)
 
 	// Serve uploaded files
 	e.GET("/uploads/documents/:filename", uploads.ServeDocument)

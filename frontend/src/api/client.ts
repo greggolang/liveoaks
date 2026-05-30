@@ -124,6 +124,16 @@ export const api = {
     },
     delete: (id: string) => request(`/admin/photos/${id}`, { method: 'DELETE' }),
   },
+  groups: {
+    list: () => request('/friend-groups'),
+    create: (name: string) => request('/friend-groups', { method: 'POST', body: JSON.stringify({ name }) }),
+    update: (id: string, name: string) => request(`/friend-groups/${id}`, { method: 'PUT', body: JSON.stringify({ name }) }),
+    delete: (id: string) => request(`/friend-groups/${id}`, { method: 'DELETE' }),
+    addMember: (groupId: string, friendId: string) =>
+      request(`/friend-groups/${groupId}/members`, { method: 'POST', body: JSON.stringify({ friend_id: friendId }) }),
+    removeMember: (groupId: string, friendId: string) =>
+      request(`/friend-groups/${groupId}/members/${friendId}`, { method: 'DELETE' }),
+  },
   family: {
     list: () => request('/family-members'),
     create: (data: object) => request('/family-members', { method: 'POST', body: JSON.stringify(data) }),
