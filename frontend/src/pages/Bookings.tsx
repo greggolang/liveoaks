@@ -262,12 +262,13 @@ export default function Bookings() {
                     ))}
                   </select>
                 )}
-                {matchType !== 'casual' && playersNeeded > 0 && friends.length > 0 && (
+                {friends.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 items-center">
                     <span className="text-xs text-green-700 font-medium">Invite:</span>
                     {friends.map(f => {
                       const picked = selectedFriends.includes(f.id)
-                      const atLimit = selectedFriends.length >= playersNeeded && !picked
+                      const limit = matchType !== 'casual' && playersNeeded > 0 ? playersNeeded : Infinity
+                      const atLimit = selectedFriends.length >= limit && !picked
                       return (
                         <button key={f.id} type="button"
                           onClick={() => setSelectedFriends(s =>
@@ -282,7 +283,7 @@ export default function Bookings() {
                         </button>
                       )
                     })}
-                    {selectedFriends.length > 0 && (
+                    {selectedFriends.length > 0 && matchType !== 'casual' && playersNeeded > 0 && (
                       <span className="text-xs text-green-600">{selectedFriends.length}/{playersNeeded} selected</span>
                     )}
                   </div>
