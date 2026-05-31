@@ -54,7 +54,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <nav className="bg-green-700 text-white shadow-md">
+      <nav className="bg-green-700 text-white shadow-md sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <Link to="/dashboard" className="text-lg font-bold tracking-wide shrink-0">
@@ -64,6 +64,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
             {/* Desktop nav */}
             <div className="hidden md:flex items-center gap-5 text-sm font-medium flex-wrap justify-end">
+              <NavLink to="/bookings" className={navLink}>Book a Court</NavLink>
+              <NavLink to="/events" className={navLink}>Events</NavLink>
+              <NavLink to="/pro-shop" className={navLink}>Pro Shop</NavLink>
+              <NavLink to="/directory" className={navLink}>Directory</NavLink>
+              <span className="w-px h-4 bg-green-600" />
               <NavLink to="/friends" className={navLink}>Friends</NavLink>
               <NavLink to="/messages" className={({ isActive }) =>
                 `relative hover:text-green-200 transition text-sm ${isActive ? 'text-white font-semibold' : 'text-green-100'}`}>
@@ -113,6 +118,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           {menuOpen && (
             <div className="md:hidden mt-3 pb-2 border-t border-green-600 flex flex-col gap-2 pt-3 text-sm">
               {[
+                ['/bookings', 'Book a Court'],
+                ['/events', 'Events'],
+                ['/pro-shop', 'Pro Shop'],
+                ['/directory', 'Directory'],
                 ['/friends', 'Friends'],
                 ['/messages', unreadMessages > 0 ? `Messages (${unreadMessages})` : 'Messages'],
                 ...(showFantasy ? [['/fantasy', 'Fantasy Pool']] : []),

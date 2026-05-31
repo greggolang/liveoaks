@@ -11,10 +11,9 @@ const GUEST_FEE_SETTINGS = [
 const GUEST_FEE_KEYS = new Set(GUEST_FEE_SETTINGS.map(s => s.key))
 
 const LABELS: Record<string, string> = {
-  club_name:                    'Club Name',
-  dues_amount:                  'Annual Dues Amount ($)',
-  dues_period:                  'Dues Period',
-  session_timeout_minutes:      'Auto Logout (minutes, 0 = off)',
+  club_name:   'Club Name',
+  dues_amount: 'Annual Dues Amount ($)',
+  dues_period: 'Dues Period',
 }
 
 type BSType = 'text' | 'boolean' | 'time'
@@ -62,6 +61,8 @@ const HIDDEN_KEYS = new Set([
   ...GUEST_FEE_KEYS,
   'camera_url',
   'timezone',
+  'session_timeout_minutes', // superseded by session_timeout_days
+  'session_timeout_days',    // rendered in its own section below
   'weather_lat', 'weather_lon', 'weather_zip',
   'smtp_host','smtp_port','smtp_user','smtp_pass','smtp_from',
   'google_email_president','google_email_vice_president','google_email_secretary',
@@ -271,6 +272,53 @@ export default function AdminSettings() {
             ))}
           </div>
         ))}
+      </div>
+
+      {/* Session & Security */}
+      <h2 className="text-xl font-bold text-gray-800 mt-8 mb-1">Session &amp; Security</h2>
+      <p className="text-sm text-gray-500 mb-4">
+        Controls how long members stay logged in. Changes take effect on the member's <strong>next login</strong>.
+      </p>
+      <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+        <div className="flex items-center gap-4">
+          <label className="w-56 text-sm font-medium text-gray-700 shrink-0">Auto Logout (days)</label>
+          <input
+            type="number"
+            min={0}
+            step={1}
+            value={settings['session_timeout_days'] ?? '0'}
+            onChange={e => setSettings(s => ({ ...s, session_timeout_days: e.target.value }))}
+            className="w-28 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+          />
+          <button onClick={() => save('session_timeout_days')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition shrink-0 ${saved['session_timeout_days'] ? 'bg-green-100 text-green-700' : 'bg-green-700 text-white hover:bg-green-800'}`}>
+            {saved['session_timeout_days'] ? 'Saved!' : 'Save'}
+          </button>
+        </div>
+        <p className="text-xs text-gray-400 mt-2 ml-[calc(224px+1rem)]">
+          <strong>0 = never log out</strong> (recommended). Enter a number of days (e.g. <code className="font-mono">30</code>) to automatically
+          log members out after that many days of inactivity. Admins are never automatically logged out.
+          The new expiry takes effect on each member's <em>next login</em>.
+        </p>
+        {(() => {
+          const v = parseInt(settings['session_timeout_days'] ?? '0') || 0
+          if (v <= 0) return (
+            <div className="mt-3 ml-[calc(224px+1rem)] flex items-center gap-2 text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2 w-fit">
+              <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              Auto-logout is <strong>off</strong> — members stay logged in indefinitely.
+            </div>
+          )
+          return (
+            <div className="mt-3 ml-[calc(224px+1rem)] flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 w-fit">
+              <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Members will be logged out after <strong>{v} day{v !== 1 ? 's' : ''}</strong> of inactivity.
+            </div>
+          )
+        })()}
       </div>
 
       {/* Live Camera */}

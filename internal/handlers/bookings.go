@@ -318,6 +318,15 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 		req.MatchType = "casual"
 	}
 
+	// Teaching Pro sessions are restricted to Courts 3 and 4.
+	if req.MatchType == "teaching_pro" {
+		var courtNumber int
+		h.DB.QueryRow(c.Request().Context(), `SELECT number FROM courts WHERE id = $1`, req.CourtID).Scan(&courtNumber)
+		if courtNumber != 3 && courtNumber != 4 {
+			return echo.NewHTTPError(http.StatusBadRequest, "Teaching Pro sessions are only available on Courts 3 and 4")
+		}
+	}
+
 	var booking models.Booking
 	err := h.DB.QueryRow(c.Request().Context(),
 		`INSERT INTO bookings (user_id, court_id, start_time, end_time, notes, match_type, players_needed)
@@ -533,6 +542,15 @@ func (h *BookingsHandler) Update(c echo.Context) error {
 
 	if req.MatchType == "" {
 		req.MatchType = "casual"
+	}
+
+	// Teaching Pro sessions are restricted to Courts 3 and 4.
+	if req.MatchType == "teaching_pro" {
+		var courtNumber int
+		h.DB.QueryRow(c.Request().Context(), `SELECT number FROM courts WHERE id = $1`, newCourtID).Scan(&courtNumber)
+		if courtNumber != 3 && courtNumber != 4 {
+			return echo.NewHTTPError(http.StatusBadRequest, "Teaching Pro sessions are only available on Courts 3 and 4")
+		}
 	}
 
 	_, err := h.DB.Exec(c.Request().Context(),

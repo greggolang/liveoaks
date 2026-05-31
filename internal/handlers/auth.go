@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -105,12 +106,25 @@ func (h *AuthHandler) Login(c echo.Context) error {
 	h.DB.Exec(c.Request().Context(), `UPDATE users SET last_login_at = NOW(), login_count = login_count + 1 WHERE id = $1`, user.ID)
 	h.Logger.Log(c.Request().Context(), "login", user.FirstName+" "+user.LastName, user.ID, c.RealIP())
 
+	// Determine token lifetime from the session_timeout_days setting.
+	// 0 (or unset) means "never expire" — use 10 years so the cookie doesn't vanish.
+	var timeoutStr string
+	h.DB.QueryRow(c.Request().Context(),
+		`SELECT value FROM settings WHERE key = 'session_timeout_days'`).Scan(&timeoutStr)
+	days, _ := strconv.Atoi(timeoutStr)
+	var tokenTTL time.Duration
+	if days > 0 {
+		tokenTTL = time.Duration(days) * 24 * time.Hour
+	} else {
+		tokenTTL = 10 * 365 * 24 * time.Hour // effectively never
+	}
+
 	claims := &middleware.Claims{
 		UserID:     user.ID,
 		Role:       string(user.Role),
 		ExtraRoles: user.ExtraRoles,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(tokenTTL)),
 		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -124,7 +138,7 @@ func (h *AuthHandler) Login(c echo.Context) error {
 		Value:    signed,
 		HttpOnly: true,
 		Path:     "/",
-		Expires:  time.Now().Add(24 * time.Hour),
+		Expires:  time.Now().Add(tokenTTL),
 		SameSite: http.SameSiteStrictMode,
 	})
 

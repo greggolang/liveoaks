@@ -33,12 +33,18 @@ interface MatchPlayer { id: string; player_name: string; player_email?: string; 
 interface Invitation { id: string; invitee_name: string; invitee_email: string; status: string; is_guest: boolean }
 
 const MATCH_TYPES = [
-  { value: 'singles',      label: 'Singles',       ballMachineOnly: false },
-  { value: 'doubles',      label: 'Doubles',       ballMachineOnly: false },
-  { value: 'casual',       label: 'Hit Session',   ballMachineOnly: false },
-  { value: 'teaching_pro', label: 'Teaching Pro',  ballMachineOnly: false },
-  { value: 'ball_machine', label: 'Ball Machine',  ballMachineOnly: true  },
+  { value: 'singles',      label: 'Singles',       ballMachineOnly: false, proCourtOnly: false },
+  { value: 'doubles',      label: 'Doubles',       ballMachineOnly: false, proCourtOnly: false },
+  { value: 'casual',       label: 'Hit Session',   ballMachineOnly: false, proCourtOnly: false },
+  { value: 'teaching_pro', label: 'Teaching Pro',  ballMachineOnly: false, proCourtOnly: true  },
+  { value: 'ball_machine', label: 'Ball Machine',  ballMachineOnly: true,  proCourtOnly: false },
 ]
+
+// Teaching Pro is only allowed on Courts 3 and 4.
+function isProCourt(courtId: number, courts: { id: number; number: number }[]) {
+  const n = courts.find(c => c.id === courtId)?.number ?? 0
+  return n === 3 || n === 4
+}
 
 // Fixed roster capacity per match type (excluding the host)
 const PLAYERS_BY_TYPE: Record<string, number> = {
@@ -635,7 +641,10 @@ export default function Bookings() {
                 <select value={matchType} onChange={e => { setMatchType(e.target.value); setPlayersNeeded(PLAYERS_BY_TYPE[e.target.value] ?? 0); setSelectedFriends([]); setDirectPlayers([]); setBookingSearchMode(null); setBookingSearchQuery(''); setBookingSearchResults([]) }}
                   className="border border-green-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white text-green-800">
                   {MATCH_TYPES
-                    .filter(m => !m.ballMachineOnly || courts.find(c => c.id === selected.courtId)?.has_ball_machine)
+                    .filter(m =>
+                      (!m.ballMachineOnly || courts.find(c => c.id === selected.courtId)?.has_ball_machine) &&
+                      (!m.proCourtOnly    || isProCourt(selected.courtId, courts))
+                    )
                     .map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
                 </select>
                 {/* ── Player limits (hidden for ball machine — solo only) ── */}
@@ -1059,7 +1068,9 @@ export default function Bookings() {
                             {available.map(c => (
                               <button key={c.id} type="button"
                                 onClick={() => {
-                                  const mt = editForm.matchType === 'ball_machine' && !c.has_ball_machine ? 'casual' : editForm.matchType
+                                  let mt = editForm.matchType
+                                  if (mt === 'ball_machine' && !c.has_ball_machine) mt = 'casual'
+                                  if (mt === 'teaching_pro' && !isProCourt(c.id, courts)) mt = 'casual'
                                   setEditForm(f => ({ ...f, courtId: c.id, matchType: mt, playersNeeded: PLAYERS_BY_TYPE[mt] ?? 0 }))
                                 }}
                                 className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${editForm.courtId === c.id ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
@@ -1092,7 +1103,10 @@ export default function Bookings() {
                       <p className="text-xs font-medium text-gray-600 mb-2">Match Type</p>
                       <div className="flex flex-wrap gap-2">
                         {MATCH_TYPES
-                          .filter(m => !m.ballMachineOnly || courts.find(c => c.id === editForm.courtId)?.has_ball_machine)
+                          .filter(m =>
+                            (!m.ballMachineOnly || courts.find(c => c.id === editForm.courtId)?.has_ball_machine) &&
+                            (!m.proCourtOnly    || isProCourt(editForm.courtId, courts))
+                          )
                           .map(m => (
                             <button key={m.value} type="button"
                               onClick={() => setEditForm(f => ({ ...f, matchType: m.value, playersNeeded: PLAYERS_BY_TYPE[m.value] ?? 0 }))}
@@ -1426,6 +1440,12 @@ export default function Bookings() {
                       const isSelectedSlot = selected?.courtId === c.id && selected?.hour === slot
 
                       if (booking) {
+                        // Determine if the current user is involved in this booking:
+                        // either as the host or as a confirmed roster player.
+                        const myFullName = user ? `${user.first_name} ${user.last_name}` : ''
+                        const isOnRoster = !isMe && (booking.players?.includes(myFullName) ?? false)
+                        const isInvolved = isMe || isOnRoster
+
                         const showDetails = isFirstSlot(booking, slot)
                         const isBallMachine = booking.match_type === 'ball_machine'
                         const bStart = new Date(booking.start_time)
@@ -1437,35 +1457,59 @@ export default function Bookings() {
                           : booking.match_type === 'casual' ? 'Hit Session'
                           : ''
                         const extraPlayers = (booking.players ?? []).slice(1)
+
+                        // Color scheme:
+                        //   dark green  = my booking (I'm the host)
+                        //   light green = I'm on the roster but not the host
+                        //   slate       = I'm not involved in this booking at all
+                        const cellBg = isMe ? 'bg-green-600 text-white'
+                          : isOnRoster ? 'bg-green-100 text-green-800'
+                          : 'bg-slate-100 text-slate-600'
+                        const subText = isMe ? 'text-green-200'
+                          : isOnRoster ? 'text-green-600'
+                          : 'text-slate-400'
+                        const dividerColor = isMe ? 'border-green-500'
+                          : isOnRoster ? 'border-green-200'
+                          : 'border-slate-200'
+                        const cancelBtnColor = isMe ? 'text-green-200'
+                          : isOnRoster ? 'text-green-600'
+                          : 'text-slate-400'
+                        const compactBg = isMe ? 'bg-green-600'
+                          : isOnRoster ? 'bg-green-100'
+                          : 'bg-slate-200'
+
                         return (
                           <td key={c.id} className="px-2 py-1 align-top">
                             {showDetails ? (
                               <div
                                 onClick={() => setBookingDetail(bookingDetail?.id === booking.id ? null : booking)}
-                                className={`rounded-lg px-2 py-1.5 flex flex-col gap-0.5 cursor-pointer hover:opacity-90 transition ${isMe ? 'bg-green-600 text-white' : 'bg-green-100 text-green-800'}`}>
+                                className={`rounded-lg px-2 py-1.5 flex flex-col gap-0.5 cursor-pointer hover:opacity-90 transition ${cellBg}`}>
                                 <div className="flex items-center justify-between gap-1">
                                   <span className="text-xs font-semibold truncate">
-                                    {isBallMachine ? '🤖 Ball Machine' : isMe ? 'Me' : `${booking.user.first_name} ${booking.user.last_name[0]}.`}
+                                    {isBallMachine ? '🤖 Ball Machine'
+                                      : isMe ? 'Me'
+                                      : isOnRoster ? `${booking.user.first_name} ${booking.user.last_name[0]}.`
+                                      : `${booking.user.first_name} ${booking.user.last_name[0]}.`}
                                   </span>
                                   {(isMe || isBoard) && (
                                     <button
                                       onClick={e => { e.stopPropagation(); openCancelModal(booking.id, isMe) }}
-                                      className={`text-xs shrink-0 hover:opacity-70 transition ${isMe ? 'text-green-200' : 'text-green-600'}`}>
+                                      className={`text-xs shrink-0 hover:opacity-70 transition ${cancelBtnColor}`}>
                                       ✕
                                     </button>
                                   )}
                                 </div>
-                                <span className={`text-xs truncate ${isMe ? 'text-green-200' : 'text-green-600'}`}>{timeRange}</span>
+                                <span className={`text-xs truncate ${subText}`}>{timeRange}</span>
                                 {matchLabel && !isBallMachine && (
-                                  <span className={`text-xs truncate ${isMe ? 'text-green-200' : 'text-green-600'}`}>{matchLabel}</span>
+                                  <span className={`text-xs truncate ${subText}`}>{matchLabel}</span>
                                 )}
                                 {(() => {
-                                  const r = isMe ? rosterMap[booking.id] : null
+                                  const r = isInvolved ? rosterMap[booking.id] : null
                                   const pending = r?.invitations.filter(i => i.status === 'pending') ?? []
                                   const showPlayers = extraPlayers.length > 0 || pending.length > 0
                                   if (!showPlayers) return null
                                   return (
-                                    <div className={`text-xs mt-0.5 pt-0.5 border-t space-y-0.5 ${isMe ? 'border-green-500' : 'border-green-200'}`}>
+                                    <div className={`text-xs mt-0.5 pt-0.5 border-t space-y-0.5 ${dividerColor}`}>
                                       {extraPlayers.map((name, i) => (
                                         <div key={i} className="truncate leading-tight">{name.split(' ')[0]}</div>
                                       ))}
@@ -1479,7 +1523,7 @@ export default function Bookings() {
                                 })()}
                               </div>
                             ) : (
-                              <div className={`rounded h-7 ${isMe ? 'bg-green-600' : 'bg-green-100'}`} />
+                              <div className={`rounded h-7 ${compactBg}`} />
                             )}
                           </td>
                         )
@@ -1513,12 +1557,16 @@ export default function Bookings() {
               Available — click to book
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-4 h-4 bg-green-100 rounded inline-block"></span>
-              Booked by member
+              <span className="w-4 h-4 bg-green-600 rounded inline-block"></span>
+              My booking (host)
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-4 h-4 bg-green-600 rounded inline-block"></span>
-              My booking
+              <span className="w-4 h-4 bg-green-100 rounded inline-block"></span>
+              I'm on the roster
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-4 h-4 bg-slate-200 rounded inline-block"></span>
+              Other member's booking
             </span>
             <span className="flex items-center gap-1.5">
               <span className="w-4 h-4 bg-gray-50 border border-gray-100 rounded inline-block"></span>
@@ -2031,7 +2079,7 @@ const TUTORIAL_STEPS = [
   {
     icon: '🟩',
     title: 'Choose an Open Slot',
-    body: 'The grid shows every court across the top and 30-minute slots down the side (8:00 AM – 7:30 PM). White cells are available — click one to start a booking. Gray cells are in the past. Green cells are already taken.',
+    body: 'The grid shows every court across the top and 30-minute slots down the side (8:00 AM – 7:30 PM). White cells are available — click one to start a booking. Gray cells are in the past. Dark green = your own booking, light green = you\'re on that roster, slate gray = someone else\'s booking.',
   },
   {
     icon: '⏱',

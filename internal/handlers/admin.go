@@ -47,13 +47,13 @@ func (h *AdminHandler) ActivityLog(c echo.Context) error {
 	return c.JSON(http.StatusOK, entries)
 }
 
-// GetSessionConfig is a public endpoint — returns only the session timeout setting.
+// GetSessionConfig is a public endpoint — returns session and booking config.
 func (h *AdminHandler) GetSessionConfig(c echo.Context) error {
-	var minutes, maxDaysAhead string
+	var days, maxDaysAhead string
 	h.DB.QueryRow(c.Request().Context(),
-		`SELECT value FROM settings WHERE key = 'session_timeout_minutes'`).Scan(&minutes)
-	if minutes == "" {
-		minutes = "60"
+		`SELECT value FROM settings WHERE key = 'session_timeout_days'`).Scan(&days)
+	if days == "" {
+		days = "0"
 	}
 	h.DB.QueryRow(c.Request().Context(),
 		`SELECT value FROM settings WHERE key = 'booking_max_days_ahead'`).Scan(&maxDaysAhead)
@@ -61,8 +61,8 @@ func (h *AdminHandler) GetSessionConfig(c echo.Context) error {
 		maxDaysAhead = "5"
 	}
 	return c.JSON(http.StatusOK, map[string]string{
-		"session_timeout_minutes": minutes,
-		"booking_max_days_ahead":  maxDaysAhead,
+		"session_timeout_days":   days,
+		"booking_max_days_ahead": maxDaysAhead,
 	})
 }
 

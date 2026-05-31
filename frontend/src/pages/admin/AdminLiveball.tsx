@@ -35,7 +35,7 @@ export default function AdminLiveball() {
 
   // Create form
   const [showCreate, setShowCreate] = useState(false)
-  const [cForm, setCForm] = useState({ title: '', description: '', start_time: '', end_time: '', max_players: 8 })
+  const [cForm, setCForm] = useState({ description: '', date: '', time: '', max_players: 8 })
   const [cSaving, setCSaving] = useState(false)
   const [cErr, setCErr] = useState('')
 
@@ -69,21 +69,22 @@ export default function AdminLiveball() {
   }
 
   const createEvent = async () => {
+    if (!cForm.date || !cForm.time) { setCErr('Date and start time are required'); return }
     setCSaving(true); setCErr('')
     try {
-      const payload: any = {
-        title: cForm.title,
+      const startDT = new Date(`${cForm.date}T${cForm.time}`)
+      const endDT   = new Date(startDT.getTime() + 90 * 60 * 1000) // auto 1.5 hours
+      await api.liveball.admin.create({
+        title:       '',   // backend auto-generates "LiveBall – Mon Jun 2" from start_time
         description: cForm.description,
-        start_time: cForm.start_time ? new Date(cForm.start_time).toISOString() : null,
-        end_time: cForm.end_time ? new Date(cForm.end_time).toISOString() : null,
+        start_time:  startDT.toISOString(),
+        end_time:    endDT.toISOString(),
         max_players: cForm.max_players,
-      }
-      if (!payload.start_time) { setCErr('Start date/time required'); setCSaving(false); return }
-      await api.liveball.admin.create(payload)
+      })
       const updated = await api.liveball.admin.list() as LBEvent[]
       setEvents(updated)
       setShowCreate(false)
-      setCForm({ title: '', description: '', start_time: '', end_time: '', max_players: 8 })
+      setCForm({ description: '', date: '', time: '', max_players: 8 })
     } catch (e: any) { setCErr(e.message) } finally { setCSaving(false) }
   }
 
@@ -152,30 +153,53 @@ export default function AdminLiveball() {
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-3">
           <h2 className="font-semibold text-gray-700">Create LiveBall Event</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <input value={cForm.title} onChange={e => setCForm(f => ({ ...f, title: e.target.value }))}
-              placeholder='Title (e.g. "LiveBall – Mon Jun 2")'
-              className="sm:col-span-2 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+            {/* Date */}
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Start date &amp; time *</label>
-              <input type="datetime-local" value={cForm.start_time}
-                onChange={e => setCForm(f => ({ ...f, start_time: e.target.value }))}
+              <label className="block text-xs font-medium text-gray-500 mb-1">Date *</label>
+              <input type="date" value={cForm.date}
+                onChange={e => setCForm(f => ({ ...f, date: e.target.value }))}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
             </div>
+            {/* Start time */}
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">End time (optional)</label>
-              <input type="datetime-local" value={cForm.end_time}
-                onChange={e => setCForm(f => ({ ...f, end_time: e.target.value }))}
+              <label className="block text-xs font-medium text-gray-500 mb-1">Start time *</label>
+              <input type="time" value={cForm.time}
+                onChange={e => setCForm(f => ({ ...f, time: e.target.value }))}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
             </div>
+            {/* Computed end time preview */}
+            <div className="sm:col-span-2">
+              {cForm.date && cForm.time ? (() => {
+                const start = new Date(`${cForm.date}T${cForm.time}`)
+                const end   = new Date(start.getTime() + 90 * 60 * 1000)
+                return (
+                  <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-xs text-green-700">
+                    <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>
+                      <strong>{start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</strong>
+                      {' → '}
+                      <strong>{end.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</strong>
+                      {' '}(1½ hours) — {start.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                    </span>
+                  </div>
+                )
+              })() : (
+                <p className="text-xs text-gray-400">Events are automatically set to 1½ hours long.</p>
+              )}
+            </div>
+            {/* Player spots */}
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Player spots needed *</label>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Player spots *</label>
               <input type="number" min={2} max={64} value={cForm.max_players}
                 onChange={e => setCForm(f => ({ ...f, max_players: +e.target.value }))}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
             </div>
+            {/* Description */}
             <textarea value={cForm.description} onChange={e => setCForm(f => ({ ...f, description: e.target.value }))}
               placeholder="Details for members (optional)" rows={2}
-              className="sm:col-span-2 border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-green-500" />
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-green-500" />
           </div>
           {cErr && <p className="text-red-500 text-xs">{cErr}</p>}
           <div className="flex gap-2">
@@ -216,7 +240,15 @@ export default function AdminLiveball() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 className="font-bold text-gray-800">{selected.title}</h2>
-                <p className="text-sm text-gray-500">{fmtDT(selected.start_time)}</p>
+                <p className="text-sm text-gray-500">
+                  {fmtDT(selected.start_time)}
+                  {selected.end_time && (
+                    <span className="text-gray-400">
+                      {' → '}
+                      {new Date(selected.end_time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                    </span>
+                  )}
+                </p>
                 {selected.description && <p className="text-xs text-gray-400 mt-0.5">{selected.description}</p>}
               </div>
               <button onClick={cancelEvent}

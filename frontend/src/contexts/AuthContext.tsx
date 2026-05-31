@@ -38,7 +38,7 @@ const AuthContext = createContext<AuthContextType>(null!)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
-  const [sessionTimeoutMinutes, setSessionTimeoutMinutes] = useState(60)
+  const [sessionTimeoutDays, setSessionTimeoutDays] = useState(0)
   const [bookingMaxDaysAhead, setBookingMaxDaysAhead] = useState(5)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -49,18 +49,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       fetch('/api/session-config')
         .then(r => r.json())
         .then(d => {
-          setSessionTimeoutMinutes(parseInt(d.session_timeout_minutes) || 60)
+          setSessionTimeoutDays(parseInt(d.session_timeout_days) || 0)
           setBookingMaxDaysAhead(parseInt(d.booking_max_days_ahead) || 5)
         })
         .catch(() => {}),
     ]).finally(() => setLoading(false))
   }, [])
 
-  // Idle auto-logout — never fires for admin role (primary or extra)
+  // Idle auto-logout — skipped when timeout is 0 (never) or user is admin
   useEffect(() => {
-    if (!user || allRoles(user).includes('admin') || sessionTimeoutMinutes <= 0) return
+    if (!user || allRoles(user).includes('admin') || sessionTimeoutDays <= 0) return
 
-    const ms = sessionTimeoutMinutes * 60 * 1000
+    const ms = sessionTimeoutDays * 24 * 60 * 60 * 1000
 
     const resetTimer = () => {
       if (timerRef.current) clearTimeout(timerRef.current)
@@ -78,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (timerRef.current) clearTimeout(timerRef.current)
       events.forEach(e => window.removeEventListener(e, resetTimer))
     }
-  }, [user?.id, user?.role, sessionTimeoutMinutes])
+  }, [user?.id, user?.role, sessionTimeoutDays])
 
   const login = async (email: string, password: string) => {
     const u = await api.auth.login(email, password) as User
