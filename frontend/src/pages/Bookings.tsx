@@ -104,6 +104,9 @@ export default function Bookings() {
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([])
   const [friendGroups, setFriendGroups] = useState<FriendGroup[]>([])
   const [selectedFriends, setSelectedFriends] = useState<string[]>([]) // friend ids to invite at booking time
+  const [selectedMemberInvites, setSelectedMemberInvites] = useState<{id: string; first_name: string; last_name: string; email: string}[]>([])
+  const [bookingInviteQuery, setBookingInviteQuery] = useState('')
+  const [bookingInviteResults, setBookingInviteResults] = useState<{id: string; first_name: string; last_name: string; email: string}[]>([])
   const [confirming, setConfirming] = useState(false)
   const [activeBookingRoster, setActiveBookingRoster] = useState<{ bookingId: string; players: MatchPlayer[]; invitations: Invitation[] } | null>(null)
   const [rosterMap, setRosterMap] = useState<Record<string, { players: MatchPlayer[]; invitations: Invitation[] }>>({})
@@ -349,6 +352,9 @@ export default function Bookings() {
     setBookingDetail(null)
     setSelected({ courtId, hour, courtName })
     setSelectedFriends([])
+    setSelectedMemberInvites([])
+    setBookingInviteQuery('')
+    setBookingInviteResults([])
     setDirectPlayers([])
     setBookingSearchMode(null)
     setBookingSearchQuery('')
@@ -390,6 +396,20 @@ export default function Bookings() {
         )
       }
 
+      // Send invitations to selected members
+      if (selectedMemberInvites.length > 0) {
+        await Promise.all(
+          selectedMemberInvites.map(m =>
+            api.invitations.send(booked.id, {
+              invitee_user_id: m.id,
+              invitee_name: `${m.first_name} ${m.last_name}`,
+              invitee_email: m.email,
+              is_guest: false,
+            })
+          )
+        )
+      }
+
       // Add direct players to the roster immediately
       if (directPlayers.length > 0) {
         await Promise.all(
@@ -406,6 +426,9 @@ export default function Bookings() {
 
       setSelected(null)
       setSelectedFriends([])
+      setSelectedMemberInvites([])
+      setBookingInviteQuery('')
+      setBookingInviteResults([])
       setDirectPlayers([])
       setBookingSearchMode(null)
       setBookingSearchQuery('')
@@ -565,10 +588,10 @@ export default function Bookings() {
                 {/* ── Player limits (hidden for ball machine — solo only) ── */}
                 {matchType !== 'ball_machine' && (() => {
                   const maxAdditional = PLAYERS_BY_TYPE[matchType] ?? 0
-                  const totalAdded = selectedFriends.length + directPlayers.length
+                  const totalAdded = selectedFriends.length + selectedMemberInvites.length + directPlayers.length
                   const spotsLeft = Math.max(0, maxAdditional - totalAdded)
                   return (<>
-                    {friends.length > 0 && maxAdditional > 0 && (
+                    {maxAdditional > 0 && (
                       <div className="flex flex-wrap gap-1.5 items-center">
                         <span className="text-xs text-green-700 font-medium">Invite:</span>
                         {friends.map(f => {
@@ -588,8 +611,54 @@ export default function Bookings() {
                             </button>
                           )
                         })}
+                        {selectedMemberInvites.map(m => (
+                          <button key={m.id} type="button"
+                            onClick={() => setSelectedMemberInvites(s => s.filter(x => x.id !== m.id))}
+                            className="px-2.5 py-1 rounded-full text-xs font-medium transition bg-green-700 text-white">
+                            ✓ {m.first_name} {m.last_name} ✕
+                          </button>
+                        ))}
                         {totalAdded > 0 && (
                           <span className="text-xs text-green-600">{totalAdded}/{maxAdditional} added</span>
+                        )}
+                        {spotsLeft > 0 && (
+                          <div className="relative">
+                            <input
+                              value={bookingInviteQuery}
+                              onChange={e => {
+                                const q = e.target.value
+                                setBookingInviteQuery(q)
+                                if (q.length < 2) { setBookingInviteResults([]); return }
+                                const lower = q.toLowerCase()
+                                setBookingInviteResults(
+                                  directory.filter(m =>
+                                    m.id !== user?.id &&
+                                    !selectedMemberInvites.some(x => x.id === m.id) &&
+                                    !selectedFriends.some(fid => friends.find(f => f.id === fid)?.friend_user_id === m.id) &&
+                                    (`${m.first_name} ${m.last_name}`.toLowerCase().includes(lower) || m.email.toLowerCase().includes(lower))
+                                  ).slice(0, 8)
+                                )
+                              }}
+                              placeholder="Search member…"
+                              className="border border-green-200 rounded-full px-3 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-green-500 bg-white w-36"
+                            />
+                            {bookingInviteResults.length > 0 && (
+                              <div className="absolute left-0 top-full mt-1 z-20 border border-gray-200 rounded-lg bg-white shadow-lg divide-y divide-gray-100 w-52 max-h-48 overflow-y-auto">
+                                {bookingInviteResults.map(m => (
+                                  <div key={m.id}
+                                    onClick={() => {
+                                      setSelectedMemberInvites(s => [...s, m])
+                                      setBookingInviteQuery('')
+                                      setBookingInviteResults([])
+                                    }}
+                                    className="px-3 py-1.5 cursor-pointer hover:bg-green-50 text-xs">
+                                    <div className="font-medium text-gray-800">{m.first_name} {m.last_name}</div>
+                                    <div className="text-gray-400">{m.email}</div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         )}
                       </div>
                     )}
@@ -786,13 +855,18 @@ export default function Bookings() {
                     )}
                   </div>
 
-                  {invitedFriends.length > 0 && (
+                  {(invitedFriends.length > 0 || selectedMemberInvites.length > 0) && (
                     <div className="border-t border-gray-100 pt-3">
                       <span className="text-gray-500 text-xs uppercase tracking-wide">Invitations will be sent to</span>
                       <div className="flex flex-wrap gap-2 mt-1.5">
                         {invitedFriends.map(f => (
                           <span key={f.id} className="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-1 rounded-full">
                             ✉️ {f.friend_name}{f.is_guest ? ' (Guest)' : ''}
+                          </span>
+                        ))}
+                        {selectedMemberInvites.map(m => (
+                          <span key={m.id} className="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-1 rounded-full">
+                            ✉️ {m.first_name} {m.last_name}
                           </span>
                         ))}
                       </div>
@@ -822,7 +896,7 @@ export default function Bookings() {
                     <button onClick={handleBook} disabled={loading}
                       className="flex-1 px-5 py-2.5 bg-green-700 hover:bg-green-800 text-white rounded-lg text-sm font-bold transition disabled:opacity-50">
                       {loading ? 'Booking…' : (() => {
-                        const inv = invitedFriends.length
+                        const inv = invitedFriends.length + selectedMemberInvites.length
                         const dir = directPlayers.length
                         if (inv > 0 && dir > 0) return `Confirm, Add ${dir} & Send ${inv} Invite${inv !== 1 ? 's' : ''}`
                         if (inv > 0) return `Confirm & Send ${inv} Invite${inv !== 1 ? 's' : ''}`
