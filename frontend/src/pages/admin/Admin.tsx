@@ -50,6 +50,12 @@ const sections: Section[] = [
     ],
   },
   {
+    heading: 'Notes',
+    links: [
+      { to: '/admin/notes', label: 'Notes' },
+    ],
+  },
+  {
     heading: 'System',
     links: [
       { to: '/admin/settings', label: 'Settings' },

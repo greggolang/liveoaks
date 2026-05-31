@@ -43,6 +43,7 @@ import AdminReceipts from './pages/admin/AdminReceipts'
 import AdminBookingDocs from './pages/admin/AdminBookingDocs'
 import AdminBookings from './pages/admin/AdminBookings'
 import AdminFantasy from './pages/admin/AdminFantasy'
+import AdminNotes from './pages/admin/AdminNotes'
 import Fantasy from './pages/Fantasy'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -111,6 +112,7 @@ function AppRoutes() {
         <Route path="bookings" element={<AdminBookings />} />
         <Route path="booking-docs" element={<AdminBookingDocs />} />
         <Route path="fantasy" element={<AdminFantasy />} />
+        <Route path="notes" element={<AdminNotes />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

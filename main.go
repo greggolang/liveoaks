@@ -88,6 +88,7 @@ func main() {
 	feedback := &handlers.FeedbackHandler{DB: pool}
 	family := &handlers.FamilyHandler{DB: pool}
 	groups := &handlers.GroupsHandler{DB: pool}
+	notes := &handlers.NotesHandler{DB: pool}
 	invitations := &handlers.InvitationsHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	signups := &handlers.SignupsHandler{DB: pool}
 	weather := &handlers.WeatherHandler{DB: pool}
@@ -211,6 +212,12 @@ func main() {
 	adminOnly.POST("/email-templates", emailTemplates.Create)
 	adminOnly.PUT("/email-templates/:id", emailTemplates.Update)
 	adminOnly.DELETE("/email-templates/:id", emailTemplates.Delete)
+	// Admin notes (board+)
+	boardPlus.GET("/admin/notes", notes.List)
+	boardPlus.POST("/admin/notes", notes.Create)
+	boardPlus.PUT("/admin/notes/:id", notes.Update)
+	boardPlus.DELETE("/admin/notes/:id", notes.Delete)
+
 	adminOnly.GET("/receipts", uploads.ListReceipts)
 	adminOnly.POST("/receipts", uploads.UploadReceipt)
 	adminOnly.DELETE("/receipts/:id", uploads.DeleteReceipt)

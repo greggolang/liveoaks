@@ -268,6 +268,12 @@ export const api = {
   camera: {
     embedURL: () => request<{ url: string }>('/camera/embed'),
   },
+  notes: {
+    list: () => request('/admin/notes'),
+    create: (title: string, body: string) => request('/admin/notes', { method: 'POST', body: JSON.stringify({ title, body }) }),
+    update: (id: string, title: string, body: string) => request(`/admin/notes/${id}`, { method: 'PUT', body: JSON.stringify({ title, body }) }),
+    delete: (id: string) => request(`/admin/notes/${id}`, { method: 'DELETE' }),
+  },
   fantasy: {
     // Member
     tournaments: () => request('/fantasy/tournaments'),
