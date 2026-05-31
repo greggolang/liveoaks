@@ -2,10 +2,33 @@ import { useEffect, useState } from 'react'
 import { api } from '../../api/client'
 import { formatPhone } from '../../utils/phone'
 
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false)
+  const copy = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    })
+  }
+  return (
+    <button onClick={copy} title={`Copy "${text}"`}
+      className="opacity-0 group-hover:opacity-100 ml-1 shrink-0 text-gray-350 hover:text-gray-600 transition-opacity align-middle">
+      {copied
+        ? <span className="text-green-600 text-xs font-medium">✓</span>
+        : <svg className="inline w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+          </svg>
+      }
+    </button>
+  )
+}
+
 const USTA_RATINGS = ['2.5', '3.0', '3.5', '4.0', '4.5', '5.0']
 
 interface User {
-  id: string; first_name: string; last_name: string; email: string
+  id: string; member_number: number; first_name: string; last_name: string; email: string
   role: string; extra_roles?: string[]; status: string; phone?: string; address?: string; family?: string
   usta_ranking?: string; birthday?: string; has_family?: boolean; created_at: string; last_login_at?: string; login_count: number
 }
@@ -44,7 +67,7 @@ const emptyEdit = { first_name: '', last_name: '', email: '', phone: '', address
 const emptyNew = { first_name: '', last_name: '', email: '', phone: '', password: '', role: 'member', status: 'active' }
 const RELATIONSHIPS = ['spouse', 'child']
 
-interface FamilyMember { id: string; first_name: string; last_name: string; relationship: string; phone?: string; email?: string; birthday?: string }
+interface FamilyMember { id: string; first_name: string; last_name: string; relationship: string; phone?: string; email?: string; birthday?: string; usta_ranking?: string }
 interface WaitlistEntry { id: string; first_name: string; last_name: string; email?: string; phone?: string; usta_ranking?: string; status: string; created_at: string }
 
 export default function AdminUsers() {
@@ -59,8 +82,9 @@ export default function AdminUsers() {
   const [allFamilyMembers, setAllFamilyMembers] = useState<{
     id: string; user_id: string; primary_member_name: string; primary_member_email: string
     first_name: string; last_name: string; relationship: string
-    email?: string; phone?: string; birthday?: string; has_login: boolean
+    email?: string; phone?: string; birthday?: string; usta_ranking?: string; has_login: boolean
   }[]>([])
+  const [familySearch, setFamilySearch] = useState('')
   const [editing, setEditing] = useState<User | null>(null)
   const [editForm, setEditForm] = useState(emptyEdit)
   const [saving, setSaving] = useState(false)
@@ -70,11 +94,11 @@ export default function AdminUsers() {
   const [addSaving, setAddSaving] = useState(false)
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([])
   const [showFamilyForm, setShowFamilyForm] = useState(false)
-  const [familyForm, setFamilyForm] = useState({ first_name: '', last_name: '', relationship: 'spouse', birthday: '', email: '', phone: '' })
+  const [familyForm, setFamilyForm] = useState({ first_name: '', last_name: '', relationship: 'spouse', birthday: '', email: '', phone: '', usta_ranking: '' })
   const [savingFamily, setSavingFamily] = useState(false)
   const [familyError, setFamilyError] = useState('')
   const [editingFamilyId, setEditingFamilyId] = useState<string | null>(null)
-  const [editFamilyForm, setEditFamilyForm] = useState({ first_name: '', last_name: '', relationship: 'spouse', birthday: '', email: '', phone: '' })
+  const [editFamilyForm, setEditFamilyForm] = useState({ first_name: '', last_name: '', relationship: 'spouse', birthday: '', email: '', phone: '', usta_ranking: '' })
   const [savingEditFamily, setSavingEditFamily] = useState(false)
   const [editFamilyError, setEditFamilyError] = useState('')
   const [editExtraRoles, setEditExtraRoles] = useState<string[]>([])
@@ -105,7 +129,7 @@ export default function AdminUsers() {
       birthday: u.birthday ?? '' })
     setFamilyMembers([])
     setShowFamilyForm(false)
-    setFamilyForm({ first_name: '', last_name: '', relationship: 'spouse', birthday: '', email: '', phone: '' })
+    setFamilyForm({ first_name: '', last_name: '', relationship: 'spouse', birthday: '', email: '', phone: '', usta_ranking: '' })
     setEditingFamilyId(null)
     setMemberAlerts([])
     setAlertMsg('')
@@ -126,7 +150,7 @@ export default function AdminUsers() {
     setFamilyError('')
     try {
       await api.family.adminCreate(editing.id, familyForm)
-      setFamilyForm({ first_name: '', last_name: '', relationship: 'spouse', birthday: '', email: '', phone: '' })
+      setFamilyForm({ first_name: '', last_name: '', relationship: 'spouse', birthday: '', email: '', phone: '', usta_ranking: '' })
       setShowFamilyForm(false)
       loadFamily(editing.id)
     } catch (err: any) {
@@ -146,6 +170,7 @@ export default function AdminUsers() {
       first_name: m.first_name, last_name: m.last_name,
       relationship: m.relationship, birthday: m.birthday ?? '',
       email: m.email ?? '', phone: formatPhone(m.phone) ?? '',
+      usta_ranking: m.usta_ranking ?? '',
     })
     setShowFamilyForm(false)
   }
@@ -349,12 +374,23 @@ export default function AdminUsers() {
 
       {familyView ? (
         <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+          {/* Search bar for family members view */}
+          <div className="px-4 py-3 border-b border-gray-100">
+            <input
+              type="text"
+              placeholder="Search by name, primary member, or email…"
+              value={familySearch}
+              onChange={e => setFamilySearch(e.target.value)}
+              className="w-full sm:w-80 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+            />
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
                 <tr>
                   <th className="px-4 py-3 text-left">Family Member</th>
                   <th className="px-4 py-3 text-left">Relationship</th>
+                  <th className="px-4 py-3 text-left">USTA</th>
                   <th className="px-4 py-3 text-left">Primary Member</th>
                   <th className="px-4 py-3 text-left">Email</th>
                   <th className="px-4 py-3 text-left">Birthday</th>
@@ -362,12 +398,25 @@ export default function AdminUsers() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {allFamilyMembers.length === 0 ? (
-                  <tr><td colSpan={6} className="px-4 py-6 text-center text-gray-400 text-sm">No family members on file.</td></tr>
-                ) : allFamilyMembers.map(fm => (
-                  <tr key={fm.id} className="hover:bg-pink-50">
+                {(() => {
+                  const q = familySearch.toLowerCase()
+                  const visible = familySearch
+                    ? allFamilyMembers.filter(fm =>
+                        `${fm.first_name} ${fm.last_name}`.toLowerCase().includes(q) ||
+                        fm.primary_member_name.toLowerCase().includes(q) ||
+                        fm.primary_member_email.toLowerCase().includes(q) ||
+                        (fm.email ?? '').toLowerCase().includes(q))
+                    : allFamilyMembers
+                  if (visible.length === 0) return (
+                    <tr><td colSpan={7} className="px-4 py-6 text-center text-gray-400 text-sm">
+                      {familySearch ? 'No family members match your search.' : 'No family members on file.'}
+                    </td></tr>
+                  )
+                  return visible.map(fm => (
+                  <tr key={fm.id} className="hover:bg-pink-50 group">
                     <td className="px-4 py-3 font-medium text-gray-800">
                       {fm.first_name} {fm.last_name}
+                      <CopyButton text={`${fm.first_name} ${fm.last_name}`} />
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 capitalize">
@@ -375,10 +424,22 @@ export default function AdminUsers() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="text-gray-800">{fm.primary_member_name}</div>
-                      <div className="text-xs text-gray-400">{fm.primary_member_email}</div>
+                      {fm.usta_ranking
+                        ? <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">{fm.usta_ranking}</span>
+                        : <span className="text-gray-300">—</span>}
                     </td>
-                    <td className="px-4 py-3 text-gray-500">{fm.email ?? <span className="text-gray-300">—</span>}</td>
+                    <td className="px-4 py-3">
+                      <div className="text-gray-800">{fm.primary_member_name}</div>
+                      <div className="text-xs text-gray-400">
+                        {fm.primary_member_email}
+                        <CopyButton text={fm.primary_member_email} />
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-gray-500">
+                      {fm.email
+                        ? <>{fm.email}<CopyButton text={fm.email} /></>
+                        : <span className="text-gray-300">—</span>}
+                    </td>
                     <td className="px-4 py-3 text-gray-500">{fm.birthday ?? <span className="text-gray-300">—</span>}</td>
                     <td className="px-4 py-3">
                       {fm.has_login
@@ -386,7 +447,8 @@ export default function AdminUsers() {
                         : <span className="text-xs text-gray-400">—</span>}
                     </td>
                   </tr>
-                ))}
+                ))
+                })()}
               </tbody>
             </table>
           </div>
@@ -398,6 +460,7 @@ export default function AdminUsers() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
             <tr>
+              <th className="px-4 py-3 text-left">#</th>
               <th className="px-4 py-3 text-left">Name</th>
               <th className="px-4 py-3 text-left">Email</th>
               <th className="px-4 py-3 text-left">Role</th>
@@ -411,11 +474,19 @@ export default function AdminUsers() {
           <tbody className="divide-y divide-gray-100">
             {waitlistFilter ? (
               waitlistFiltered.length === 0 ? (
-                <tr><td colSpan={8} className="px-4 py-6 text-center text-gray-400 text-sm">No waitlist entries match your search.</td></tr>
+                <tr><td colSpan={9} className="px-4 py-6 text-center text-gray-400 text-sm">No waitlist entries match your search.</td></tr>
               ) : waitlistFiltered.map(w => (
-                <tr key={`wl-${w.id}`} className="hover:bg-amber-50">
-                  <td className="px-4 py-3 font-medium text-gray-800">{w.first_name} {w.last_name}</td>
-                  <td className="px-4 py-3 text-gray-500">{w.email ?? <span className="text-gray-300">—</span>}</td>
+                <tr key={`wl-${w.id}`} className="hover:bg-amber-50 group">
+                  <td className="px-4 py-3 text-gray-300 text-xs">—</td>
+                  <td className="px-4 py-3 font-medium text-gray-800">
+                    {w.first_name} {w.last_name}
+                    <CopyButton text={`${w.first_name} ${w.last_name}`} />
+                  </td>
+                  <td className="px-4 py-3 text-gray-500">
+                    {w.email
+                      ? <>{w.email}<CopyButton text={w.email} /></>
+                      : <span className="text-gray-300">—</span>}
+                  </td>
                   <td className="px-4 py-3">
                     <span className="text-xs font-medium px-2 py-1 rounded-full bg-amber-100 text-amber-700">Wait List</span>
                   </td>
@@ -438,11 +509,20 @@ export default function AdminUsers() {
                 </tr>
               ))
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={8} className="px-4 py-6 text-center text-gray-400 text-sm">No members match your search.</td></tr>
+              <tr><td colSpan={9} className="px-4 py-6 text-center text-gray-400 text-sm">No members match your search.</td></tr>
             ) : filtered.map(u => (
-              <tr key={u.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3 font-medium text-gray-800">{u.first_name} {u.last_name}</td>
-                <td className="px-4 py-3 text-gray-500">{u.email}</td>
+              <tr key={u.id} className="hover:bg-gray-50 group">
+                <td className="px-4 py-3 text-xs text-gray-400 font-mono tabular-nums">
+                  {u.member_number}
+                  <CopyButton text={String(u.member_number)} />
+                </td>
+                <td className="px-4 py-3 font-medium text-gray-800">
+                  {u.first_name} {u.last_name}
+                  <CopyButton text={`${u.first_name} ${u.last_name}`} />
+                </td>
+                <td className="px-4 py-3 text-gray-500">
+                  {u.email}<CopyButton text={u.email} />
+                </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-1 flex-wrap">
                     <select value={u.role} onChange={e => setRole(u.id, e.target.value)}
@@ -509,7 +589,10 @@ export default function AdminUsers() {
           <form onSubmit={handleSaveEdit} onClick={e => e.stopPropagation()}
             className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-4">
             <div className="flex justify-between items-center">
-              <h2 className="text-lg font-bold text-gray-800">Edit Member</h2>
+              <div>
+                <h2 className="text-lg font-bold text-gray-800">Edit Member</h2>
+                <p className="text-xs text-gray-400 font-mono mt-0.5">Member #{editing.member_number}</p>
+              </div>
               <button type="button" onClick={() => setEditing(null)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -621,6 +704,11 @@ export default function AdminUsers() {
                           <input type="tel" value={editFamilyForm.phone} onChange={e => setEditFamilyForm(f => ({ ...f, phone: e.target.value }))}
                             placeholder="Phone"
                             className="border border-gray-300 rounded px-2 py-1 text-xs w-28 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                          <select value={editFamilyForm.usta_ranking} onChange={e => setEditFamilyForm(f => ({ ...f, usta_ranking: e.target.value }))}
+                            className="border border-gray-300 rounded px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-500">
+                            <option value="">USTA</option>
+                            {USTA_RATINGS.map(r => <option key={r} value={r}>{r}</option>)}
+                          </select>
                           <button type="button" onClick={saveEditFamily} disabled={savingEditFamily}
                             className="text-xs bg-blue-700 text-white px-2 py-1 rounded hover:bg-blue-800 transition disabled:opacity-50">
                             {savingEditFamily ? 'Saving…' : 'Save'}
@@ -634,6 +722,7 @@ export default function AdminUsers() {
                           <div>
                             <span className="text-gray-800 font-medium">{m.first_name} {m.last_name}</span>
                             <span className="ml-2 text-xs font-normal text-gray-400 capitalize">{m.relationship}</span>
+                            {m.usta_ranking && <span className="ml-1.5 text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">{m.usta_ranking}</span>}
                             {m.birthday && <span className="ml-2 text-xs font-normal text-gray-400">b. {m.birthday}</span>}
                             {(m.email || m.phone) && (
                               <div className="text-xs text-gray-400 mt-0.5 space-x-2">
@@ -678,6 +767,11 @@ export default function AdminUsers() {
                   <input type="tel" value={familyForm.phone} onChange={e => setFamilyForm(f => ({ ...f, phone: e.target.value }))}
                     placeholder="Phone"
                     className="border border-gray-300 rounded px-2 py-1 text-xs w-28 focus:outline-none focus:ring-1 focus:ring-green-500" />
+                  <select value={familyForm.usta_ranking} onChange={e => setFamilyForm(f => ({ ...f, usta_ranking: e.target.value }))}
+                    className="border border-gray-300 rounded px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500">
+                    <option value="">USTA</option>
+                    {USTA_RATINGS.map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
                   <button type="button" onClick={addFamilyMember} disabled={savingFamily}
                     className="text-xs bg-green-700 text-white px-2 py-1 rounded hover:bg-green-800 transition disabled:opacity-50">
                     {savingFamily ? 'Adding…' : 'Add'}

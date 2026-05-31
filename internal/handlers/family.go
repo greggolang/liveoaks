@@ -20,20 +20,20 @@ type FamilyHandler struct {
 }
 
 type FamilyMember struct {
-	ID             string    `json:"id"`
-	UserID         string    `json:"user_id"`
-	FirstName      string    `json:"first_name"`
-	LastName       string    `json:"last_name"`
-	Relationship   string    `json:"relationship"`
-	Phone          *string   `json:"phone,omitempty"`
-	Email          *string   `json:"email,omitempty"`
-	Notes          *string   `json:"notes,omitempty"`
-	Birthday       *string   `json:"birthday,omitempty"` // "YYYY-MM-DD"
-	LinkedUserID   *string   `json:"linked_user_id,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
+	ID           string    `json:"id"`
+	UserID       string    `json:"user_id"`
+	FirstName    string    `json:"first_name"`
+	LastName     string    `json:"last_name"`
+	Relationship string    `json:"relationship"`
+	Phone        *string   `json:"phone,omitempty"`
+	Email        *string   `json:"email,omitempty"`
+	Notes        *string   `json:"notes,omitempty"`
+	Birthday     *string   `json:"birthday,omitempty"` // "YYYY-MM-DD"
+	USTARanking  *string   `json:"usta_ranking,omitempty"`
+	LinkedUserID *string   `json:"linked_user_id,omitempty"`
+	CreatedAt    time.Time `json:"created_at"`
 }
 
-// scanBirthday formats a *time.Time DB value into "YYYY-MM-DD" for the struct.
 func setFamilyBirthday(m *FamilyMember, bday *time.Time) {
 	if bday != nil {
 		s := bday.Format("2006-01-02")
@@ -44,8 +44,8 @@ func setFamilyBirthday(m *FamilyMember, bday *time.Time) {
 func (h *FamilyHandler) List(c echo.Context) error {
 	userID := c.Get("user_id").(string)
 	rows, err := h.DB.Query(c.Request().Context(),
-		`SELECT id, user_id, first_name, last_name, relationship, phone, email, notes, birthday,
-		        linked_user_id::text, created_at
+		`SELECT id, user_id, first_name, last_name, relationship, phone, email, notes,
+		        birthday, usta_ranking, linked_user_id::text, created_at
 		 FROM family_members WHERE user_id = $1 ORDER BY created_at`, userID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch family members")
@@ -57,7 +57,7 @@ func (h *FamilyHandler) List(c echo.Context) error {
 		var m FamilyMember
 		var bday *time.Time
 		if err := rows.Scan(&m.ID, &m.UserID, &m.FirstName, &m.LastName, &m.Relationship,
-			&m.Phone, &m.Email, &m.Notes, &bday, &m.LinkedUserID, &m.CreatedAt); err != nil {
+			&m.Phone, &m.Email, &m.Notes, &bday, &m.USTARanking, &m.LinkedUserID, &m.CreatedAt); err != nil {
 			continue
 		}
 		setFamilyBirthday(&m, bday)
@@ -76,6 +76,7 @@ func (h *FamilyHandler) Create(c echo.Context) error {
 		Email        string `json:"email"`
 		Notes        string `json:"notes"`
 		Birthday     string `json:"birthday"`
+		USTARanking  string `json:"usta_ranking"`
 	}
 	if err := c.Bind(&req); err != nil || req.FirstName == "" || req.LastName == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "first name and last name required")
@@ -89,20 +90,18 @@ func (h *FamilyHandler) Create(c echo.Context) error {
 	var m FamilyMember
 	var bday *time.Time
 	err := h.DB.QueryRow(c.Request().Context(),
-		`INSERT INTO family_members (user_id, first_name, last_name, relationship, phone, email, notes, birthday)
-		 VALUES ($1, $2, $3, $4, NULLIF($5,''), NULLIF($6,''), NULLIF($7,''), NULLIF($8,'')::date)
-		 RETURNING id, user_id, first_name, last_name, relationship, phone, email, notes, birthday, created_at`,
-		userID, req.FirstName, req.LastName, req.Relationship, req.Phone, req.Email, req.Notes, req.Birthday,
-	).Scan(&m.ID, &m.UserID, &m.FirstName, &m.LastName, &m.Relationship, &m.Phone, &m.Email, &m.Notes, &bday, &m.CreatedAt)
+		`INSERT INTO family_members (user_id, first_name, last_name, relationship, phone, email, notes, birthday, usta_ranking)
+		 VALUES ($1, $2, $3, $4, NULLIF($5,''), NULLIF($6,''), NULLIF($7,''), NULLIF($8,'')::date, NULLIF($9,''))
+		 RETURNING id, user_id, first_name, last_name, relationship, phone, email, notes, birthday, usta_ranking, created_at`,
+		userID, req.FirstName, req.LastName, req.Relationship, req.Phone, req.Email, req.Notes, req.Birthday, req.USTARanking,
+	).Scan(&m.ID, &m.UserID, &m.FirstName, &m.LastName, &m.Relationship, &m.Phone, &m.Email, &m.Notes, &bday, &m.USTARanking, &m.CreatedAt)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not add family member")
 	}
 	setFamilyBirthday(&m, bday)
 
-	// Send password-setup invite to spouse / child who has an email
 	rel := req.Relationship
 	if h.Mailer != nil && req.Email != "" && (rel == "spouse" || rel == "child") {
-		// Fetch the primary member's name for the email
 		var ownerFirst, ownerLast string
 		h.DB.QueryRow(c.Request().Context(),
 			`SELECT first_name, last_name FROM users WHERE id = $1`, userID,
@@ -116,19 +115,16 @@ func (h *FamilyHandler) Create(c echo.Context) error {
 // sendFamilyInvite creates a login account (if needed) for a family member and
 // emails them a password-setup link using the existing reset-password page.
 func (h *FamilyHandler) sendFamilyInvite(ctx context.Context, familyMemberID, firstName, email, addedByName string) {
-	// Check whether a users account already exists for this email
 	var existingUserID string
 	h.DB.QueryRow(ctx, `SELECT id FROM users WHERE email = $1`, email).Scan(&existingUserID)
 
 	var userID string
 	if existingUserID != "" {
 		userID = existingUserID
-		// Link the existing account if not already linked
 		h.DB.Exec(ctx,
 			`UPDATE family_members SET linked_user_id = $1 WHERE id = $2 AND linked_user_id IS NULL`,
 			userID, familyMemberID)
 	} else {
-		// Create a locked users account — random password nobody knows
 		randomBytes := make([]byte, 32)
 		rand.Read(randomBytes)
 		lockedHash, _ := bcrypt.GenerateFromPassword(randomBytes, bcrypt.DefaultCost)
@@ -140,13 +136,12 @@ func (h *FamilyHandler) sendFamilyInvite(ctx context.Context, familyMemberID, fi
 			firstName, email, string(lockedHash),
 		).Scan(&userID)
 		if err != nil {
-			return // email already registered — do not double-create
+			return
 		}
 		h.DB.Exec(ctx,
 			`UPDATE family_members SET linked_user_id = $1 WHERE id = $2`, userID, familyMemberID)
 	}
 
-	// Generate a password-reset token (reuses the existing reset-password page)
 	tokenBytes := make([]byte, 24)
 	rand.Read(tokenBytes)
 	token := hex.EncodeToString(tokenBytes)
@@ -186,6 +181,7 @@ func (h *FamilyHandler) Update(c echo.Context) error {
 		Email        string `json:"email"`
 		Notes        string `json:"notes"`
 		Birthday     string `json:"birthday"`
+		USTARanking  string `json:"usta_ranking"`
 	}
 	if err := c.Bind(&req); err != nil || req.FirstName == "" || req.LastName == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "first name and last name required")
@@ -196,9 +192,10 @@ func (h *FamilyHandler) Update(c echo.Context) error {
 	_, err := h.DB.Exec(c.Request().Context(),
 		`UPDATE family_members SET first_name=$1, last_name=$2, relationship=$3,
 		 phone=NULLIF($4,''), email=NULLIF($5,''), notes=NULLIF($6,''),
-		 birthday=NULLIF($7,'')::date
-		 WHERE id=$8 AND user_id=$9`,
-		req.FirstName, req.LastName, req.Relationship, req.Phone, req.Email, req.Notes, req.Birthday, id, userID)
+		 birthday=NULLIF($7,'')::date, usta_ranking=NULLIF($8,'')
+		 WHERE id=$9 AND user_id=$10`,
+		req.FirstName, req.LastName, req.Relationship, req.Phone, req.Email, req.Notes,
+		req.Birthday, req.USTARanking, id, userID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not update family member")
 	}
@@ -213,15 +210,14 @@ func (h *FamilyHandler) Delete(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
-// AdminListAll returns every family member across all users (board+),
-// including the primary member's name and whether a login account exists.
+// AdminListAll returns every family member across all users (board+).
 func (h *FamilyHandler) AdminListAll(c echo.Context) error {
 	rows, err := h.DB.Query(c.Request().Context(), `
 		SELECT fm.id, fm.user_id,
 		       u.first_name || ' ' || u.last_name AS primary_member_name,
 		       u.email AS primary_member_email,
 		       fm.first_name, fm.last_name, fm.relationship,
-		       fm.email, fm.phone, fm.birthday,
+		       fm.email, fm.phone, fm.birthday, fm.usta_ranking,
 		       fm.linked_user_id IS NOT NULL AS has_login,
 		       fm.created_at
 		FROM family_members fm
@@ -233,18 +229,19 @@ func (h *FamilyHandler) AdminListAll(c echo.Context) error {
 	defer rows.Close()
 
 	type Row struct {
-		ID                  string    `json:"id"`
-		UserID              string    `json:"user_id"`
-		PrimaryMemberName   string    `json:"primary_member_name"`
-		PrimaryMemberEmail  string    `json:"primary_member_email"`
-		FirstName           string    `json:"first_name"`
-		LastName            string    `json:"last_name"`
-		Relationship        string    `json:"relationship"`
-		Email               *string   `json:"email,omitempty"`
-		Phone               *string   `json:"phone,omitempty"`
-		Birthday            *string   `json:"birthday,omitempty"`
-		HasLogin            bool      `json:"has_login"`
-		CreatedAt           time.Time `json:"created_at"`
+		ID                 string    `json:"id"`
+		UserID             string    `json:"user_id"`
+		PrimaryMemberName  string    `json:"primary_member_name"`
+		PrimaryMemberEmail string    `json:"primary_member_email"`
+		FirstName          string    `json:"first_name"`
+		LastName           string    `json:"last_name"`
+		Relationship       string    `json:"relationship"`
+		Email              *string   `json:"email,omitempty"`
+		Phone              *string   `json:"phone,omitempty"`
+		Birthday           *string   `json:"birthday,omitempty"`
+		USTARanking        *string   `json:"usta_ranking,omitempty"`
+		HasLogin           bool      `json:"has_login"`
+		CreatedAt          time.Time `json:"created_at"`
 	}
 
 	result := []Row{}
@@ -254,7 +251,7 @@ func (h *FamilyHandler) AdminListAll(c echo.Context) error {
 		if err := rows.Scan(
 			&r.ID, &r.UserID, &r.PrimaryMemberName, &r.PrimaryMemberEmail,
 			&r.FirstName, &r.LastName, &r.Relationship,
-			&r.Email, &r.Phone, &bday, &r.HasLogin, &r.CreatedAt,
+			&r.Email, &r.Phone, &bday, &r.USTARanking, &r.HasLogin, &r.CreatedAt,
 		); err != nil {
 			continue
 		}
@@ -278,6 +275,7 @@ func (h *FamilyHandler) AdminCreate(c echo.Context) error {
 		Email        string `json:"email"`
 		Notes        string `json:"notes"`
 		Birthday     string `json:"birthday"`
+		USTARanking  string `json:"usta_ranking"`
 	}
 	if err := c.Bind(&req); err != nil || req.FirstName == "" || req.LastName == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "first name and last name required")
@@ -291,11 +289,11 @@ func (h *FamilyHandler) AdminCreate(c echo.Context) error {
 	var m FamilyMember
 	var bday *time.Time
 	err := h.DB.QueryRow(c.Request().Context(),
-		`INSERT INTO family_members (user_id, first_name, last_name, relationship, phone, email, notes, birthday)
-		 VALUES ($1, $2, $3, $4, NULLIF($5,''), NULLIF($6,''), NULLIF($7,''), NULLIF($8,'')::date)
-		 RETURNING id, user_id, first_name, last_name, relationship, phone, email, notes, birthday, created_at`,
-		targetUserID, req.FirstName, req.LastName, req.Relationship, req.Phone, req.Email, req.Notes, req.Birthday,
-	).Scan(&m.ID, &m.UserID, &m.FirstName, &m.LastName, &m.Relationship, &m.Phone, &m.Email, &m.Notes, &bday, &m.CreatedAt)
+		`INSERT INTO family_members (user_id, first_name, last_name, relationship, phone, email, notes, birthday, usta_ranking)
+		 VALUES ($1, $2, $3, $4, NULLIF($5,''), NULLIF($6,''), NULLIF($7,''), NULLIF($8,'')::date, NULLIF($9,''))
+		 RETURNING id, user_id, first_name, last_name, relationship, phone, email, notes, birthday, usta_ranking, created_at`,
+		targetUserID, req.FirstName, req.LastName, req.Relationship, req.Phone, req.Email, req.Notes, req.Birthday, req.USTARanking,
+	).Scan(&m.ID, &m.UserID, &m.FirstName, &m.LastName, &m.Relationship, &m.Phone, &m.Email, &m.Notes, &bday, &m.USTARanking, &m.CreatedAt)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not add family member")
 	}
@@ -315,6 +313,7 @@ func (h *FamilyHandler) AdminUpdate(c echo.Context) error {
 		Email        string `json:"email"`
 		Notes        string `json:"notes"`
 		Birthday     string `json:"birthday"`
+		USTARanking  string `json:"usta_ranking"`
 	}
 	if err := c.Bind(&req); err != nil || req.FirstName == "" || req.LastName == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "first name and last name required")
@@ -325,9 +324,10 @@ func (h *FamilyHandler) AdminUpdate(c echo.Context) error {
 	_, err := h.DB.Exec(c.Request().Context(),
 		`UPDATE family_members SET first_name=$1, last_name=$2, relationship=$3,
 		 phone=NULLIF($4,''), email=NULLIF($5,''), notes=NULLIF($6,''),
-		 birthday=NULLIF($7,'')::date
-		 WHERE id=$8 AND user_id=$9`,
-		req.FirstName, req.LastName, req.Relationship, req.Phone, req.Email, req.Notes, req.Birthday, memberID, targetUserID)
+		 birthday=NULLIF($7,'')::date, usta_ranking=NULLIF($8,'')
+		 WHERE id=$9 AND user_id=$10`,
+		req.FirstName, req.LastName, req.Relationship, req.Phone, req.Email, req.Notes,
+		req.Birthday, req.USTARanking, memberID, targetUserID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not update family member")
 	}
@@ -343,7 +343,6 @@ func (h *FamilyHandler) AdminDelete(c echo.Context) error {
 }
 
 // AllMembers returns every family member (across all users) that has an email address.
-// Used by the booking invite search so members can find and invite each other's family members.
 func (h *FamilyHandler) AllMembers(c echo.Context) error {
 	rows, err := h.DB.Query(c.Request().Context(),
 		`SELECT id, first_name, last_name, relationship, email, birthday
@@ -381,9 +380,6 @@ func (h *FamilyHandler) AllMembers(c echo.Context) error {
 }
 
 // SetPassword creates (or resets) a login account for a family member.
-// The family member must have an email address. A users row is created on
-// first call and linked via family_members.linked_user_id; subsequent calls
-// just update the password on the existing account.
 func (h *FamilyHandler) SetPassword(c echo.Context) error {
 	id := c.Param("id")
 	ownerID := c.Get("user_id").(string)
@@ -418,14 +414,12 @@ func (h *FamilyHandler) SetPassword(c echo.Context) error {
 	}
 
 	if linkedUserID != nil && *linkedUserID != "" {
-		// Account already exists — just update the password
 		h.DB.Exec(c.Request().Context(),
 			`UPDATE users SET password_hash = $1 WHERE id = $2`,
 			string(hash), *linkedUserID)
 		return c.JSON(http.StatusOK, map[string]string{"message": "password updated"})
 	}
 
-	// Create a new users account for the family member
 	var newUserID string
 	err = h.DB.QueryRow(c.Request().Context(), `
 		INSERT INTO users (first_name, last_name, email, password_hash, role, status)
@@ -447,7 +441,8 @@ func (h *FamilyHandler) SetPassword(c echo.Context) error {
 func (h *FamilyHandler) AdminList(c echo.Context) error {
 	targetUserID := c.Param("userId")
 	rows, err := h.DB.Query(c.Request().Context(),
-		`SELECT id, user_id, first_name, last_name, relationship, phone, email, notes, birthday, created_at
+		`SELECT id, user_id, first_name, last_name, relationship, phone, email, notes,
+		        birthday, usta_ranking, created_at
 		 FROM family_members WHERE user_id = $1 ORDER BY created_at`, targetUserID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch family members")
@@ -458,7 +453,8 @@ func (h *FamilyHandler) AdminList(c echo.Context) error {
 	for rows.Next() {
 		var m FamilyMember
 		var bday *time.Time
-		if err := rows.Scan(&m.ID, &m.UserID, &m.FirstName, &m.LastName, &m.Relationship, &m.Phone, &m.Email, &m.Notes, &bday, &m.CreatedAt); err != nil {
+		if err := rows.Scan(&m.ID, &m.UserID, &m.FirstName, &m.LastName, &m.Relationship,
+			&m.Phone, &m.Email, &m.Notes, &bday, &m.USTARanking, &m.CreatedAt); err != nil {
 			continue
 		}
 		setFamilyBirthday(&m, bday)

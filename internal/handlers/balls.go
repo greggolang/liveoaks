@@ -67,36 +67,36 @@ func (h *BallsHandler) Summary(c echo.Context) error {
 	r.From = from
 	r.To = to
 
-	// All-time totals
+	// All-time totals — only count past matches (used_date <= today).
 	h.DB.QueryRow(c.Request().Context(),
 		`SELECT COALESCE(SUM(quantity),0), COALESCE(SUM(COALESCE(total_cost,0)),0) FROM ball_purchases`).
 		Scan(&r.AllTimePurchased, &r.AllTimeCost)
 	h.DB.QueryRow(c.Request().Context(),
-		`SELECT COALESCE(SUM(quantity),0) FROM ball_usage`).Scan(&r.AllTimeUsed)
+		`SELECT COALESCE(SUM(quantity),0) FROM ball_usage WHERE used_date <= CURRENT_DATE`).Scan(&r.AllTimeUsed)
 	r.OnHand = r.AllTimePurchased - r.AllTimeUsed
 
-	// Beginning inventory (everything strictly before the period)
+	// Beginning inventory (everything strictly before the period, past only)
 	var purchasedBefore, usedBefore int
 	h.DB.QueryRow(c.Request().Context(),
 		`SELECT COALESCE(SUM(quantity),0) FROM ball_purchases WHERE purchase_date < $1`, from).Scan(&purchasedBefore)
 	h.DB.QueryRow(c.Request().Context(),
-		`SELECT COALESCE(SUM(quantity),0) FROM ball_usage WHERE used_date < $1`, from).Scan(&usedBefore)
+		`SELECT COALESCE(SUM(quantity),0) FROM ball_usage WHERE used_date < $1 AND used_date <= CURRENT_DATE`, from).Scan(&usedBefore)
 	r.BeginningInventory = purchasedBefore - usedBefore
 
-	// Period stats
+	// Period stats — cap to today so future bookings are excluded.
 	h.DB.QueryRow(c.Request().Context(),
 		`SELECT COALESCE(SUM(quantity),0), COALESCE(SUM(COALESCE(total_cost,0)),0)
 		 FROM ball_purchases WHERE purchase_date BETWEEN $1 AND $2`, from, to).
 		Scan(&r.Purchased, &r.PeriodCost)
 
 	h.DB.QueryRow(c.Request().Context(),
-		`SELECT COALESCE(SUM(quantity),0) FROM ball_usage WHERE source='booking' AND used_date BETWEEN $1 AND $2`, from, to).
+		`SELECT COALESCE(SUM(quantity),0) FROM ball_usage WHERE source='booking' AND used_date BETWEEN $1 AND $2 AND used_date <= CURRENT_DATE`, from, to).
 		Scan(&r.UsedBookings)
 	h.DB.QueryRow(c.Request().Context(),
-		`SELECT COALESCE(SUM(quantity),0) FROM ball_usage WHERE source='pro_shop' AND used_date BETWEEN $1 AND $2`, from, to).
+		`SELECT COALESCE(SUM(quantity),0) FROM ball_usage WHERE source='pro_shop' AND used_date BETWEEN $1 AND $2 AND used_date <= CURRENT_DATE`, from, to).
 		Scan(&r.UsedProShop)
 	h.DB.QueryRow(c.Request().Context(),
-		`SELECT COALESCE(SUM(quantity),0) FROM ball_usage WHERE source='manual' AND used_date BETWEEN $1 AND $2`, from, to).
+		`SELECT COALESCE(SUM(quantity),0) FROM ball_usage WHERE source='manual' AND used_date BETWEEN $1 AND $2 AND used_date <= CURRENT_DATE`, from, to).
 		Scan(&r.UsedOther)
 
 	r.TotalUsed = r.UsedBookings + r.UsedProShop + r.UsedOther
@@ -119,7 +119,7 @@ func (h *BallsHandler) UsageList(c echo.Context) error {
 	rows, err := h.DB.Query(c.Request().Context(), `
 		SELECT id, to_char(used_date,'YYYY-MM-DD'), quantity, source, user_name, court_name, notes
 		FROM ball_usage
-		WHERE used_date BETWEEN $1 AND $2
+		WHERE used_date BETWEEN $1 AND $2 AND used_date <= CURRENT_DATE
 		ORDER BY used_date DESC, created_at DESC`, from, to)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch usage")
