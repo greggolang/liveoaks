@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { api } from '../api/client'
+import { useNavigate } from 'react-router-dom'
+import { api, MemberMessage } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 
 interface ActiveAlert {
@@ -30,7 +31,9 @@ interface ReadStats {
 
 export default function Announcements() {
   const { isBoard } = useAuth()
+  const navigate = useNavigate()
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
+  const [inbox, setInbox] = useState<MemberMessage[]>([])
   const [form, setForm] = useState({ title: '', body: '', send_email: false, require_confirmation: false })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -56,6 +59,7 @@ export default function Announcements() {
 
   useEffect(() => {
     load()
+    api.messages.inbox().then(d => setInbox(d)).catch(() => {})
     if (isBoard) {
       loadAlerts()
       api.admin.users().then(d => setMembers(d as Member[])).catch(() => {})
@@ -283,11 +287,48 @@ export default function Announcements() {
         </div>
       )}
 
-      {announcements.length === 0 ? (
+      {announcements.length === 0 && inbox.length === 0 ? (
         <p className="text-gray-400 text-sm">No announcements yet.</p>
-      ) : (
+      ) : (() => {
+        type FeedItem =
+          | { kind: 'announcement'; data: Announcement; date: string }
+          | { kind: 'message'; data: MemberMessage; date: string }
+        const feed: FeedItem[] = [
+          ...announcements.map(a => ({ kind: 'announcement' as const, data: a, date: a.created_at })),
+          ...inbox.map(m => ({ kind: 'message' as const, data: m, date: m.created_at })),
+        ].sort((x, y) => new Date(y.date).getTime() - new Date(x.date).getTime())
+
+        return (
         <div className="space-y-4">
-          {announcements.map(a => (
+          {feed.map(item => item.kind === 'message' ? (
+            <button
+              key={`msg-${item.data.id}`}
+              type="button"
+              onClick={() => navigate('/messages')}
+              className={`w-full text-left bg-white border rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow ${item.data.read_at ? 'border-gray-200' : 'border-blue-300'}`}
+            >
+              <div className="flex items-start gap-3">
+                <div className={`mt-1 w-2 h-2 rounded-full shrink-0 ${item.data.read_at ? 'bg-gray-300' : 'bg-blue-500'}`} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-blue-600">Message</span>
+                    <span className="text-xs text-gray-400">from {item.data.sender_name}</span>
+                  </div>
+                  <p className={`text-sm mt-0.5 truncate ${item.data.read_at ? 'text-gray-700' : 'text-gray-900 font-semibold'}`}>
+                    {item.data.subject}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1 line-clamp-2">{item.data.body}</p>
+                  <p className="text-xs text-gray-400 mt-2">{new Date(item.data.created_at).toLocaleDateString()}</p>
+                </div>
+                {!item.data.read_at && (
+                  <span className="shrink-0 self-center bg-blue-100 text-blue-700 text-xs font-medium px-2 py-0.5 rounded-full">
+                    Unread
+                  </span>
+                )}
+              </div>
+            </button>
+          ) : (
+            (() => { const a = item.data as Announcement; return (
             <div key={a.id} className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
               {editingId === a.id ? (
                 <form onSubmit={handleEdit} className="space-y-3">
@@ -416,9 +457,11 @@ export default function Announcements() {
                 </>
               )}
             </div>
+          )})()
           ))}
         </div>
-      )}
+        )
+      })()}
     </div>
   )
 }

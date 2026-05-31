@@ -31,6 +31,9 @@ function familyAge(birthday?: string): number | null {
 }
 interface MatchPlayer { id: string; player_name: string; player_email?: string; is_guest: boolean; is_host: boolean }
 interface Invitation { id: string; invitee_name: string; invitee_email: string; status: string; is_guest: boolean }
+type GroupParticipant =
+  | { kind: 'member'; id: string; first_name: string; last_name: string; email: string }
+  | { kind: 'text'; name: string }
 
 const MATCH_TYPES = [
   { value: 'singles',      label: 'Singles',       ballMachineOnly: false, proCourtOnly: false },
@@ -153,8 +156,9 @@ export default function Bookings() {
   const [lessonType, setLessonType] = useState<'member' | 'guest' | 'group_adult' | 'group_junior' | ''>('')
   const [lessonMember, setLessonMember] = useState<{id: string; first_name: string; last_name: string; email: string} | null>(null)
   const [lessonGuest, setLessonGuest] = useState({ name: '', email: '' })
-  const [groupParticipants, setGroupParticipants] = useState<string[]>([])
+  const [groupParticipants, setGroupParticipants] = useState<GroupParticipant[]>([])
   const [participantInput, setParticipantInput] = useState('')
+  const [groupSearchResults, setGroupSearchResults] = useState<{id: string; first_name: string; last_name: string; email: string}[]>([])
   const [lessonSearchQuery, setLessonSearchQuery] = useState('')
   const [lessonSearchResults, setLessonSearchResults] = useState<{id: string; first_name: string; last_name: string; email: string}[]>([])
 
@@ -505,8 +509,12 @@ export default function Bookings() {
             is_guest: true,
           })
         } else if ((lessonType === 'group_adult' || lessonType === 'group_junior') && groupParticipants.length > 0) {
-          for (const name of groupParticipants) {
-            await api.invitations.addPlayer(booked.id, { player_name: name, is_guest: false })
+          for (const p of groupParticipants) {
+            if (p.kind === 'member') {
+              await api.invitations.addPlayer(booked.id, { user_id: p.id, is_guest: false })
+            } else {
+              await api.invitations.addPlayer(booked.id, { player_name: p.name, is_guest: false })
+            }
           }
         }
       }
@@ -606,10 +614,23 @@ export default function Bookings() {
     )
   }, [lessonSearchQuery, directory, user?.id])
 
+  // Live-filter group participant input against the cached directory
+  useEffect(() => {
+    if (participantInput.length < 2) { setGroupSearchResults([]); return }
+    const q = participantInput.toLowerCase()
+    const alreadyAdded = new Set(groupParticipants.flatMap(p => p.kind === 'member' ? [p.id] : []))
+    setGroupSearchResults(
+      directory
+        .filter(m => m.id !== user?.id && !alreadyAdded.has(m.id) &&
+          (`${m.first_name} ${m.last_name}`.toLowerCase().includes(q) || m.email.toLowerCase().includes(q)))
+        .slice(0, 8)
+    )
+  }, [participantInput, directory, user?.id, groupParticipants])
+
   const resetLessonForm = () => {
     setLessonType(''); setLessonMember(null)
     setLessonGuest({ name: '', email: '' })
-    setGroupParticipants([]); setParticipantInput('')
+    setGroupParticipants([]); setParticipantInput(''); setGroupSearchResults([])
     setLessonSearchQuery(''); setLessonSearchResults([])
   }
 
@@ -809,21 +830,46 @@ export default function Bookings() {
                     {/* Group — Adults or Juniors */}
                     {(lessonType === 'group_adult' || lessonType === 'group_junior') && (
                       <div className="space-y-2">
-                        <div className="flex gap-2">
-                          <input value={participantInput}
-                            onChange={e => setParticipantInput(e.target.value)}
-                            onKeyDown={e => {
-                              if (e.key === 'Enter' && participantInput.trim()) {
-                                e.preventDefault()
-                                setGroupParticipants(p => [...p, participantInput.trim()])
+                        <div className="flex gap-2 relative">
+                          <div className="relative flex-1">
+                            <input value={participantInput}
+                              onChange={e => setParticipantInput(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter' && participantInput.trim()) {
+                                  e.preventDefault()
+                                  setGroupParticipants(p => [...p, { kind: 'text', name: participantInput.trim() }])
+                                  setParticipantInput('')
+                                  setGroupSearchResults([])
+                                }
+                              }}
+                              placeholder={`${lessonType === 'group_junior' ? "Junior's" : "Participant's"} name or search member…`}
+                              autoFocus
+                              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white" />
+                            {groupSearchResults.length > 0 && (
+                              <div className="absolute left-0 right-0 top-full mt-1 z-20 border border-gray-200 rounded-lg bg-white shadow-lg divide-y divide-gray-100 max-h-48 overflow-y-auto">
+                                {groupSearchResults.map(m => (
+                                  <button key={m.id} type="button"
+                                    onClick={() => {
+                                      setGroupParticipants(p => [...p, { kind: 'member', id: m.id, first_name: m.first_name, last_name: m.last_name, email: m.email }])
+                                      setParticipantInput('')
+                                      setGroupSearchResults([])
+                                    }}
+                                    className="w-full text-left px-3 py-2 hover:bg-green-50 transition">
+                                    <div className="text-sm font-medium text-gray-800">{m.first_name} {m.last_name}</div>
+                                    <div className="text-xs text-gray-400">{m.email}</div>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <button type="button"
+                            onClick={() => {
+                              if (participantInput.trim()) {
+                                setGroupParticipants(p => [...p, { kind: 'text', name: participantInput.trim() }])
                                 setParticipantInput('')
+                                setGroupSearchResults([])
                               }
                             }}
-                            placeholder={`${lessonType === 'group_junior' ? "Junior's" : "Participant's"} name…`}
-                            autoFocus
-                            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white" />
-                          <button type="button"
-                            onClick={() => { if (participantInput.trim()) { setGroupParticipants(p => [...p, participantInput.trim()]); setParticipantInput('') } }}
                             disabled={!participantInput.trim()}
                             className="px-4 py-2 bg-green-700 text-white text-sm font-medium rounded-lg hover:bg-green-800 transition disabled:opacity-40">
                             + Add
@@ -831,10 +877,11 @@ export default function Bookings() {
                         </div>
                         {groupParticipants.length > 0 && (
                           <div className="flex flex-wrap gap-1.5">
-                            {groupParticipants.map((name, i) => (
-                              <span key={i} className="inline-flex items-center gap-1 bg-green-100 text-green-800 text-xs font-medium px-2.5 py-1 rounded-full">
-                                {name}
-                                <button type="button" onClick={() => setGroupParticipants(p => p.filter((_, j) => j !== i))}
+                            {groupParticipants.map((p, i) => (
+                              <span key={i} className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full ${p.kind === 'member' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}`}>
+                                {p.kind === 'member' ? `${p.first_name} ${p.last_name}` : p.name}
+                                {p.kind === 'member' && <span className="opacity-60 text-[10px]">member</span>}
+                                <button type="button" onClick={() => setGroupParticipants(ps => ps.filter((_, j) => j !== i))}
                                   className="opacity-60 hover:opacity-100 transition leading-none">×</button>
                               </span>
                             ))}
