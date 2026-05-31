@@ -558,12 +558,17 @@ export default function Dashboard() {
 
         if (soonBooking) {
           const start = new Date(soonBooking.start_time)
-          const mins = Math.round((start.getTime() - Date.now()) / 60000)
+          const totalMins = Math.round((start.getTime() - Date.now()) / 60000)
+          const hrs = Math.floor(totalMins / 60)
+          const mins = totalMins % 60
+          const timeUntil = hrs > 0
+            ? `${hrs} hr${hrs !== 1 ? 's' : ''}${mins > 0 ? ` ${mins} min` : ''}`
+            : `${totalMins} min`
           alerts.push(
             <div key="soon" className="flex items-start gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
               <span className="text-xl shrink-0">⏰</span>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-green-800">Court booking in {mins} minute{mins !== 1 ? 's' : ''}</p>
+                <p className="text-sm font-semibold text-green-800">Court booking in {timeUntil}</p>
                 <p className="text-xs text-green-600 mt-0.5">
                   {soonBooking.court.name} · {start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
                 </p>
@@ -878,18 +883,8 @@ export default function Dashboard() {
 
       {/* Court Camera */}
       <div>
-        <div className="flex items-center justify-between mb-3">
+        <div className="mb-3">
           <h2 className="text-lg font-semibold text-gray-700">Court Camera</h2>
-          {cameraURL && (
-            <a
-              href={cameraURL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-green-700 hover:underline"
-            >
-              Open full screen ↗
-            </a>
-          )}
         </div>
         <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
           {cameraURL ? (

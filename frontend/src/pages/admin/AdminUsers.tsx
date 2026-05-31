@@ -42,6 +42,12 @@ export default function AdminUsers() {
   const [roleFilter, setRoleFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [familyFilter, setFamilyFilter] = useState(false)
+  const [familyView, setFamilyView] = useState(false)
+  const [allFamilyMembers, setAllFamilyMembers] = useState<{
+    id: string; user_id: string; primary_member_name: string; primary_member_email: string
+    first_name: string; last_name: string; relationship: string
+    email?: string; phone?: string; birthday?: string; has_login: boolean
+  }[]>([])
   const [editing, setEditing] = useState<User | null>(null)
   const [editForm, setEditForm] = useState(emptyEdit)
   const [saving, setSaving] = useState(false)
@@ -64,6 +70,7 @@ export default function AdminUsers() {
   const load = () => api.admin.users().then(d => setUsers(d as User[]))
   const loadWaitlist = () => api.waitlist.list().then(d => setWaitlist(d as WaitlistEntry[]))
   const loadFamily = (userId: string) => api.family.adminList(userId).then(d => setFamilyMembers(d as FamilyMember[]))
+  const loadAllFamily = () => api.family.adminListAll().then(d => setAllFamilyMembers(d as typeof allFamilyMembers)).catch(() => {})
   const deleteWaitlistEntry = async (id: string, name: string) => {
     if (!confirm(`Remove ${name} from the waitlist?`)) return
     await api.waitlist.delete(id)
@@ -151,7 +158,7 @@ export default function AdminUsers() {
       load()
     } finally { setSaving(false) }
   }
-  useEffect(() => { load(); loadWaitlist() }, [])
+  useEffect(() => { load(); loadWaitlist(); loadAllFamily() }, [])
 
   const setRole = async (id: string, role: string) => {
     await api.admin.updateRole(id, role)
@@ -237,6 +244,7 @@ export default function AdminUsers() {
     board: users.filter(u => BOARD_ROLES.includes(u.role)).length,
     admin: users.filter(u => u.role === 'admin').length,
     withFamily: users.filter(u => u.has_family).length,
+    familyMembers: allFamilyMembers.length,
   }
 
   return (
@@ -244,7 +252,11 @@ export default function AdminUsers() {
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-bold text-gray-800">Members</h2>
         <div className="flex items-center gap-3">
-          <span className="text-xs text-gray-400">{waitlistFilter ? waitlistFiltered.length : filtered.length} of {waitlistFilter ? waitlist.length : users.length} shown</span>
+          <span className="text-xs text-gray-400">
+            {familyView
+              ? `${allFamilyMembers.length} family member${allFamilyMembers.length !== 1 ? 's' : ''}`
+              : `${waitlistFilter ? waitlistFiltered.length : filtered.length} of ${waitlistFilter ? waitlist.length : users.length} shown`}
+          </span>
           <button onClick={() => { setShowAddModal(true); setAddForm(emptyNew); setAddError('') }}
             className="bg-green-700 hover:bg-green-800 text-white text-sm font-medium px-4 py-1.5 rounded-lg transition">
             + Add Member
@@ -253,15 +265,16 @@ export default function AdminUsers() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 md:grid-cols-8 gap-3 mb-5">
+      <div className="grid grid-cols-4 md:grid-cols-8 gap-2 mb-5">
         {[
-          { label: 'Total Users', value: counts.total,    color: 'bg-gray-50 border-gray-200 text-gray-700',    active: !statusFilter && !roleFilter && !familyFilter && !waitlistFilter, click: () => { setStatusFilter(''); setRoleFilter(''); setFamilyFilter(false); setWaitlistFilter(false) } },
-          { label: 'Members',    value: counts.members,  color: 'bg-green-50 border-green-200 text-green-700',   active: roleFilter === 'member',       click: () => { setRoleFilter('member'); setStatusFilter(''); setFamilyFilter(false); setWaitlistFilter(false) } },
-          { label: 'Wait List',  value: counts.waitlist, color: 'bg-amber-50 border-amber-200 text-amber-700',   active: waitlistFilter,                click: () => { setWaitlistFilter(w => !w); setRoleFilter(''); setStatusFilter(''); setFamilyFilter(false) } },
-          { label: 'Inactive',   value: counts.inactive,   color: 'bg-red-50 border-red-200 text-red-700',          active: statusFilter === 'inactive',  click: () => { setStatusFilter('inactive'); setFamilyFilter(false); setWaitlistFilter(false) } },
-          { label: 'Board',      value: counts.board,      color: 'bg-blue-50 border-blue-200 text-blue-700',       active: roleFilter === 'board',       click: () => { setRoleFilter('board');      setFamilyFilter(false); setWaitlistFilter(false) } },
-          { label: 'Admin',      value: counts.admin,      color: 'bg-purple-50 border-purple-200 text-purple-700', active: roleFilter === 'admin',       click: () => { setRoleFilter('admin');      setFamilyFilter(false); setWaitlistFilter(false) } },
-          { label: 'Has Family', value: counts.withFamily, color: 'bg-orange-50 border-orange-200 text-orange-700', active: familyFilter,                 click: () => { setFamilyFilter(f => !f); setRoleFilter(''); setStatusFilter(''); setWaitlistFilter(false) } },
+          { label: 'Total Users',     value: counts.total,         color: 'bg-gray-50 border-gray-200 text-gray-700',    active: !statusFilter && !roleFilter && !familyFilter && !waitlistFilter && !familyView, click: () => { setStatusFilter(''); setRoleFilter(''); setFamilyFilter(false); setWaitlistFilter(false); setFamilyView(false) } },
+          { label: 'Members',         value: counts.members,       color: 'bg-green-50 border-green-200 text-green-700',  active: roleFilter === 'member' && !familyView,       click: () => { setRoleFilter('member'); setStatusFilter(''); setFamilyFilter(false); setWaitlistFilter(false); setFamilyView(false) } },
+          { label: 'Wait List',       value: counts.waitlist,      color: 'bg-amber-50 border-amber-200 text-amber-700',  active: waitlistFilter && !familyView,                click: () => { setWaitlistFilter(w => !w); setRoleFilter(''); setStatusFilter(''); setFamilyFilter(false); setFamilyView(false) } },
+          { label: 'Inactive',        value: counts.inactive,      color: 'bg-red-50 border-red-200 text-red-700',        active: statusFilter === 'inactive' && !familyView,   click: () => { setStatusFilter('inactive'); setFamilyFilter(false); setWaitlistFilter(false); setFamilyView(false) } },
+          { label: 'Board',           value: counts.board,         color: 'bg-blue-50 border-blue-200 text-blue-700',     active: roleFilter === 'board' && !familyView,        click: () => { setRoleFilter('board');  setFamilyFilter(false); setWaitlistFilter(false); setFamilyView(false) } },
+          { label: 'Admin',           value: counts.admin,         color: 'bg-purple-50 border-purple-200 text-purple-700', active: roleFilter === 'admin' && !familyView,      click: () => { setRoleFilter('admin');  setFamilyFilter(false); setWaitlistFilter(false); setFamilyView(false) } },
+          { label: 'Has Family',      value: counts.withFamily,    color: 'bg-orange-50 border-orange-200 text-orange-700', active: familyFilter && !familyView,               click: () => { setFamilyFilter(f => !f); setRoleFilter(''); setStatusFilter(''); setWaitlistFilter(false); setFamilyView(false) } },
+          { label: 'Family Members',  value: counts.familyMembers, color: 'bg-pink-50 border-pink-200 text-pink-700',     active: familyView,                                   click: () => { setFamilyView(v => !v); setRoleFilter(''); setStatusFilter(''); setFamilyFilter(false); setWaitlistFilter(false) } },
         ].map(s => (
           <button key={s.label} onClick={s.click}
             className={`${s.color} border rounded-xl p-3 text-center hover:opacity-80 transition cursor-pointer ${s.active ? 'ring-2 ring-offset-1 ring-current' : ''}`}>
@@ -310,6 +323,52 @@ export default function AdminUsers() {
           </button>
         )}
       </div>
+
+      {familyView ? (
+        <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
+                <tr>
+                  <th className="px-4 py-3 text-left">Family Member</th>
+                  <th className="px-4 py-3 text-left">Relationship</th>
+                  <th className="px-4 py-3 text-left">Primary Member</th>
+                  <th className="px-4 py-3 text-left">Email</th>
+                  <th className="px-4 py-3 text-left">Birthday</th>
+                  <th className="px-4 py-3 text-left">Login</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {allFamilyMembers.length === 0 ? (
+                  <tr><td colSpan={6} className="px-4 py-6 text-center text-gray-400 text-sm">No family members on file.</td></tr>
+                ) : allFamilyMembers.map(fm => (
+                  <tr key={fm.id} className="hover:bg-pink-50">
+                    <td className="px-4 py-3 font-medium text-gray-800">
+                      {fm.first_name} {fm.last_name}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 capitalize">
+                        {fm.relationship}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="text-gray-800">{fm.primary_member_name}</div>
+                      <div className="text-xs text-gray-400">{fm.primary_member_email}</div>
+                    </td>
+                    <td className="px-4 py-3 text-gray-500">{fm.email ?? <span className="text-gray-300">—</span>}</td>
+                    <td className="px-4 py-3 text-gray-500">{fm.birthday ?? <span className="text-gray-300">—</span>}</td>
+                    <td className="px-4 py-3">
+                      {fm.has_login
+                        ? <span className="text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full">✓ Has login</span>
+                        : <span className="text-xs text-gray-400">—</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
 
       <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
@@ -409,6 +468,7 @@ export default function AdminUsers() {
         </table>
         </div>
       </div>
+      )}
 
       {/* Edit member modal */}
       {editing && (

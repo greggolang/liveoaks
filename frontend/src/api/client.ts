@@ -242,6 +242,7 @@ export const api = {
     update: (id: string, data: object) => request(`/family-members/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => request(`/family-members/${id}`, { method: 'DELETE' }),
     adminList: (userId: string) => request(`/admin/users/${userId}/family`),
+    adminListAll: () => request('/admin/family-members'),
     adminCreate: (userId: string, data: object) => request(`/admin/users/${userId}/family`, { method: 'POST', body: JSON.stringify(data) }),
     adminUpdate: (userId: string, id: string, data: object) => request(`/admin/users/${userId}/family/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     adminDelete: (userId: string, id: string) => request(`/admin/users/${userId}/family/${id}`, { method: 'DELETE' }),

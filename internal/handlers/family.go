@@ -213,6 +213,60 @@ func (h *FamilyHandler) Delete(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
+// AdminListAll returns every family member across all users (board+),
+// including the primary member's name and whether a login account exists.
+func (h *FamilyHandler) AdminListAll(c echo.Context) error {
+	rows, err := h.DB.Query(c.Request().Context(), `
+		SELECT fm.id, fm.user_id,
+		       u.first_name || ' ' || u.last_name AS primary_member_name,
+		       u.email AS primary_member_email,
+		       fm.first_name, fm.last_name, fm.relationship,
+		       fm.email, fm.phone, fm.birthday,
+		       fm.linked_user_id IS NOT NULL AS has_login,
+		       fm.created_at
+		FROM family_members fm
+		JOIN users u ON u.id = fm.user_id
+		ORDER BY u.last_name, u.first_name, fm.last_name, fm.first_name`)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch family members")
+	}
+	defer rows.Close()
+
+	type Row struct {
+		ID                  string    `json:"id"`
+		UserID              string    `json:"user_id"`
+		PrimaryMemberName   string    `json:"primary_member_name"`
+		PrimaryMemberEmail  string    `json:"primary_member_email"`
+		FirstName           string    `json:"first_name"`
+		LastName            string    `json:"last_name"`
+		Relationship        string    `json:"relationship"`
+		Email               *string   `json:"email,omitempty"`
+		Phone               *string   `json:"phone,omitempty"`
+		Birthday            *string   `json:"birthday,omitempty"`
+		HasLogin            bool      `json:"has_login"`
+		CreatedAt           time.Time `json:"created_at"`
+	}
+
+	result := []Row{}
+	for rows.Next() {
+		var r Row
+		var bday *time.Time
+		if err := rows.Scan(
+			&r.ID, &r.UserID, &r.PrimaryMemberName, &r.PrimaryMemberEmail,
+			&r.FirstName, &r.LastName, &r.Relationship,
+			&r.Email, &r.Phone, &bday, &r.HasLogin, &r.CreatedAt,
+		); err != nil {
+			continue
+		}
+		if bday != nil {
+			s := bday.Format("2006-01-02")
+			r.Birthday = &s
+		}
+		result = append(result, r)
+	}
+	return c.JSON(http.StatusOK, result)
+}
+
 // AdminCreate adds a family member on behalf of any user (board+)
 func (h *FamilyHandler) AdminCreate(c echo.Context) error {
 	targetUserID := c.Param("userId")

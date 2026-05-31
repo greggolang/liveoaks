@@ -323,6 +323,7 @@ func main() {
 	authed.PUT("/family-members/:id", family.Update)
 	authed.DELETE("/family-members/:id", family.Delete)
 	authed.PUT("/family-members/:id/password", family.SetPassword)
+	boardPlus.GET("/admin/family-members", family.AdminListAll)
 	boardPlus.GET("/admin/users/:userId/family", family.AdminList)
 	boardPlus.POST("/admin/users/:userId/family", family.AdminCreate)
 	boardPlus.PUT("/admin/users/:userId/family/:id", family.AdminUpdate)
