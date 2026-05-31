@@ -677,17 +677,18 @@ func (h *InvitationsHandler) sendAcceptedEmail(to, playerName, court, dateStr, b
 </p>`, spotsLeft, map[bool]string{true: "", false: "s"}[spotsLeft == 1], h.SiteURL)
 	}
 
+	matchTypeLabels := map[string]string{
+		"singles": "Singles", "doubles": "Doubles",
+		"casual": "Hit Session", "ball_machine": "Ball Machine",
+	}
+	matchLabel := matchTypeLabels[matchType]
+	if matchLabel == "" {
+		matchLabel = "Tennis"
+	}
+
 	// Calendar link — only when roster is complete
 	calHTML := ""
 	if spotsLeft <= 0 {
-		matchTypeLabels := map[string]string{
-			"singles": "Singles", "doubles": "Doubles",
-			"casual": "Hit Session", "ball_machine": "Ball Machine",
-		}
-		matchLabel := matchTypeLabels[matchType]
-		if matchLabel == "" {
-			matchLabel = "Tennis"
-		}
 		icalURL := fmt.Sprintf("%s/api/bookings/%s/ical", h.SiteURL, bookingID)
 		calHTML = calendarLinksHTML(
 			fmt.Sprintf("%s – %s – Live Oaks Tennis Club", matchLabel, court),
@@ -703,13 +704,14 @@ func (h *InvitationsHandler) sendAcceptedEmail(to, playerName, court, dateStr, b
   <div style="background:#f0fdf4;border-radius:8px;padding:16px;margin:20px 0">
     <div style="margin:4px 0">🎾 <strong>%s</strong></div>
     <div style="margin:4px 0">📅 <strong>%s</strong></div>
+    <div style="margin:4px 0">📋 <strong>%s</strong></div>
     <div style="margin-top:12px;font-weight:600;color:#166534">Current Roster:</div>
     <ul style="margin:8px 0;padding-left:20px;color:#374151">%s</ul>
   </div>
   %s
   %s
   <p><a href="%s/bookings" style="color:#15803d;font-size:13px">View all your bookings →</a></p>
-</div>`, playerName, court, dateStr, rosterHTML, spotsHTML, calHTML, h.SiteURL)
+</div>`, playerName, court, dateStr, matchLabel, rosterHTML, spotsHTML, calHTML, h.SiteURL)
 	h.Mailer.Send(to, playerName+" accepted your match invitation", body)
 }
 

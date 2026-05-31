@@ -90,7 +90,28 @@ export default function Dashboard() {
   const seenIds = useRef<Set<string>>(new Set())
   const dismissedAlertIds = useRef<Set<string>>(new Set())
 
+  // Persist dismissed response alert IDs across page loads
+  const dismissedKey = user?.id ? `response_dismissed_${user.id}` : null
+  useEffect(() => {
+    if (!dismissedKey) return
+    try {
+      const saved: string[] = JSON.parse(localStorage.getItem(dismissedKey) || '[]')
+      saved.forEach(id => dismissedAlertIds.current.add(id))
+    } catch {}
+  }, [dismissedKey])
+
   const dismissToast = (id: string) => setToasts(prev => prev.filter(t => t.id !== id))
+
+  const dismissAlert = (id: string) => {
+    dismissedAlertIds.current.add(id)
+    setResponseAlerts(prev => prev.filter(ra => ra.id !== id))
+    if (dismissedKey) {
+      try {
+        const saved: string[] = JSON.parse(localStorage.getItem(dismissedKey) || '[]')
+        localStorage.setItem(dismissedKey, JSON.stringify([...new Set([...saved, id])]))
+      } catch {}
+    }
+  }
 
   const checkResponses = useCallback(async () => {
     try {
@@ -506,10 +527,7 @@ export default function Dashboard() {
                 </div>
                 {accepted && (
                   <button
-                    onClick={() => {
-                      dismissedAlertIds.current.add(r.id)
-                      setResponseAlerts(prev => prev.filter(ra => ra.id !== r.id))
-                    }}
+                    onClick={() => dismissAlert(r.id)}
                     className="text-green-400 hover:text-green-600 shrink-0 leading-none text-lg mt-0.5"
                     title="Dismiss">
                     ×
