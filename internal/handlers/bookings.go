@@ -949,26 +949,28 @@ func (h *BookingsHandler) AdminCreate(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusConflict, "this member already has a booking that overlaps with this time slot")
 	}
 
-	// Per-day count check (same rule as self-service, even for admin-created bookings)
-	loc := loadTimezone(c.Request().Context(), h.DB)
-	localStart := req.StartTime.In(loc)
-	dayStart := time.Date(localStart.Year(), localStart.Month(), localStart.Day(), 0, 0, 0, 0, loc).UTC()
-	dayEnd := dayStart.Add(24 * time.Hour)
-	maxPerDay := 1
-	var maxStr string
-	if scanErr := h.DB.QueryRow(c.Request().Context(),
-		`SELECT value FROM settings WHERE key = 'booking_max_per_day'`).Scan(&maxStr); scanErr == nil {
-		if v, convErr := strconv.Atoi(maxStr); convErr == nil && v > 0 {
-			maxPerDay = v
+	// Per-day count check — skipped for liveball event court blocks
+	if req.MatchType != "liveball" {
+		loc := loadTimezone(c.Request().Context(), h.DB)
+		localStart := req.StartTime.In(loc)
+		dayStart := time.Date(localStart.Year(), localStart.Month(), localStart.Day(), 0, 0, 0, 0, loc).UTC()
+		dayEnd := dayStart.Add(24 * time.Hour)
+		maxPerDay := 1
+		var maxStr string
+		if scanErr := h.DB.QueryRow(c.Request().Context(),
+			`SELECT value FROM settings WHERE key = 'booking_max_per_day'`).Scan(&maxStr); scanErr == nil {
+			if v, convErr := strconv.Atoi(maxStr); convErr == nil && v > 0 {
+				maxPerDay = v
+			}
 		}
-	}
-	var bookingsToday int
-	h.DB.QueryRow(c.Request().Context(),
-		`SELECT COUNT(*) FROM bookings WHERE user_id = $1 AND start_time >= $2 AND start_time < $3`,
-		req.UserID, dayStart, dayEnd).Scan(&bookingsToday)
-	if bookingsToday >= maxPerDay {
-		return echo.NewHTTPError(http.StatusConflict,
-			fmt.Sprintf("this member already has %d booking(s) on this date (daily limit: %d)", bookingsToday, maxPerDay))
+		var bookingsToday int
+		h.DB.QueryRow(c.Request().Context(),
+			`SELECT COUNT(*) FROM bookings WHERE user_id = $1 AND start_time >= $2 AND start_time < $3`,
+			req.UserID, dayStart, dayEnd).Scan(&bookingsToday)
+		if bookingsToday >= maxPerDay {
+			return echo.NewHTTPError(http.StatusConflict,
+				fmt.Sprintf("this member already has %d booking(s) on this date (daily limit: %d)", bookingsToday, maxPerDay))
+		}
 	}
 
 	var booking models.Booking

@@ -142,7 +142,7 @@ export default function AdminLiveball() {
           court_id:       cForm.court_id,
           start_time:     startDT.toISOString(),
           end_time:       endDT.toISOString(),
-          match_type:     'casual',
+          match_type:     'liveball',
           notes:          'LiveBall Event',
           players_needed: 0,
         })

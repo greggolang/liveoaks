@@ -91,6 +91,7 @@ export default function Dashboard() {
   const [toasts, setToasts] = useState<InviteResponse[]>([])
   const [newFeedback, setNewFeedback] = useState<{id: string; message: string; type: string; created_at: string; first_name: string; last_name: string}[]>([])
   const [liveballInvites, setLiveballInvites] = useState<{id: string; event_id: string; title: string; start_time: string; max_players: number; status: string; token: string; position?: number}[]>([])
+  const [liveballResponding, setLiveballResponding] = useState<Set<string>>(new Set())
   const [boardMeetingInvites, setBoardMeetingInvites] = useState<{id: string; event_id: string; token: string; status: string; title: string; start_time: string; end_time?: string; location?: string}[]>([])
   const seenIds = useRef<Set<string>>(new Set())
   const dismissedAlertIds = useRef<Set<string>>(new Set())
@@ -389,6 +390,7 @@ export default function Dashboard() {
           const timeStr = start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 
           if (lb.status === 'invited') {
+            const responding = liveballResponding.has(lb.id)
             alerts.push(
               <div key={`lb-${lb.id}`} className="flex items-start gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
                 <span className="text-xl shrink-0">🎾</span>
@@ -397,10 +399,37 @@ export default function Dashboard() {
                   <p className="text-xs text-green-600 mt-0.5">{lb.title} · {dateStr} at {timeStr}</p>
                   <p className="text-xs text-green-500 mt-0.5">First {lb.max_players} to accept get in.</p>
                 </div>
-                <a href={`/liveball/${lb.token}/accept`}
-                  className="text-xs font-semibold bg-green-700 text-white px-3 py-1.5 rounded-lg hover:bg-green-800 transition shrink-0">
-                  I'm In →
-                </a>
+                <div className="flex gap-2 shrink-0">
+                  <button
+                    disabled={responding}
+                    onClick={async () => {
+                      setLiveballResponding(s => new Set([...s, lb.id]))
+                      try {
+                        await api.liveball.respond(lb.token, 'accept')
+                        const fresh = await api.liveball.myInvitations()
+                        setLiveballInvites(fresh as any[])
+                      } catch {} finally {
+                        setLiveballResponding(s => { const n = new Set(s); n.delete(lb.id); return n })
+                      }
+                    }}
+                    className="text-xs font-semibold bg-green-700 text-white px-3 py-1.5 rounded-lg hover:bg-green-800 transition disabled:opacity-50">
+                    {responding ? '…' : "I'm In →"}
+                  </button>
+                  <button
+                    disabled={responding}
+                    onClick={async () => {
+                      setLiveballResponding(s => new Set([...s, lb.id]))
+                      try {
+                        await api.liveball.respond(lb.token, 'decline')
+                        setLiveballInvites(p => p.filter(x => x.id !== lb.id))
+                      } catch {} finally {
+                        setLiveballResponding(s => { const n = new Set(s); n.delete(lb.id); return n })
+                      }
+                    }}
+                    className="text-xs font-semibold bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-300 transition disabled:opacity-50">
+                    Can't Make It
+                  </button>
+                </div>
               </div>
             )
           } else if (lb.status === 'confirmed') {
