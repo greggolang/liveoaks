@@ -2,6 +2,20 @@ import { useEffect, useState } from 'react'
 import { api } from '../../api/client'
 import { useAuth } from '../../contexts/AuthContext'
 
+const HOURS = Array.from({ length: 24 }, (_, i) => i * 0.5 + 8)
+
+function fmt12(slot: number) {
+  const h = Math.floor(slot) % 12 || 12
+  const m = slot % 1 === 0.5 ? '30' : '00'
+  return `${h}:${m} ${Math.floor(slot) < 12 ? 'AM' : 'PM'}`
+}
+
+function slotToTime(slot: number): string {
+  const h = Math.floor(slot)
+  const m = slot % 1 === 0.5 ? '30' : '00'
+  return `${String(h).padStart(2, '0')}:${m}`
+}
+
 interface LBEvent {
   id: string; title: string; description: string; start_time: string; end_time?: string
   max_players: number; confirmed: number; waitlisted: number; invited: number; declined: number
@@ -44,7 +58,9 @@ export default function AdminLiveball() {
   const [cSaving, setCSaving] = useState(false)
   const [cErr, setCErr] = useState('')
 
-  // Court availability
+  // Court/time picker
+  const [pickingSlot, setPickingSlot] = useState(false)
+  const [pickDate, setPickDate] = useState('')
   const [courts, setCourts] = useState<Court[]>([])
   const [dayBookings, setDayBookings] = useState<DayBooking[]>([])
   const [loadingCourts, setLoadingCourts] = useState(false)
@@ -61,33 +77,30 @@ export default function AdminLiveball() {
     api.courts.list().then(d => setCourts(d as Court[]))
   }, [])
 
-  // Reload day bookings whenever the selected date changes so the court
-  // availability display is always current.
+  // Load bookings for the date being browsed in the slot picker
   useEffect(() => {
-    if (!cForm.date) { setDayBookings([]); return }
+    if (!pickDate) { setDayBookings([]); return }
     setLoadingCourts(true)
-    api.bookings.list(cForm.date)
+    api.bookings.list(pickDate)
       .then(d => setDayBookings(d as DayBooking[]))
       .catch(() => {})
       .finally(() => setLoadingCourts(false))
-    // Reset court selection when date changes
-    setCForm(f => ({ ...f, court_id: 0 }))
-  }, [cForm.date])
+  }, [pickDate])
 
-  // Also reset court when time changes — availability may differ
-  useEffect(() => {
-    setCForm(f => ({ ...f, court_id: 0 }))
-  }, [cForm.time])
-
-  const isCourtFree = (courtId: number): boolean => {
-    if (!cForm.date || !cForm.time) return true
-    const start = new Date(`${cForm.date}T${cForm.time}`)
+  const isSlotAvailable = (courtId: number, slot: number): boolean => {
+    if (!pickDate) return false
+    const start = new Date(`${pickDate}T${slotToTime(slot)}`)
     const end   = new Date(start.getTime() + 90 * 60 * 1000)
     return !dayBookings.some(b =>
       b.court_id === courtId &&
       new Date(b.start_time) < end &&
       new Date(b.end_time) > start
     )
+  }
+
+  const isPastSlot = (slot: number): boolean => {
+    if (!pickDate) return false
+    return new Date(`${pickDate}T${slotToTime(slot)}`) < new Date()
   }
 
   const loadEvent = async (ev: LBEvent) => {
@@ -109,7 +122,7 @@ export default function AdminLiveball() {
   }
 
   const createEvent = async () => {
-    if (!cForm.date || !cForm.time) { setCErr('Date and start time are required'); return }
+    if (!cForm.date || !cForm.time || !cForm.court_id) { setCErr('Pick a court and time slot first'); return }
     setCSaving(true); setCErr('')
     try {
       const startDT = new Date(`${cForm.date}T${cForm.time}`)
@@ -123,8 +136,7 @@ export default function AdminLiveball() {
         max_players: cForm.max_players,
       })
 
-      // Also book the selected court so it's blocked during the event.
-      if (cForm.court_id > 0 && user) {
+      if (user) {
         await api.bookings.adminCreate({
           user_id:        user.id,
           court_id:       cForm.court_id,
@@ -139,6 +151,8 @@ export default function AdminLiveball() {
       const updated = await api.liveball.admin.list() as LBEvent[]
       setEvents(updated)
       setShowCreate(false)
+      setPickingSlot(false)
+      setPickDate('')
       setCForm({ description: '', date: '', time: '', max_players: 8, court_id: 0 })
     } catch (e: any) { setCErr(e.message) } finally { setCSaving(false) }
   }
@@ -208,109 +222,152 @@ export default function AdminLiveball() {
 
       {/* Create form */}
       {showCreate && (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-3">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
           <h2 className="font-semibold text-gray-700">Create LiveBall Event</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {/* Date */}
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Date *</label>
-              <input type="date" value={cForm.date}
-                onChange={e => setCForm(f => ({ ...f, date: e.target.value }))}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+
+          {/* ── Step 1: Court + time picker ── */}
+          {cForm.date && cForm.time && cForm.court_id && !pickingSlot ? (
+            /* Selected slot summary chip */
+            <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+              <svg className="w-4 h-4 text-green-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-green-800">
+                  {courts.find(c => c.id === cForm.court_id)?.name}
+                  {' · '}
+                  {new Date(`${cForm.date}T${cForm.time}`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                </p>
+                <p className="text-xs text-green-600 mt-0.5">
+                  {new Date(`${cForm.date}T${cForm.time}`).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                  {' → '}
+                  {new Date(new Date(`${cForm.date}T${cForm.time}`).getTime() + 90 * 60 * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                  {' '}(1½ hours)
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setPickingSlot(true); setCForm(f => ({ ...f, date: '', time: '', court_id: 0 })) }}
+                className="text-xs text-green-600 hover:text-green-800 font-medium transition shrink-0">
+                Change
+              </button>
             </div>
-            {/* Start time */}
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Start time *</label>
-              <input type="time" value={cForm.time}
-                onChange={e => setCForm(f => ({ ...f, time: e.target.value }))}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
-            </div>
-            {/* Computed end time preview */}
-            <div className="sm:col-span-2">
-              {cForm.date && cForm.time ? (() => {
-                const start = new Date(`${cForm.date}T${cForm.time}`)
-                const end   = new Date(start.getTime() + 90 * 60 * 1000)
-                return (
-                  <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-xs text-green-700">
-                    <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span>
-                      <strong>{start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</strong>
-                      {' → '}
-                      <strong>{end.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</strong>
-                      {' '}(1½ hours) — {start.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-                    </span>
-                  </div>
-                )
-              })() : (
-                <p className="text-xs text-gray-400">Events are automatically set to 1½ hours long.</p>
-              )}
-            </div>
-            {/* Court availability picker */}
-            {cForm.date && cForm.time && (
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-medium text-gray-500 mb-1.5">
-                  Court
-                  {loadingCourts && <span className="ml-2 text-gray-400 font-normal">Loading…</span>}
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {courts.map(court => {
-                    const free = isCourtFree(court.id)
-                    const sel  = cForm.court_id === court.id
-                    return (
-                      <button key={court.id} type="button"
-                        disabled={!free}
-                        onClick={() => setCForm(f => ({ ...f, court_id: sel ? 0 : court.id }))}
-                        className={`px-4 py-2 rounded-xl text-sm font-medium border transition
-                          ${sel  ? 'bg-green-700 text-white border-green-700 shadow-sm'
-                            : !free ? 'bg-gray-100 text-gray-400 border-gray-100 cursor-not-allowed'
-                            : 'bg-white text-gray-700 border-gray-200 hover:border-green-400 hover:text-green-700'}`}>
-                        {court.name}
-                        <span className={`ml-1.5 text-xs font-normal
-                          ${sel ? 'text-green-200' : !free ? 'text-gray-400' : 'text-gray-400'}`}>
-                          {!free ? '· Booked' : '· Available'}
-                        </span>
-                      </button>
-                    )
-                  })}
-                </div>
-                {cForm.court_id > 0 && (
-                  <p className="text-xs text-green-700 mt-1.5 flex items-center gap-1">
-                    <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    {courts.find(c => c.id === cForm.court_id)?.name} will be booked for this event
-                  </p>
-                )}
-                {cForm.court_id === 0 && !loadingCourts && courts.every(c => !isCourtFree(c.id)) && courts.length > 0 && (
-                  <p className="text-xs text-amber-600 mt-1.5">⚠ All courts are booked at this time.</p>
-                )}
-                {cForm.court_id === 0 && !loadingCourts && courts.some(c => isCourtFree(c.id)) && (
-                  <p className="text-xs text-gray-400 mt-1">Select a court to book it alongside the event.</p>
+          ) : pickingSlot || !cForm.date ? (
+            /* Court grid picker */
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-gray-700">Pick a court and time slot</p>
+                {(cForm.date || pickDate) && (
+                  <button type="button"
+                    onClick={() => { setPickingSlot(false); setPickDate('') }}
+                    className="text-xs text-gray-400 hover:text-gray-600 transition">
+                    Cancel
+                  </button>
                 )}
               </div>
-            )}
-
-            {/* Player spots */}
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Player spots *</label>
-              <input type="number" min={2} max={64} value={cForm.max_players}
-                onChange={e => setCForm(f => ({ ...f, max_players: +e.target.value }))}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Date *</label>
+                <input type="date" value={pickDate}
+                  onChange={e => setPickDate(e.target.value)}
+                  min={new Date().toISOString().slice(0, 10)}
+                  className="w-full sm:w-48 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+              </div>
+              {pickDate && (
+                <div className="overflow-x-auto rounded-xl border border-gray-200">
+                  {loadingCourts ? (
+                    <div className="py-8 text-center text-sm text-gray-400">Loading availability…</div>
+                  ) : (
+                    <table className="w-full text-sm border-collapse">
+                      <thead>
+                        <tr className="border-b border-gray-100">
+                          <th className="w-20 py-2 px-3 text-gray-400 text-xs font-medium text-left">Time</th>
+                          {courts.map(c => (
+                            <th key={c.id} className="py-2 px-2 text-center text-xs font-semibold text-gray-700">{c.name}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {HOURS.map(slot => {
+                          const past = isPastSlot(slot)
+                          return (
+                            <tr key={slot} className={`border-b last:border-0 ${slot % 1 === 0 ? 'border-gray-100' : 'border-gray-50'}`}>
+                              <td className={`px-3 text-xs font-medium whitespace-nowrap align-middle ${slot % 1 === 0 ? 'py-1 text-gray-400' : 'py-0.5 text-gray-300'}`}>
+                                {fmt12(slot)}
+                              </td>
+                              {courts.map(c => {
+                                const available = !past && isSlotAvailable(c.id, slot)
+                                return (
+                                  <td key={c.id} className="px-1.5 py-0.5 align-top">
+                                    <button
+                                      type="button"
+                                      disabled={!available}
+                                      onClick={() => {
+                                        setCForm(f => ({ ...f, date: pickDate, time: slotToTime(slot), court_id: c.id }))
+                                        setPickingSlot(false)
+                                      }}
+                                      className={`w-full h-7 rounded border text-xs font-medium transition
+                                        ${past
+                                          ? 'bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed'
+                                          : available
+                                            ? 'bg-white border-gray-200 text-gray-400 hover:bg-green-50 hover:border-green-400 hover:text-green-700 cursor-pointer'
+                                            : 'bg-slate-100 border-slate-100 text-slate-400 cursor-not-allowed'
+                                        }`}>
+                                      {!available && !past ? '–' : ''}
+                                    </button>
+                                  </td>
+                                )
+                              })}
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                  <div className="flex gap-4 px-3 py-2 border-t border-gray-100 text-xs text-gray-400">
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-3 h-3 bg-white border border-gray-200 rounded inline-block" />
+                      Available — click to select
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-3 h-3 bg-slate-100 rounded inline-block" />
+                      Booked
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
-            {/* Description */}
-            <textarea value={cForm.description} onChange={e => setCForm(f => ({ ...f, description: e.target.value }))}
-              placeholder="Details for members (optional)" rows={2}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-green-500" />
-          </div>
+          ) : null}
+
+          {/* ── Step 2: Spots + description (only shown after court/time is picked) ── */}
+          {cForm.date && cForm.time && cForm.court_id && !pickingSlot && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Player spots *</label>
+                <input type="number" min={2} max={64} value={cForm.max_players}
+                  onChange={e => setCForm(f => ({ ...f, max_players: +e.target.value }))}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+              </div>
+              <textarea value={cForm.description} onChange={e => setCForm(f => ({ ...f, description: e.target.value }))}
+                placeholder="Details for members (optional)" rows={2}
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-green-500" />
+            </div>
+          )}
+
           {cErr && <p className="text-red-500 text-xs">{cErr}</p>}
           <div className="flex gap-2">
-            <button onClick={createEvent} disabled={cSaving}
-              className="bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-4 py-2 rounded-lg transition disabled:opacity-50">
-              {cSaving ? 'Creating…' : 'Create Event'}
-            </button>
-            <button onClick={() => { setShowCreate(false); setCForm({ description: '', date: '', time: '', max_players: 8, court_id: 0 }); setCErr('') }}
+            {cForm.date && cForm.time && cForm.court_id && !pickingSlot && (
+              <button onClick={createEvent} disabled={cSaving}
+                className="bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-4 py-2 rounded-lg transition disabled:opacity-50">
+                {cSaving ? 'Creating…' : 'Create Event'}
+              </button>
+            )}
+            <button onClick={() => {
+              setShowCreate(false)
+              setPickingSlot(false)
+              setPickDate('')
+              setCForm({ description: '', date: '', time: '', max_players: 8, court_id: 0 })
+              setCErr('')
+            }}
               className="text-sm text-gray-400 hover:text-gray-600 px-3">Cancel</button>
           </div>
         </div>
