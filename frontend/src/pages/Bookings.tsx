@@ -104,9 +104,9 @@ export default function Bookings() {
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([])
   const [friendGroups, setFriendGroups] = useState<FriendGroup[]>([])
   const [selectedFriends, setSelectedFriends] = useState<string[]>([]) // friend ids to invite at booking time
-  const [selectedMemberInvites, setSelectedMemberInvites] = useState<{id: string; first_name: string; last_name: string; email: string}[]>([])
+  const [selectedMemberInvites, setSelectedMemberInvites] = useState<{id: string; first_name: string; last_name: string; email: string; isFamilyMember?: boolean; relationship?: string}[]>([])
   const [bookingInviteQuery, setBookingInviteQuery] = useState('')
-  const [bookingInviteResults, setBookingInviteResults] = useState<{id: string; first_name: string; last_name: string; email: string}[]>([])
+  const [bookingInviteResults, setBookingInviteResults] = useState<{id: string; first_name: string; last_name: string; email: string; isFamilyMember?: boolean; relationship?: string}[]>([])
   const [confirming, setConfirming] = useState(false)
   const [activeBookingRoster, setActiveBookingRoster] = useState<{ bookingId: string; players: MatchPlayer[]; invitations: Invitation[] } | null>(null)
   const [rosterMap, setRosterMap] = useState<Record<string, { players: MatchPlayer[]; invitations: Invitation[] }>>({})
@@ -401,7 +401,7 @@ export default function Bookings() {
         await Promise.all(
           selectedMemberInvites.map(m =>
             api.invitations.send(booked.id, {
-              invitee_user_id: m.id,
+              invitee_user_id: m.isFamilyMember ? null : m.id,
               invitee_name: `${m.first_name} ${m.last_name}`,
               invitee_email: m.email,
               is_guest: false,
@@ -615,7 +615,7 @@ export default function Bookings() {
                           <button key={m.id} type="button"
                             onClick={() => setSelectedMemberInvites(s => s.filter(x => x.id !== m.id))}
                             className="px-2.5 py-1 rounded-full text-xs font-medium transition bg-green-700 text-white">
-                            ✓ {m.first_name} {m.last_name} ✕
+                            ✓ {m.first_name} {m.last_name}{m.isFamilyMember ? ` (${m.relationship})` : ''} ✕
                           </button>
                         ))}
                         {totalAdded > 0 && (
@@ -630,14 +630,22 @@ export default function Bookings() {
                                 setBookingInviteQuery(q)
                                 if (q.length < 2) { setBookingInviteResults([]); return }
                                 const lower = q.toLowerCase()
-                                setBookingInviteResults(
-                                  directory.filter(m =>
-                                    m.id !== user?.id &&
-                                    !selectedMemberInvites.some(x => x.id === m.id) &&
-                                    !selectedFriends.some(fid => friends.find(f => f.id === fid)?.friend_user_id === m.id) &&
-                                    (`${m.first_name} ${m.last_name}`.toLowerCase().includes(lower) || m.email.toLowerCase().includes(lower))
-                                  ).slice(0, 8)
-                                )
+                                const famResults = familyMembers
+                                  .filter(fm => {
+                                    const age = familyAge(fm.birthday)
+                                    return (fm.relationship.toLowerCase() === 'spouse' || (age !== null && age < 26)) &&
+                                      fm.email &&
+                                      !selectedMemberInvites.some(x => x.id === fm.id)
+                                  })
+                                  .filter(fm => `${fm.first_name} ${fm.last_name}`.toLowerCase().includes(lower) || (fm.email ?? '').toLowerCase().includes(lower))
+                                  .map(fm => ({ id: fm.id, first_name: fm.first_name, last_name: fm.last_name, email: fm.email ?? '', isFamilyMember: true as const, relationship: fm.relationship }))
+                                const memberResults = directory.filter(m =>
+                                  m.id !== user?.id &&
+                                  !selectedMemberInvites.some(x => x.id === m.id) &&
+                                  !selectedFriends.some(fid => friends.find(f => f.id === fid)?.friend_user_id === m.id) &&
+                                  (`${m.first_name} ${m.last_name}`.toLowerCase().includes(lower) || m.email.toLowerCase().includes(lower))
+                                ).slice(0, 8)
+                                setBookingInviteResults([...famResults, ...memberResults])
                               }}
                               placeholder="Search member…"
                               className="border border-green-200 rounded-full px-3 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-green-500 bg-white w-36"
@@ -652,8 +660,11 @@ export default function Bookings() {
                                       setBookingInviteResults([])
                                     }}
                                     className="px-3 py-1.5 cursor-pointer hover:bg-green-50 text-xs">
-                                    <div className="font-medium text-gray-800">{m.first_name} {m.last_name}</div>
-                                    <div className="text-gray-400">{m.email}</div>
+                                    <div className="font-medium text-gray-800">
+                                      {m.first_name} {m.last_name}
+                                      {m.isFamilyMember && <span className="ml-1.5 text-purple-600 font-normal capitalize">({m.relationship})</span>}
+                                    </div>
+                                    <div className="text-gray-400">{m.isFamilyMember ? 'Family member' : m.email}</div>
                                   </div>
                                 ))}
                               </div>

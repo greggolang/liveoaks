@@ -6,7 +6,7 @@ const USTA_RATINGS = ['2.5', '3.0', '3.5', '4.0', '4.5', '5.0']
 interface User {
   id: string; first_name: string; last_name: string; email: string
   role: string; extra_roles?: string[]; status: string; phone?: string; address?: string; family?: string
-  usta_ranking?: string; birthday?: string; created_at: string
+  usta_ranking?: string; birthday?: string; has_family?: boolean; created_at: string
 }
 
 // All assignable roles (used for extra_roles checkboxes)
@@ -37,6 +37,7 @@ export default function AdminUsers() {
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [familyFilter, setFamilyFilter] = useState(false)
   const [editing, setEditing] = useState<User | null>(null)
   const [editForm, setEditForm] = useState(emptyEdit)
   const [saving, setSaving] = useState(false)
@@ -154,6 +155,7 @@ export default function AdminUsers() {
     if (roleFilter === 'board') { if (!BOARD_ROLES.includes(u.role)) return false }
     else if (roleFilter && u.role !== roleFilter) return false
     if (statusFilter && u.status !== statusFilter) return false
+    if (familyFilter && !u.has_family) return false
     if (search) {
       const q = search.toLowerCase()
       return (
@@ -166,7 +168,7 @@ export default function AdminUsers() {
     return true
   })
 
-  const hasFilters = search || roleFilter || statusFilter
+  const hasFilters = search || roleFilter || statusFilter || familyFilter
 
   const roleColor = (role: string): string => {
     if (role === 'admin') return 'bg-purple-100 text-purple-700'
@@ -195,6 +197,7 @@ export default function AdminUsers() {
     inactive: users.filter(u => u.status === 'inactive').length,
     board: users.filter(u => BOARD_ROLES.includes(u.role)).length,
     admin: users.filter(u => u.role === 'admin').length,
+    withFamily: users.filter(u => u.has_family).length,
   }
 
   return (
@@ -211,17 +214,18 @@ export default function AdminUsers() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-5">
+      <div className="grid grid-cols-4 md:grid-cols-7 gap-3 mb-5">
         {[
-          { label: 'Total', value: counts.total, color: 'bg-gray-50 border-gray-200 text-gray-700', click: () => { setStatusFilter(''); setRoleFilter('') } },
-          { label: 'Active', value: counts.active, color: 'bg-green-50 border-green-200 text-green-700', click: () => setStatusFilter('active') },
-          { label: 'Pending', value: counts.pending, color: 'bg-yellow-50 border-yellow-200 text-yellow-700', click: () => setStatusFilter('pending') },
-          { label: 'Inactive', value: counts.inactive, color: 'bg-red-50 border-red-200 text-red-700', click: () => setStatusFilter('inactive') },
-          { label: 'Board', value: counts.board, color: 'bg-blue-50 border-blue-200 text-blue-700', click: () => setRoleFilter('board') },
-          { label: 'Admin', value: counts.admin, color: 'bg-purple-50 border-purple-200 text-purple-700', click: () => setRoleFilter('admin') },
+          { label: 'Total',      value: counts.total,      color: 'bg-gray-50 border-gray-200 text-gray-700',   active: !statusFilter && !roleFilter && !familyFilter, click: () => { setStatusFilter(''); setRoleFilter(''); setFamilyFilter(false) } },
+          { label: 'Active',     value: counts.active,     color: 'bg-green-50 border-green-200 text-green-700',  active: statusFilter === 'active',   click: () => { setStatusFilter('active');   setFamilyFilter(false) } },
+          { label: 'Pending',    value: counts.pending,    color: 'bg-yellow-50 border-yellow-200 text-yellow-700', active: statusFilter === 'pending',  click: () => { setStatusFilter('pending');  setFamilyFilter(false) } },
+          { label: 'Inactive',   value: counts.inactive,   color: 'bg-red-50 border-red-200 text-red-700',        active: statusFilter === 'inactive',  click: () => { setStatusFilter('inactive'); setFamilyFilter(false) } },
+          { label: 'Board',      value: counts.board,      color: 'bg-blue-50 border-blue-200 text-blue-700',     active: roleFilter === 'board',       click: () => { setRoleFilter('board');      setFamilyFilter(false) } },
+          { label: 'Admin',      value: counts.admin,      color: 'bg-purple-50 border-purple-200 text-purple-700', active: roleFilter === 'admin',     click: () => { setRoleFilter('admin');      setFamilyFilter(false) } },
+          { label: 'Has Family', value: counts.withFamily, color: 'bg-orange-50 border-orange-200 text-orange-700', active: familyFilter,               click: () => { setFamilyFilter(f => !f); setRoleFilter(''); setStatusFilter('') } },
         ].map(s => (
           <button key={s.label} onClick={s.click}
-            className={`${s.color} border rounded-xl p-3 text-center hover:opacity-80 transition cursor-pointer`}>
+            className={`${s.color} border rounded-xl p-3 text-center hover:opacity-80 transition cursor-pointer ${s.active ? 'ring-2 ring-offset-1 ring-current' : ''}`}>
             <div className="text-2xl font-bold">{s.value}</div>
             <div className="text-xs font-medium mt-0.5 opacity-75">{s.label}</div>
           </button>
@@ -261,7 +265,7 @@ export default function AdminUsers() {
           <option value="inactive">Inactive</option>
         </select>
         {hasFilters && (
-          <button onClick={() => { setSearch(''); setRoleFilter(''); setStatusFilter('') }}
+          <button onClick={() => { setSearch(''); setRoleFilter(''); setStatusFilter(''); setFamilyFilter(false) }}
             className="text-sm text-red-500 hover:text-red-700 font-medium px-2">
             Clear
           </button>
