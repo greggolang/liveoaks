@@ -32,6 +32,7 @@ interface AuthContextType {
   isFamilyMember: boolean
   bookingMaxDaysAhead: number
   hasPermission: (page: string) => boolean
+  clubLogo: string
 }
 
 const AuthContext = createContext<AuthContextType>(null!)
@@ -41,6 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [sessionTimeoutDays, setSessionTimeoutDays] = useState(0)
   const [bookingMaxDaysAhead, setBookingMaxDaysAhead] = useState(5)
+  const [clubLogo, setClubLogo] = useState('')
   const [myPages, setMyPages] = useState<Set<string>>(new Set())
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -54,6 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .then(d => {
           setSessionTimeoutDays(parseInt(d.session_timeout_days) || 0)
           setBookingMaxDaysAhead(parseInt(d.booking_max_days_ahead) || 5)
+          if (d.club_logo) setClubLogo(d.club_logo)
         })
         .catch(() => {}),
     ]).finally(() => setLoading(false))
@@ -105,6 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isFamilyMember: user?.is_family_member ?? false,
       bookingMaxDaysAhead,
       hasPermission: (page: string) => (user ? allRoles(user).includes('admin') : false) || myPages.has(page),
+      clubLogo,
     }}>
       {children}
     </AuthContext.Provider>

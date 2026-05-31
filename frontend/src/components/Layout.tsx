@@ -7,7 +7,7 @@ import { APP_VERSION } from '../version'
 type BugState = 'idle' | 'sending' | 'done' | 'error'
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  const { user, logout, isAdmin, isBoard } = useAuth()
+  const { user, logout, isAdmin, isBoard, clubLogo } = useAuth()
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
   const [bugOpen, setBugOpen] = useState(false)
@@ -57,9 +57,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <nav className="bg-green-700 text-white shadow-md sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
-            <Link to="/dashboard" className="text-lg font-bold tracking-wide shrink-0">
-              🎾 Liveoaks TC
-              <span className="ml-2 text-green-300 text-xs font-normal tracking-normal">v{APP_VERSION}</span>
+            <Link to="/dashboard" className="flex items-center gap-2 shrink-0">
+              {clubLogo
+                ? <img src={clubLogo} alt="Club logo" className="h-9 w-auto object-contain" />
+                : <span className="text-lg font-bold tracking-wide">🎾 Liveoaks TC</span>
+              }
+              <span className="text-green-300 text-xs font-normal">v{APP_VERSION}</span>
             </Link>
 
             {/* Desktop nav */}

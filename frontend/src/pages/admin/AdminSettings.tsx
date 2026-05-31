@@ -59,6 +59,7 @@ const BOOKING_KEYS = new Set(BOOKING_SECTIONS.flatMap(s => s.settings.map(x => x
 const HIDDEN_KEYS = new Set([
   ...BOOKING_KEYS,
   ...GUEST_FEE_KEYS,
+  'club_logo',
   'camera_url',
   'timezone',
   'session_timeout_minutes', // superseded by session_timeout_days
@@ -86,6 +87,8 @@ const GOOGLE_ROLE_KEYS: { emailKey: string; passKey: string; label: string }[] =
   { emailKey: 'google_email_admin',          passKey: 'google_pass_admin',          label: 'Administrator' },
 ]
 
+interface Photo { id: string; title: string; filename: string }
+
 export default function AdminSettings() {
   const [settings, setSettings] = useState<Record<string, string>>({})
   const [saved, setSaved] = useState<Record<string, boolean>>({})
@@ -93,12 +96,20 @@ export default function AdminSettings() {
   const [cameraURL, setCameraURL] = useState('')
   const [cameraSaved, setCameraSaved] = useState(false)
   const [cameraError, setCameraError] = useState('')
+
+  // Club logo
+  const [photos, setPhotos] = useState<Photo[]>([])
+  const [logoSaving, setLogoSaving] = useState(false)
+
   const load = () => api.admin.settings().then(d => {
     const s = d as Record<string, string>
     setSettings(s)
     if (s['camera_url']) setCameraURL(s['camera_url'])
   })
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+    api.photos.list().then(d => setPhotos(d as Photo[])).catch(() => {})
+  }, [])
 
   const saveCamera = async () => {
     setCameraError('')
@@ -168,9 +179,67 @@ export default function AdminSettings() {
     setTimeout(() => setSaved(s => ({ ...s, [key]: false })), 2000)
   }
 
+  const currentLogo: string = settings['club_logo'] ?? ''
+
+  const setLogo = async (url: string) => {
+    setLogoSaving(true)
+    try {
+      await api.admin.updateSetting('club_logo', url)
+      setSettings(s => ({ ...s, club_logo: url }))
+    } finally { setLogoSaving(false) }
+  }
+
   return (
     <div>
-      <h2 className="text-xl font-bold text-gray-800 mb-4">Club Settings</h2>
+
+      {/* ── Club Logo ── */}
+      <h2 className="text-xl font-bold text-gray-800 mb-1">Club Logo</h2>
+      <p className="text-sm text-gray-500 mb-4">
+        Select a photo from the gallery to use as the header logo. Upload images in <strong>Admin → Photos</strong> first.
+      </p>
+      <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-5 space-y-4">
+        {currentLogo && (
+          <div className="flex items-center gap-4">
+            <img src={currentLogo} alt="Current logo" className="h-14 w-auto object-contain rounded border border-gray-200 bg-gray-50 p-1" />
+            <div>
+              <p className="text-sm font-medium text-gray-700">Current logo</p>
+              <button
+                onClick={() => setLogo('')}
+                disabled={logoSaving}
+                className="text-xs text-red-500 hover:text-red-700 transition mt-0.5 disabled:opacity-50">
+                Remove logo
+              </button>
+            </div>
+          </div>
+        )}
+        {photos.length === 0 ? (
+          <p className="text-sm text-gray-400 italic">No photos uploaded yet. Go to Admin → Photos to upload your logo.</p>
+        ) : (
+          <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-8 gap-2">
+            {photos.map(p => {
+              const url = `/uploads/photos/${p.filename}`
+              const active = currentLogo === url
+              return (
+                <button key={p.id} type="button"
+                  onClick={() => setLogo(active ? '' : url)}
+                  disabled={logoSaving}
+                  title={p.title}
+                  className={`relative rounded-lg overflow-hidden border-2 transition ${active ? 'border-green-600 ring-2 ring-green-400' : 'border-gray-200 hover:border-green-400'}`}>
+                  <img src={url} alt={p.title} className="w-full h-14 object-cover" />
+                  {active && (
+                    <div className="absolute inset-0 bg-green-600/20 flex items-center justify-center">
+                      <span className="text-green-700 text-lg font-bold">✓</span>
+                    </div>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        )}
+        {logoSaving && <p className="text-xs text-gray-400">Saving…</p>}
+      </div>
+
+      <h2 className="text-xl font-bold text-gray-800 mt-8 mb-4">Club Settings</h2>
       <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 space-y-5">
         {Object.entries(settings).filter(([key]) => !HIDDEN_KEYS.has(key)).map(([key, value]) => (
           <div key={key} className="flex items-center gap-4">
