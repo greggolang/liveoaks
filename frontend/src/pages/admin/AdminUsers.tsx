@@ -29,7 +29,7 @@ const ALL_ASSIGNABLE_ROLES = [
 
 const emptyEdit = { first_name: '', last_name: '', email: '', phone: '', address: '', family: '', usta_ranking: '', birthday: '' }
 const emptyNew = { first_name: '', last_name: '', email: '', phone: '', password: '', role: 'member', status: 'active' }
-const RELATIONSHIPS = ['spouse', 'child', 'parent']
+const RELATIONSHIPS = ['spouse', 'child']
 
 interface FamilyMember { id: string; first_name: string; last_name: string; relationship: string; phone?: string; email?: string; birthday?: string }
 interface WaitlistEntry { id: string; first_name: string; last_name: string; email?: string; phone?: string; usta_ranking?: string; status: string; created_at: string }

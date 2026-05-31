@@ -112,7 +112,7 @@ export default function Bookings() {
   const [rosterMap, setRosterMap] = useState<Record<string, { players: MatchPlayer[]; invitations: Invitation[] }>>({})
   const [inviting, setInviting] = useState(false)
   const [memberInviteQuery, setMemberInviteQuery] = useState('')
-  const [memberInviteResults, setMemberInviteResults] = useState<{id: string; first_name: string; last_name: string; email: string}[]>([])
+  const [memberInviteResults, setMemberInviteResults] = useState<{id: string; first_name: string; last_name: string; email: string; isFamilyMember?: boolean; relationship?: string}[]>([])
   // Directory — loaded once at mount, used for all member searches
   const [directory, setDirectory] = useState<{id: string; first_name: string; last_name: string; email: string}[]>([])
   // Direct players at booking creation time
@@ -261,21 +261,33 @@ export default function Bookings() {
     setMemberInviteQuery(q)
     if (q.length < 2) { setMemberInviteResults([]); return }
     const lower = q.toLowerCase()
-    setMemberInviteResults(
-      directory.filter(m =>
-        m.id !== user?.id &&
-        !roster?.players.some(p => p.player_email === m.email) &&
-        !roster?.invitations.some(i => i.invitee_email === m.email && i.status === 'pending') &&
-        (`${m.first_name} ${m.last_name}`.toLowerCase().includes(lower) || m.email.toLowerCase().includes(lower))
-      ).slice(0, 8)
-    )
+    const famResults = familyMembers
+      .filter(fm => {
+        const rel = fm.relationship.toLowerCase()
+        if (rel === 'spouse') return !!fm.email
+        if (rel === 'child') return !!fm.email && !!fm.birthday
+        return false
+      })
+      .filter(fm =>
+        !roster?.players.some(p => p.player_name === `${fm.first_name} ${fm.last_name}`) &&
+        !roster?.invitations.some(i => i.invitee_email === fm.email && i.status === 'pending') &&
+        (`${fm.first_name} ${fm.last_name}`.toLowerCase().includes(lower) || fm.email!.toLowerCase().includes(lower))
+      )
+      .map(fm => ({ id: fm.id, first_name: fm.first_name, last_name: fm.last_name, email: fm.email ?? '', isFamilyMember: true as const, relationship: fm.relationship }))
+    const memberResults = directory.filter(m =>
+      m.id !== user?.id &&
+      !roster?.players.some(p => p.player_email === m.email) &&
+      !roster?.invitations.some(i => i.invitee_email === m.email && i.status === 'pending') &&
+      (`${m.first_name} ${m.last_name}`.toLowerCase().includes(lower) || m.email.toLowerCase().includes(lower))
+    ).slice(0, 8)
+    setMemberInviteResults([...famResults, ...memberResults])
   }
 
-  const inviteMember = async (bookingId: string, m: {id: string; first_name: string; last_name: string; email: string}) => {
+  const inviteMember = async (bookingId: string, m: {id: string; first_name: string; last_name: string; email: string; isFamilyMember?: boolean}) => {
     setInviting(true)
     try {
       await api.invitations.send(bookingId, {
-        invitee_user_id: m.id,
+        invitee_user_id: m.isFamilyMember ? null : m.id,
         invitee_name: `${m.first_name} ${m.last_name}`,
         invitee_email: m.email,
         is_guest: false,
@@ -1108,8 +1120,11 @@ export default function Bookings() {
                                   {memberInviteResults.map(m => (
                                     <div key={m.id} className="flex items-center justify-between px-3 py-1.5">
                                       <div>
-                                        <div className="text-xs font-medium text-gray-800">{m.first_name} {m.last_name}</div>
-                                        <div className="text-xs text-gray-400">{m.email}</div>
+                                        <div className="text-xs font-medium text-gray-800">
+                                          {m.first_name} {m.last_name}
+                                          {m.isFamilyMember && <span className="ml-1.5 text-purple-600 font-normal capitalize">({m.relationship})</span>}
+                                        </div>
+                                        <div className="text-xs text-gray-400">{m.isFamilyMember ? 'Family member' : m.email}</div>
                                       </div>
                                       <button onClick={() => inviteMember(b.id, m)} disabled={inviting}
                                         className="text-xs bg-green-700 text-white px-2 py-1 rounded hover:bg-green-800 transition disabled:opacity-50">
