@@ -674,10 +674,6 @@ export default function AdminUsers() {
             <div className="border-t border-gray-100 pt-3">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-xs font-medium text-gray-600">Family Members</p>
-                {!showFamilyForm && (
-                  <button type="button" onClick={() => setShowFamilyForm(true)}
-                    className="text-xs text-green-700 hover:underline font-medium">+ Add</button>
-                )}
               </div>
               {familyMembers.length > 0 && (
                 <div className="space-y-1.5 mb-2">
@@ -743,43 +739,8 @@ export default function AdminUsers() {
                   ))}
                 </div>
               )}
-              {familyMembers.length === 0 && !showFamilyForm && (
+              {familyMembers.length === 0 && (
                 <p className="text-xs text-gray-400">No family members added.</p>
-              )}
-              {showFamilyForm && (
-                <div className="flex flex-wrap gap-2 items-end bg-gray-50 rounded-lg p-2">
-                  <input value={familyForm.first_name} onChange={e => setFamilyForm(f => ({ ...f, first_name: e.target.value }))}
-                    placeholder="First name *"
-                    className="border border-gray-300 rounded px-2 py-1 text-xs w-28 focus:outline-none focus:ring-1 focus:ring-green-500" />
-                  <input value={familyForm.last_name} onChange={e => setFamilyForm(f => ({ ...f, last_name: e.target.value }))}
-                    placeholder="Last name *"
-                    className="border border-gray-300 rounded px-2 py-1 text-xs w-28 focus:outline-none focus:ring-1 focus:ring-green-500" />
-                  <select value={familyForm.relationship} onChange={e => setFamilyForm(f => ({ ...f, relationship: e.target.value }))}
-                    className="border border-gray-300 rounded px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500">
-                    {RELATIONSHIPS.map(r => <option key={r} value={r}>{r}</option>)}
-                  </select>
-                  <input type="date" value={familyForm.birthday} onChange={e => setFamilyForm(f => ({ ...f, birthday: e.target.value }))}
-                    title="Birthday *"
-                    className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-green-500" />
-                  <input type="email" value={familyForm.email} onChange={e => setFamilyForm(f => ({ ...f, email: e.target.value }))}
-                    placeholder="Email"
-                    className="border border-gray-300 rounded px-2 py-1 text-xs w-36 focus:outline-none focus:ring-1 focus:ring-green-500" />
-                  <input type="tel" value={familyForm.phone} onChange={e => setFamilyForm(f => ({ ...f, phone: e.target.value }))}
-                    placeholder="Phone"
-                    className="border border-gray-300 rounded px-2 py-1 text-xs w-28 focus:outline-none focus:ring-1 focus:ring-green-500" />
-                  <select value={familyForm.usta_ranking} onChange={e => setFamilyForm(f => ({ ...f, usta_ranking: e.target.value }))}
-                    className="border border-gray-300 rounded px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500">
-                    <option value="">USTA</option>
-                    {USTA_RATINGS.map(r => <option key={r} value={r}>{r}</option>)}
-                  </select>
-                  <button type="button" onClick={addFamilyMember} disabled={savingFamily}
-                    className="text-xs bg-green-700 text-white px-2 py-1 rounded hover:bg-green-800 transition disabled:opacity-50">
-                    {savingFamily ? 'Adding…' : 'Add'}
-                  </button>
-                  <button type="button" onClick={() => { setShowFamilyForm(false); setFamilyError('') }}
-                    className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
-                  {familyError && <span className="text-xs text-red-600 w-full">{familyError}</span>}
-                </div>
               )}
             </div>
 
