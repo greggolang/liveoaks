@@ -29,6 +29,7 @@ const sections: Section[] = [
     links: [
       { to: '/admin/dues', label: 'Dues' },
       { to: '/admin/receipts', label: 'Receipts' },
+      { to: '/admin/kiosk-purchases', label: 'Kiosk Purchases' },
     ],
   },
   {

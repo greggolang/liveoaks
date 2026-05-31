@@ -26,6 +26,7 @@ import RoleDrive from './pages/RoleDrive'
 import Profile from './pages/Profile'
 import Friends from './pages/Friends'
 import Messages from './pages/Messages'
+import KioskProShop from './pages/KioskProShop'
 import InviteResponse from './pages/InviteResponse'
 import EventSignup from './pages/EventSignup'
 import AdminEventSignups from './pages/admin/AdminEventSignups'
@@ -52,6 +53,7 @@ import AdminBroadcast from './pages/admin/AdminBroadcast'
 import AdminBoardMeetings from './pages/admin/AdminBoardMeetings'
 import AdminProShop from './pages/admin/AdminProShop'
 import AdminBallTracking from './pages/admin/AdminBallTracking'
+import AdminKioskPurchases from './pages/admin/AdminKioskPurchases'
 import AdminTeachingPro from './pages/admin/AdminTeachingPro'
 import BoardMeetingResponse from './pages/BoardMeetingResponse'
 import LiveballResponse from './pages/LiveballResponse'
@@ -82,6 +84,7 @@ function AppRoutes() {
       <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
       <Route path="/reset-password" element={<PublicRoute><ResetPassword /></PublicRoute>} />
       <Route path="/waitlist" element={<Waitlist />} />
+      <Route path="/kiosk" element={<KioskProShop />} />
       <Route path="/invite/:token/:action" element={<InviteResponse />} />
       <Route path="/board-meeting/:token/:action" element={<BoardMeetingResponse />} />
       <Route path="/liveball/:token/:action" element={<LiveballResponse />} />
@@ -134,6 +137,7 @@ function AppRoutes() {
         <Route path="notes" element={<AdminNotes />} />
         <Route path="pro-shop" element={<AdminProShop />} />
         <Route path="ball-tracking" element={<AdminBallTracking />} />
+        <Route path="kiosk-purchases" element={<AdminKioskPurchases />} />
         <Route path="teaching-pro" element={<AdminTeachingPro />} />
         <Route path="ladder" element={<AdminLadder />} />
         <Route path="liveball" element={<AdminLiveball />} />

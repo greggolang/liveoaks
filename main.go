@@ -102,6 +102,7 @@ func main() {
 	fantasy := &handlers.FantasyHandler{DB: pool}
 	bookingReminder := &handlers.BookingReminderHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	messages := &handlers.MessagesHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
+	kiosk := &handlers.KioskHandler{DB: pool}
 
 	api := e.Group("/api")
 
@@ -388,6 +389,13 @@ func main() {
 	boardPlus.POST("/admin/pro-shop", proshop.Create)
 	boardPlus.PUT("/admin/pro-shop/:id", proshop.Update)
 	boardPlus.DELETE("/admin/pro-shop/:id", proshop.Delete)
+
+	// Kiosk — public endpoints (iPad in the club, no login required)
+	api.GET("/kiosk/members", kiosk.Members)
+	api.GET("/kiosk/items", proshop.List) // reuse existing in-stock items
+	api.POST("/kiosk/purchase", kiosk.Purchase)
+	// Kiosk admin — board+ can view all purchases
+	boardPlus.GET("/admin/kiosk/purchases", kiosk.AdminPurchaseList)
 
 	// Member alerts (admin → member dashboard)
 	authed.GET("/member-alerts", alerts.GetMyAlerts)

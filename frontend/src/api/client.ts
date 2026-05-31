@@ -465,6 +465,15 @@ export const api = {
     markAllRead: () => request('/messages/read-all', { method: 'PUT' }),
     delete: (id: string) => request(`/messages/${id}`, { method: 'DELETE' }),
   },
+  kiosk: {
+    members: () => request<{ id: string; name: string; member_number: number }[]>('/kiosk/members'),
+    items: () => request<{ id: string; name: string; description: string; price: number; category: string; emoji: string; in_stock: boolean; sort_order: number }[]>('/kiosk/items'),
+    purchase: (data: { user_id: string; items: { item_id: string; item_name: string; price: number; quantity: number }[]; notes?: string }) =>
+      request<{ member_name: string; purchases: { id: string; item_name: string; price: number; quantity: number; total: number }[]; grand_total: number }>('/kiosk/purchase', { method: 'POST', body: JSON.stringify(data) }),
+    adminPurchases: (userId?: string) =>
+      request<{ id: string; user_id: string; member_name: string; item_name: string; item_price: number; quantity: number; total: number; notes?: string; created_at: string }[]>(
+        `/admin/kiosk/purchases${userId ? `?user_id=${userId}` : ''}`),
+  },
   bookingReminder: {
     getInfo: (token: string) => request(`/booking-reminder/${token}`),
     confirm: (token: string) => request(`/booking-reminder/${token}/ok`, { method: 'POST' }),

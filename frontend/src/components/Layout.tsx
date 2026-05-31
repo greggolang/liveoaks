@@ -64,7 +64,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
             {/* Desktop nav */}
             <div className="hidden md:flex items-center gap-5 text-sm font-medium flex-wrap justify-end">
-              <NavLink to="/bookings" className={navLink}>Book a Court</NavLink>
+              <NavLink to="/bookings?tab=grid" className={navLink}>Book a Court</NavLink>
               <NavLink to="/events" className={navLink}>Events</NavLink>
               <NavLink to="/pro-shop" className={navLink}>Pro Shop</NavLink>
               <NavLink to="/directory" className={navLink}>Directory</NavLink>
@@ -118,7 +118,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           {menuOpen && (
             <div className="md:hidden mt-3 pb-2 border-t border-green-600 flex flex-col gap-2 pt-3 text-sm">
               {[
-                ['/bookings', 'Book a Court'],
+                ['/bookings?tab=grid', 'Book a Court'],
                 ['/events', 'Events'],
                 ['/pro-shop', 'Pro Shop'],
                 ['/directory', 'Directory'],

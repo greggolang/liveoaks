@@ -63,6 +63,7 @@ const HIDDEN_KEYS = new Set([
   'timezone',
   'session_timeout_minutes', // superseded by session_timeout_days
   'session_timeout_days',    // rendered in its own section below
+  'kiosk_enabled',           // rendered in its own section below
   'weather_lat', 'weather_lon', 'weather_zip',
   'smtp_host','smtp_port','smtp_user','smtp_pass','smtp_from',
   'google_email_president','google_email_vice_president','google_email_secretary',
@@ -319,6 +320,56 @@ export default function AdminSettings() {
             </div>
           )
         })()}
+      </div>
+
+      {/* Kiosk */}
+      <h2 className="text-xl font-bold text-gray-800 mt-8 mb-1">Pro Shop Kiosk</h2>
+      <p className="text-sm text-gray-500 mb-4">
+        The kiosk lets members charge pro-shop items to their account from an iPad in the club — no login required.
+        Point the iPad's browser to <code className="font-mono bg-gray-100 px-1 py-0.5 rounded text-xs">/kiosk</code>.
+      </p>
+      <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 space-y-4">
+        {/* Enable / disable */}
+        <div className="flex items-center gap-4">
+          <label className="w-56 text-sm font-medium text-gray-700 shrink-0">Kiosk Enabled</label>
+          <select
+            value={settings['kiosk_enabled'] ?? 'true'}
+            onChange={e => setSettings(s => ({ ...s, kiosk_enabled: e.target.value }))}
+            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
+            <option value="true">Yes — kiosk is active</option>
+            <option value="false">No — show "unavailable" to members</option>
+          </select>
+          <button onClick={() => save('kiosk_enabled')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition shrink-0 ${saved['kiosk_enabled'] ? 'bg-green-100 text-green-700' : 'bg-green-700 text-white hover:bg-green-800'}`}>
+            {saved['kiosk_enabled'] ? 'Saved!' : 'Save'}
+          </button>
+        </div>
+        <p className="text-xs text-gray-400 ml-[calc(224px+1rem)]">
+          Disabling this shows a friendly "kiosk unavailable" screen instead of the member picker.
+        </p>
+
+        {/* Kiosk URL helper */}
+        <div className="border-t border-gray-100 pt-4">
+          <p className="text-xs font-medium text-gray-600 mb-2">iPad Setup</p>
+          <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+            <span className="text-xs text-gray-500 flex-1 font-mono select-all">
+              {typeof window !== 'undefined' ? window.location.origin : ''}/kiosk
+            </span>
+            <button
+              onClick={() => navigator.clipboard.writeText(`${window.location.origin}/kiosk`)}
+              className="text-xs text-green-700 font-medium hover:underline shrink-0">
+              Copy URL
+            </button>
+            <a href="/kiosk" target="_blank" rel="noreferrer"
+              className="text-xs text-blue-600 font-medium hover:underline shrink-0">
+              Open ↗
+            </a>
+          </div>
+          <p className="text-xs text-gray-400 mt-2">
+            In Safari on the iPad, open this URL, then tap <strong>Share → Add to Home Screen</strong> to pin it as a full-screen app.
+            The page automatically clears any login session so it can't be timed out.
+          </p>
+        </div>
       </div>
 
       {/* Live Camera */}
