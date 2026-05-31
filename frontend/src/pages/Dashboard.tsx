@@ -14,7 +14,8 @@ interface InviteResponse {
 
 interface Booking {
   id: string; court_id: number; start_time: string; end_time: string
-  match_type?: string; players_needed?: number
+  match_type?: string; players_needed?: number; notes?: string
+  invites_pending?: number; invites_declined?: number
   user: { first_name: string; last_name: string }
   court: { name: string; number: number }
   players?: string[]
@@ -97,11 +98,18 @@ export default function Dashboard() {
     } catch {}
   }, [])
 
+  const refreshAlerts = useCallback(() => {
+    api.invitations.pending().then(d => setPendingInvites(d as PendingInvite[])).catch(() => {})
+    api.invitations.sentPending().then(d => setSentPending(d as SentPending[])).catch(() => {})
+    api.invitations.responses().then(d => setResponseAlerts(d as InviteResponseAlert[])).catch(() => {})
+  }, [])
+
   useEffect(() => {
     checkResponses()
-    const interval = setInterval(checkResponses, 60000)
-    return () => clearInterval(interval)
-  }, [checkResponses])
+    const responseInterval = setInterval(checkResponses, 60000)
+    const alertInterval = setInterval(refreshAlerts, 60000)
+    return () => { clearInterval(responseInterval); clearInterval(alertInterval) }
+  }, [checkResponses, refreshAlerts])
 
   useEffect(() => {
     if (user?.id) {
@@ -204,7 +212,7 @@ export default function Dashboard() {
           const mins = (new Date(b.start_time).getTime() - Date.now()) / 60000
           return mins > 0 && mins <= 120
         })
-        const openSpotBooking = myBookings.find(b =>
+        const openSpotBookings = myBookings.filter(b =>
           b.match_type && b.match_type !== 'ball_machine' &&
           (b.players_needed ?? 0) > 0 &&
           (b.players ?? []).length < (b.players_needed ?? 0) + 1
@@ -355,6 +363,14 @@ export default function Dashboard() {
                     </div>
                   )}
                 </div>
+                {accepted && (
+                  <button
+                    onClick={() => setResponseAlerts(prev => prev.filter(ra => ra.id !== r.id))}
+                    className="text-green-400 hover:text-green-600 shrink-0 leading-none text-lg mt-0.5"
+                    title="Dismiss">
+                    ×
+                  </button>
+                )}
               </div>
             )
           })
@@ -416,30 +432,51 @@ export default function Dashboard() {
           )
         })
 
-        if (openSpotBooking) {
-          const start = new Date(openSpotBooking.start_time)
-          const spotsLeft = (openSpotBooking.players_needed ?? 0) + 1 - (openSpotBooking.players ?? []).length
-          const hasPendingInvite = sentPending.some(p => p.booking_id === openSpotBooking.id)
+        openSpotBookings.forEach(osb => {
+          const start = new Date(osb.start_time)
+          const totalSlots = (osb.players_needed ?? 0) + 1
+          const confirmedCount = (osb.players ?? []).length
+          const openCount = totalSlots - confirmedCount
+          const pendingCount = osb.invites_pending ?? 0
+          const declinedCount = osb.invites_declined ?? 0
           const dateStr = start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+
+          // Choose border/background based on urgency
+          const needsAction = openCount > 0 && pendingCount === 0
+          const borderCls = needsAction
+            ? 'bg-red-50 border border-red-200'
+            : 'bg-yellow-50 border border-yellow-200'
+          const headingCls = needsAction ? 'text-red-800' : 'text-yellow-800'
+          const subCls = needsAction ? 'text-red-600' : 'text-yellow-600'
+          const linkCls = needsAction ? 'text-red-700' : 'text-yellow-700'
+          const icon = needsAction ? '🚨' : '⏳'
+
+          const headline = pendingCount > 0
+            ? `⏳ Waiting on ${pendingCount} response${pendingCount !== 1 ? 's' : ''} — ${openCount} open spot${openCount !== 1 ? 's' : ''}`
+            : `🚨 ${openCount} unfilled spot${openCount !== 1 ? 's' : ''} — invite needed`
+
           alerts.push(
-            <div key="openspot" className="flex items-start gap-3 bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3">
-              <span className="text-xl shrink-0">👥</span>
+            <div key={`os-${osb.id}`} className={`flex items-start gap-3 rounded-xl px-4 py-3 ${borderCls}`}>
+              <span className="text-xl shrink-0">{icon}</span>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-yellow-800">
-                  {hasPendingInvite
-                    ? `Waiting for invite to respond · ${spotsLeft} open spot${spotsLeft !== 1 ? 's' : ''} on your ${dateStr} booking`
-                    : `${spotsLeft} open spot${spotsLeft !== 1 ? 's' : ''} on your ${dateStr} booking`}
+                <p className={`text-sm font-semibold ${headingCls}`}>{headline}</p>
+                <p className={`text-xs mt-0.5 ${subCls}`}>
+                  {osb.court.name} · {dateStr} · {confirmedCount}/{totalSlots} confirmed
+                  {pendingCount > 0 && ` · ${pendingCount} awaiting response`}
+                  {declinedCount > 0 && ` · ${declinedCount} declined`}
                 </p>
-                <p className="text-xs text-yellow-600 mt-0.5">
-                  {openSpotBooking.court.name} · {hasPendingInvite ? 'Invite sent — waiting for response' : 'Invite someone to fill the roster'}
-                </p>
+                {declinedCount > 0 && (
+                  <p className="text-xs text-red-600 font-medium mt-0.5">
+                    {declinedCount} player{declinedCount !== 1 ? 's' : ''} declined — invite replacements from the bookings page
+                  </p>
+                )}
               </div>
-              <Link to="/bookings" className="text-xs font-semibold text-yellow-700 hover:underline shrink-0 self-center">
+              <Link to="/bookings" className={`text-xs font-semibold hover:underline shrink-0 self-center ${linkCls}`}>
                 Manage →
               </Link>
             </div>
           )
-        }
+        })
 
         unpaidDues.forEach(d => {
           const overdue = new Date(d.due_date) < new Date()
@@ -537,22 +574,43 @@ export default function Dashboard() {
               const isEditing = editingId === b.id
               const matchLabel = b.match_type === 'ball_machine' ? '🤖 Ball Machine'
                 : b.match_type === 'singles' ? 'Singles'
-                : b.match_type === 'doubles' ? 'Doubles' : null
+                : b.match_type === 'doubles' ? 'Doubles'
+                : b.match_type === 'casual' ? 'Hit Session' : null
+              const durationMins = Math.round((end.getTime() - start.getTime()) / 60000)
+              const durationLabel = durationMins >= 80 ? '1½ hr' : `${durationMins} min`
+              const needsRoster = b.match_type && b.match_type !== 'ball_machine' && (b.players_needed ?? 0) > 0
+              const totalSlots = (b.players_needed ?? 0) + 1
+              const confirmed = (b.players ?? []).length
+              const openSpots = needsRoster ? Math.max(0, totalSlots - confirmed) : 0
+              const pending = b.invites_pending ?? 0
+              const declined = b.invites_declined ?? 0
+              const isFull = needsRoster && openSpots === 0
+
+              // Status badge shown next to court name
+              const statusBadge = needsRoster ? (
+                isFull
+                  ? <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-semibold">✓ Good to go</span>
+                  : pending > 0
+                    ? <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full font-semibold">⏳ {pending} pending</span>
+                    : <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-semibold">Need {openSpots} more</span>
+              ) : null
+
               return (
                 <div key={b.id} className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
                   {/* Card row */}
-                  <div className="px-4 py-3 flex items-center gap-4">
-                    <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center text-green-700 font-bold text-base shrink-0">
+                  <div className="px-4 py-3 flex items-start gap-4">
+                    <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center text-green-700 font-bold text-base shrink-0 mt-0.5">
                       {b.court.number}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-gray-800 text-sm">
+                      <div className="font-semibold text-gray-800 text-sm flex items-center gap-1.5 flex-wrap">
                         {b.court.name}
                         {matchLabel && (
-                          <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-normal">
+                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-normal">
                             {matchLabel}
                           </span>
                         )}
+                        {statusBadge}
                       </div>
                       <div className="text-xs text-gray-500 mt-0.5">
                         {start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
@@ -560,7 +618,34 @@ export default function Dashboard() {
                         {start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
                         {' – '}
                         {end.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                        {' · '}
+                        {durationLabel}
                       </div>
+                      {/* Roster */}
+                      {needsRoster && (confirmed > 0 || openSpots > 0) && (
+                        <div className="flex items-center gap-1 flex-wrap mt-1.5">
+                          {(b.players ?? []).map((p, i) => (
+                            <span key={i} className="text-xs px-2 py-0.5 rounded-full bg-green-50 text-green-700">{p}</span>
+                          ))}
+                          {openSpots > 0 && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
+                              +{openSpots} open
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      {/* Invite status breakdown */}
+                      {needsRoster && !isFull && (pending > 0 || declined > 0) && (
+                        <div className="flex items-center gap-2 mt-1 text-xs flex-wrap">
+                          <span className="text-gray-400">{confirmed}/{totalSlots} confirmed</span>
+                          {pending > 0 && <span className="text-yellow-600 font-medium">{pending} awaiting response</span>}
+                          {declined > 0 && <span className="text-red-500 font-medium">{declined} declined</span>}
+                        </div>
+                      )}
+                      {/* Notes */}
+                      {b.notes && (
+                        <div className="text-xs text-gray-400 mt-1 italic truncate">{b.notes}</div>
+                      )}
                     </div>
                     <button
                       onClick={() => isEditing ? setEditingId(null) : openEdit(b)}

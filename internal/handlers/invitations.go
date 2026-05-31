@@ -114,22 +114,30 @@ func (h *InvitationsHandler) Send(c echo.Context) error {
 	}
 
 	// Get booking details
-	var courtName, inviterName string
+	var courtName, inviterName, matchType string
 	var startTime, endTime time.Time
 	err := h.DB.QueryRow(c.Request().Context(), `
 		SELECT ct.name, u.first_name || ' ' || u.last_name,
-		       b.start_time, b.end_time
+		       b.start_time, b.end_time, b.match_type
 		FROM bookings b
 		JOIN courts ct ON ct.id = b.court_id
 		JOIN users u ON u.id = b.user_id
 		WHERE b.id = $1`, bookingID,
-	).Scan(&courtName, &inviterName, &startTime, &endTime)
+	).Scan(&courtName, &inviterName, &startTime, &endTime, &matchType)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "booking not found")
 	}
 	loc := loadTimezone(c.Request().Context(), h.DB)
 	startStr := startTime.In(loc).Format("Mon Jan 2 at 3:04 PM MST")
 	endStr := endTime.In(loc).Format("3:04 PM MST")
+	matchTypeLabels := map[string]string{
+		"singles": "Singles", "doubles": "Doubles",
+		"casual": "Hit Session", "ball_machine": "Ball Machine",
+	}
+	matchTypeLabel := matchTypeLabels[matchType]
+	if matchTypeLabel == "" {
+		matchTypeLabel = "Tennis Match"
+	}
 
 	// Generate unique token
 	b := make([]byte, 20)
@@ -154,7 +162,7 @@ func (h *InvitationsHandler) Send(c echo.Context) error {
 	// Send email async
 	acceptURL := fmt.Sprintf("%s/invite/%s/accept", h.SiteURL, token)
 	declineURL := fmt.Sprintf("%s/invite/%s/decline", h.SiteURL, token)
-	go h.sendInvitationEmail(req.InviteeEmail, req.InviteeName, inviterName, courtName, startStr, endStr, acceptURL, declineURL)
+	go h.sendInvitationEmail(req.InviteeEmail, req.InviteeName, inviterName, courtName, matchTypeLabel, startStr, endStr, acceptURL, declineURL)
 
 	return c.JSON(http.StatusCreated, inv)
 }
@@ -165,16 +173,20 @@ func (h *InvitationsHandler) Respond(c echo.Context) error {
 	action := c.Param("action") // "accept" or "decline"
 
 	var inv Invitation
-	var inviterEmail, bookingID string
+	var inviterEmail, bookingID, courtName string
+	var bookingStart time.Time
 	err := h.DB.QueryRow(context.Background(), `
 		SELECT i.id, i.booking_id, i.inviter_id, i.invitee_user_id, i.invitee_name,
 		       i.invitee_email, i.status, i.is_guest, i.expires_at,
-		       u.email as inviter_email
+		       u.email, ct.name, b.start_time
 		FROM match_invitations i
 		JOIN users u ON u.id = i.inviter_id
+		JOIN bookings b ON b.id = i.booking_id
+		JOIN courts ct ON ct.id = b.court_id
 		WHERE i.token = $1`, token,
 	).Scan(&inv.ID, &bookingID, &inv.InviterID, &inv.InviteeUserID, &inv.InviteeName,
-		&inv.InviteeEmail, &inv.Status, &inv.IsGuest, &inv.ExpiresAt, &inviterEmail)
+		&inv.InviteeEmail, &inv.Status, &inv.IsGuest, &inv.ExpiresAt, &inviterEmail,
+		&courtName, &bookingStart)
 	if err != nil {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "Invitation not found or already responded."})
 	}
@@ -195,6 +207,9 @@ func (h *InvitationsHandler) Respond(c echo.Context) error {
 	h.DB.Exec(context.Background(),
 		`UPDATE match_invitations SET status=$1, responded_at=NOW() WHERE id=$2`, newStatus, inv.ID)
 
+	loc := loadTimezone(context.Background(), h.DB)
+	dateStr := bookingStart.In(loc).Format("Mon Jan 2 at 3:04 PM MST")
+
 	if action == "accept" {
 		// Add to roster
 		h.DB.Exec(context.Background(), `
@@ -203,13 +218,13 @@ func (h *InvitationsHandler) Respond(c echo.Context) error {
 			bookingID, inv.ID, inv.InviteeUserID, inv.InviteeName, inv.InviteeEmail, inv.IsGuest)
 
 		// Notify host
-		go h.sendAcceptedEmail(inviterEmail, inv.InviteeName)
+		go h.sendAcceptedEmail(inviterEmail, inv.InviteeName, courtName, dateStr)
 
 		// Check if match is now full and cancel remaining
 		go h.checkMatchFull(bookingID, inv.InviterID, inviterEmail)
 	} else {
 		// Notify host of decline
-		go h.sendDeclinedEmail(inviterEmail, inv.InviteeName)
+		go h.sendDeclinedEmail(inviterEmail, inv.InviteeName, courtName, dateStr, bookingID)
 	}
 
 	return c.JSON(http.StatusOK, map[string]string{"status": newStatus})
@@ -508,7 +523,7 @@ func (h *InvitationsHandler) checkMatchFull(bookingID, inviterID, inviterEmail s
 	}
 }
 
-func (h *InvitationsHandler) sendInvitationEmail(to, toName, fromName, court, start, end, acceptURL, declineURL string) {
+func (h *InvitationsHandler) sendInvitationEmail(to, toName, fromName, court, matchType, start, end, acceptURL, declineURL string) {
 	body := fmt.Sprintf(`
 <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
   <h2 style="color:#15803d">🎾 You're Invited to Play Tennis!</h2>
@@ -516,37 +531,46 @@ func (h *InvitationsHandler) sendInvitationEmail(to, toName, fromName, court, st
   <p><strong>%s</strong> has invited you to a match at Liveoaks Tennis Club:</p>
   <div style="background:#f0fdf4;border-radius:8px;padding:16px;margin:20px 0">
     <div style="margin:4px 0">🎾 <strong>%s</strong></div>
+    <div style="margin:4px 0">📋 <strong>%s</strong></div>
     <div style="margin:4px 0">📅 <strong>%s</strong></div>
     <div style="margin:4px 0">⏱ Until %s</div>
   </div>
-  <div style="margin:24px 0;display:flex;gap:12px">
+  <div style="margin:24px 0">
     <a href="%s" style="background:#15803d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block">✓ Accept</a>
     &nbsp;&nbsp;
     <a href="%s" style="background:#6b7280;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block">✗ Decline</a>
   </div>
   <p style="color:#9ca3af;font-size:12px">This invitation expires in 7 days.</p>
-</div>`, toName, fromName, court, start, end, acceptURL, declineURL)
+</div>`, toName, fromName, court, matchType, start, end, acceptURL, declineURL)
 	h.Mailer.Send(to, fmt.Sprintf("%s invited you to play at Liveoaks!", fromName), body)
 }
 
-func (h *InvitationsHandler) sendDeclinedEmail(to, playerName string) {
+func (h *InvitationsHandler) sendDeclinedEmail(to, playerName, court, dateStr, bookingID string) {
 	body := fmt.Sprintf(`
 <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
-  <h2 style="color:#dc2626">Invitation Declined</h2>
+  <h2 style="color:#dc2626">❌ Invitation Declined</h2>
   <p><strong>%s</strong> has declined your match invitation.</p>
-  <p>You may want to invite another player to fill the spot.</p>
-  <a href="%s/bookings" style="color:#15803d">View your booking →</a>
-</div>`, playerName, h.SiteURL)
+  <div style="background:#fef2f2;border-radius:8px;padding:16px;margin:20px 0">
+    <div style="margin:4px 0">🎾 <strong>%s</strong></div>
+    <div style="margin:4px 0">📅 <strong>%s</strong></div>
+  </div>
+  <p>You have an open spot — invite another player to fill the roster.</p>
+  <a href="%s/bookings" style="background:#dc2626;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block;margin-top:8px">Invite Someone Else →</a>
+</div>`, playerName, court, dateStr, h.SiteURL)
 	h.Mailer.Send(to, playerName+" declined your match invitation", body)
 }
 
-func (h *InvitationsHandler) sendAcceptedEmail(to, playerName string) {
+func (h *InvitationsHandler) sendAcceptedEmail(to, playerName, court, dateStr string) {
 	body := fmt.Sprintf(`
 <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
   <h2 style="color:#15803d">✓ Invitation Accepted</h2>
   <p><strong>%s</strong> has accepted your match invitation and is now on the roster.</p>
-  <a href="%s/bookings" style="color:#15803d">View your booking →</a>
-</div>`, playerName, h.SiteURL)
+  <div style="background:#f0fdf4;border-radius:8px;padding:16px;margin:20px 0">
+    <div style="margin:4px 0">🎾 <strong>%s</strong></div>
+    <div style="margin:4px 0">📅 <strong>%s</strong></div>
+  </div>
+  <a href="%s/bookings" style="background:#15803d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block">View Booking →</a>
+</div>`, playerName, court, dateStr, h.SiteURL)
 	h.Mailer.Send(to, playerName+" accepted your match invitation", body)
 }
 

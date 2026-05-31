@@ -106,19 +106,22 @@ func (h *BookingsHandler) List(c echo.Context) error {
 	return c.JSON(http.StatusOK, bookings)
 }
 
-// Mine returns only the authenticated user's upcoming bookings.
+// Mine returns only the authenticated user's upcoming bookings with per-booking invite status counts.
 func (h *BookingsHandler) Mine(c echo.Context) error {
 	userID := c.Get("user_id").(string)
 	rows, err := h.DB.Query(c.Request().Context(), `
 		SELECT b.id, b.user_id, b.court_id, b.start_time, b.end_time, b.notes, b.created_at,
 		       COALESCE(b.match_type, ''), b.players_needed,
 		       u.first_name, u.last_name, ct.name, ct.number,
-		       COALESCE(array_agg(mp.player_name ORDER BY mp.is_host DESC, mp.added_at)
-		                FILTER (WHERE mp.player_name IS NOT NULL), ARRAY[]::text[]) AS players
+		       COALESCE(array_agg(DISTINCT mp.player_name ORDER BY mp.player_name)
+		                FILTER (WHERE mp.player_name IS NOT NULL), ARRAY[]::text[]) AS players,
+		       COUNT(mi.id) FILTER (WHERE mi.status = 'pending')  AS invites_pending,
+		       COUNT(mi.id) FILTER (WHERE mi.status = 'declined') AS invites_declined
 		FROM bookings b
 		JOIN users u ON u.id = b.user_id
 		JOIN courts ct ON ct.id = b.court_id
 		LEFT JOIN match_players mp ON mp.booking_id = b.id
+		LEFT JOIN match_invitations mi ON mi.booking_id = b.id
 		WHERE b.user_id = $1 AND b.start_time >= NOW()
 		GROUP BY b.id, b.user_id, b.court_id, b.start_time, b.end_time, b.notes,
 		         b.created_at, b.match_type, b.players_needed,
@@ -137,7 +140,7 @@ func (h *BookingsHandler) Mine(c echo.Context) error {
 		if err := rows.Scan(&b.ID, &b.UserID, &b.CourtID, &b.StartTime, &b.EndTime, &b.Notes, &b.CreatedAt,
 			&b.MatchType, &b.PlayersNeeded,
 			&b.User.FirstName, &b.User.LastName, &b.Court.Name, &b.Court.Number,
-			&b.Players); err != nil {
+			&b.Players, &b.InvitesPending, &b.InvitesDeclined); err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "could not scan booking")
 		}
 		bookings = append(bookings, b)
