@@ -60,6 +60,7 @@ const sections: Section[] = [
   {
     heading: 'System',
     links: [
+      { to: '/admin/broadcast', label: 'Broadcast Email' },
       { to: '/admin/settings', label: 'Settings' },
       { to: '/admin/email-templates', label: 'Email Templates' },
       { to: '/admin/permissions', label: 'Permissions' },

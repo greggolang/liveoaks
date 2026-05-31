@@ -313,6 +313,12 @@ export const api = {
         request(`/admin/ladder/${ladderId}/points`, { method: 'POST', body: JSON.stringify(data) }),
     },
   },
+  broadcast: {
+    recipients: (roles?: string[]) =>
+      request(`/admin/broadcast/recipients${roles && roles.length ? '?' + roles.map(r => `role=${r}`).join('&') : ''}`),
+    send: (subject: string, body: string, confirmCode: string, roles?: string[]) =>
+      request('/admin/broadcast/send', { method: 'POST', body: JSON.stringify({ subject, body, confirm_code: confirmCode, roles: roles ?? [] }) }),
+  },
   notes: {
     list: () => request('/admin/notes'),
     create: (title: string, body: string) => request('/admin/notes', { method: 'POST', body: JSON.stringify({ title, body }) }),

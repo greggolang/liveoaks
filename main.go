@@ -89,6 +89,7 @@ func main() {
 	family := &handlers.FamilyHandler{DB: pool}
 	groups := &handlers.GroupsHandler{DB: pool}
 	notes := &handlers.NotesHandler{DB: pool}
+	broadcast := &handlers.BroadcastHandler{DB: pool, Mailer: mailer}
 	ladder := &handlers.LadderHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	liveball := &handlers.LiveballHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	invitations := &handlers.InvitationsHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
@@ -248,6 +249,10 @@ func main() {
 	adminOnly.PUT("/challenges/:id/result", ladder.AdminEnterResult)
 	adminOnly.PUT("/challenges/:id/forfeit", ladder.AdminForfeit)
 	adminOnly.POST("/ladder/:id/points", ladder.AdminAwardPoints)
+
+	// Broadcast email (admin only)
+	adminOnly.GET("/broadcast/recipients", broadcast.PreviewRecipients)
+	adminOnly.POST("/broadcast/send", broadcast.Send)
 
 	// Admin notes (board+)
 	boardPlus.GET("/admin/notes", notes.List)

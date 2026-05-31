@@ -12,7 +12,8 @@ const PAGES: { key: string; label: string; desc: string }[] = [
   { key: 'directory',     label: 'Member Directory',    desc: 'Search and view member contact info (/directory)' },
   { key: 'guests',        label: 'Guest Passes',        desc: 'Log guest visits and view personal guest pass history (/guests)' },
   { key: 'dues',          label: 'My Dues',             desc: 'View personal dues balance and payment history (/dues)' },
-  { key: 'club_info',     label: 'About / Club Info',   desc: 'Club hours, contact details, and general information (/club-info)' },
+  { key: 'club_info',       label: 'About / Club Info',    desc: 'Club hours, contact details, and general information (/club-info)' },
+  { key: 'broadcast_email', label: 'Broadcast Email',      desc: 'Send mass emails to all members or filtered groups (/admin/broadcast)' },
 ]
 
 const ROLES: { key: string; label: string; group: string }[] = [

@@ -47,6 +47,7 @@ import AdminNotes from './pages/admin/AdminNotes'
 import AdminLadder from './pages/admin/AdminLadder'
 import TennisLadder from './pages/TennisLadder'
 import AdminLiveball from './pages/admin/AdminLiveball'
+import AdminBroadcast from './pages/admin/AdminBroadcast'
 import LiveballResponse from './pages/LiveballResponse'
 import Fantasy from './pages/Fantasy'
 
@@ -122,6 +123,7 @@ function AppRoutes() {
         <Route path="notes" element={<AdminNotes />} />
         <Route path="ladder" element={<AdminLadder />} />
         <Route path="liveball" element={<AdminLiveball />} />
+        <Route path="broadcast" element={<AdminBroadcast />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />
