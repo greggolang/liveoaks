@@ -186,11 +186,13 @@ export default function Bookings() {
     const q = bookingSearchQuery.toLowerCase()
     const famResults = familyMembers
       .filter(fm => {
-        const age = familyAge(fm.birthday)
-        return (fm.relationship.toLowerCase() === 'spouse' || (age !== null && age < 26)) &&
-          !directPlayers.some(p => p.name === `${fm.first_name} ${fm.last_name}`)
+        const rel = fm.relationship.toLowerCase()
+        if (rel === 'spouse') return !!fm.email
+        if (rel === 'child') return !!fm.email && !!fm.birthday
+        return false
       })
-      .filter(fm => `${fm.first_name} ${fm.last_name}`.toLowerCase().includes(q) || (fm.email ?? '').toLowerCase().includes(q))
+      .filter(fm => !directPlayers.some(p => p.name === `${fm.first_name} ${fm.last_name}`))
+      .filter(fm => `${fm.first_name} ${fm.last_name}`.toLowerCase().includes(q) || fm.email!.toLowerCase().includes(q))
       .map(fm => ({ id: fm.id, first_name: fm.first_name, last_name: fm.last_name, email: fm.email ?? '', isFamilyMember: true as const, relationship: fm.relationship }))
     const memberResults = directory
       .filter(m => m.id !== user?.id && (`${m.first_name} ${m.last_name}`.toLowerCase().includes(q) || m.email.toLowerCase().includes(q)))
@@ -290,10 +292,12 @@ export default function Bookings() {
     const lower = q.toLowerCase()
     const famResults = familyMembers
       .filter(fm => {
-        const age = familyAge(fm.birthday)
-        return fm.relationship.toLowerCase() === 'spouse' || (age !== null && age < 26)
+        const rel = fm.relationship.toLowerCase()
+        if (rel === 'spouse') return !!fm.email
+        if (rel === 'child') return !!fm.email && !!fm.birthday
+        return false
       })
-      .filter(fm => `${fm.first_name} ${fm.last_name}`.toLowerCase().includes(lower) || (fm.email ?? '').toLowerCase().includes(lower))
+      .filter(fm => `${fm.first_name} ${fm.last_name}`.toLowerCase().includes(lower) || fm.email!.toLowerCase().includes(lower))
       .map(fm => ({ id: fm.id, first_name: fm.first_name, last_name: fm.last_name, email: fm.email ?? '', isFamilyMember: true as const, relationship: fm.relationship }))
     const memberResults = directory
       .filter(m => m.id !== user?.id && (`${m.first_name} ${m.last_name}`.toLowerCase().includes(lower) || m.email.toLowerCase().includes(lower)))
