@@ -225,6 +225,7 @@ export const api = {
   },
   family: {
     list: () => request('/family-members'),
+    listAll: () => request('/family-members/all'),
     create: (data: object) => request('/family-members', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: object) => request(`/family-members/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => request(`/family-members/${id}`, { method: 'DELETE' }),

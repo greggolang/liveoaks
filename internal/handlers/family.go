@@ -204,6 +204,44 @@ func (h *FamilyHandler) AdminDelete(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
+// AllMembers returns every family member (across all users) that has an email address.
+// Used by the booking invite search so members can find and invite each other's family members.
+func (h *FamilyHandler) AllMembers(c echo.Context) error {
+	rows, err := h.DB.Query(c.Request().Context(),
+		`SELECT id, first_name, last_name, relationship, email, birthday
+		 FROM family_members
+		 WHERE email IS NOT NULL
+		 ORDER BY last_name, first_name`)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch family members")
+	}
+	defer rows.Close()
+
+	type PublicFamilyMember struct {
+		ID           string  `json:"id"`
+		FirstName    string  `json:"first_name"`
+		LastName     string  `json:"last_name"`
+		Relationship string  `json:"relationship"`
+		Email        *string `json:"email,omitempty"`
+		Birthday     *string `json:"birthday,omitempty"`
+	}
+
+	members := []PublicFamilyMember{}
+	for rows.Next() {
+		var m PublicFamilyMember
+		var bday *time.Time
+		if err := rows.Scan(&m.ID, &m.FirstName, &m.LastName, &m.Relationship, &m.Email, &bday); err != nil {
+			continue
+		}
+		if bday != nil {
+			s := bday.Format("2006-01-02")
+			m.Birthday = &s
+		}
+		members = append(members, m)
+	}
+	return c.JSON(http.StatusOK, members)
+}
+
 // AdminList returns all family members for a given user (board+)
 func (h *FamilyHandler) AdminList(c echo.Context) error {
 	targetUserID := c.Param("userId")

@@ -304,6 +304,7 @@ func main() {
 	gamesAdmin.GET("/fantasy/picks/popularity/:tid", fantasy.AdminGetPickPopularity)
 
 	authed.GET("/family-members", family.List)
+	authed.GET("/family-members/all", family.AllMembers)
 	authed.POST("/family-members", family.Create)
 	authed.PUT("/family-members/:id", family.Update)
 	authed.DELETE("/family-members/:id", family.Delete)

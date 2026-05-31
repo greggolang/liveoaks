@@ -102,6 +102,7 @@ export default function Bookings() {
   // Invite state
   const [friends, setFriends] = useState<Friend[]>([])
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([])
+  const [allFamilyMembers, setAllFamilyMembers] = useState<FamilyMember[]>([])
   const [friendGroups, setFriendGroups] = useState<FriendGroup[]>([])
   const [selectedFriends, setSelectedFriends] = useState<string[]>([]) // friend ids to invite at booking time
   const [selectedMemberInvites, setSelectedMemberInvites] = useState<{id: string; first_name: string; last_name: string; email: string; isFamilyMember?: boolean; relationship?: string}[]>([])
@@ -157,6 +158,7 @@ export default function Bookings() {
     api.friends.list().then(d => setFriends(d as Friend[]))
     api.groups.list().then(d => setFriendGroups(d as FriendGroup[]))
     api.family.list().then(d => setFamilyMembers(d as FamilyMember[]))
+    api.family.listAll().then(d => setAllFamilyMembers(d as FamilyMember[]))
     api.members.directory().then(d => setDirectory((d as any[]).map(m => ({ id: m.id, first_name: m.first_name, last_name: m.last_name, email: m.email }))))
   }, [])
 
@@ -184,7 +186,7 @@ export default function Bookings() {
     if (bookingSearchMode !== 'member') return
     if (bookingSearchQuery.length < 2) { setBookingSearchResults([]); return }
     const q = bookingSearchQuery.toLowerCase()
-    const famResults = familyMembers
+    const famResults = allFamilyMembers
       .filter(fm => {
         const rel = fm.relationship.toLowerCase()
         if (rel === 'spouse') return !!fm.email
@@ -198,7 +200,7 @@ export default function Bookings() {
       .filter(m => m.id !== user?.id && (`${m.first_name} ${m.last_name}`.toLowerCase().includes(q) || m.email.toLowerCase().includes(q)))
       .slice(0, 20)
     setBookingSearchResults([...famResults, ...memberResults])
-  }, [bookingSearchQuery, bookingSearchMode, directory, user?.id, familyMembers, directPlayers])
+  }, [bookingSearchQuery, bookingSearchMode, directory, user?.id, allFamilyMembers, directPlayers])
   useEffect(() => {
     if (tab !== 'mine') return
     loadMine()
@@ -261,7 +263,7 @@ export default function Bookings() {
     setMemberInviteQuery(q)
     if (q.length < 2) { setMemberInviteResults([]); return }
     const lower = q.toLowerCase()
-    const famResults = familyMembers
+    const famResults = allFamilyMembers
       .filter(fm => {
         const rel = fm.relationship.toLowerCase()
         if (rel === 'spouse') return !!fm.email
@@ -302,7 +304,7 @@ export default function Bookings() {
     setAddPlayerQuery(q)
     if (q.length < 2) { setAddPlayerResults([]); return }
     const lower = q.toLowerCase()
-    const famResults = familyMembers
+    const famResults = allFamilyMembers
       .filter(fm => {
         const rel = fm.relationship.toLowerCase()
         if (rel === 'spouse') return !!fm.email
@@ -663,7 +665,7 @@ export default function Bookings() {
                                 setBookingInviteQuery(q)
                                 if (q.length < 2) { setBookingInviteResults([]); return }
                                 const lower = q.toLowerCase()
-                                const famResults = familyMembers
+                                const famResults = allFamilyMembers
                                   .filter(fm => fm.email && !selectedMemberInvites.some(x => x.id === fm.id))
                                   .filter(fm => `${fm.first_name} ${fm.last_name}`.toLowerCase().includes(lower) || fm.email!.toLowerCase().includes(lower))
                                   .map(fm => ({ id: fm.id, first_name: fm.first_name, last_name: fm.last_name, email: fm.email ?? '', isFamilyMember: true as const, relationship: fm.relationship }))
