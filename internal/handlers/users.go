@@ -131,7 +131,7 @@ func (h *UsersHandler) UpdateRole(c echo.Context) error {
 		models.RoleAdmin: true, models.RolePresident: true, models.RoleVicePresident: true,
 		models.RoleSecretary: true, models.RoleTreasurer: true, models.RoleEntertainment: true,
 		models.RoleHouseGrounds: true, models.RoleBilling: true, models.RoleMembership: true,
-		models.RoleUSTA: true, models.RoleMember: true,
+		models.RoleUSTA: true, models.RoleGames: true, models.RolePro: true, models.RoleMember: true,
 	}
 	if !validRoles[body.Role] {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid role")
@@ -145,6 +145,36 @@ func (h *UsersHandler) UpdateRole(c echo.Context) error {
 	h.Logger.Log(c.Request().Context(), "user_role_changed",
 		id+" → "+string(body.Role), adminID, c.RealIP())
 	return c.JSON(http.StatusOK, map[string]string{"message": "role updated"})
+}
+
+func (h *UsersHandler) UpdateExtraRoles(c echo.Context) error {
+	id := c.Param("id")
+	var body struct {
+		Roles []string `json:"roles"`
+	}
+	if err := c.Bind(&body); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
+	}
+	valid := map[string]bool{
+		"admin": true, "president": true, "vice_president": true, "secretary": true,
+		"treasurer": true, "entertainment": true, "house_grounds": true, "billing": true,
+		"membership": true, "usta": true, "games": true, "pro": true, "member": true,
+	}
+	for _, r := range body.Roles {
+		if !valid[r] {
+			return echo.NewHTTPError(http.StatusBadRequest, "invalid role: "+r)
+		}
+	}
+	if body.Roles == nil {
+		body.Roles = []string{}
+	}
+	_, err := h.DB.Exec(c.Request().Context(),
+		`UPDATE users SET extra_roles = $1::text[], updated_at = NOW() WHERE id = $2`,
+		body.Roles, id)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not update extra roles")
+	}
+	return c.JSON(http.StatusOK, map[string]interface{}{"roles": body.Roles})
 }
 
 func (h *UsersHandler) UpdateStatus(c echo.Context) error {

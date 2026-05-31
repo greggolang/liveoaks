@@ -1,7 +1,11 @@
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react'
 import { api } from '../api/client'
 
-const BOARD_ROLES = ['admin', 'president', 'vice_president', 'secretary', 'treasurer', 'billing', 'entertainment', 'house_grounds']
+const BOARD_ROLES = [
+  'admin', 'president', 'vice_president', 'secretary', 'treasurer',
+  'billing', 'membership', 'usta', 'entertainment', 'house_grounds',
+  'games', 'pro',
+]
 
 interface User {
   id: string
@@ -9,7 +13,12 @@ interface User {
   last_name: string
   email: string
   role: string
+  extra_roles?: string[]
   status: string
+}
+
+function allRoles(u: User): string[] {
+  return [u.role, ...(u.extra_roles ?? [])]
 }
 
 interface AuthContextType {
@@ -45,9 +54,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     ]).finally(() => setLoading(false))
   }, [])
 
-  // Idle auto-logout — never fires for admin role
+  // Idle auto-logout — never fires for admin role (primary or extra)
   useEffect(() => {
-    if (!user || user.role === 'admin' || sessionTimeoutMinutes <= 0) return
+    if (!user || allRoles(user).includes('admin') || sessionTimeoutMinutes <= 0) return
 
     const ms = sessionTimeoutMinutes * 60 * 1000
 
@@ -86,8 +95,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       login,
       logout,
-      isAdmin: user?.role === 'admin',
-      isBoard: user ? BOARD_ROLES.includes(user.role) : false,
+      isAdmin: user ? allRoles(user).includes('admin') : false,
+      isBoard: user ? allRoles(user).some(r => BOARD_ROLES.includes(r)) : false,
       bookingMaxDaysAhead,
     }}>
       {children}

@@ -5,9 +5,26 @@ const USTA_RATINGS = ['2.5', '3.0', '3.5', '4.0', '4.5', '5.0']
 
 interface User {
   id: string; first_name: string; last_name: string; email: string
-  role: string; status: string; phone?: string; address?: string; family?: string
+  role: string; extra_roles?: string[]; status: string; phone?: string; address?: string; family?: string
   usta_ranking?: string; created_at: string
 }
+
+// All assignable roles (used for extra_roles checkboxes)
+const ALL_ASSIGNABLE_ROLES = [
+  { value: 'president',      label: 'President',      group: 'Board' },
+  { value: 'vice_president', label: 'Vice President', group: 'Board' },
+  { value: 'secretary',      label: 'Secretary',      group: 'Board' },
+  { value: 'treasurer',      label: 'Treasurer',      group: 'Board' },
+  { value: 'entertainment',  label: 'Entertainment',  group: 'Board' },
+  { value: 'house_grounds',  label: 'House & Grounds',group: 'Board' },
+  { value: 'billing',        label: 'Billing',        group: 'Board' },
+  { value: 'membership',     label: 'Membership',     group: 'Board' },
+  { value: 'usta',           label: 'USTA',           group: 'Board' },
+  { value: 'games',          label: 'Games Admin',    group: 'Special' },
+  { value: 'pro',            label: 'Pro',            group: 'Special' },
+  { value: 'admin',          label: 'Admin',          group: 'System' },
+  { value: 'member',         label: 'Member',         group: 'General' },
+]
 
 const emptyEdit = { first_name: '', last_name: '', email: '', phone: '', address: '', family: '', usta_ranking: '' }
 const emptyNew = { first_name: '', last_name: '', email: '', phone: '', password: '', role: 'member', status: 'active' }
@@ -31,12 +48,15 @@ export default function AdminUsers() {
   const [showFamilyForm, setShowFamilyForm] = useState(false)
   const [familyForm, setFamilyForm] = useState({ first_name: '', last_name: '', relationship: 'spouse', birthday: '' })
   const [savingFamily, setSavingFamily] = useState(false)
+  const [editExtraRoles, setEditExtraRoles] = useState<string[]>([])
+  const [savingExtraRoles, setSavingExtraRoles] = useState(false)
 
   const load = () => api.admin.users().then(d => setUsers(d as User[]))
   const loadFamily = (userId: string) => api.family.adminList(userId).then(d => setFamilyMembers(d as FamilyMember[]))
 
   const openEdit = (u: User) => {
     setEditing(u)
+    setEditExtraRoles(u.extra_roles ?? [])
     setEditForm({ first_name: u.first_name, last_name: u.last_name, email: u.email,
       phone: u.phone ?? '', address: u.address ?? '', family: u.family ?? '', usta_ranking: u.usta_ranking ?? '' })
     setFamilyMembers([])
@@ -124,8 +144,8 @@ export default function AdminUsers() {
   const roleColor = (role: string): string => {
     if (role === 'admin') return 'bg-purple-100 text-purple-700'
     if (BOARD_ROLES.includes(role)) return 'bg-blue-100 text-blue-700'
-    if (['billing', 'membership', 'usta'].includes(role)) return 'bg-teal-100 text-teal-700'
     if (role === 'games') return 'bg-orange-100 text-orange-700'
+    if (role === 'pro') return 'bg-indigo-100 text-indigo-700'
     return 'bg-gray-100 text-gray-700'
   }
 
@@ -133,7 +153,7 @@ export default function AdminUsers() {
     admin: 'Admin', president: 'President', vice_president: 'Vice President',
     secretary: 'Secretary', treasurer: 'Treasurer', entertainment: 'Entertainment',
     house_grounds: 'House & Grounds', billing: 'Billing', membership: 'Membership',
-    usta: 'USTA', games: 'Games Admin', member: 'Member',
+    usta: 'USTA', games: 'Games Admin', pro: 'Pro', member: 'Member',
   }
   const statusColor: Record<string, string> = {
     active: 'bg-green-100 text-green-700',
@@ -193,8 +213,8 @@ export default function AdminUsers() {
           className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
           <option value="">All roles</option>
           <option value="member">Member</option>
+          <option value="pro">Pro</option>
           <option value="games">Games Admin</option>
-          <option value="billing">Billing</option>
           <option value="membership">Membership</option>
           <option value="usta">USTA</option>
           <option value="entertainment">Entertainment</option>
@@ -241,27 +261,35 @@ export default function AdminUsers() {
                 <td className="px-4 py-3 font-medium text-gray-800">{u.first_name} {u.last_name}</td>
                 <td className="px-4 py-3 text-gray-500">{u.email}</td>
                 <td className="px-4 py-3">
-                  <select value={u.role} onChange={e => setRole(u.id, e.target.value)}
-                    className={`text-xs font-medium px-2 py-1 rounded-full border-0 cursor-pointer ${roleColor(u.role)}`}>
-                    <option value="member">Member</option>
-                    <optgroup label="Committee">
-                      <option value="billing">Billing</option>
-                      <option value="membership">Membership</option>
-                      <option value="usta">USTA</option>
-                      <option value="games">Games Admin</option>
-                    </optgroup>
-                    <optgroup label="Board">
-                      <option value="entertainment">Entertainment</option>
-                      <option value="house_grounds">House &amp; Grounds</option>
-                      <option value="secretary">Secretary</option>
-                      <option value="treasurer">Treasurer</option>
-                      <option value="vice_president">Vice President</option>
-                      <option value="president">President</option>
-                    </optgroup>
-                    <optgroup label="System">
-                      <option value="admin">Admin</option>
-                    </optgroup>
-                  </select>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <select value={u.role} onChange={e => setRole(u.id, e.target.value)}
+                      className={`text-xs font-medium px-2 py-1 rounded-full border-0 cursor-pointer ${roleColor(u.role)}`}>
+                      <option value="member">Member</option>
+                      <optgroup label="Board">
+                        <option value="billing">Billing</option>
+                        <option value="membership">Membership</option>
+                        <option value="usta">USTA</option>
+                        <option value="entertainment">Entertainment</option>
+                        <option value="house_grounds">House &amp; Grounds</option>
+                        <option value="secretary">Secretary</option>
+                        <option value="treasurer">Treasurer</option>
+                        <option value="vice_president">Vice President</option>
+                        <option value="president">President</option>
+                      </optgroup>
+                      <optgroup label="Special">
+                        <option value="games">Games Admin</option>
+                        <option value="pro">Pro</option>
+                      </optgroup>
+                      <optgroup label="System">
+                        <option value="admin">Admin</option>
+                      </optgroup>
+                    </select>
+                    {(u.extra_roles ?? []).map(r => (
+                      <span key={r} className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${roleColor(r)}`}>
+                        +{roleLabel[r] ?? r}
+                      </span>
+                    ))}
+                  </div>
                 </td>
                 <td className="px-4 py-3">
                   <select value={u.status} onChange={e => setStatus(u.id, e.target.value)}
@@ -336,6 +364,39 @@ export default function AdminUsers() {
                 </select>
               </div>
             </div>
+            {/* Additional roles */}
+            <div className="border-t border-gray-100 pt-3">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-medium text-gray-600">Additional Role Assignments</p>
+                {savingExtraRoles && <span className="text-xs text-gray-400">Saving…</span>}
+              </div>
+              <p className="text-xs text-gray-400 mb-2">Check any extra roles this member should hold alongside their primary role.</p>
+              <div className="grid grid-cols-2 gap-1.5">
+                {ALL_ASSIGNABLE_ROLES.filter(r => r.value !== (editing?.role ?? 'member')).map(r => (
+                  <label key={r.value} className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox"
+                      checked={editExtraRoles.includes(r.value)}
+                      onChange={async e => {
+                        const next = e.target.checked
+                          ? [...editExtraRoles, r.value]
+                          : editExtraRoles.filter(x => x !== r.value)
+                        setEditExtraRoles(next)
+                        setSavingExtraRoles(true)
+                        try {
+                          await api.admin.updateExtraRoles(editing!.id, next)
+                          setUsers(us => us.map(u => u.id === editing!.id ? { ...u, extra_roles: next } : u))
+                        } finally { setSavingExtraRoles(false) }
+                      }}
+                      className="w-3.5 h-3.5 rounded accent-green-600 cursor-pointer"
+                    />
+                    <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${roleColor(r.value)}`}>
+                      {r.label}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
             {/* Family members */}
             <div className="border-t border-gray-100 pt-3">
               <div className="flex items-center justify-between mb-2">

@@ -253,6 +253,8 @@ export const api = {
       request(`/admin/users/${id}/profile`, { method: 'PUT', body: JSON.stringify(data) }),
     updateRole: (id: string, role: string) =>
       request(`/admin/users/${id}/role`, { method: 'PUT', body: JSON.stringify({ role }) }),
+    updateExtraRoles: (id: string, roles: string[]) =>
+      request(`/admin/users/${id}/extra-roles`, { method: 'PUT', body: JSON.stringify({ roles }) }),
     updateStatus: (id: string, status: string) =>
       request(`/admin/users/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),
     deleteUser: (id: string) => request(`/admin/users/${id}`, { method: 'DELETE' }),

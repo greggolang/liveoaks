@@ -17,6 +17,7 @@ const (
 	RoleMembership  Role = "membership"
 	RoleUSTA        Role = "usta"
 	RoleGames       Role = "games"
+	RolePro         Role = "pro"
 	RoleMember      Role = "member"
 
 	StatusActive   Status = "active"
@@ -37,6 +38,7 @@ type User struct {
 	Email        string    `json:"email"`
 	PasswordHash string    `json:"-"`
 	Role         Role      `json:"role"`
+	ExtraRoles   []string  `json:"extra_roles,omitempty"`
 	Status       Status    `json:"status"`
 	Phone        *string   `json:"phone,omitempty"`
 	Address      *string   `json:"address,omitempty"`

@@ -8,8 +8,9 @@ import (
 )
 
 type Claims struct {
-	UserID string `json:"user_id"`
-	Role   string `json:"role"`
+	UserID     string   `json:"user_id"`
+	Role       string   `json:"role"`
+	ExtraRoles []string `json:"extra_roles,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -29,6 +30,7 @@ func JWTAuth(secret string) echo.MiddlewareFunc {
 			}
 			c.Set("user_id", claims.UserID)
 			c.Set("role", claims.Role)
+			c.Set("extra_roles", claims.ExtraRoles)
 			return next(c)
 		}
 	}
@@ -41,16 +43,27 @@ func RequireRole(roles ...string) echo.MiddlewareFunc {
 	}
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
-			role, ok := c.Get("role").(string)
-			if !ok || !allowed[role] {
-				return echo.NewHTTPError(http.StatusForbidden, "insufficient permissions")
+			role, _ := c.Get("role").(string)
+			if allowed[role] {
+				return next(c)
 			}
-			return next(c)
+			if extra, ok := c.Get("extra_roles").([]string); ok {
+				for _, er := range extra {
+					if allowed[er] {
+						return next(c)
+					}
+				}
+			}
+			return echo.NewHTTPError(http.StatusForbidden, "insufficient permissions")
 		}
 	}
 }
 
-// BoardRoles returns the list of roles with board-level permissions
+// BoardRoleList returns roles with board-level access (billing, membership, usta now included).
 func BoardRoleList() []string {
-	return []string{"admin", "president", "vice_president", "secretary", "treasurer", "billing", "entertainment", "house_grounds"}
+	return []string{
+		"admin", "president", "vice_president", "secretary", "treasurer",
+		"billing", "membership", "usta", "entertainment", "house_grounds",
+		"games", "pro",
+	}
 }

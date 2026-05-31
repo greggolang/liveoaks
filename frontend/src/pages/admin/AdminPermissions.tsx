@@ -17,17 +17,18 @@ const PAGES: { key: string; label: string; desc: string }[] = [
 ]
 
 const ROLES: { key: string; label: string; group: string }[] = [
-  { key: 'member',        label: 'Member',        group: 'General' },
-  { key: 'president',     label: 'President',     group: 'Board' },
-  { key: 'vice_president',label: 'Vice Pres.',    group: 'Board' },
-  { key: 'secretary',     label: 'Secretary',     group: 'Board' },
-  { key: 'treasurer',     label: 'Treasurer',     group: 'Board' },
-  { key: 'entertainment', label: 'Entertain.',    group: 'Board' },
-  { key: 'house_grounds', label: 'House/Grnds',   group: 'Board' },
-  { key: 'billing',       label: 'Billing',       group: 'Special' },
-  { key: 'membership',    label: 'Membership',    group: 'Special' },
-  { key: 'usta',          label: 'USTA',          group: 'Special' },
-  { key: 'games',         label: 'Games Admin',   group: 'Special' },
+  { key: 'member',         label: 'Member',        group: 'General' },
+  { key: 'president',      label: 'President',     group: 'Board' },
+  { key: 'vice_president', label: 'Vice Pres.',    group: 'Board' },
+  { key: 'secretary',      label: 'Secretary',     group: 'Board' },
+  { key: 'treasurer',      label: 'Treasurer',     group: 'Board' },
+  { key: 'entertainment',  label: 'Entertain.',    group: 'Board' },
+  { key: 'house_grounds',  label: 'House/Grnds',   group: 'Board' },
+  { key: 'billing',        label: 'Billing',       group: 'Board' },
+  { key: 'membership',     label: 'Membership',    group: 'Board' },
+  { key: 'usta',           label: 'USTA',          group: 'Board' },
+  { key: 'games',          label: 'Games Admin',   group: 'Special' },
+  { key: 'pro',            label: 'Pro',           group: 'Special' },
 ]
 
 export default function AdminPermissions() {

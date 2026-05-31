@@ -79,9 +79,11 @@ func (h *AuthHandler) Login(c echo.Context) error {
 	var user models.User
 	var role, status string
 	err := h.DB.QueryRow(c.Request().Context(),
-		`SELECT id, first_name, last_name, email, password_hash, role::text, status::text FROM users WHERE email = $1`,
+		`SELECT id, first_name, last_name, email, password_hash, role::text, status::text,
+		        COALESCE(extra_roles, ARRAY[]::text[])
+		 FROM users WHERE email = $1`,
 		req.Email,
-	).Scan(&user.ID, &user.FirstName, &user.LastName, &user.Email, &user.PasswordHash, &role, &status)
+	).Scan(&user.ID, &user.FirstName, &user.LastName, &user.Email, &user.PasswordHash, &role, &status, &user.ExtraRoles)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusUnauthorized, "invalid credentials")
 	}
@@ -103,8 +105,9 @@ func (h *AuthHandler) Login(c echo.Context) error {
 	h.Logger.Log(c.Request().Context(), "login", user.FirstName+" "+user.LastName, user.ID, c.RealIP())
 
 	claims := &middleware.Claims{
-		UserID: user.ID,
-		Role:   string(user.Role),
+		UserID:     user.ID,
+		Role:       string(user.Role),
+		ExtraRoles: user.ExtraRoles,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
 		},
@@ -144,9 +147,11 @@ func (h *AuthHandler) Me(c echo.Context) error {
 	var user models.User
 	var role, status string
 	err := h.DB.QueryRow(c.Request().Context(),
-		`SELECT id, first_name, last_name, email, role::text, status::text, phone, address, family, usta_ranking, created_at FROM users WHERE id = $1`,
+		`SELECT id, first_name, last_name, email, role::text, status::text, phone, address, family, usta_ranking, created_at,
+		        COALESCE(extra_roles, ARRAY[]::text[])
+		 FROM users WHERE id = $1`,
 		userID,
-	).Scan(&user.ID, &user.FirstName, &user.LastName, &user.Email, &role, &status, &user.Phone, &user.Address, &user.Family, &user.USTARanking, &user.CreatedAt)
+	).Scan(&user.ID, &user.FirstName, &user.LastName, &user.Email, &role, &status, &user.Phone, &user.Address, &user.Family, &user.USTARanking, &user.CreatedAt, &user.ExtraRoles)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "user not found")
 	}
