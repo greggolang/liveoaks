@@ -773,7 +773,8 @@ export default function Dashboard() {
               const matchLabel = b.match_type === 'ball_machine' ? '🤖 Ball Machine'
                 : b.match_type === 'singles' ? 'Singles'
                 : b.match_type === 'doubles' ? 'Doubles'
-                : b.match_type === 'casual' ? 'Hit Session' : null
+                : b.match_type === 'casual' ? 'Hit Session'
+                : b.match_type === 'teaching_pro' ? 'Teaching Pro' : null
               const durationMins = Math.round((end.getTime() - start.getTime()) / 60000)
               const durationLabel = durationMins >= 80 ? '1½ hr' : `${durationMins} min`
               const needsRoster = b.match_type && b.match_type !== 'ball_machine' && (b.players_needed ?? 0) > 0
@@ -881,6 +882,7 @@ export default function Dashboard() {
                           <option value="casual">Hit Session</option>
                           <option value="singles">Singles</option>
                           <option value="doubles">Doubles</option>
+                          <option value="teaching_pro">Teaching Pro</option>
                           <option value="ball_machine">Ball Machine</option>
                         </select>
                       </div>

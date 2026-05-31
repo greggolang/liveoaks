@@ -83,6 +83,7 @@ func main() {
 	camera := &handlers.CameraHandler{DB: pool, CameraToken: cfg.CameraToken, HLSDir: cfg.CameraHLSDir, SiteURL: cfg.SiteURL, Mailer: mailer}
 	camera.Init()
 	alerts := &handlers.AlertsHandler{DB: pool}
+	balls := &handlers.BallsHandler{DB: pool}
 	proshop := &handlers.ProShopHandler{DB: pool}
 	contacts := &handlers.ContactsHandler{DB: pool}
 	friends := &handlers.FriendsHandler{DB: pool}
@@ -362,6 +363,15 @@ func main() {
 	adminOnly.PUT("/camera/url", camera.UpdateURL)
 	boardPlus.GET("/admin/camera/status", camera.AdminStatus)
 
+	// Ball tracking
+	boardPlus.GET("/admin/balls/summary", balls.Summary)
+	boardPlus.GET("/admin/balls/usage", balls.UsageList)
+	boardPlus.DELETE("/admin/balls/usage/:id", balls.DeleteUsage)
+	boardPlus.GET("/admin/balls/purchases", balls.PurchaseList)
+	boardPlus.POST("/admin/balls/purchases", balls.RecordPurchase)
+	boardPlus.DELETE("/admin/balls/purchases/:id", balls.DeletePurchase)
+	boardPlus.POST("/admin/balls/usage", balls.RecordManualUsage)
+
 	// Pro Shop
 	authed.GET("/pro-shop", proshop.List)
 	boardPlus.GET("/admin/pro-shop", proshop.AdminList)
@@ -374,6 +384,7 @@ func main() {
 	authed.POST("/member-alerts/:id/dismiss", alerts.Dismiss)
 	boardPlus.GET("/admin/member-alerts", alerts.AdminListAll)
 	boardPlus.GET("/admin/member-alerts/:userId", alerts.AdminList)
+	boardPlus.GET("/admin/teaching-pro", bookings.TeachingProList)
 	boardPlus.POST("/admin/member-alerts", alerts.AdminCreate)
 	boardPlus.DELETE("/admin/member-alerts/:id", alerts.AdminDelete)
 

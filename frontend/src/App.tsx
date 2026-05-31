@@ -50,6 +50,8 @@ import AdminLiveball from './pages/admin/AdminLiveball'
 import AdminBroadcast from './pages/admin/AdminBroadcast'
 import AdminBoardMeetings from './pages/admin/AdminBoardMeetings'
 import AdminProShop from './pages/admin/AdminProShop'
+import AdminBallTracking from './pages/admin/AdminBallTracking'
+import AdminTeachingPro from './pages/admin/AdminTeachingPro'
 import BoardMeetingResponse from './pages/BoardMeetingResponse'
 import LiveballResponse from './pages/LiveballResponse'
 import BookingReminderResponse from './pages/BookingReminderResponse'
@@ -129,6 +131,8 @@ function AppRoutes() {
         <Route path="fantasy" element={<AdminFantasy />} />
         <Route path="notes" element={<AdminNotes />} />
         <Route path="pro-shop" element={<AdminProShop />} />
+        <Route path="ball-tracking" element={<AdminBallTracking />} />
+        <Route path="teaching-pro" element={<AdminTeachingPro />} />
         <Route path="ladder" element={<AdminLadder />} />
         <Route path="liveball" element={<AdminLiveball />} />
         <Route path="broadcast" element={<AdminBroadcast />} />

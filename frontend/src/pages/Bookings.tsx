@@ -33,10 +33,11 @@ interface MatchPlayer { id: string; player_name: string; player_email?: string; 
 interface Invitation { id: string; invitee_name: string; invitee_email: string; status: string; is_guest: boolean }
 
 const MATCH_TYPES = [
-  { value: 'singles',      label: 'Singles',      ballMachineOnly: false },
-  { value: 'doubles',      label: 'Doubles',      ballMachineOnly: false },
-  { value: 'casual',       label: 'Hit Session',  ballMachineOnly: false },
-  { value: 'ball_machine', label: 'Ball Machine', ballMachineOnly: true  },
+  { value: 'singles',      label: 'Singles',       ballMachineOnly: false },
+  { value: 'doubles',      label: 'Doubles',       ballMachineOnly: false },
+  { value: 'casual',       label: 'Hit Session',   ballMachineOnly: false },
+  { value: 'teaching_pro', label: 'Teaching Pro',  ballMachineOnly: false },
+  { value: 'ball_machine', label: 'Ball Machine',  ballMachineOnly: true  },
 ]
 
 // Fixed roster capacity per match type (excluding the host)
@@ -44,6 +45,7 @@ const PLAYERS_BY_TYPE: Record<string, number> = {
   casual:       1,
   singles:      1,
   doubles:      3,
+  teaching_pro: 1,
   ball_machine: 0,
 }
 
@@ -1104,7 +1106,7 @@ export default function Bookings() {
 
                     {/* Players — roster management */}
                     {editForm.matchType !== 'ball_machine' && (() => {
-                      const maxCap: Record<string, number> = { casual: 2, singles: 2, doubles: 4, ball_machine: 1 }
+                      const maxCap: Record<string, number> = { casual: 2, singles: 2, doubles: 4, teaching_pro: 2, ball_machine: 1 }
                       const cap = maxCap[editForm.matchType] ?? 2
                       const roster = activeBookingRoster?.bookingId === b.id ? activeBookingRoster : null
                       const full = roster !== null && roster.players.length >= cap
@@ -1559,7 +1561,7 @@ export default function Bookings() {
                         <div className="font-medium text-gray-700 text-sm">{b.court.name}
                           {b.match_type && b.match_type !== 'casual' && (
                             <span className="ml-2 text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-normal">
-                              {b.match_type === 'ball_machine' ? '🤖 Ball Machine' : b.match_type === 'singles' ? 'Singles' : 'Doubles'}
+                              {b.match_type === 'ball_machine' ? '🤖 Ball Machine' : b.match_type === 'singles' ? 'Singles' : b.match_type === 'teaching_pro' ? 'Teaching Pro' : 'Doubles'}
                             </span>
                           )}
                         </div>
@@ -1616,6 +1618,7 @@ export default function Bookings() {
                                 {b.match_type === 'ball_machine' ? '🤖 Ball Machine'
                                   : b.match_type === 'singles' ? 'Singles'
                                   : b.match_type === 'doubles' ? 'Doubles'
+                                  : b.match_type === 'teaching_pro' ? 'Teaching Pro'
                                   : b.match_type}
                               </span>
                             )}
@@ -1781,7 +1784,7 @@ export default function Bookings() {
                         <div>
                           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Add Player Directly</h3>
                           {(() => {
-                            const maxPlayers: Record<string, number> = { casual: 2, singles: 2, doubles: 4, ball_machine: 1 }
+                            const maxPlayers: Record<string, number> = { casual: 2, singles: 2, doubles: 4, teaching_pro: 2, ball_machine: 1 }
                             const cap = maxPlayers[b.match_type ?? 'casual'] ?? 2
                             const full = roster !== null && roster.players.length >= cap
                             if (full) {
@@ -1794,7 +1797,7 @@ export default function Bookings() {
                             return null
                           })()}
                           {addPlayerMode === null && (() => {
-                            const maxPlayers: Record<string, number> = { casual: 2, singles: 2, doubles: 4, ball_machine: 1 }
+                            const maxPlayers: Record<string, number> = { casual: 2, singles: 2, doubles: 4, teaching_pro: 2, ball_machine: 1 }
                             const cap = maxPlayers[b.match_type ?? 'casual'] ?? 2
                             const full = roster !== null && roster.players.length >= cap
                             if (full) return null

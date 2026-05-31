@@ -148,6 +148,7 @@ func (h *InvitationsHandler) Send(c echo.Context) error {
 	matchTypeLabels := map[string]string{
 		"singles": "Singles", "doubles": "Doubles",
 		"casual": "Hit Session", "ball_machine": "Ball Machine",
+		"teaching_pro": "Teaching Pro",
 	}
 	matchTypeLabel := matchTypeLabels[matchType]
 	if matchTypeLabel == "" {
@@ -331,7 +332,7 @@ func (h *InvitationsHandler) AddPlayer(c echo.Context) error {
 
 	// Enforce player capacity by match type
 	maxPlayers := map[string]int{
-		"casual": 2, "singles": 2, "doubles": 4, "ball_machine": 1,
+		"casual": 2, "singles": 2, "doubles": 4, "ball_machine": 1, "teaching_pro": 2,
 	}[matchType]
 	if maxPlayers > 0 {
 		var playerCount int
@@ -712,6 +713,7 @@ func (h *InvitationsHandler) sendAcceptedEmail(to, playerName, court, dateStr, b
 	matchTypeLabels := map[string]string{
 		"singles": "Singles", "doubles": "Doubles",
 		"casual": "Hit Session", "ball_machine": "Ball Machine",
+		"teaching_pro": "Teaching Pro",
 	}
 	matchLabel := matchTypeLabels[matchType]
 	if matchLabel == "" {
@@ -775,6 +777,7 @@ func (h *InvitationsHandler) sendMatchFullHostEmail(to, bookingID string) {
 	matchTypeLabels := map[string]string{
 		"singles": "Singles", "doubles": "Doubles",
 		"casual": "Hit Session", "ball_machine": "Ball Machine",
+		"teaching_pro": "Teaching Pro",
 	}
 	matchLabel := matchTypeLabels[matchType]
 	if matchLabel == "" {
@@ -901,6 +904,7 @@ func (h *InvitationsHandler) WithdrawFromBooking(c echo.Context) error {
 	matchTypeLabels := map[string]string{
 		"singles": "Singles", "doubles": "Doubles",
 		"casual": "Hit Session", "ball_machine": "Ball Machine",
+		"teaching_pro": "Teaching Pro",
 	}
 	matchLabel := matchTypeLabels[matchType]
 	if matchLabel == "" {

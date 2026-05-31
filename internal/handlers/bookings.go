@@ -349,6 +349,7 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 			"doubles":      "Doubles",
 			"casual":       "Hit Session",
 			"ball_machine": "Ball Machine",
+			"teaching_pro": "Teaching Pro",
 		}
 		matchLabel := matchTypeLabels[req.MatchType]
 		if matchLabel == "" {
@@ -453,6 +454,15 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 	h.Logger.Log(c.Request().Context(), "booking_created",
 		fmt.Sprintf("Court %d on %s", req.CourtID, req.StartTime.Format("2006-01-02 15:04")),
 		userID, c.RealIP())
+
+	// Auto-log 1 can of balls for this booking.
+	var courtNameForBalls string
+	h.DB.QueryRow(c.Request().Context(), `SELECT name FROM courts WHERE id = $1`, req.CourtID).Scan(&courtNameForBalls)
+	h.DB.Exec(c.Request().Context(),
+		`INSERT INTO ball_usage (used_date, quantity, source, booking_id, user_id, user_name, court_name)
+		 VALUES ($1::date, 1, 'booking', $2, $3, $4, $5)`,
+		req.StartTime.Format("2006-01-02"), booking.ID, userID, hostName, courtNameForBalls)
+
 	return c.JSON(http.StatusCreated, booking)
 }
 
@@ -605,6 +615,7 @@ func (h *BookingsHandler) Delete(c echo.Context) error {
 			matchTypeLabels := map[string]string{
 				"singles": "Singles", "doubles": "Doubles",
 				"casual": "Hit Session", "ball_machine": "Ball Machine",
+				"teaching_pro": "Teaching Pro",
 			}
 			matchLabel := matchTypeLabels[matchType]
 			if matchLabel == "" {
@@ -735,6 +746,52 @@ func (h *BookingsHandler) History(c echo.Context) error {
 	return c.JSON(http.StatusOK, bookings)
 }
 
+// TeachingProList returns teaching_pro bookings for a date range (admin).
+func (h *BookingsHandler) TeachingProList(c echo.Context) error {
+	from := c.QueryParam("from")
+	to := c.QueryParam("to")
+	if from == "" {
+		from = time.Now().Format("2006-01") + "-01"
+	}
+	if to == "" {
+		to = time.Now().Format("2006-01-02")
+	}
+	rows, err := h.DB.Query(c.Request().Context(), `
+		SELECT b.id, b.user_id, b.court_id, b.start_time, b.end_time, b.notes, b.created_at,
+		       b.match_type, b.players_needed,
+		       u.first_name, u.last_name, ct.name, ct.number,
+		       COALESCE(array_agg(mp.player_name ORDER BY mp.is_host DESC, mp.added_at)
+		                FILTER (WHERE mp.player_name IS NOT NULL AND mp.withdrew_at IS NULL), ARRAY[]::text[]) AS players
+		FROM bookings b
+		JOIN users u ON u.id = b.user_id
+		JOIN courts ct ON ct.id = b.court_id
+		LEFT JOIN match_players mp ON mp.booking_id = b.id AND mp.withdrew_at IS NULL
+		WHERE b.match_type = 'teaching_pro'
+		  AND b.start_time::date BETWEEN $1 AND $2
+		GROUP BY b.id, b.user_id, b.court_id, b.start_time, b.end_time, b.notes,
+		         b.created_at, b.match_type, b.players_needed,
+		         u.first_name, u.last_name, ct.name, ct.number
+		ORDER BY b.start_time DESC`, from, to)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch sessions")
+	}
+	defer rows.Close()
+	bookings := []models.Booking{}
+	for rows.Next() {
+		var b models.Booking
+		b.User = &models.User{}
+		b.Court = &models.Court{}
+		if err := rows.Scan(&b.ID, &b.UserID, &b.CourtID, &b.StartTime, &b.EndTime, &b.Notes, &b.CreatedAt,
+			&b.MatchType, &b.PlayersNeeded,
+			&b.User.FirstName, &b.User.LastName, &b.Court.Name, &b.Court.Number,
+			&b.Players); err != nil {
+			continue
+		}
+		bookings = append(bookings, b)
+	}
+	return c.JSON(http.StatusOK, bookings)
+}
+
 // calendarLinksHTML returns two "Add to Calendar" buttons: Google Calendar and an ICS download.
 func calendarLinksHTML(summary, description string, startUTC, endUTC time.Time, icalURL string) string {
 	dtStart := startUTC.UTC().Format("20060102T150405Z")
@@ -795,6 +852,7 @@ func (h *BookingsHandler) ICal(c echo.Context) error {
 	matchTypeLabels := map[string]string{
 		"singles": "Singles", "doubles": "Doubles",
 		"casual": "Hit Session", "ball_machine": "Ball Machine",
+		"teaching_pro": "Teaching Pro",
 	}
 	matchLabel := matchTypeLabels[matchType]
 	if matchLabel == "" {

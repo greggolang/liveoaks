@@ -290,6 +290,41 @@ export const api = {
       request('/admin/test-email', { method: 'POST', body: JSON.stringify({ to }) }),
     smtpPing: () => request('/admin/smtp-ping'),
   },
+  teachingPro: {
+    list: (from?: string, to?: string) => {
+      const p = new URLSearchParams()
+      if (from) p.set('from', from)
+      if (to) p.set('to', to)
+      return request(`/admin/teaching-pro${p.toString() ? '?' + p : ''}`)
+    },
+  },
+  balls: {
+    summary: (from?: string, to?: string) => {
+      const p = new URLSearchParams()
+      if (from) p.set('from', from)
+      if (to) p.set('to', to)
+      return request<{
+        from: string; to: string
+        beginning_inventory: number; purchased: number
+        used_bookings: number; used_pro_shop: number; used_other: number
+        total_used: number; ending_inventory: number
+        period_cost: number; booking_count: number; cost_per_booking: number
+        all_time_purchased: number; all_time_used: number; on_hand: number; all_time_cost: number
+      }>(`/admin/balls/summary${p.toString() ? '?' + p : ''}`)
+    },
+    usageList: (from?: string, to?: string) => {
+      const p = new URLSearchParams()
+      if (from) p.set('from', from)
+      if (to) p.set('to', to)
+      return request<{ id: string; used_date: string; quantity: number; source: string; user_name?: string; court_name?: string; notes?: string }[]>(
+        `/admin/balls/usage${p.toString() ? '?' + p : ''}`)
+    },
+    deleteUsage: (id: string) => request(`/admin/balls/usage/${id}`, { method: 'DELETE' }),
+    purchaseList: () => request<{ id: string; purchase_date: string; quantity: number; cost_per_can?: number; total_cost?: number; notes?: string; created_at: string }[]>('/admin/balls/purchases'),
+    recordPurchase: (data: object) => request('/admin/balls/purchases', { method: 'POST', body: JSON.stringify(data) }),
+    deletePurchase: (id: string) => request(`/admin/balls/purchases/${id}`, { method: 'DELETE' }),
+    recordUsage: (data: object) => request('/admin/balls/usage', { method: 'POST', body: JSON.stringify(data) }),
+  },
   proShop: {
     list: () => request<{ id: string; name: string; description: string; price: number; category: string; emoji: string; in_stock: boolean; sort_order: number }[]>('/pro-shop'),
     adminList: () => request<{ id: string; name: string; description: string; price: number; category: string; emoji: string; in_stock: boolean; sort_order: number }[]>('/admin/pro-shop'),

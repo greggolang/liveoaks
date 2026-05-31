@@ -12,10 +12,11 @@ interface Court { id: number; name: string; number: number }
 interface Member { id: string; first_name: string; last_name: string; email: string }
 
 const MATCH_TYPES = [
-  { value: 'casual',       label: 'Hit Session' },
-  { value: 'singles',      label: 'Singles' },
-  { value: 'doubles',      label: 'Doubles' },
-  { value: 'ball_machine', label: 'Ball Machine' },
+  { value: 'casual',        label: 'Hit Session' },
+  { value: 'singles',       label: 'Singles' },
+  { value: 'doubles',       label: 'Doubles' },
+  { value: 'teaching_pro',  label: 'Teaching Pro' },
+  { value: 'ball_machine',  label: 'Ball Machine' },
 ]
 
 const HOURS = Array.from({ length: 24 }, (_, i) => {
@@ -272,6 +273,7 @@ export default function AdminBookings() {
                   const matchLabel = b.match_type === 'ball_machine' ? '🤖 Ball Machine'
                     : b.match_type === 'singles' ? 'Singles'
                     : b.match_type === 'doubles' ? 'Doubles'
+                    : b.match_type === 'teaching_pro' ? 'Teaching Pro'
                     : 'Hit Session'
                   return (
                     <tr key={b.id} className="hover:bg-gray-50">
