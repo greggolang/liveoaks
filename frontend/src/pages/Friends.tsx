@@ -12,6 +12,7 @@ interface FriendGroup {
   id: string; name: string; members: GroupMember[]
 }
 interface MemberResult { id: string; first_name: string; last_name: string; email: string; usta_ranking?: string }
+interface FamilyMember { id: string; first_name: string; last_name: string; relationship: string; email?: string; linked_user_id?: string }
 
 const USTA_RATINGS = ['2.5', '3.0', '3.5', '4.0', '4.5', '5.0']
 
@@ -36,10 +37,13 @@ export default function Friends() {
   const [groupSearchResults, setGroupSearchResults] = useState<MemberResult[]>([])
   const [groupSearching, setGroupSearching] = useState(false)
 
+  const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([])
+
   const loadFriends = () => api.friends.list().then(d => setFriends(d as Friend[]))
   const loadGroups = () => api.groups.list().then(d => setGroups(d as FriendGroup[]))
+  const loadFamily = () => api.family.list().then(d => setFamilyMembers(d as FamilyMember[])).catch(() => {})
 
-  useEffect(() => { loadFriends(); loadGroups() }, [])
+  useEffect(() => { loadFriends(); loadGroups(); loadFamily() }, [])
 
   const doSearch = useCallback(async (q: string, usta: string) => {
     if (q.length < 2 && !usta) { setResults([]); return }
@@ -104,6 +108,27 @@ export default function Friends() {
       await api.groups.addMember(groupId, friendId)
     }
     loadGroups()
+  }
+
+  const toggleFamilyMemberInGroup = async (groupId: string, fm: FamilyMember, inGroup: boolean) => {
+    if (inGroup) {
+      // Find the matching friends entry by name (or linked user id) and remove
+      const name = `${fm.first_name} ${fm.last_name}`
+      const friendEntry = friends.find(f =>
+        (fm.linked_user_id && f.friend_user_id === fm.linked_user_id) ||
+        f.friend_name === name
+      )
+      if (friendEntry) {
+        await api.groups.removeMember(groupId, friendEntry.id)
+        loadGroups()
+      }
+    } else {
+      // Get or create a friends entry, then add to group
+      const result = await api.friends.addFromFamily(fm.id) as { id: string }
+      await api.groups.addMember(groupId, result.id)
+      await loadFriends()
+      loadGroups()
+    }
   }
 
   const searchGroupMembers = async (q: string) => {
@@ -405,6 +430,37 @@ export default function Friends() {
                         </div>
                       )}
                     </div>
+
+                    {/* Family members */}
+                    {familyMembers.length > 0 && (
+                      <div>
+                        <p className="text-xs text-gray-500 mb-2">Family members:</p>
+                        <div className="space-y-1.5">
+                          {familyMembers.map(fm => {
+                            const name = `${fm.first_name} ${fm.last_name}`
+                            const friendEntry = friends.find(f =>
+                              (fm.linked_user_id && f.friend_user_id === fm.linked_user_id) ||
+                              f.friend_name === name
+                            )
+                            const inGroup = friendEntry
+                              ? g.members.some(m => m.friend_id === friendEntry.id)
+                              : false
+                            return (
+                              <label key={fm.id} className="flex items-center gap-2.5 cursor-pointer group">
+                                <input type="checkbox" checked={inGroup}
+                                  onChange={() => toggleFamilyMemberInGroup(g.id, fm, inGroup)}
+                                  className="w-4 h-4 rounded accent-green-600" />
+                                <span className="text-sm text-gray-700 group-hover:text-gray-900">
+                                  {name}
+                                  <span className="ml-1.5 text-xs text-purple-500 capitalize">({fm.relationship})</span>
+                                </span>
+                                {fm.email && <span className="text-xs text-gray-400">{fm.email}</span>}
+                              </label>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

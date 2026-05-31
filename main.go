@@ -150,6 +150,7 @@ func main() {
 	authed.GET("/friends/search", friends.SearchMembers)
 	authed.POST("/friends/member", friends.AddMember)
 	authed.POST("/friends/guest", friends.AddGuest)
+	authed.POST("/friends/from-family/:id", friends.AddFromFamily)
 	authed.DELETE("/friends/:id", friends.Remove)
 
 	// Match invitations

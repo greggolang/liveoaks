@@ -103,6 +103,72 @@ func (h *FriendsHandler) AddGuest(c echo.Context) error {
 	return c.JSON(http.StatusCreated, f)
 }
 
+// AddFromFamily ensures a friends entry exists for a family member and returns it.
+// If the family member has a linked user account it uses the member-friend path;
+// otherwise it creates a guest-style entry keyed by name.
+func (h *FriendsHandler) AddFromFamily(c echo.Context) error {
+	memberID := c.Get("user_id").(string)
+	familyID := c.Param("id")
+
+	var firstName, lastName string
+	var email, linkedUserID *string
+	err := h.DB.QueryRow(c.Request().Context(), `
+		SELECT first_name, last_name, email, linked_user_id::text
+		FROM family_members WHERE id = $1 AND user_id = $2`,
+		familyID, memberID,
+	).Scan(&firstName, &lastName, &email, &linkedUserID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, "family member not found")
+	}
+
+	name := firstName + " " + lastName
+
+	// If the family member has a full user account, link via friend_user_id
+	if linkedUserID != nil && *linkedUserID != "" {
+		var f Friend
+		err = h.DB.QueryRow(c.Request().Context(), `
+			INSERT INTO friends (member_id, friend_user_id)
+			VALUES ($1, $2)
+			ON CONFLICT (member_id, friend_user_id) DO UPDATE SET member_id = friends.member_id
+			RETURNING id, member_id, friend_user_id, created_at`,
+			memberID, *linkedUserID,
+		).Scan(&f.ID, &f.MemberID, &f.FriendUserID, &f.CreatedAt)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "could not add friend")
+		}
+		f.FriendName = name
+		return c.JSON(http.StatusOK, f)
+	}
+
+	// No user account — use a guest-style entry. Check if one already exists by name.
+	var existingID string
+	h.DB.QueryRow(c.Request().Context(), `
+		SELECT id FROM friends
+		WHERE member_id = $1 AND friend_name = $2 AND friend_user_id IS NULL
+		LIMIT 1`, memberID, name,
+	).Scan(&existingID)
+	if existingID != "" {
+		return c.JSON(http.StatusOK, map[string]string{"id": existingID, "friend_name": name})
+	}
+
+	emailStr := ""
+	if email != nil {
+		emailStr = *email
+	}
+	var f Friend
+	err = h.DB.QueryRow(c.Request().Context(), `
+		INSERT INTO friends (member_id, friend_name, friend_email)
+		VALUES ($1, $2, NULLIF($3,''))
+		RETURNING id, member_id, friend_user_id, friend_name, friend_email, created_at`,
+		memberID, name, emailStr,
+	).Scan(&f.ID, &f.MemberID, &f.FriendUserID, &f.FriendName, &f.FriendEmail, &f.CreatedAt)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not create friend")
+	}
+	f.IsGuest = true
+	return c.JSON(http.StatusCreated, f)
+}
+
 func (h *FriendsHandler) Remove(c echo.Context) error {
 	memberID := c.Get("user_id").(string)
 	h.DB.Exec(c.Request().Context(),

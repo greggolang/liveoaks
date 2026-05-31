@@ -768,6 +768,13 @@ func (h *InvitationsHandler) sendMatchFullHostEmail(to, bookingID string) {
 		}
 	}
 
+	icalURL := fmt.Sprintf("%s/api/bookings/%s/ical", h.SiteURL, bookingID)
+	calHTML := calendarLinksHTML(
+		fmt.Sprintf("%s – %s – Live Oaks Tennis Club", matchLabel, courtName),
+		fmt.Sprintf("Match Type: %s\nCourt: %s", matchLabel, courtName),
+		startTime, endTime, icalURL,
+	)
+
 	body := fmt.Sprintf(`
 <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
   <h2 style="color:#15803d">🎾 Your Match is Full!</h2>
@@ -779,7 +786,8 @@ func (h *InvitationsHandler) sendMatchFullHostEmail(to, bookingID string) {
     <div style="margin-top:12px;font-weight:600;color:#166534">Your Roster:</div>
     <ul style="margin:8px 0;padding-left:20px;color:#374151">%s</ul>
   </div>
+  %s
   <p><a href="%s/bookings" style="color:#15803d;font-size:13px">View your bookings →</a></p>
-</div>`, courtName, timeStr, endStr, matchLabel, rosterHTML, h.SiteURL)
+</div>`, courtName, timeStr, endStr, matchLabel, rosterHTML, calHTML, h.SiteURL)
 	h.Mailer.Send(to, "Your match is full – "+courtName, body)
 }

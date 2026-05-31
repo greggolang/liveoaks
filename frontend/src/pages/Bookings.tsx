@@ -727,20 +727,35 @@ export default function Bookings() {
                       </div>
                     )}
                     {/* Group invite */}
-                    {maxAdditional > 0 && playersNeeded > 0 && (() => {
-                      const matchingGroups = friendGroups.filter(g => g.members.length === spotsLeft)
+                    {maxAdditional > 0 && spotsLeft > 0 && (() => {
+                      // Show all groups that fit within the remaining spots and aren't
+                      // already fully covered by individual selections (to avoid false "pre-selected" appearance)
+                      const matchingGroups = friendGroups.filter(g => {
+                        if (g.members.length > spotsLeft) return false
+                        const allPicked = g.members.every(m => selectedFriends.includes(m.friend_id))
+                        return !allPicked
+                      })
                       if (matchingGroups.length === 0) return null
                       return (
                         <div className="flex flex-wrap gap-1.5 items-center">
                           <span className="text-xs text-green-700 font-medium">Groups:</span>
                           {matchingGroups.map(g => {
-                            const allPicked = g.members.every(m => selectedFriends.includes(m.friend_id))
+                            const somePicked = g.members.some(m => selectedFriends.includes(m.friend_id))
                             return (
                               <button key={g.id} type="button"
-                                onClick={() => setSelectedFriends(allPicked ? [] : g.members.map(m => m.friend_id))}
+                                onClick={() => {
+                                  // Add group members to existing selection (up to the limit)
+                                  setSelectedFriends(prev => {
+                                    const toAdd = g.members
+                                      .map(m => m.friend_id)
+                                      .filter(id => !prev.includes(id))
+                                    const slotsAvailable = maxAdditional - (prev.length + selectedMemberInvites.length + directPlayers.length)
+                                    return [...prev, ...toAdd.slice(0, slotsAvailable)]
+                                  })
+                                }}
                                 className={`px-2.5 py-1 rounded-full text-xs font-medium transition
-                                  ${allPicked ? 'bg-green-700 text-white' : 'bg-white border border-green-300 text-green-700 hover:bg-green-50'}`}>
-                                {allPicked ? '✓ ' : ''}{g.name}
+                                  ${somePicked ? 'bg-green-100 border border-green-400 text-green-800' : 'bg-white border border-green-300 text-green-700 hover:bg-green-50'}`}>
+                                {somePicked ? '~ ' : ''}{g.name}
                                 <span className="ml-1 opacity-70">({g.members.length})</span>
                               </button>
                             )

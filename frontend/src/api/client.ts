@@ -87,6 +87,7 @@ export const api = {
       request(`/friends/search?q=${encodeURIComponent(q)}${ustaRanking ? `&usta_ranking=${encodeURIComponent(ustaRanking)}` : ''}`),
     addMember: (friendUserId: string) => request('/friends/member', { method: 'POST', body: JSON.stringify({ friend_user_id: friendUserId }) }),
     addGuest: (data: object) => request('/friends/guest', { method: 'POST', body: JSON.stringify(data) }),
+    addFromFamily: (familyMemberId: string) => request(`/friends/from-family/${familyMemberId}`, { method: 'POST' }),
     remove: (id: string) => request(`/friends/${id}`, { method: 'DELETE' }),
   },
   invitations: {
