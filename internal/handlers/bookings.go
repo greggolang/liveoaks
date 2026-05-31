@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/greggolang/liveoaks/internal/models"
@@ -369,6 +371,13 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 			ctaHTML = fmt.Sprintf(`<p style="margin:16px 0"><a href="%s/bookings" style="color:#15803d">View your bookings →</a></p>`, h.SiteURL)
 		}
 
+		icalURL := fmt.Sprintf("%s/api/bookings/%s/ical", h.SiteURL, booking.ID)
+		calHTML := calendarLinksHTML(
+			fmt.Sprintf("%s – %s – Live Oaks Tennis Club", matchLabel, courtName),
+			fmt.Sprintf("Match Type: %s\nCourt: %s\nHost: %s", matchLabel, courtName, hostName),
+			req.StartTime, req.EndTime, icalURL,
+		)
+
 		body := fmt.Sprintf(`
 <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
   <h2 style="color:#15803d">🎾 Booking Confirmed</h2>
@@ -382,7 +391,8 @@ func (h *BookingsHandler) Create(c echo.Context) error {
     <ul style="margin:8px 0;padding-left:20px;color:#374151">%s</ul>
   </div>
   %s
-</div>`, hostName, courtName, startStr, endStr, matchLabel, rosterHTML, ctaHTML)
+  %s
+</div>`, hostName, courtName, startStr, endStr, matchLabel, rosterHTML, ctaHTML, calHTML)
 		go h.Mailer.Send(hostEmail, "Booking confirmed – "+courtName, body)
 	}
 
@@ -583,6 +593,102 @@ func (h *BookingsHandler) History(c echo.Context) error {
 		bookings = append(bookings, b)
 	}
 	return c.JSON(http.StatusOK, bookings)
+}
+
+// calendarLinksHTML returns two "Add to Calendar" buttons: Google Calendar and an ICS download.
+func calendarLinksHTML(summary, description string, startUTC, endUTC time.Time, icalURL string) string {
+	dtStart := startUTC.UTC().Format("20060102T150405Z")
+	dtEnd := endUTC.UTC().Format("20060102T150405Z")
+	gcal := fmt.Sprintf(
+		"https://calendar.google.com/calendar/render?action=TEMPLATE&text=%s&dates=%s/%s&details=%s&location=%s",
+		url.QueryEscape(summary),
+		dtStart, dtEnd,
+		url.QueryEscape(description),
+		url.QueryEscape("Live Oaks Tennis Club"),
+	)
+	return fmt.Sprintf(`
+<div style="margin:20px 0">
+  <p style="font-size:13px;color:#6b7280;margin:0 0 10px">Add to your calendar:</p>
+  <a href="%s" style="background:#4285f4;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:13px;display:inline-block;margin-right:8px">
+    📅 Google Calendar
+  </a>
+  <a href="%s" style="background:#6b7280;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:13px;display:inline-block">
+    📁 Apple / Outlook (.ics)
+  </a>
+</div>`, gcal, icalURL)
+}
+
+// ICal returns an iCalendar (.ics) file for the given booking.
+// Public endpoint — linked from confirmation emails where the user may not be logged in.
+func (h *BookingsHandler) ICal(c echo.Context) error {
+	id := c.Param("id")
+
+	var courtName, matchType string
+	var startTime, endTime time.Time
+	err := h.DB.QueryRow(c.Request().Context(), `
+		SELECT ct.name, COALESCE(b.match_type,'casual'), b.start_time, b.end_time
+		FROM bookings b
+		JOIN courts ct ON ct.id = b.court_id
+		WHERE b.id = $1`, id,
+	).Scan(&courtName, &matchType, &startTime, &endTime)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, "booking not found")
+	}
+
+	rows, _ := h.DB.Query(c.Request().Context(), `
+		SELECT player_name, is_host FROM match_players
+		WHERE booking_id = $1 ORDER BY is_host DESC, added_at`, id)
+	var playerNames []string
+	if rows != nil {
+		defer rows.Close()
+		for rows.Next() {
+			var name string
+			var isHost bool
+			rows.Scan(&name, &isHost)
+			if isHost {
+				name += " (Host)"
+			}
+			playerNames = append(playerNames, name)
+		}
+	}
+
+	matchTypeLabels := map[string]string{
+		"singles": "Singles", "doubles": "Doubles",
+		"casual": "Hit Session", "ball_machine": "Ball Machine",
+	}
+	matchLabel := matchTypeLabels[matchType]
+	if matchLabel == "" {
+		matchLabel = "Tennis"
+	}
+
+	summary := fmt.Sprintf("%s – %s – Live Oaks Tennis Club", matchLabel, courtName)
+	desc := fmt.Sprintf("Match Type: %s\\nCourt: %s", matchLabel, courtName)
+	if len(playerNames) > 0 {
+		desc += "\\nPlayers: " + strings.Join(playerNames, "\\, ")
+	}
+
+	dtStart := startTime.UTC().Format("20060102T150405Z")
+	dtEnd := endTime.UTC().Format("20060102T150405Z")
+
+	lines := []string{
+		"BEGIN:VCALENDAR",
+		"VERSION:2.0",
+		"PRODID:-//Live Oaks Tennis Club//EN",
+		"METHOD:PUBLISH",
+		"BEGIN:VEVENT",
+		"UID:booking-" + id + "@liveoaks",
+		"DTSTART:" + dtStart,
+		"DTEND:" + dtEnd,
+		"SUMMARY:" + summary,
+		"DESCRIPTION:" + desc,
+		"LOCATION:Live Oaks Tennis Club",
+		"END:VEVENT",
+		"END:VCALENDAR",
+	}
+
+	c.Response().Header().Set("Content-Type", "text/calendar; charset=utf-8")
+	c.Response().Header().Set("Content-Disposition", `attachment; filename="liveoaks-booking.ics"`)
+	return c.String(http.StatusOK, strings.Join(lines, "\r\n"))
 }
 
 // AdminCreate allows board/admin to create a booking on behalf of any member,

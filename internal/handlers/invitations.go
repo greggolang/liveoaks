@@ -361,6 +361,12 @@ func (h *InvitationsHandler) AddPlayer(c echo.Context) error {
 			matchLabel = "Tennis"
 		}
 		playerFirst := req.PlayerName
+		icalURL := fmt.Sprintf("%s/api/bookings/%s/ical", h.SiteURL, bookingID)
+		calHTML := calendarLinksHTML(
+			fmt.Sprintf("%s – %s – Live Oaks Tennis Club", matchLabel, courtName),
+			fmt.Sprintf("Match Type: %s\nCourt: %s\nAdded by: %s", matchLabel, courtName, hostName),
+			bookingStart, bookingEnd, icalURL,
+		)
 		body := fmt.Sprintf(`
 <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
   <h2 style="color:#15803d">🎾 You've Been Added to a Booking</h2>
@@ -369,8 +375,9 @@ func (h *InvitationsHandler) AddPlayer(c echo.Context) error {
   <div style="background:#f0fdf4;border-radius:8px;padding:16px;margin:16px 0">%s
     <div style="margin-top:8px;color:#166534;font-size:14px">%s</div>
   </div>
-  <a href="%s/bookings" style="color:#15803d">View bookings →</a>
-</div>`, playerFirst, hostName, card, matchLabel, h.SiteURL)
+  %s
+  <p style="margin-top:4px"><a href="%s/bookings" style="color:#15803d;font-size:13px">View bookings →</a></p>
+</div>`, playerFirst, hostName, card, matchLabel, calHTML, h.SiteURL)
 		go h.Mailer.Send(req.PlayerEmail, "You've been added to a booking – "+courtName, body)
 	}
 
@@ -579,7 +586,7 @@ func (h *InvitationsHandler) checkMatchFull(bookingID, inviterID, inviterEmail s
 			}
 		}
 		// Notify host match is full
-		go h.sendMatchFullHostEmail(inviterEmail)
+		go h.sendMatchFullHostEmail(inviterEmail, bookingID)
 	}
 }
 
@@ -699,12 +706,69 @@ func (h *InvitationsHandler) sendMatchFullEmail(to, name string) {
 	h.Mailer.Send(to, "Match is full — Liveoaks Tennis Club", body)
 }
 
-func (h *InvitationsHandler) sendMatchFullHostEmail(to string) {
+func (h *InvitationsHandler) sendMatchFullHostEmail(to, bookingID string) {
+	// Fetch booking details
+	var courtName, matchType string
+	var startTime, endTime time.Time
+	h.DB.QueryRow(context.Background(), `
+		SELECT ct.name, COALESCE(b.match_type,'casual'), b.start_time, b.end_time
+		FROM bookings b
+		JOIN courts ct ON ct.id = b.court_id
+		WHERE b.id = $1`, bookingID,
+	).Scan(&courtName, &matchType, &startTime, &endTime)
+
+	loc := loadTimezone(context.Background(), h.DB)
+	timeStr := startTime.In(loc).Format("Mon Jan 2 at 3:04 PM MST")
+	endStr := endTime.In(loc).Format("3:04 PM MST")
+
+	matchTypeLabels := map[string]string{
+		"singles": "Singles", "doubles": "Doubles",
+		"casual": "Hit Session", "ball_machine": "Ball Machine",
+	}
+	matchLabel := matchTypeLabels[matchType]
+	if matchLabel == "" {
+		matchLabel = "Tennis"
+	}
+
+	// Full confirmed roster
+	rows, _ := h.DB.Query(context.Background(), `
+		SELECT player_name, is_host FROM match_players
+		WHERE booking_id = $1 ORDER BY is_host DESC, added_at`, bookingID)
+	rosterHTML := ""
+	if rows != nil {
+		defer rows.Close()
+		for rows.Next() {
+			var name string
+			var isHost bool
+			rows.Scan(&name, &isHost)
+			suffix := ""
+			if isHost {
+				suffix = " (Host)"
+			}
+			rosterHTML += fmt.Sprintf(`<li style="margin:4px 0">%s%s</li>`, name, suffix)
+		}
+	}
+
+	icalURL := fmt.Sprintf("%s/api/bookings/%s/ical", h.SiteURL, bookingID)
+	calHTML := calendarLinksHTML(
+		fmt.Sprintf("%s – %s – Live Oaks Tennis Club", matchLabel, courtName),
+		fmt.Sprintf("Match Type: %s\nCourt: %s", matchLabel, courtName),
+		startTime, endTime, icalURL,
+	)
+
 	body := fmt.Sprintf(`
 <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
   <h2 style="color:#15803d">🎾 Your Match is Full!</h2>
   <p>All player spots have been filled. Remaining pending invitations have been automatically cancelled.</p>
-  <a href="%s/bookings" style="color:#15803d">View your booking →</a>
-</div>`, h.SiteURL)
-	h.Mailer.Send(to, "Your match is full!", body)
+  <div style="background:#f0fdf4;border-radius:8px;padding:16px;margin:20px 0">
+    <div style="margin:4px 0">🎾 <strong>%s</strong></div>
+    <div style="margin:4px 0">⏰ <strong>%s – %s</strong></div>
+    <div style="margin:4px 0">📋 <strong>%s</strong></div>
+    <div style="margin-top:12px;font-weight:600;color:#166534">Your Roster:</div>
+    <ul style="margin:8px 0;padding-left:20px;color:#374151">%s</ul>
+  </div>
+  %s
+  <p><a href="%s/bookings" style="color:#15803d;font-size:13px">View your bookings →</a></p>
+</div>`, courtName, timeStr, endStr, matchLabel, rosterHTML, calHTML, h.SiteURL)
+	h.Mailer.Send(to, "Your match is full – "+courtName, body)
 }

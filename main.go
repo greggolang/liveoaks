@@ -109,6 +109,7 @@ func main() {
 	api.POST("/auth/forgot-password", auth.ForgotPassword)
 	api.POST("/auth/reset-password", auth.ResetPassword)
 	api.POST("/waitlist", waitlist.Join)
+	api.GET("/bookings/:id/ical", bookings.ICal)
 
 	// Authenticated
 	authed := api.Group("", mw.JWTAuth(cfg.JWTSecret))
