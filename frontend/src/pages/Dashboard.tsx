@@ -68,7 +68,6 @@ export default function Dashboard() {
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([])
   const [sentPending, setSentPending] = useState<SentPending[]>([])
   const [responseAlerts, setResponseAlerts] = useState<InviteResponseAlert[]>([])
-  const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set())
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState({ duration: 1.5, matchType: 'casual' })
   const [editSaving, setEditSaving] = useState(false)
@@ -107,21 +106,8 @@ export default function Dashboard() {
   useEffect(() => {
     if (user?.id) {
       setReadIds(loadRead(user.id))
-      try {
-        const dismissed = JSON.parse(localStorage.getItem(`dismissed_alerts_${user.id}`) || '[]')
-        setDismissedAlerts(new Set(dismissed))
-      } catch {}
     }
   }, [user?.id])
-
-  const dismissAlert = (id: string) => {
-    if (!user?.id) return
-    setDismissedAlerts(prev => {
-      const next = new Set(prev).add(id)
-      localStorage.setItem(`dismissed_alerts_${user.id}`, JSON.stringify([...next]))
-      return next
-    })
-  }
 
   useEffect(() => {
     api.announcements.list().then(d => setAnnouncements(d as Announcement[]))
@@ -258,10 +244,8 @@ export default function Dashboard() {
           )
         })
 
-        // Invitations you sent — accepted or declined (dismissible)
-        responseAlerts
-          .filter(r => !dismissedAlerts.has(r.id))
-          .forEach(r => {
+        // Invitations you sent — accepted or declined
+        responseAlerts.forEach(r => {
             const start = new Date(r.start_time)
             const dateStr = start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
             const timeStr = start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
@@ -356,7 +340,7 @@ export default function Dashboard() {
                           <button onClick={async () => {
                             if (!confirm('Cancel this booking?')) return
                             await api.bookings.delete(r.booking_id).catch(() => {})
-                            dismissAlert(r.id)
+                            setResponseAlerts(prev => prev.filter(ra => ra.id !== r.id))
                             api.bookings.mine().then(d => setMyBookings(d as Booking[]))
                           }}
                             className="text-xs font-semibold bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-1.5 rounded-lg transition">
@@ -371,8 +355,6 @@ export default function Dashboard() {
                     </div>
                   )}
                 </div>
-                <button onClick={() => dismissAlert(r.id)}
-                  className="text-gray-400 hover:text-gray-600 transition text-lg leading-none shrink-0 self-start">×</button>
               </div>
             )
           })
