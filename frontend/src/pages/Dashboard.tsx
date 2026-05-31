@@ -78,6 +78,7 @@ export default function Dashboard() {
   const [dues, setDues] = useState<Dues[]>([])
   const [upcomingEvents, setUpcomingEvents] = useState<Event[]>([])
   const [cameraURL, setCameraURL] = useState<string | null>(null)
+  const [cameraDown, setCameraDown] = useState(false)
   const [friends, setFriends] = useState<{id: string; friend_user_id?: string; friend_name: string; friend_email?: string; is_guest: boolean}[]>([])
   const [directory, setDirectory] = useState<{id: string; first_name: string; last_name: string; email: string}[]>([])
   const [invitingFor, setInvitingFor] = useState<{bookingId: string; alertId: string} | null>(null)
@@ -139,6 +140,15 @@ export default function Dashboard() {
     const alertInterval = setInterval(refreshAlerts, 60000)
     return () => { clearInterval(responseInterval); clearInterval(alertInterval) }
   }, [checkResponses, refreshAlerts])
+
+  useEffect(() => {
+    if (!isBoard) return
+    const checkCamera = () =>
+      api.camera.adminStatus().then(d => setCameraDown(!d.online)).catch(() => {})
+    checkCamera()
+    const cameraInterval = setInterval(checkCamera, 60000)
+    return () => clearInterval(cameraInterval)
+  }, [isBoard])
 
   useEffect(() => {
     if (user?.id) {
@@ -888,10 +898,16 @@ export default function Dashboard() {
         <div className="mb-3">
           <h2 className="text-lg font-semibold text-gray-700">Court Camera</h2>
         </div>
+        {isBoard && cameraDown && (
+          <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-3 text-sm text-red-700">
+            <span className="text-base">⚠️</span>
+            <span><strong>Camera offline.</strong> The server has attempted an automatic restart. Check back in a few minutes or contact your system administrator.</span>
+          </div>
+        )}
         <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
           {cameraURL ? (
             <iframe
-              src={cameraURL}
+              src={cameraURL + (cameraURL.includes('?') ? '&' : '?') + 'embed=1'}
               title="Court Camera"
               className="w-full aspect-video"
               style={{ border: 'none' }}

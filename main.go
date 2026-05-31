@@ -80,7 +80,7 @@ func main() {
 	usta := &handlers.USTAHandler{DB: pool}
 	uploads := &handlers.UploadsHandler{DB: pool, UploadDir: uploadDir}
 	google := &handlers.GoogleHandler{DB: pool, ServiceAccount: []byte(cfg.GoogleSAJSON)}
-	camera := &handlers.CameraHandler{DB: pool, CameraToken: cfg.CameraToken, HLSDir: cfg.CameraHLSDir}
+	camera := &handlers.CameraHandler{DB: pool, CameraToken: cfg.CameraToken, HLSDir: cfg.CameraHLSDir, SiteURL: cfg.SiteURL, Mailer: mailer}
 	camera.Init()
 	contacts := &handlers.ContactsHandler{DB: pool}
 	friends := &handlers.FriendsHandler{DB: pool}
@@ -358,6 +358,7 @@ func main() {
 	e.GET("/camera/api/*", camera.Proxy)
 	authed.GET("/camera/embed", camera.EmbedURL)
 	adminOnly.PUT("/camera/url", camera.UpdateURL)
+	boardPlus.GET("/admin/camera/status", camera.AdminStatus)
 
 	// Serve uploaded files
 	e.GET("/uploads/documents/:filename", uploads.ServeDocument)

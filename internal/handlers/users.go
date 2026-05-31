@@ -16,6 +16,16 @@ type UserMailer interface {
 	SendWelcome(to, firstName, siteURL string) error
 }
 
+// protectedAdminEmail is permanently locked — its role, status, and email
+// cannot be modified through any admin UI action.
+const protectedAdminEmail = "greg@howardsmail.com"
+
+func isProtectedUser(ctx context.Context, db *pgxpool.Pool, userID string) bool {
+	var email string
+	db.QueryRow(ctx, `SELECT email FROM users WHERE id = $1`, userID).Scan(&email)
+	return email == protectedAdminEmail
+}
+
 type UsersHandler struct {
 	DB      *pgxpool.Pool
 	SiteURL string
@@ -113,6 +123,14 @@ func (h *UsersHandler) UpdateProfile(c echo.Context) error {
 	if err := c.Bind(&req); err != nil || req.FirstName == "" || req.LastName == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "first and last name required")
 	}
+	// Prevent the protected account's email from being changed (would bypass all other guards).
+	if req.Email != protectedAdminEmail {
+		var currentEmail string
+		h.DB.QueryRow(c.Request().Context(), `SELECT email FROM users WHERE id = $1`, id).Scan(&currentEmail)
+		if currentEmail == protectedAdminEmail {
+			return echo.NewHTTPError(http.StatusForbidden, "this account is protected and cannot be modified")
+		}
+	}
 	_, err := h.DB.Exec(c.Request().Context(),
 		`UPDATE users SET first_name=$1, last_name=$2, email=$3, phone=NULLIF($4,''),
 		 address=NULLIF($5,''), family=NULLIF($6,''), usta_ranking=NULLIF($7,''),
@@ -126,6 +144,9 @@ func (h *UsersHandler) UpdateProfile(c echo.Context) error {
 
 func (h *UsersHandler) UpdateRole(c echo.Context) error {
 	id := c.Param("id")
+	if isProtectedUser(c.Request().Context(), h.DB, id) {
+		return echo.NewHTTPError(http.StatusForbidden, "this account is protected and cannot be modified")
+	}
 	var body struct {
 		Role models.Role `json:"role"`
 	}
@@ -184,6 +205,9 @@ func (h *UsersHandler) UpdateExtraRoles(c echo.Context) error {
 
 func (h *UsersHandler) UpdateStatus(c echo.Context) error {
 	id := c.Param("id")
+	if isProtectedUser(c.Request().Context(), h.DB, id) {
+		return echo.NewHTTPError(http.StatusForbidden, "this account is protected and cannot be modified")
+	}
 	var body struct {
 		Status models.Status `json:"status"`
 	}
@@ -228,6 +252,9 @@ func (h *UsersHandler) UpdateStatus(c echo.Context) error {
 
 func (h *UsersHandler) Delete(c echo.Context) error {
 	id := c.Param("id")
+	if isProtectedUser(c.Request().Context(), h.DB, id) {
+		return echo.NewHTTPError(http.StatusForbidden, "this account is protected and cannot be modified")
+	}
 	_, err := h.DB.Exec(c.Request().Context(), `DELETE FROM users WHERE id = $1`, id)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not delete user")

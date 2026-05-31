@@ -294,6 +294,7 @@ export const api = {
     embedURL: () => request<{ url: string }>('/camera/embed'),
     updateURL: (url: string) =>
       request<{ url: string }>('/admin/camera/url', { method: 'PUT', body: JSON.stringify({ url }) }),
+    adminStatus: () => request<{ online: boolean; url: string; last_restart: string }>('/admin/camera/status'),
   },
   boardMeetings: {
     myInvitations: () => request('/board-meetings/invitations/mine'),

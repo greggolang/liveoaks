@@ -289,10 +289,11 @@ func (h *InvitationsHandler) AddPlayer(c echo.Context) error {
 	if req.FamilyMemberID != nil && *req.FamilyMemberID != "" {
 		var famFirst, famLast, famEmail, famOwnerID, famRelationship string
 		var famBirthday *time.Time
+		var famLinkedUserID *string
 		if err := h.DB.QueryRow(c.Request().Context(), `
-			SELECT first_name, last_name, COALESCE(email,''), user_id, LOWER(relationship), birthday
+			SELECT first_name, last_name, COALESCE(email,''), user_id, LOWER(relationship), birthday, linked_user_id::text
 			FROM family_members WHERE id = $1`, *req.FamilyMemberID,
-		).Scan(&famFirst, &famLast, &famEmail, &famOwnerID, &famRelationship, &famBirthday); err != nil {
+		).Scan(&famFirst, &famLast, &famEmail, &famOwnerID, &famRelationship, &famBirthday, &famLinkedUserID); err != nil {
 			return echo.NewHTTPError(http.StatusNotFound, "family member not found")
 		}
 		if famOwnerID != hostID {
@@ -310,6 +311,10 @@ func (h *InvitationsHandler) AddPlayer(c echo.Context) error {
 		req.PlayerName = famFirst + " " + famLast
 		req.PlayerEmail = famEmail
 		req.IsGuest = false // spouse or under-26 family member — treated as member, no guest fee
+		// Link the family member's login account so they can manage their own roster slot.
+		if famLinkedUserID != nil && *famLinkedUserID != "" {
+			req.UserID = famLinkedUserID
+		}
 	}
 
 	// Block re-adding a player who already withdrew from this booking
@@ -871,7 +876,13 @@ func (h *InvitationsHandler) WithdrawFromBooking(c echo.Context) error {
 	err = h.DB.QueryRow(ctx, `
 		SELECT id, player_name, player_email, is_host
 		FROM match_players
-		WHERE booking_id = $1 AND user_id = $2 AND withdrew_at IS NULL`,
+		WHERE booking_id = $1
+		  AND withdrew_at IS NULL
+		  AND (
+		    user_id = $2
+		    OR player_email = (SELECT email FROM users WHERE id = $2)
+		  )
+		LIMIT 1`,
 		bookingID, userID,
 	).Scan(&playerRowID, &playerName, &playerEmail, &isHost)
 	if err != nil {

@@ -20,16 +20,22 @@ import (
 const defaultCameraURL = "rtsp://admin:spruce2600@67.49.101.121/h264Preview_01_sub"
 
 const restartCooldown = 10 * time.Minute
+const emailAlertCooldown = 4 * time.Hour
 
 type CameraHandler struct {
 	DB          *pgxpool.Pool
 	CameraToken string
 	HLSDir      string
+	SiteURL     string
+	Mailer      interface {
+		Send(to, subject, body string) error
+	}
 
-	mu          sync.Mutex
-	url         string
-	isUp        bool
-	lastRestart time.Time
+	mu              sync.Mutex
+	url             string
+	isUp            bool
+	lastRestart     time.Time
+	lastEmailAlert  time.Time
 }
 
 // Init loads the saved URL from DB and starts the background health monitor.
@@ -58,6 +64,20 @@ func (h *CameraHandler) Status(c echo.Context) error {
 	u := h.url
 	h.mu.Unlock()
 	return c.JSON(http.StatusOK, map[string]interface{}{"online": up, "url": u})
+}
+
+// AdminStatus returns camera state for authenticated board/admin users.
+func (h *CameraHandler) AdminStatus(c echo.Context) error {
+	h.mu.Lock()
+	up := h.isUp
+	u := h.url
+	lr := h.lastRestart
+	h.mu.Unlock()
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"online":       up,
+		"url":          u,
+		"last_restart": lr,
+	})
 }
 
 func (h *CameraHandler) Page(c echo.Context) error {
@@ -165,8 +185,10 @@ func (h *CameraHandler) checkHealth() {
 
 	if !isUp && wasUp {
 		log.Printf("[camera] offline: %s", addr)
+		go h.emailAdmins("camera_down")
 	} else if isUp && !wasUp {
 		log.Printf("[camera] back online: %s", addr)
+		go h.emailAdmins("camera_up")
 	}
 
 	if !isUp {
@@ -186,6 +208,65 @@ func (h *CameraHandler) checkHealth() {
 				log.Printf("[camera] restart issued")
 			}
 		}
+	}
+}
+
+func (h *CameraHandler) emailAdmins(event string) {
+	if h.Mailer == nil {
+		return
+	}
+
+	// Rate-limit "camera down" alerts; always send "back online".
+	if event == "camera_down" {
+		h.mu.Lock()
+		canEmail := time.Since(h.lastEmailAlert) >= emailAlertCooldown
+		if canEmail {
+			h.lastEmailAlert = time.Now()
+		}
+		h.mu.Unlock()
+		if !canEmail {
+			return
+		}
+	}
+
+	rows, err := h.DB.Query(context.Background(),
+		`SELECT email FROM users
+		 WHERE role IN ('admin','board') AND status = 'active' AND email != ''`)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+	var emails []string
+	for rows.Next() {
+		var e string
+		rows.Scan(&e)
+		emails = append(emails, e)
+	}
+
+	var subject, body string
+	if event == "camera_down" {
+		subject = "Court camera is offline — Liveoaks Tennis Club"
+		body = fmt.Sprintf(`
+<div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
+  <h2 style="color:#dc2626">Court Camera Offline</h2>
+  <p>The court camera has gone offline. The server has automatically attempted to restart the streaming service.</p>
+  <p style="color:#6b7280;font-size:14px">You will receive another email when the camera comes back online.</p>
+  <p style="margin-top:20px">
+    <a href="%s/dashboard" style="background:#15803d;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:13px">View Dashboard →</a>
+  </p>
+</div>`, h.SiteURL)
+	} else {
+		subject = "Court camera is back online — Liveoaks Tennis Club"
+		body = `
+<div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
+  <h2 style="color:#15803d">Court Camera Back Online</h2>
+  <p>The court camera is back online and streaming normally.</p>
+</div>`
+	}
+
+	for _, email := range emails {
+		e := email
+		go h.Mailer.Send(e, subject, body)
 	}
 }
 
@@ -309,6 +390,10 @@ video.addEventListener('error', (e) => {
   const err = video.error;
   console.error('video element error:', err && err.code, err && err.message);
 });
+
+if (new URLSearchParams(window.location.search).get('embed') === '1') {
+  document.querySelector('.topbar').style.display = 'none';
+}
 
 const TOKEN = '%%TOKEN%%';
 const SRC = '/camera/api/playlist.m3u8' + (TOKEN ? '?token=' + TOKEN : '');
