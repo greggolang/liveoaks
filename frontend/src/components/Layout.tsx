@@ -45,7 +45,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
             {/* Desktop nav */}
             <div className="hidden md:flex items-center gap-5 text-sm font-medium flex-wrap justify-end">
-              <NavLink to="/bookings" className={navLink}>Book Court</NavLink>
               <NavLink to="/directory" className={navLink}>Directory</NavLink>
               <NavLink to="/friends" className={navLink}>Friends</NavLink>
               <NavLink to="/fantasy" className={navLink}>Fantasy Pool</NavLink>
@@ -87,7 +86,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           {menuOpen && (
             <div className="md:hidden mt-3 pb-2 border-t border-green-600 flex flex-col gap-2 pt-3 text-sm">
               {[
-                ['/bookings', 'Book Court'],
                 ['/directory', 'Directory'], ['/friends', 'Friends'], ['/fantasy', 'Fantasy Pool'], ['/ladder', 'Ladder'],
                 ...(isBoard ? [['/email', 'Email'], ['/drive', 'Drive'], ['/admin', 'Admin']] : []),
               ].map(([to, label]) => (

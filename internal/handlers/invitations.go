@@ -230,18 +230,24 @@ func (h *InvitationsHandler) Respond(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]string{"status": newStatus})
 }
 
-// AddPlayer adds a player directly to the roster (no invite email needed)
+// AddPlayer adds a player directly to the roster and emails them a notification.
 func (h *InvitationsHandler) AddPlayer(c echo.Context) error {
 	userID := c.Get("user_id").(string)
 	bookingID := c.Param("id")
 
 	// Only the host (or board) may add players directly
-	var hostID string
-	var bookingStart time.Time
+	var hostID, courtName, hostName string
+	var bookingStart, bookingEnd time.Time
 	var matchType string
-	if err := h.DB.QueryRow(c.Request().Context(),
-		`SELECT user_id, start_time, match_type FROM bookings WHERE id = $1`, bookingID,
-	).Scan(&hostID, &bookingStart, &matchType); err != nil {
+	if err := h.DB.QueryRow(c.Request().Context(), `
+		SELECT b.user_id, b.start_time, b.end_time, b.match_type,
+		       ct.name,
+		       u.first_name || ' ' || u.last_name
+		FROM bookings b
+		JOIN courts ct ON ct.id = b.court_id
+		JOIN users u ON u.id = b.user_id
+		WHERE b.id = $1`, bookingID,
+	).Scan(&hostID, &bookingStart, &bookingEnd, &matchType, &courtName, &hostName); err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "booking not found")
 	}
 	role, _ := c.Get("role").(string)
@@ -340,6 +346,32 @@ func (h *InvitationsHandler) AddPlayer(c echo.Context) error {
 			`INSERT INTO guest_passes (member_id, guest_name, guest_email, visit_date, fee, source, notes)
 			 VALUES ($1, $2, NULLIF($3,''), $4::date, 5.00, 'booking', 'Court booking guest fee')`,
 			hostID, req.PlayerName, req.PlayerEmail, bookingStart.Format("2006-01-02"))
+	}
+
+	// Email non-guest players who have an email address.
+	if !req.IsGuest && req.PlayerEmail != "" && h.Mailer != nil {
+		loc := loadTimezone(c.Request().Context(), h.DB)
+		card := bookingCard(courtName, bookingStart, bookingEnd, loc)
+		matchTypeLabels := map[string]string{
+			"singles": "Singles", "doubles": "Doubles",
+			"casual": "Hit Session", "ball_machine": "Ball Machine",
+		}
+		matchLabel := matchTypeLabels[matchType]
+		if matchLabel == "" {
+			matchLabel = "Tennis"
+		}
+		playerFirst := req.PlayerName
+		body := fmt.Sprintf(`
+<div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
+  <h2 style="color:#15803d">🎾 You've Been Added to a Booking</h2>
+  <p>Hi %s,</p>
+  <p><strong>%s</strong> has added you to a court booking:</p>
+  <div style="background:#f0fdf4;border-radius:8px;padding:16px;margin:16px 0">%s
+    <div style="margin-top:8px;color:#166534;font-size:14px">%s</div>
+  </div>
+  <a href="%s/bookings" style="color:#15803d">View bookings →</a>
+</div>`, playerFirst, hostName, card, matchLabel, h.SiteURL)
+		go h.Mailer.Send(req.PlayerEmail, "You've been added to a booking – "+courtName, body)
 	}
 
 	return c.JSON(http.StatusCreated, p)
