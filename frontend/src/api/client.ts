@@ -293,6 +293,7 @@ export const api = {
   memberAlerts: {
     getMyAlerts: () => request<{ id: string; message: string; type: string; created_at: string; created_by_name?: string }[]>('/member-alerts'),
     dismiss: (id: string) => request(`/member-alerts/${id}/dismiss`, { method: 'POST' }),
+    adminListAll: () => request<{ id: string; user_id: string; message: string; type: string; created_at: string; target_name: string }[]>('/admin/member-alerts'),
     adminList: (userId: string) => request<{ id: string; message: string; type: string; created_at: string; dismissed_at?: string }[]>(`/admin/member-alerts/${userId}`),
     adminCreate: (userId: string, message: string, type: string) =>
       request('/admin/member-alerts', { method: 'POST', body: JSON.stringify({ user_id: userId, message, type }) }),

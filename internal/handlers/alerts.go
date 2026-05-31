@@ -55,6 +55,41 @@ func (h *AlertsHandler) Dismiss(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
+// AdminListAll returns all undismissed alerts across every member.
+func (h *AlertsHandler) AdminListAll(c echo.Context) error {
+	rows, err := h.DB.Query(c.Request().Context(), `
+		SELECT a.id, a.user_id, a.message, a.type, a.created_at,
+		       u.first_name || ' ' || u.last_name AS created_by_name,
+		       t.first_name || ' ' || t.last_name AS target_name
+		FROM member_alerts a
+		LEFT JOIN users u ON u.id = a.created_by
+		JOIN users t ON t.id = a.user_id
+		WHERE a.dismissed_at IS NULL
+		ORDER BY a.created_at DESC`)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch alerts")
+	}
+	defer rows.Close()
+	type row struct {
+		ID          string    `json:"id"`
+		UserID      string    `json:"user_id"`
+		Message     string    `json:"message"`
+		Type        string    `json:"type"`
+		CreatedAt   time.Time `json:"created_at"`
+		CreatedBy   *string   `json:"created_by_name,omitempty"`
+		TargetName  string    `json:"target_name"`
+	}
+	results := []row{}
+	for rows.Next() {
+		var r row
+		if err := rows.Scan(&r.ID, &r.UserID, &r.Message, &r.Type, &r.CreatedAt, &r.CreatedBy, &r.TargetName); err != nil {
+			continue
+		}
+		results = append(results, r)
+	}
+	return c.JSON(http.StatusOK, results)
+}
+
 // AdminList returns all alerts (active and dismissed) for a specific member.
 func (h *AlertsHandler) AdminList(c echo.Context) error {
 	targetUserID := c.Param("userId")

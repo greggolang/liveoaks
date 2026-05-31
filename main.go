@@ -364,6 +364,7 @@ func main() {
 	// Member alerts (admin → member dashboard)
 	authed.GET("/member-alerts", alerts.GetMyAlerts)
 	authed.POST("/member-alerts/:id/dismiss", alerts.Dismiss)
+	boardPlus.GET("/admin/member-alerts", alerts.AdminListAll)
 	boardPlus.GET("/admin/member-alerts/:userId", alerts.AdminList)
 	boardPlus.POST("/admin/member-alerts", alerts.AdminCreate)
 	boardPlus.DELETE("/admin/member-alerts/:id", alerts.AdminDelete)

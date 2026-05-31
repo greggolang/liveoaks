@@ -2,6 +2,11 @@ import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 
+interface ActiveAlert {
+  id: string; user_id: string; message: string; type: string; created_at: string; target_name: string
+}
+interface Member { id: string; first_name: string; last_name: string; email: string }
+
 interface Announcement {
   id: string
   title: string
@@ -38,8 +43,24 @@ export default function Announcements() {
   const [editLoading, setEditLoading] = useState(false)
   const [editError, setEditError] = useState('')
 
+  const [activeAlerts, setActiveAlerts] = useState<ActiveAlert[]>([])
+  const [members, setMembers] = useState<Member[]>([])
+  const [alertTarget, setAlertTarget] = useState('')
+  const [alertMsg, setAlertMsg] = useState('')
+  const [alertType, setAlertType] = useState('info')
+  const [sendingAlert, setSendingAlert] = useState(false)
+  const [memberSearch, setMemberSearch] = useState('')
+
   const load = () => api.announcements.list().then(d => setAnnouncements(d as Announcement[]))
-  useEffect(() => { load() }, [])
+  const loadAlerts = () => api.memberAlerts.adminListAll().then(d => setActiveAlerts(d)).catch(() => {})
+
+  useEffect(() => {
+    load()
+    if (isBoard) {
+      loadAlerts()
+      api.admin.users().then(d => setMembers(d as Member[])).catch(() => {})
+    }
+  }, [isBoard])
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -150,6 +171,116 @@ export default function Announcements() {
             {loading ? 'Posting...' : form.send_email ? 'Post & Email Members' : 'Post Announcement'}
           </button>
         </form>
+      )}
+
+      {/* Member Alerts — board/admin only */}
+      {isBoard && (
+        <div className="mb-8">
+          <h2 className="text-lg font-semibold text-gray-700 mb-3">Member Dashboard Alerts</h2>
+          <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-5 space-y-4">
+            {/* Send form */}
+            <div className="flex flex-wrap gap-2 items-end">
+              <div className="flex-1 min-w-48">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Member</label>
+                <input
+                  value={memberSearch}
+                  onChange={e => { setMemberSearch(e.target.value); setAlertTarget('') }}
+                  placeholder="Search name…"
+                  list="member-alert-list"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+                <datalist id="member-alert-list">
+                  {members
+                    .filter(m => memberSearch.length > 0 && (`${m.first_name} ${m.last_name}`).toLowerCase().includes(memberSearch.toLowerCase()))
+                    .slice(0, 10)
+                    .map(m => (
+                      <option key={m.id} value={`${m.first_name} ${m.last_name}`}
+                        onClick={() => { setAlertTarget(m.id); setMemberSearch(`${m.first_name} ${m.last_name}`) }} />
+                    ))}
+                </datalist>
+                {/* Hidden select for reliable ID capture */}
+                <select className="sr-only" value={alertTarget} onChange={e => setAlertTarget(e.target.value)}>
+                  <option value="">—</option>
+                  {members.map(m => (
+                    <option key={m.id} value={m.id}>{m.first_name} {m.last_name}</option>
+                  ))}
+                </select>
+                {memberSearch && !alertTarget && (
+                  <div className="mt-1 border border-gray-200 rounded-lg bg-white shadow-sm max-h-40 overflow-y-auto">
+                    {members
+                      .filter(m => (`${m.first_name} ${m.last_name}`).toLowerCase().includes(memberSearch.toLowerCase()))
+                      .slice(0, 8)
+                      .map(m => (
+                        <button key={m.id} type="button"
+                          className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-green-50 hover:text-green-800"
+                          onClick={() => { setAlertTarget(m.id); setMemberSearch(`${m.first_name} ${m.last_name}`) }}>
+                          {m.first_name} {m.last_name}
+                          <span className="text-xs text-gray-400 ml-2">{m.email}</span>
+                        </button>
+                      ))}
+                  </div>
+                )}
+              </div>
+              <div className="w-32">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Type</label>
+                <select value={alertType} onChange={e => setAlertType(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500">
+                  <option value="info">Info</option>
+                  <option value="warning">Warning</option>
+                  <option value="danger">Urgent</option>
+                </select>
+              </div>
+              <div className="flex-1 min-w-56">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Message</label>
+                <input value={alertMsg} onChange={e => setAlertMsg(e.target.value)}
+                  placeholder="Alert message…"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+              </div>
+              <button
+                disabled={!alertTarget || !alertMsg.trim() || sendingAlert}
+                onClick={async () => {
+                  setSendingAlert(true)
+                  try {
+                    await api.memberAlerts.adminCreate(alertTarget, alertMsg.trim(), alertType)
+                    setAlertMsg('')
+                    setAlertTarget('')
+                    setMemberSearch('')
+                    loadAlerts()
+                  } finally { setSendingAlert(false) }
+                }}
+                className="px-4 py-2 bg-green-700 text-white text-sm font-medium rounded-lg hover:bg-green-800 transition disabled:opacity-50 shrink-0">
+                {sendingAlert ? 'Sending…' : 'Send Alert'}
+              </button>
+            </div>
+
+            {/* Active alerts list */}
+            {activeAlerts.length === 0 ? (
+              <p className="text-xs text-gray-400">No active member alerts.</p>
+            ) : (
+              <div className="space-y-1.5 pt-1 border-t border-gray-100">
+                <p className="text-xs font-medium text-gray-500 pt-1">Active alerts ({activeAlerts.length})</p>
+                {activeAlerts.map(a => {
+                  const colors: Record<string, string> = {
+                    info:    'bg-blue-50 border-blue-200 text-blue-800',
+                    warning: 'bg-amber-50 border-amber-200 text-amber-800',
+                    danger:  'bg-red-50 border-red-200 text-red-800',
+                  }
+                  return (
+                    <div key={a.id} className={`flex items-center gap-3 border rounded-lg px-3 py-2 text-xs ${colors[a.type] ?? colors.info}`}>
+                      <span className="font-semibold shrink-0">{a.target_name}</span>
+                      <span className="flex-1">{a.message}</span>
+                      <span className="opacity-50 capitalize shrink-0">{a.type}</span>
+                      <button onClick={async () => {
+                        await api.memberAlerts.adminDelete(a.id)
+                        loadAlerts()
+                      }} className="opacity-40 hover:opacity-70 transition shrink-0">✕</button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {announcements.length === 0 ? (

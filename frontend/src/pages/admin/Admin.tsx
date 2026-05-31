@@ -9,7 +9,7 @@ const sections: Section[] = [
     heading: 'Content',
     links: [
       { to: '/events', label: 'Events' },
-      { to: '/announcements', label: 'News' },
+      { to: '/announcements', label: 'Announcements' },
       { to: '/documents', label: 'Documents' },
       { to: '/photos', label: 'Photos' },
       { to: '/usta-teams', label: 'USTA Teams' },
