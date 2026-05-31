@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { api } from '../api/client'
 
-type State = 'loading' | 'ready' | 'confirming' | 'confirmed' | 'waitlisted' | 'declined' | 'already' | 'error'
+type State = 'loading' | 'ready' | 'confirming' | 'confirmed' | 'waitlisted' | 'declined' | 'already' | 'not_found' | 'error'
 
 export default function LiveballResponse() {
   const { token, action } = useParams<{ token: string; action?: string }>()
@@ -16,9 +16,10 @@ export default function LiveballResponse() {
     setState('confirming')
     api.liveball.respond(token, action as 'accept' | 'decline')
       .then((d: any) => {
-        if (d.status === 'confirmed')   setState('confirmed')
+        if (d.status === 'confirmed')    setState('confirmed')
         else if (d.status === 'waitlisted') setState('waitlisted')
         else if (d.status === 'declined')   setState('declined')
+        else if (d.status === 'not_found')  { setState('not_found'); setMessage(d.message ?? '') }
         else { setState('already'); setStatus(d.status); setMessage(d.message ?? '') }
       })
       .catch(() => setState('error'))
@@ -87,9 +88,15 @@ export default function LiveballResponse() {
               <p className="text-gray-700">{message || `You already responded to this invitation (${status}).`}</p>
             </div>
           </>
+        ) : state === 'not_found' ? (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">
+            <p className="text-amber-700 font-semibold mb-1">Invitation Not Found</p>
+            <p className="text-amber-600 text-sm">{message || 'This invitation link could not be found. It may have already been used or may be incorrect. Please contact the club if you think this is a mistake.'}</p>
+          </div>
         ) : (
           <div className="bg-red-50 border border-red-200 rounded-xl p-5">
-            <p className="text-red-600">Something went wrong. This invitation may have expired or already been used.</p>
+            <p className="text-red-600 font-semibold mb-1">Something went wrong</p>
+            <p className="text-red-500 text-sm">Please try the link in your email again, or contact the club if the problem persists.</p>
           </div>
         )}
       </div>

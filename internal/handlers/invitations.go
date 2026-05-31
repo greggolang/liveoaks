@@ -332,7 +332,7 @@ func (h *InvitationsHandler) AddPlayer(c echo.Context) error {
 
 	// Enforce player capacity by match type
 	maxPlayers := map[string]int{
-		"casual": 2, "singles": 2, "doubles": 4, "ball_machine": 1, "teaching_pro": 2,
+		"casual": 2, "singles": 2, "doubles": 4, "ball_machine": 1, "teaching_pro": 16, // group lessons
 	}[matchType]
 	if maxPlayers > 0 {
 		var playerCount int

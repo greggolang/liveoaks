@@ -149,6 +149,15 @@ export default function Bookings() {
   const [cancelCustom, setCancelCustom] = useState('')
   const [cancelling, setCancelling] = useState(false)
 
+  // Teaching pro lesson form
+  const [lessonType, setLessonType] = useState<'member' | 'guest' | 'group_adult' | 'group_junior' | ''>('')
+  const [lessonMember, setLessonMember] = useState<{id: string; first_name: string; last_name: string; email: string} | null>(null)
+  const [lessonGuest, setLessonGuest] = useState({ name: '', email: '' })
+  const [groupParticipants, setGroupParticipants] = useState<string[]>([])
+  const [participantInput, setParticipantInput] = useState('')
+  const [lessonSearchQuery, setLessonSearchQuery] = useState('')
+  const [lessonSearchResults, setLessonSearchResults] = useState<{id: string; first_name: string; last_name: string; email: string}[]>([])
+
   // Transfer host modal (doubles only)
   const [transferModal, setTransferModal] = useState<{
     bookingId: string
@@ -406,6 +415,7 @@ export default function Bookings() {
     setConfirming(false)
     setDuration(1.5)
     setError('')
+    resetLessonForm()
   }
 
   const handleBook = async () => {
@@ -415,12 +425,29 @@ export default function Bookings() {
     try {
       const start = slotToDate(date, selected.hour)
       const end = new Date(start.getTime() + duration * 60 * 60 * 1000)
+
+      // Build lesson notes for teaching pro bookings
+      let lessonNotes: string | undefined
+      if (matchType === 'teaching_pro' && lessonType) {
+        const cnt = groupParticipants.length
+        lessonNotes = lessonType === 'member' && lessonMember
+          ? `Individual Lesson — ${lessonMember.first_name} ${lessonMember.last_name}`
+          : lessonType === 'guest'
+          ? `Individual Lesson — Guest: ${lessonGuest.name}`
+          : lessonType === 'group_adult'
+          ? `Adult Group Lesson (${cnt} participant${cnt !== 1 ? 's' : ''})`
+          : `Junior Group Lesson (${cnt} participant${cnt !== 1 ? 's' : ''})`
+      }
+
       const booked = await api.bookings.create({
         court_id: selected.courtId,
         start_time: start.toISOString(),
         end_time: end.toISOString(),
         match_type: matchType,
-        players_needed: playersNeeded,
+        players_needed: matchType === 'teaching_pro'
+          ? (lessonType === 'group_adult' || lessonType === 'group_junior' ? 0 : 1)
+          : playersNeeded,
+        notes: lessonNotes,
       }) as { id: string }
 
       // Send invitations to selected friends
@@ -467,6 +494,23 @@ export default function Bookings() {
         )
       }
 
+      // Add lesson participants for teaching pro bookings
+      if (matchType === 'teaching_pro' && lessonType) {
+        if (lessonType === 'member' && lessonMember) {
+          await api.invitations.addPlayer(booked.id, { user_id: lessonMember.id, is_guest: false })
+        } else if (lessonType === 'guest') {
+          await api.invitations.addPlayer(booked.id, {
+            player_name: lessonGuest.name,
+            player_email: lessonGuest.email || undefined,
+            is_guest: true,
+          })
+        } else if ((lessonType === 'group_adult' || lessonType === 'group_junior') && groupParticipants.length > 0) {
+          for (const name of groupParticipants) {
+            await api.invitations.addPlayer(booked.id, { player_name: name, is_guest: false })
+          }
+        }
+      }
+
       setSelected(null)
       setSelectedFriends([])
       setSelectedMemberInvites([])
@@ -478,6 +522,7 @@ export default function Bookings() {
       setBookingSearchResults([])
       setBookingGuestForm({ name: '', email: '' })
       setConfirming(false)
+      resetLessonForm()
       load()
       loadMine()
     } catch (err: any) {
@@ -548,6 +593,34 @@ export default function Bookings() {
       setEditLoading(false)
     }
   }
+
+  // Live-filter lesson member search against the cached directory
+  useEffect(() => {
+    if (lessonSearchQuery.length < 2) { setLessonSearchResults([]); return }
+    const q = lessonSearchQuery.toLowerCase()
+    setLessonSearchResults(
+      directory
+        .filter(m => m.id !== user?.id &&
+          (`${m.first_name} ${m.last_name}`.toLowerCase().includes(q) || m.email.toLowerCase().includes(q)))
+        .slice(0, 8)
+    )
+  }, [lessonSearchQuery, directory, user?.id])
+
+  const resetLessonForm = () => {
+    setLessonType(''); setLessonMember(null)
+    setLessonGuest({ name: '', email: '' })
+    setGroupParticipants([]); setParticipantInput('')
+    setLessonSearchQuery(''); setLessonSearchResults([])
+  }
+
+  // True when the lesson participant form is complete (required for teaching_pro)
+  const lessonFormComplete = matchType !== 'teaching_pro' || (
+    lessonType !== '' && (
+      (lessonType === 'member' && lessonMember !== null) ||
+      (lessonType === 'guest' && lessonGuest.name.trim() !== '') ||
+      ((lessonType === 'group_adult' || lessonType === 'group_junior') && groupParticipants.length > 0)
+    )
+  )
 
   const isPast = (slot: number) => slotToDate(date, slot) < new Date()
 
@@ -647,8 +720,139 @@ export default function Bookings() {
                     )
                     .map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
                 </select>
-                {/* ── Player limits (hidden for ball machine — solo only) ── */}
-                {matchType !== 'ball_machine' && (() => {
+                {/* ── Teaching Pro: Lesson Participant Form (required) ── */}
+                {matchType === 'teaching_pro' && (
+                  <div className="w-full border-t border-green-100 mt-2 pt-3 space-y-3">
+                    <div>
+                      <p className="text-xs font-semibold text-green-800 mb-2">
+                        Lesson Participants <span className="text-red-500">*</span>
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          { value: 'member',       label: 'Individual — Member',   icon: '👤' },
+                          { value: 'guest',        label: 'Individual — Guest',    icon: '🪪' },
+                          { value: 'group_adult',  label: 'Group — Adults',        icon: '👥' },
+                          { value: 'group_junior', label: 'Group — Juniors',       icon: '🧒' },
+                        ].map(opt => (
+                          <button key={opt.value} type="button"
+                            onClick={() => {
+                              setLessonType(opt.value as typeof lessonType)
+                              setLessonMember(null); setLessonGuest({ name: '', email: '' })
+                              setGroupParticipants([]); setParticipantInput('')
+                              setLessonSearchQuery(''); setLessonSearchResults([])
+                            }}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition flex items-center gap-1.5
+                              ${lessonType === opt.value
+                                ? 'bg-green-700 text-white border-green-700'
+                                : 'bg-white text-gray-700 border-gray-200 hover:border-green-400 hover:text-green-700'}`}>
+                            <span>{opt.icon}</span>{opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Individual — Member */}
+                    {lessonType === 'member' && (
+                      <div className="relative">
+                        {lessonMember ? (
+                          <div className="flex items-center gap-2 bg-green-50 border border-green-300 rounded-lg px-3 py-2">
+                            <span className="text-sm font-medium text-green-800 flex-1">
+                              {lessonMember.first_name} {lessonMember.last_name}
+                            </span>
+                            <span className="text-xs text-green-600">{lessonMember.email}</span>
+                            <button type="button" onClick={() => { setLessonMember(null); setLessonSearchQuery('') }}
+                              className="text-green-500 hover:text-green-700 transition ml-1">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <input value={lessonSearchQuery}
+                              onChange={e => setLessonSearchQuery(e.target.value)}
+                              placeholder="Search member by name or email…"
+                              autoFocus
+                              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white" />
+                            {lessonSearchResults.length > 0 && (
+                              <div className="absolute left-0 right-0 top-full mt-1 z-20 border border-gray-200 rounded-lg bg-white shadow-lg divide-y divide-gray-100 max-h-48 overflow-y-auto">
+                                {lessonSearchResults.map(m => (
+                                  <button key={m.id} type="button"
+                                    onClick={() => { setLessonMember(m); setLessonSearchQuery(''); setLessonSearchResults([]) }}
+                                    className="w-full text-left px-3 py-2 hover:bg-green-50 transition">
+                                    <div className="text-sm font-medium text-gray-800">{m.first_name} {m.last_name}</div>
+                                    <div className="text-xs text-gray-400">{m.email}</div>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Individual — Guest */}
+                    {lessonType === 'guest' && (
+                      <div className="flex flex-wrap gap-2">
+                        <input value={lessonGuest.name}
+                          onChange={e => setLessonGuest(g => ({ ...g, name: e.target.value }))}
+                          placeholder="Guest name *"
+                          autoFocus
+                          className="flex-1 min-w-40 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white" />
+                        <input type="email" value={lessonGuest.email}
+                          onChange={e => setLessonGuest(g => ({ ...g, email: e.target.value }))}
+                          placeholder="Email (optional)"
+                          className="flex-1 min-w-44 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white" />
+                      </div>
+                    )}
+
+                    {/* Group — Adults or Juniors */}
+                    {(lessonType === 'group_adult' || lessonType === 'group_junior') && (
+                      <div className="space-y-2">
+                        <div className="flex gap-2">
+                          <input value={participantInput}
+                            onChange={e => setParticipantInput(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter' && participantInput.trim()) {
+                                e.preventDefault()
+                                setGroupParticipants(p => [...p, participantInput.trim()])
+                                setParticipantInput('')
+                              }
+                            }}
+                            placeholder={`${lessonType === 'group_junior' ? "Junior's" : "Participant's"} name…`}
+                            autoFocus
+                            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white" />
+                          <button type="button"
+                            onClick={() => { if (participantInput.trim()) { setGroupParticipants(p => [...p, participantInput.trim()]); setParticipantInput('') } }}
+                            disabled={!participantInput.trim()}
+                            className="px-4 py-2 bg-green-700 text-white text-sm font-medium rounded-lg hover:bg-green-800 transition disabled:opacity-40">
+                            + Add
+                          </button>
+                        </div>
+                        {groupParticipants.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5">
+                            {groupParticipants.map((name, i) => (
+                              <span key={i} className="inline-flex items-center gap-1 bg-green-100 text-green-800 text-xs font-medium px-2.5 py-1 rounded-full">
+                                {name}
+                                <button type="button" onClick={() => setGroupParticipants(p => p.filter((_, j) => j !== i))}
+                                  className="opacity-60 hover:opacity-100 transition leading-none">×</button>
+                              </span>
+                            ))}
+                            <span className="text-xs text-green-600 self-center font-medium">
+                              {groupParticipants.length} participant{groupParticipants.length !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+                        )}
+                        {groupParticipants.length === 0 && (
+                          <p className="text-xs text-gray-400">Add at least one participant to continue.</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ── Player limits (hidden for ball machine and teaching_pro) ── */}
+                {matchType !== 'ball_machine' && matchType !== 'teaching_pro' && (() => {
                   const maxAdditional = PLAYERS_BY_TYPE[matchType] ?? 0
                   const totalAdded = selectedFriends.length + selectedMemberInvites.length + directPlayers.length
                   const spotsLeft = Math.max(0, maxAdditional - totalAdded)
@@ -906,7 +1110,9 @@ export default function Bookings() {
                   Cancel
                 </button>
                 <button onClick={() => setConfirming(true)}
-                  className="px-5 py-2 bg-green-700 hover:bg-green-800 text-white rounded-lg text-sm font-semibold transition">
+                  disabled={!lessonFormComplete}
+                  title={!lessonFormComplete ? 'Complete the lesson participants form above' : undefined}
+                  className="px-5 py-2 bg-green-700 hover:bg-green-800 text-white rounded-lg text-sm font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed">
                   Review Booking →
                 </button>
               </div>
@@ -944,12 +1150,26 @@ export default function Bookings() {
                       <span className="text-gray-500 text-xs uppercase tracking-wide">Duration</span>
                       <p className="font-semibold text-gray-800 mt-0.5">{duration === 1 ? '1 hour' : '1½ hours'}</p>
                     </div>
-                    {matchType !== 'casual' && (
+                    {matchType !== 'casual' && matchType !== 'teaching_pro' && (
                       <div>
                         <span className="text-gray-500 text-xs uppercase tracking-wide">Match Type</span>
                         <p className="font-semibold text-gray-800 mt-0.5">
                           {matchType === 'ball_machine' ? '🤖 Ball Machine'
                             : `${matchType.charAt(0).toUpperCase() + matchType.slice(1)} — need ${playersNeeded} more player${playersNeeded !== 1 ? 's' : ''}`}
+                        </p>
+                      </div>
+                    )}
+                    {matchType === 'teaching_pro' && lessonType && (
+                      <div className="col-span-2">
+                        <span className="text-gray-500 text-xs uppercase tracking-wide">Lesson Participants</span>
+                        <p className="font-semibold text-gray-800 mt-0.5">
+                          {lessonType === 'member' && lessonMember
+                            ? `${lessonMember.first_name} ${lessonMember.last_name} (Member)`
+                            : lessonType === 'guest'
+                            ? `${lessonGuest.name}${lessonGuest.email ? ` — ${lessonGuest.email}` : ''} (Guest)`
+                            : lessonType === 'group_adult'
+                            ? `Adult Group — ${groupParticipants.join(', ')}`
+                            : `Junior Group — ${groupParticipants.join(', ')}`}
                         </p>
                       </div>
                     )}

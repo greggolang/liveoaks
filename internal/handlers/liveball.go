@@ -230,11 +230,14 @@ func (h *LiveballHandler) AdminSendInvites(c echo.Context) error {
 		rand.Read(tokBytes)
 		token := hex.EncodeToString(tokBytes)
 
-		_, insErr := h.DB.Exec(ctx, `
+		// ON CONFLICT DO NOTHING is a safety net for concurrent sends.
+		// If RowsAffected == 0 the token was never stored — skip the email so
+		// the member doesn't receive a link that resolves to "not found".
+		tag, insErr := h.DB.Exec(ctx, `
 			INSERT INTO liveball_invitations (event_id, user_id, token)
 			VALUES ($1, $2, $3) ON CONFLICT (event_id, user_id) DO NOTHING`,
 			eventID, m.id, token)
-		if insErr != nil {
+		if insErr != nil || tag.RowsAffected() == 0 {
 			continue
 		}
 
@@ -365,7 +368,12 @@ func (h *LiveballHandler) Respond(c echo.Context) error {
 		WHERE li.token = $1`, token,
 	).Scan(&invID, &eventID, &userID, &name, &email, &currentStatus)
 	if err != nil {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "Invitation not found."})
+		// Return 200 so the frontend can show a user-friendly message
+		// rather than the generic catch-all error banner.
+		return c.JSON(http.StatusOK, map[string]string{
+			"status":  "not_found",
+			"message": "This invitation link was not found. It may have already been used or the link may be incorrect.",
+		})
 	}
 	if currentStatus != "invited" {
 		return c.JSON(http.StatusOK, map[string]string{"status": currentStatus, "message": "You already " + pastTense(currentStatus) + " this invitation."})

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../../api/client'
+import { useAuth } from '../../contexts/AuthContext'
 
 interface LBEvent {
   id: string; title: string; description: string; start_time: string; end_time?: string
@@ -27,7 +28,11 @@ function fmtDT(iso: string) {
   })
 }
 
+interface Court { id: number; name: string; number: number }
+interface DayBooking { id: string; court_id: number; start_time: string; end_time: string }
+
 export default function AdminLiveball() {
+  const { user } = useAuth()
   const [events, setEvents] = useState<LBEvent[]>([])
   const [selected, setSelected] = useState<LBEvent | null>(null)
   const [tab, setTab] = useState<'roster' | 'invite'>('roster')
@@ -35,9 +40,14 @@ export default function AdminLiveball() {
 
   // Create form
   const [showCreate, setShowCreate] = useState(false)
-  const [cForm, setCForm] = useState({ description: '', date: '', time: '', max_players: 8 })
+  const [cForm, setCForm] = useState({ description: '', date: '', time: '', max_players: 8, court_id: 0 })
   const [cSaving, setCSaving] = useState(false)
   const [cErr, setCErr] = useState('')
+
+  // Court availability
+  const [courts, setCourts] = useState<Court[]>([])
+  const [dayBookings, setDayBookings] = useState<DayBooking[]>([])
+  const [loadingCourts, setLoadingCourts] = useState(false)
 
   // Invite form
   const [selectedLevels, setSelectedLevels] = useState<string[]>([])
@@ -48,7 +58,37 @@ export default function AdminLiveball() {
 
   useEffect(() => {
     api.liveball.admin.list().then(d => setEvents(d as LBEvent[]))
+    api.courts.list().then(d => setCourts(d as Court[]))
   }, [])
+
+  // Reload day bookings whenever the selected date changes so the court
+  // availability display is always current.
+  useEffect(() => {
+    if (!cForm.date) { setDayBookings([]); return }
+    setLoadingCourts(true)
+    api.bookings.list(cForm.date)
+      .then(d => setDayBookings(d as DayBooking[]))
+      .catch(() => {})
+      .finally(() => setLoadingCourts(false))
+    // Reset court selection when date changes
+    setCForm(f => ({ ...f, court_id: 0 }))
+  }, [cForm.date])
+
+  // Also reset court when time changes — availability may differ
+  useEffect(() => {
+    setCForm(f => ({ ...f, court_id: 0 }))
+  }, [cForm.time])
+
+  const isCourtFree = (courtId: number): boolean => {
+    if (!cForm.date || !cForm.time) return true
+    const start = new Date(`${cForm.date}T${cForm.time}`)
+    const end   = new Date(start.getTime() + 90 * 60 * 1000)
+    return !dayBookings.some(b =>
+      b.court_id === courtId &&
+      new Date(b.start_time) < end &&
+      new Date(b.end_time) > start
+    )
+  }
 
   const loadEvent = async (ev: LBEvent) => {
     setSelected(ev)
@@ -73,18 +113,33 @@ export default function AdminLiveball() {
     setCSaving(true); setCErr('')
     try {
       const startDT = new Date(`${cForm.date}T${cForm.time}`)
-      const endDT   = new Date(startDT.getTime() + 90 * 60 * 1000) // auto 1.5 hours
+      const endDT   = new Date(startDT.getTime() + 90 * 60 * 1000)
+
       await api.liveball.admin.create({
-        title:       '',   // backend auto-generates "LiveBall – Mon Jun 2" from start_time
+        title:       '',
         description: cForm.description,
         start_time:  startDT.toISOString(),
         end_time:    endDT.toISOString(),
         max_players: cForm.max_players,
       })
+
+      // Also book the selected court so it's blocked during the event.
+      if (cForm.court_id > 0 && user) {
+        await api.bookings.adminCreate({
+          user_id:        user.id,
+          court_id:       cForm.court_id,
+          start_time:     startDT.toISOString(),
+          end_time:       endDT.toISOString(),
+          match_type:     'casual',
+          notes:          'LiveBall Event',
+          players_needed: 0,
+        })
+      }
+
       const updated = await api.liveball.admin.list() as LBEvent[]
       setEvents(updated)
       setShowCreate(false)
-      setCForm({ description: '', date: '', time: '', max_players: 8 })
+      setCForm({ description: '', date: '', time: '', max_players: 8, court_id: 0 })
     } catch (e: any) { setCErr(e.message) } finally { setCSaving(false) }
   }
 
@@ -142,7 +197,10 @@ export default function AdminLiveball() {
           <h1 className="text-xl font-bold text-gray-800">LiveBall Events</h1>
           <p className="text-gray-500 text-sm mt-0.5">Invite USTA groups — first to respond gets a spot.</p>
         </div>
-        <button onClick={() => setShowCreate(s => !s)}
+        <button onClick={() => {
+          setShowCreate(s => !s)
+          window.scrollTo({ top: 0, behavior: 'smooth' })
+        }}
           className="bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-4 py-2 rounded-lg transition">
           + New Event
         </button>
@@ -189,6 +247,51 @@ export default function AdminLiveball() {
                 <p className="text-xs text-gray-400">Events are automatically set to 1½ hours long.</p>
               )}
             </div>
+            {/* Court availability picker */}
+            {cForm.date && cForm.time && (
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-medium text-gray-500 mb-1.5">
+                  Court
+                  {loadingCourts && <span className="ml-2 text-gray-400 font-normal">Loading…</span>}
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {courts.map(court => {
+                    const free = isCourtFree(court.id)
+                    const sel  = cForm.court_id === court.id
+                    return (
+                      <button key={court.id} type="button"
+                        disabled={!free}
+                        onClick={() => setCForm(f => ({ ...f, court_id: sel ? 0 : court.id }))}
+                        className={`px-4 py-2 rounded-xl text-sm font-medium border transition
+                          ${sel  ? 'bg-green-700 text-white border-green-700 shadow-sm'
+                            : !free ? 'bg-gray-100 text-gray-400 border-gray-100 cursor-not-allowed'
+                            : 'bg-white text-gray-700 border-gray-200 hover:border-green-400 hover:text-green-700'}`}>
+                        {court.name}
+                        <span className={`ml-1.5 text-xs font-normal
+                          ${sel ? 'text-green-200' : !free ? 'text-gray-400' : 'text-gray-400'}`}>
+                          {!free ? '· Booked' : '· Available'}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+                {cForm.court_id > 0 && (
+                  <p className="text-xs text-green-700 mt-1.5 flex items-center gap-1">
+                    <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    {courts.find(c => c.id === cForm.court_id)?.name} will be booked for this event
+                  </p>
+                )}
+                {cForm.court_id === 0 && !loadingCourts && courts.every(c => !isCourtFree(c.id)) && courts.length > 0 && (
+                  <p className="text-xs text-amber-600 mt-1.5">⚠ All courts are booked at this time.</p>
+                )}
+                {cForm.court_id === 0 && !loadingCourts && courts.some(c => isCourtFree(c.id)) && (
+                  <p className="text-xs text-gray-400 mt-1">Select a court to book it alongside the event.</p>
+                )}
+              </div>
+            )}
+
             {/* Player spots */}
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Player spots *</label>
@@ -207,7 +310,8 @@ export default function AdminLiveball() {
               className="bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-4 py-2 rounded-lg transition disabled:opacity-50">
               {cSaving ? 'Creating…' : 'Create Event'}
             </button>
-            <button onClick={() => setShowCreate(false)} className="text-sm text-gray-400 hover:text-gray-600 px-3">Cancel</button>
+            <button onClick={() => { setShowCreate(false); setCForm({ description: '', date: '', time: '', max_players: 8, court_id: 0 }); setCErr('') }}
+              className="text-sm text-gray-400 hover:text-gray-600 px-3">Cancel</button>
           </div>
         </div>
       )}
