@@ -250,10 +250,11 @@ func (h *InvitationsHandler) AddPlayer(c echo.Context) error {
 	}
 
 	var req struct {
-		UserID      *string `json:"user_id"`
-		PlayerName  string  `json:"player_name"`
-		PlayerEmail string  `json:"player_email"`
-		IsGuest     bool    `json:"is_guest"`
+		UserID         *string `json:"user_id"`
+		FamilyMemberID *string `json:"family_member_id"`
+		PlayerName     string  `json:"player_name"`
+		PlayerEmail    string  `json:"player_email"`
+		IsGuest        bool    `json:"is_guest"`
 	}
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
@@ -262,6 +263,33 @@ func (h *InvitationsHandler) AddPlayer(c echo.Context) error {
 	// Prevent the host from adding themselves
 	if req.UserID != nil && *req.UserID == hostID {
 		return echo.NewHTTPError(http.StatusBadRequest, "you are already on this booking as the host")
+	}
+
+	// Family member path — validate ownership and eligibility server-side
+	if req.FamilyMemberID != nil && *req.FamilyMemberID != "" {
+		var famFirst, famLast, famEmail, famOwnerID, famRelationship string
+		var famBirthday *time.Time
+		if err := h.DB.QueryRow(c.Request().Context(), `
+			SELECT first_name, last_name, COALESCE(email,''), user_id, LOWER(relationship), birthday
+			FROM family_members WHERE id = $1`, *req.FamilyMemberID,
+		).Scan(&famFirst, &famLast, &famEmail, &famOwnerID, &famRelationship, &famBirthday); err != nil {
+			return echo.NewHTTPError(http.StatusNotFound, "family member not found")
+		}
+		if famOwnerID != hostID {
+			return echo.NewHTTPError(http.StatusForbidden, "that family member does not belong to this booking's host")
+		}
+		if famRelationship != "spouse" {
+			if famBirthday == nil {
+				return echo.NewHTTPError(http.StatusBadRequest, "family member has no birthday on file — add a birthday first to confirm eligibility")
+			}
+			ageYears := time.Since(*famBirthday).Hours() / (365.25 * 24)
+			if ageYears >= 26 {
+				return echo.NewHTTPError(http.StatusBadRequest, "only spouses and family members under 26 can be added without a guest fee")
+			}
+		}
+		req.PlayerName = famFirst + " " + famLast
+		req.PlayerEmail = famEmail
+		req.IsGuest = false // spouse or under-26 family member — treated as member, no guest fee
 	}
 
 	// Enforce player capacity by match type

@@ -584,10 +584,10 @@ export default function Bookings() {
                             className="ml-0.5 opacity-60 hover:opacity-100">✕</button>
                         </span>
                       ))}
-                      {/* Family members as quick-add (under-26 only) */}
+                      {/* Family members as quick-add (spouses or under-26 with birthday on file) */}
                       {familyMembers.filter(fm => {
                         const age = familyAge(fm.birthday)
-                        return age === null || age < 26
+                        return fm.relationship.toLowerCase() === 'spouse' || (age !== null && age < 26)
                       }).filter(fm => !directPlayers.some(p => p.name === `${fm.first_name} ${fm.last_name}`)).map(fm => (
                         spotsLeft > 0 && (
                           <button key={fm.id} type="button"
@@ -1521,10 +1521,10 @@ export default function Bookings() {
                             if (full) return null
                             return (
                             <div className="flex gap-2 flex-wrap">
-                              {/* Family member quick-add (under-26 only) */}
+                              {/* Family member quick-add (spouses or under-26 with birthday) */}
                               {familyMembers.filter(fm => {
                                 const age = familyAge(fm.birthday)
-                                return (age === null || age < 26) &&
+                                return (fm.relationship.toLowerCase() === 'spouse' || (age !== null && age < 26)) &&
                                   !roster?.players.some(p => p.player_name === `${fm.first_name} ${fm.last_name}`)
                               }).map(fm => (
                                 <button key={fm.id} onClick={async () => {

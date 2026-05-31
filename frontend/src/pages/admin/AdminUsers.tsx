@@ -349,12 +349,7 @@ export default function AdminUsers() {
                   placeholder="123 Main St, City CA 91030"
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
               </div>
-              <div className="col-span-2">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Family Members</label>
-                <textarea value={editForm.family} onChange={e => setEditForm(f => ({ ...f, family: e.target.value }))} rows={2}
-                  placeholder="e.g. Jennifer (spouse), Tim (son)"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none" />
-              </div>
+
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">USTA Rating (NTRP)</label>
                 <select value={editForm.usta_ranking} onChange={e => setEditForm(f => ({ ...f, usta_ranking: e.target.value }))}
