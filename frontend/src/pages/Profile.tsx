@@ -44,7 +44,7 @@ export default function Profile() {
     api.auth.me().then(d => {
       const p = d as UserProfile
       setProfile(p)
-      setForm({ first_name: p.first_name, last_name: p.last_name, phone: p.phone ?? '', address: p.address ?? '', usta_ranking: p.usta_ranking ?? '' })
+      setForm({ first_name: p.first_name, last_name: p.last_name, phone: formatPhone(p.phone), address: p.address ?? '', usta_ranking: p.usta_ranking ?? '' })
     })
     loadFamily()
   }, [])
@@ -70,7 +70,7 @@ export default function Profile() {
     setEditFamilyForm({
       first_name: m.first_name, last_name: m.last_name,
       relationship: m.relationship, birthday: m.birthday ?? '',
-      email: m.email ?? '', phone: m.phone ?? '',
+      email: m.email ?? '', phone: formatPhone(m.phone),
     })
     setShowFamilyForm(false)
   }

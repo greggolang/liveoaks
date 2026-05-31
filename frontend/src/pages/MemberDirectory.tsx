@@ -48,7 +48,7 @@ export default function MemberDirectory() {
     setEditing(c)
     setForm({
       first_name: c.first_name, last_name: c.last_name,
-      email: c.email ?? '', phone: c.phone ?? '',
+      email: c.email ?? '', phone: formatPhone(c.phone),
       address: c.address ?? '', family: c.family ?? '',
       category: c.category, notes: c.notes ?? '',
     })

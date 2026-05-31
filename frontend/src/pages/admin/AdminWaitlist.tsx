@@ -28,7 +28,7 @@ export default function AdminWaitlist() {
 
   const openContact = (w: Entry) => {
     setEditContact(w.id)
-    setContactForm({ email: w.email ?? '', phone: w.phone ?? '', usta_ranking: w.usta_ranking ?? '' })
+    setContactForm({ email: w.email ?? '', phone: formatPhone(w.phone), usta_ranking: w.usta_ranking ?? '' })
   }
 
   const saveContact = async (id: string) => {

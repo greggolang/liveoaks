@@ -74,7 +74,7 @@ export default function AdminUsers() {
     setEditing(u)
     setEditExtraRoles(u.extra_roles ?? [])
     setEditForm({ first_name: u.first_name, last_name: u.last_name, email: u.email,
-      phone: u.phone ?? '', address: u.address ?? '', family: u.family ?? '', usta_ranking: u.usta_ranking ?? '',
+      phone: formatPhone(u.phone) ?? '', address: u.address ?? '', family: u.family ?? '', usta_ranking: u.usta_ranking ?? '',
       birthday: u.birthday ?? '' })
     setFamilyMembers([])
     setShowFamilyForm(false)
@@ -115,7 +115,7 @@ export default function AdminUsers() {
     setEditFamilyForm({
       first_name: m.first_name, last_name: m.last_name,
       relationship: m.relationship, birthday: m.birthday ?? '',
-      email: m.email ?? '', phone: m.phone ?? '',
+      email: m.email ?? '', phone: formatPhone(m.phone) ?? '',
     })
     setShowFamilyForm(false)
   }
