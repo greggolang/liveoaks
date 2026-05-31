@@ -371,4 +371,10 @@ export const api = {
       pickPopularity: (tid: string) => request(`/admin/fantasy/picks/popularity/${tid}`),
     },
   },
+  bookingReminder: {
+    getInfo: (token: string) => request(`/booking-reminder/${token}`),
+    confirm: (token: string) => request(`/booking-reminder/${token}/ok`, { method: 'POST' }),
+    reportIssue: (token: string, note: string) =>
+      request(`/booking-reminder/${token}/issue`, { method: 'POST', body: JSON.stringify({ note }) }),
+  },
 }

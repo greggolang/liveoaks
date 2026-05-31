@@ -97,6 +97,7 @@ func main() {
 	signups := &handlers.SignupsHandler{DB: pool}
 	weather := &handlers.WeatherHandler{DB: pool}
 	fantasy := &handlers.FantasyHandler{DB: pool}
+	bookingReminder := &handlers.BookingReminderHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 
 	api := e.Group("/api")
 
@@ -160,6 +161,11 @@ func main() {
 
 	// Public invite response (no auth needed)
 	api.POST("/invite/:token/:action", invitations.Respond)
+
+	// Public booking day-of reminder responses (no auth needed — links come from email)
+	api.GET("/booking-reminder/:token", bookingReminder.GetInfo)
+	api.POST("/booking-reminder/:token/ok", bookingReminder.Confirm)
+	api.POST("/booking-reminder/:token/issue", bookingReminder.ReportIssue)
 
 	// Board+
 	boardPlus := authed.Group("", mw.RequireRole(mw.BoardRoleList()...))

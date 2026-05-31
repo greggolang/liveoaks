@@ -51,6 +51,7 @@ import AdminBroadcast from './pages/admin/AdminBroadcast'
 import AdminBoardMeetings from './pages/admin/AdminBoardMeetings'
 import BoardMeetingResponse from './pages/BoardMeetingResponse'
 import LiveballResponse from './pages/LiveballResponse'
+import BookingReminderResponse from './pages/BookingReminderResponse'
 import Fantasy from './pages/Fantasy'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -81,6 +82,8 @@ function AppRoutes() {
       <Route path="/board-meeting/:token/:action" element={<BoardMeetingResponse />} />
       <Route path="/liveball/:token/:action" element={<LiveballResponse />} />
       <Route path="/liveball/:token" element={<LiveballResponse />} />
+      <Route path="/booking-reminder/:token/:action" element={<BookingReminderResponse />} />
+      <Route path="/booking-reminder/:token" element={<BookingReminderResponse />} />
       <Route path="/events/:id/signup" element={<EventSignup />} />
 
       {/* Member pages */}
