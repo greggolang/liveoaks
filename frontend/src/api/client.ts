@@ -230,6 +230,7 @@ export const api = {
     delete: (id: string) => request(`/family-members/${id}`, { method: 'DELETE' }),
     adminList: (userId: string) => request(`/admin/users/${userId}/family`),
     adminCreate: (userId: string, data: object) => request(`/admin/users/${userId}/family`, { method: 'POST', body: JSON.stringify(data) }),
+    adminUpdate: (userId: string, id: string, data: object) => request(`/admin/users/${userId}/family/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     adminDelete: (userId: string, id: string) => request(`/admin/users/${userId}/family/${id}`, { method: 'DELETE' }),
   },
   feedback: {

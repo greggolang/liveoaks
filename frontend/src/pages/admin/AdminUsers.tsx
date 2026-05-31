@@ -48,6 +48,9 @@ export default function AdminUsers() {
   const [showFamilyForm, setShowFamilyForm] = useState(false)
   const [familyForm, setFamilyForm] = useState({ first_name: '', last_name: '', relationship: 'spouse', birthday: '', email: '', phone: '' })
   const [savingFamily, setSavingFamily] = useState(false)
+  const [editingFamilyId, setEditingFamilyId] = useState<string | null>(null)
+  const [editFamilyForm, setEditFamilyForm] = useState({ first_name: '', last_name: '', relationship: 'spouse', birthday: '', email: '', phone: '' })
+  const [savingEditFamily, setSavingEditFamily] = useState(false)
   const [editExtraRoles, setEditExtraRoles] = useState<string[]>([])
   const [savingExtraRoles, setSavingExtraRoles] = useState(false)
 
@@ -63,6 +66,7 @@ export default function AdminUsers() {
     setFamilyMembers([])
     setShowFamilyForm(false)
     setFamilyForm({ first_name: '', last_name: '', relationship: 'spouse', birthday: '', email: '', phone: '' })
+    setEditingFamilyId(null)
     loadFamily(u.id)
   }
 
@@ -81,6 +85,27 @@ export default function AdminUsers() {
     if (!editing) return
     await api.family.adminDelete(editing.id, memberId)
     loadFamily(editing.id)
+  }
+
+  const openEditFamily = (m: FamilyMember) => {
+    setEditingFamilyId(m.id)
+    setEditFamilyForm({
+      first_name: m.first_name, last_name: m.last_name,
+      relationship: m.relationship, birthday: m.birthday ?? '',
+      email: m.email ?? '', phone: m.phone ?? '',
+    })
+    setShowFamilyForm(false)
+  }
+
+  const saveEditFamily = async () => {
+    if (!editing || !editingFamilyId) return
+    if (!editFamilyForm.first_name || !editFamilyForm.last_name || !editFamilyForm.birthday) return
+    setSavingEditFamily(true)
+    try {
+      await api.family.adminUpdate(editing.id, editingFamilyId, editFamilyForm)
+      setEditingFamilyId(null)
+      loadFamily(editing.id)
+    } finally { setSavingEditFamily(false) }
   }
 
   const handleSaveEdit = async (e: React.FormEvent) => {
@@ -412,20 +437,56 @@ export default function AdminUsers() {
               {familyMembers.length > 0 && (
                 <div className="space-y-1.5 mb-2">
                   {familyMembers.map(m => (
-                    <div key={m.id} className="flex items-start justify-between bg-gray-50 rounded-lg px-3 py-1.5 text-sm">
-                      <div>
-                        <span className="text-gray-800 font-medium">{m.first_name} {m.last_name}</span>
-                        <span className="ml-2 text-xs font-normal text-gray-400 capitalize">{m.relationship}</span>
-                        {m.birthday && <span className="ml-2 text-xs font-normal text-gray-400">b. {m.birthday}</span>}
-                        {(m.email || m.phone) && (
-                          <div className="text-xs text-gray-400 mt-0.5 space-x-2">
-                            {m.email && <span>{m.email}</span>}
-                            {m.phone && <span>{m.phone}</span>}
+                    <div key={m.id}>
+                      {editingFamilyId === m.id ? (
+                        <div className="flex flex-wrap gap-2 items-end bg-blue-50 border border-blue-200 rounded-lg p-2">
+                          <input value={editFamilyForm.first_name} onChange={e => setEditFamilyForm(f => ({ ...f, first_name: e.target.value }))}
+                            placeholder="First name *"
+                            className="border border-gray-300 rounded px-2 py-1 text-xs w-28 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                          <input value={editFamilyForm.last_name} onChange={e => setEditFamilyForm(f => ({ ...f, last_name: e.target.value }))}
+                            placeholder="Last name *"
+                            className="border border-gray-300 rounded px-2 py-1 text-xs w-28 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                          <select value={editFamilyForm.relationship} onChange={e => setEditFamilyForm(f => ({ ...f, relationship: e.target.value }))}
+                            className="border border-gray-300 rounded px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-500">
+                            {RELATIONSHIPS.map(r => <option key={r} value={r}>{r}</option>)}
+                          </select>
+                          <input type="date" value={editFamilyForm.birthday} onChange={e => setEditFamilyForm(f => ({ ...f, birthday: e.target.value }))}
+                            title="Birthday *"
+                            className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                          <input type="email" value={editFamilyForm.email} onChange={e => setEditFamilyForm(f => ({ ...f, email: e.target.value }))}
+                            placeholder="Email"
+                            className="border border-gray-300 rounded px-2 py-1 text-xs w-36 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                          <input type="tel" value={editFamilyForm.phone} onChange={e => setEditFamilyForm(f => ({ ...f, phone: e.target.value }))}
+                            placeholder="Phone"
+                            className="border border-gray-300 rounded px-2 py-1 text-xs w-28 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                          <button type="button" onClick={saveEditFamily} disabled={savingEditFamily}
+                            className="text-xs bg-blue-700 text-white px-2 py-1 rounded hover:bg-blue-800 transition disabled:opacity-50">
+                            {savingEditFamily ? 'Saving…' : 'Save'}
+                          </button>
+                          <button type="button" onClick={() => setEditingFamilyId(null)}
+                            className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+                        </div>
+                      ) : (
+                        <div className="flex items-start justify-between bg-gray-50 rounded-lg px-3 py-1.5 text-sm">
+                          <div>
+                            <span className="text-gray-800 font-medium">{m.first_name} {m.last_name}</span>
+                            <span className="ml-2 text-xs font-normal text-gray-400 capitalize">{m.relationship}</span>
+                            {m.birthday && <span className="ml-2 text-xs font-normal text-gray-400">b. {m.birthday}</span>}
+                            {(m.email || m.phone) && (
+                              <div className="text-xs text-gray-400 mt-0.5 space-x-2">
+                                {m.email && <span>{m.email}</span>}
+                                {m.phone && <span>{m.phone}</span>}
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
-                      <button type="button" onClick={() => removeFamilyMember(m.id)}
-                        className="text-xs text-red-400 hover:text-red-600 transition shrink-0 ml-2">Remove</button>
+                          <div className="flex gap-3 shrink-0 ml-2">
+                            <button type="button" onClick={() => openEditFamily(m)}
+                              className="text-xs text-blue-500 hover:text-blue-700 transition">Edit</button>
+                            <button type="button" onClick={() => removeFamilyMember(m.id)}
+                              className="text-xs text-red-400 hover:text-red-600 transition">Remove</button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

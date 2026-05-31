@@ -156,6 +156,34 @@ func (h *FamilyHandler) AdminCreate(c echo.Context) error {
 	return c.JSON(http.StatusCreated, m)
 }
 
+// AdminUpdate edits a family member for any user (board+)
+func (h *FamilyHandler) AdminUpdate(c echo.Context) error {
+	memberID := c.Param("id")
+	targetUserID := c.Param("userId")
+	var req struct {
+		FirstName    string `json:"first_name"`
+		LastName     string `json:"last_name"`
+		Relationship string `json:"relationship"`
+		Phone        string `json:"phone"`
+		Email        string `json:"email"`
+		Notes        string `json:"notes"`
+		Birthday     string `json:"birthday"`
+	}
+	if err := c.Bind(&req); err != nil || req.FirstName == "" || req.LastName == "" || req.Birthday == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "first name, last name, and birthday required")
+	}
+	_, err := h.DB.Exec(c.Request().Context(),
+		`UPDATE family_members SET first_name=$1, last_name=$2, relationship=$3,
+		 phone=NULLIF($4,''), email=NULLIF($5,''), notes=NULLIF($6,''),
+		 birthday=$7::date
+		 WHERE id=$8 AND user_id=$9`,
+		req.FirstName, req.LastName, req.Relationship, req.Phone, req.Email, req.Notes, req.Birthday, memberID, targetUserID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not update family member")
+	}
+	return c.JSON(http.StatusOK, map[string]string{"id": memberID})
+}
+
 // AdminDelete removes a family member for any user (board+)
 func (h *FamilyHandler) AdminDelete(c echo.Context) error {
 	h.DB.Exec(c.Request().Context(),
