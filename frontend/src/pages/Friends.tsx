@@ -32,6 +32,9 @@ export default function Friends() {
   const [editingGroupName, setEditingGroupName] = useState('')
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null)
   const [groupUstaFilter, setGroupUstaFilter] = useState('')
+  const [groupSearch, setGroupSearch] = useState('')
+  const [groupSearchResults, setGroupSearchResults] = useState<MemberResult[]>([])
+  const [groupSearching, setGroupSearching] = useState(false)
 
   const loadFriends = () => api.friends.list().then(d => setFriends(d as Friend[]))
   const loadGroups = () => api.groups.list().then(d => setGroups(d as FriendGroup[]))
@@ -100,6 +103,28 @@ export default function Friends() {
     } else {
       await api.groups.addMember(groupId, friendId)
     }
+    loadGroups()
+  }
+
+  const searchGroupMembers = async (q: string) => {
+    setGroupSearch(q)
+    if (q.length < 2) { setGroupSearchResults([]); return }
+    setGroupSearching(true)
+    try { setGroupSearchResults(await api.friends.searchMembers(q) as MemberResult[]) }
+    finally { setGroupSearching(false) }
+  }
+
+  const addMemberToGroup = async (groupId: string, userId: string) => {
+    // Find existing friend record, or add as friend first
+    let friend = friends.find(f => f.friend_user_id === userId)
+    if (!friend) {
+      await api.friends.addMember(userId)
+      const updated = await api.friends.list() as Friend[]
+      setFriends(updated)
+      friend = updated.find(f => f.friend_user_id === userId)
+    }
+    if (friend) await api.groups.addMember(groupId, friend.id)
+    setGroupSearch(''); setGroupSearchResults([])
     loadGroups()
   }
 
@@ -269,7 +294,7 @@ export default function Friends() {
                         className="text-xs text-gray-400 hover:text-gray-600">Rename</button>
                       <button onClick={() => deleteGroup(g.id, g.name)}
                         className="text-xs text-red-400 hover:text-red-600">Delete</button>
-                      <button onClick={() => { setExpandedGroup(isExpanded ? null : g.id); setGroupUstaFilter('') }}
+                      <button onClick={() => { setExpandedGroup(isExpanded ? null : g.id); setGroupUstaFilter(''); setGroupSearch(''); setGroupSearchResults([]) }}
                         className="text-xs text-green-700 font-medium hover:underline">
                         {isExpanded ? 'Done' : 'Edit Players'}
                       </button>
@@ -290,48 +315,96 @@ export default function Friends() {
                   </div>
                 )}
 
-                {/* Expanded: toggle friends in/out */}
+                {/* Expanded: toggle friends in/out + search all members */}
                 {isExpanded && (
-                  <div className="border-t border-gray-100 px-4 py-3 bg-gray-50">
-                    <div className="flex items-center justify-between mb-2 gap-3">
-                      <p className="text-xs text-gray-500">Check players to add them to this group:</p>
-                      <select value={groupUstaFilter} onChange={e => setGroupUstaFilter(e.target.value)}
-                        className="border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white text-gray-600 focus:outline-none focus:ring-1 focus:ring-green-500">
-                        <option value="">All ratings</option>
-                        {USTA_RATINGS.map(r => <option key={r} value={r}>{r}</option>)}
-                      </select>
-                    </div>
-                    {friends.length === 0 ? (
-                      <p className="text-xs text-gray-400">Add friends first, then assign them to groups.</p>
-                    ) : (
-                      <div className="space-y-1.5">
-                        {friends
-                          .filter(f => !groupUstaFilter || f.usta_ranking === groupUstaFilter)
-                          .map(f => {
-                          const inGroup = g.members.some(m => m.friend_id === f.id)
-                          return (
-                            <label key={f.id} className="flex items-center gap-2.5 cursor-pointer group">
-                              <input type="checkbox" checked={inGroup}
-                                onChange={() => toggleGroupMember(g.id, f.id, inGroup)}
-                                className="w-4 h-4 rounded accent-green-600" />
-                              <span className="text-sm text-gray-700 group-hover:text-gray-900">
-                                {f.friend_name}
-                                {f.is_guest && <span className="ml-1.5 text-xs text-orange-500">(Guest)</span>}
-                              </span>
-                              {f.usta_ranking && (
-                                <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">{f.usta_ranking}</span>
-                              )}
-                              {f.friend_email && (
-                                <span className="text-xs text-gray-400">{f.friend_email}</span>
-                              )}
-                            </label>
-                          )
-                        })}
-                        {friends.filter(f => !groupUstaFilter || f.usta_ranking === groupUstaFilter).length === 0 && (
-                          <p className="text-xs text-gray-400 italic">No friends with that rating.</p>
-                        )}
+                  <div className="border-t border-gray-100 px-4 py-3 bg-gray-50 space-y-3">
+                    {/* Member search */}
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1.5">Search any club member to add:</p>
+                      <div className="relative">
+                        <input
+                          value={groupSearch}
+                          onChange={e => searchGroupMembers(e.target.value)}
+                          placeholder="Search by name or email…"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
+                        />
+                        {groupSearching && <span className="absolute right-3 top-2 text-xs text-gray-400">Searching…</span>}
                       </div>
-                    )}
+                      {groupSearchResults.length > 0 && (
+                        <div className="mt-1 border border-gray-200 rounded-lg divide-y divide-gray-100 bg-white max-h-48 overflow-y-auto">
+                          {groupSearchResults.map(m => {
+                            const inGroup = g.members.some(gm => {
+                              const f = friends.find(fr => fr.id === gm.friend_id)
+                              return f?.friend_user_id === m.id
+                            })
+                            return (
+                              <div key={m.id} className="flex items-center justify-between px-3 py-2">
+                                <div>
+                                  <div className="text-sm font-medium text-gray-800 flex items-center gap-1.5">
+                                    {m.first_name} {m.last_name}
+                                    {m.usta_ranking && (
+                                      <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">{m.usta_ranking}</span>
+                                    )}
+                                  </div>
+                                  <div className="text-xs text-gray-400">{m.email}</div>
+                                </div>
+                                {inGroup ? (
+                                  <span className="text-xs text-green-600 font-medium">✓ In group</span>
+                                ) : (
+                                  <button onClick={() => addMemberToGroup(g.id, m.id)}
+                                    className="text-xs bg-green-700 text-white px-3 py-1 rounded-lg hover:bg-green-800 transition">
+                                    Add
+                                  </button>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Existing friends checklist */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2 gap-3">
+                        <p className="text-xs text-gray-500">Or check from your friends list:</p>
+                        <select value={groupUstaFilter} onChange={e => setGroupUstaFilter(e.target.value)}
+                          className="border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white text-gray-600 focus:outline-none focus:ring-1 focus:ring-green-500">
+                          <option value="">All ratings</option>
+                          {USTA_RATINGS.map(r => <option key={r} value={r}>{r}</option>)}
+                        </select>
+                      </div>
+                      {friends.length === 0 ? (
+                        <p className="text-xs text-gray-400">No friends saved yet.</p>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {friends
+                            .filter(f => !groupUstaFilter || f.usta_ranking === groupUstaFilter)
+                            .map(f => {
+                            const inGroup = g.members.some(m => m.friend_id === f.id)
+                            return (
+                              <label key={f.id} className="flex items-center gap-2.5 cursor-pointer group">
+                                <input type="checkbox" checked={inGroup}
+                                  onChange={() => toggleGroupMember(g.id, f.id, inGroup)}
+                                  className="w-4 h-4 rounded accent-green-600" />
+                                <span className="text-sm text-gray-700 group-hover:text-gray-900">
+                                  {f.friend_name}
+                                  {f.is_guest && <span className="ml-1.5 text-xs text-orange-500">(Guest)</span>}
+                                </span>
+                                {f.usta_ranking && (
+                                  <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">{f.usta_ranking}</span>
+                                )}
+                                {f.friend_email && (
+                                  <span className="text-xs text-gray-400">{f.friend_email}</span>
+                                )}
+                              </label>
+                            )
+                          })}
+                          {friends.filter(f => !groupUstaFilter || f.usta_ranking === groupUstaFilter).length === 0 && (
+                            <p className="text-xs text-gray-400 italic">No friends with that rating.</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
