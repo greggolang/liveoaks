@@ -7,7 +7,20 @@ const USTA_RATINGS = ['2.5', '3.0', '3.5', '4.0', '4.5', '5.0']
 interface User {
   id: string; first_name: string; last_name: string; email: string
   role: string; extra_roles?: string[]; status: string; phone?: string; address?: string; family?: string
-  usta_ranking?: string; birthday?: string; has_family?: boolean; created_at: string
+  usta_ranking?: string; birthday?: string; has_family?: boolean; created_at: string; last_login_at?: string; login_count: number
+}
+
+function fmtLastLogin(ts?: string): string {
+  if (!ts) return 'Never'
+  const diff = Date.now() - new Date(ts).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 2) return 'Just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  const days = Math.floor(hrs / 24)
+  if (days < 30) return `${days}d ago`
+  return new Date(ts).toLocaleDateString()
 }
 
 // All assignable roles (used for extra_roles checkboxes)
@@ -66,6 +79,10 @@ export default function AdminUsers() {
   const [editFamilyError, setEditFamilyError] = useState('')
   const [editExtraRoles, setEditExtraRoles] = useState<string[]>([])
   const [savingExtraRoles, setSavingExtraRoles] = useState(false)
+  const [memberAlerts, setMemberAlerts] = useState<{ id: string; message: string; type: string; created_at: string; dismissed_at?: string }[]>([])
+  const [alertMsg, setAlertMsg] = useState('')
+  const [alertType, setAlertType] = useState('info')
+  const [sendingAlert, setSendingAlert] = useState(false)
 
   const load = () => api.admin.users().then(d => setUsers(d as User[]))
   const loadWaitlist = () => api.waitlist.list().then(d => setWaitlist(d as WaitlistEntry[]))
@@ -77,6 +94,9 @@ export default function AdminUsers() {
     loadWaitlist()
   }
 
+  const loadAlerts = (userId: string) =>
+    api.memberAlerts.adminList(userId).then(d => setMemberAlerts(d as typeof memberAlerts)).catch(() => {})
+
   const openEdit = (u: User) => {
     setEditing(u)
     setEditExtraRoles(u.extra_roles ?? [])
@@ -87,7 +107,10 @@ export default function AdminUsers() {
     setShowFamilyForm(false)
     setFamilyForm({ first_name: '', last_name: '', relationship: 'spouse', birthday: '', email: '', phone: '' })
     setEditingFamilyId(null)
+    setMemberAlerts([])
+    setAlertMsg('')
     loadFamily(u.id)
+    loadAlerts(u.id)
   }
 
   const addFamilyMember = async () => {
@@ -379,6 +402,8 @@ export default function AdminUsers() {
               <th className="px-4 py-3 text-left">Email</th>
               <th className="px-4 py-3 text-left">Role</th>
               <th className="px-4 py-3 text-left">Status</th>
+              <th className="px-4 py-3 text-left">Last Login</th>
+              <th className="px-4 py-3 text-left">Logins</th>
               <th className="px-4 py-3 text-left">Joined</th>
               <th className="px-4 py-3"></th>
             </tr>
@@ -386,7 +411,7 @@ export default function AdminUsers() {
           <tbody className="divide-y divide-gray-100">
             {waitlistFilter ? (
               waitlistFiltered.length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-6 text-center text-gray-400 text-sm">No waitlist entries match your search.</td></tr>
+                <tr><td colSpan={8} className="px-4 py-6 text-center text-gray-400 text-sm">No waitlist entries match your search.</td></tr>
               ) : waitlistFiltered.map(w => (
                 <tr key={`wl-${w.id}`} className="hover:bg-amber-50">
                   <td className="px-4 py-3 font-medium text-gray-800">{w.first_name} {w.last_name}</td>
@@ -402,6 +427,8 @@ export default function AdminUsers() {
                                                  'bg-yellow-100 text-yellow-700'
                     }`}>{w.status}</span>
                   </td>
+                  <td className="px-4 py-3 text-gray-300 text-xs">—</td>
+                  <td className="px-4 py-3 text-gray-300 text-xs">—</td>
                   <td className="px-4 py-3 text-gray-400 text-xs">{new Date(w.created_at).toLocaleDateString()}</td>
                   <td className="px-4 py-3 flex gap-3">
                     <a href="/admin/waitlist" className="text-blue-500 hover:text-blue-700 text-xs font-medium">Manage</a>
@@ -411,7 +438,7 @@ export default function AdminUsers() {
                 </tr>
               ))
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-6 text-center text-gray-400 text-sm">No members match your search.</td></tr>
+              <tr><td colSpan={8} className="px-4 py-6 text-center text-gray-400 text-sm">No members match your search.</td></tr>
             ) : filtered.map(u => (
               <tr key={u.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3 font-medium text-gray-800">{u.first_name} {u.last_name}</td>
@@ -455,6 +482,12 @@ export default function AdminUsers() {
                     <option value="inactive">Inactive</option>
                   </select>
                 </td>
+                <td className="px-4 py-3 text-xs">
+                  <span className={u.last_login_at ? 'text-gray-600' : 'text-gray-300'} title={u.last_login_at ? new Date(u.last_login_at).toLocaleString() : 'Never logged in'}>
+                    {fmtLastLogin(u.last_login_at)}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-xs text-gray-500">{u.login_count > 0 ? u.login_count : <span className="text-gray-300">0</span>}</td>
                 <td className="px-4 py-3 text-gray-400 text-xs">{new Date(u.created_at).toLocaleDateString()}</td>
                 <td className="px-4 py-3 flex gap-3">
                   <button onClick={() => openEdit(u)}
@@ -654,6 +687,56 @@ export default function AdminUsers() {
                   {familyError && <span className="text-xs text-red-600 w-full">{familyError}</span>}
                 </div>
               )}
+            </div>
+
+            {/* Dashboard Alerts */}
+            <div className="border-t border-gray-100 pt-3">
+              <p className="text-xs font-medium text-gray-600 mb-2">Dashboard Alerts</p>
+              <p className="text-xs text-gray-400 mb-2">Alerts appear on this member's dashboard until they dismiss them.</p>
+              {memberAlerts.filter(a => !a.dismissed_at).length > 0 && (
+                <div className="space-y-1.5 mb-2">
+                  {memberAlerts.filter(a => !a.dismissed_at).map(a => {
+                    const color: Record<string, string> = { info: 'bg-blue-50 border-blue-200 text-blue-700', warning: 'bg-amber-50 border-amber-200 text-amber-700', danger: 'bg-red-50 border-red-200 text-red-700' }
+                    return (
+                      <div key={a.id} className={`flex items-center gap-2 border rounded-lg px-3 py-1.5 text-xs ${color[a.type] ?? color.info}`}>
+                        <span className="flex-1">{a.message}</span>
+                        <span className="opacity-50 capitalize">{a.type}</span>
+                        <button type="button" onClick={async () => {
+                          await api.memberAlerts.adminDelete(a.id)
+                          loadAlerts(editing!.id)
+                        }} className="opacity-40 hover:opacity-70 transition">✕</button>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+              {memberAlerts.filter(a => !a.dismissed_at).length === 0 && (
+                <p className="text-xs text-gray-300 mb-2">No active alerts.</p>
+              )}
+              <div className="flex gap-2 items-start">
+                <select value={alertType} onChange={e => setAlertType(e.target.value)}
+                  className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500 shrink-0">
+                  <option value="info">Info</option>
+                  <option value="warning">Warning</option>
+                  <option value="danger">Urgent</option>
+                </select>
+                <input value={alertMsg} onChange={e => setAlertMsg(e.target.value)}
+                  placeholder="Alert message…"
+                  className="flex-1 border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-500" />
+                <button type="button" disabled={!alertMsg.trim() || sendingAlert}
+                  onClick={async () => {
+                    if (!editing || !alertMsg.trim()) return
+                    setSendingAlert(true)
+                    try {
+                      await api.memberAlerts.adminCreate(editing.id, alertMsg.trim(), alertType)
+                      setAlertMsg('')
+                      loadAlerts(editing.id)
+                    } finally { setSendingAlert(false) }
+                  }}
+                  className="px-3 py-1.5 bg-green-700 text-white text-xs rounded-lg hover:bg-green-800 transition disabled:opacity-50 shrink-0">
+                  {sendingAlert ? 'Sending…' : 'Send'}
+                </button>
+              </div>
             </div>
 
             <div className="flex gap-3 pt-2">

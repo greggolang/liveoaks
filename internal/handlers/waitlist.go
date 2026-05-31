@@ -13,16 +13,17 @@ type WaitlistHandler struct {
 }
 
 type WaitlistEntry struct {
-	ID          string    `json:"id"`
-	FirstName   string    `json:"first_name"`
-	LastName    string    `json:"last_name"`
-	Email       *string   `json:"email,omitempty"`
-	Phone       *string   `json:"phone,omitempty"`
-	Notes       *string   `json:"notes,omitempty"`
-	USTARanking *string   `json:"usta_ranking,omitempty"`
-	Status      string    `json:"status"`
-	Position    *int      `json:"position,omitempty"`
-	CreatedAt   time.Time `json:"created_at"`
+	ID              string     `json:"id"`
+	FirstName       string     `json:"first_name"`
+	LastName        string     `json:"last_name"`
+	Email           *string    `json:"email,omitempty"`
+	Phone           *string    `json:"phone,omitempty"`
+	Notes           *string    `json:"notes,omitempty"`
+	USTARanking     *string    `json:"usta_ranking,omitempty"`
+	Status          string     `json:"status"`
+	Position        *int       `json:"position,omitempty"`
+	ApplicationDate *string    `json:"application_date,omitempty"` // "YYYY-MM-DD"
+	CreatedAt       time.Time  `json:"created_at"`
 }
 
 func (h *WaitlistHandler) Join(c echo.Context) error {
@@ -48,7 +49,8 @@ func (h *WaitlistHandler) Join(c echo.Context) error {
 
 func (h *WaitlistHandler) List(c echo.Context) error {
 	rows, err := h.DB.Query(c.Request().Context(),
-		`SELECT id, first_name, last_name, email, phone, notes, usta_ranking, status, position, created_at
+		`SELECT id, first_name, last_name, email, phone, notes, usta_ranking, status, position,
+		        to_char(application_date, 'YYYY-MM-DD'), created_at
 		 FROM waitlist
 		 ORDER BY COALESCE(position, 99999), created_at ASC`)
 	if err != nil {
@@ -60,7 +62,7 @@ func (h *WaitlistHandler) List(c echo.Context) error {
 	for rows.Next() {
 		var w WaitlistEntry
 		if err := rows.Scan(&w.ID, &w.FirstName, &w.LastName, &w.Email, &w.Phone,
-			&w.Notes, &w.USTARanking, &w.Status, &w.Position, &w.CreatedAt); err != nil {
+			&w.Notes, &w.USTARanking, &w.Status, &w.Position, &w.ApplicationDate, &w.CreatedAt); err != nil {
 			continue
 		}
 		entries = append(entries, w)

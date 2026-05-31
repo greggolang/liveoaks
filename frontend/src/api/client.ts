@@ -290,6 +290,14 @@ export const api = {
       request('/admin/test-email', { method: 'POST', body: JSON.stringify({ to }) }),
     smtpPing: () => request('/admin/smtp-ping'),
   },
+  memberAlerts: {
+    getMyAlerts: () => request<{ id: string; message: string; type: string; created_at: string; created_by_name?: string }[]>('/member-alerts'),
+    dismiss: (id: string) => request(`/member-alerts/${id}/dismiss`, { method: 'POST' }),
+    adminList: (userId: string) => request<{ id: string; message: string; type: string; created_at: string; dismissed_at?: string }[]>(`/admin/member-alerts/${userId}`),
+    adminCreate: (userId: string, message: string, type: string) =>
+      request('/admin/member-alerts', { method: 'POST', body: JSON.stringify({ user_id: userId, message, type }) }),
+    adminDelete: (id: string) => request(`/admin/member-alerts/${id}`, { method: 'DELETE' }),
+  },
   camera: {
     embedURL: () => request<{ url: string }>('/camera/embed'),
     updateURL: (url: string) =>

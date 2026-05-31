@@ -87,7 +87,8 @@ func (h *UsersHandler) List(c echo.Context) error {
 	rows, err := h.DB.Query(c.Request().Context(),
 		`SELECT u.id, u.first_name, u.last_name, u.email, u.role::text, u.status::text,
 		        u.phone, u.address, u.family, u.usta_ranking, to_char(u.birthday,'YYYY-MM-DD'), u.created_at,
-		        EXISTS(SELECT 1 FROM family_members fm WHERE fm.user_id = u.id) AS has_family
+		        EXISTS(SELECT 1 FROM family_members fm WHERE fm.user_id = u.id) AS has_family,
+		        u.last_login_at, u.login_count
 		 FROM users u ORDER BY u.last_name, u.first_name`)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch users")
@@ -98,7 +99,7 @@ func (h *UsersHandler) List(c echo.Context) error {
 	for rows.Next() {
 		var u models.User
 		var role, status string
-		if err := rows.Scan(&u.ID, &u.FirstName, &u.LastName, &u.Email, &role, &status, &u.Phone, &u.Address, &u.Family, &u.USTARanking, &u.Birthday, &u.CreatedAt, &u.HasFamily); err != nil {
+		if err := rows.Scan(&u.ID, &u.FirstName, &u.LastName, &u.Email, &role, &status, &u.Phone, &u.Address, &u.Family, &u.USTARanking, &u.Birthday, &u.CreatedAt, &u.HasFamily, &u.LastLoginAt, &u.LoginCount); err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "could not scan user")
 		}
 		u.Role = models.Role(role)

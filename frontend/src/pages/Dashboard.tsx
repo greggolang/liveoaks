@@ -79,6 +79,7 @@ export default function Dashboard() {
   const [upcomingEvents, setUpcomingEvents] = useState<Event[]>([])
   const [cameraURL, setCameraURL] = useState<string | null>(null)
   const [cameraDown, setCameraDown] = useState(false)
+  const [adminAlerts, setAdminAlerts] = useState<{ id: string; message: string; type: string }[]>([])
   const [friends, setFriends] = useState<{id: string; friend_user_id?: string; friend_name: string; friend_email?: string; is_guest: boolean}[]>([])
   const [directory, setDirectory] = useState<{id: string; first_name: string; last_name: string; email: string}[]>([])
   const [invitingFor, setInvitingFor] = useState<{bookingId: string; alertId: string} | null>(null)
@@ -158,6 +159,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     api.announcements.list().then(d => setAnnouncements(d as Announcement[]))
+    api.memberAlerts.getMyAlerts().then(d => setAdminAlerts(d)).catch(() => {})
     api.camera.embedURL().then(d => setCameraURL(d.url)).catch(() => setCameraURL('/camera'))
     api.weather.get().then(d => setWeather(d as WeatherData)).catch(() => {})
     api.weather.airQuality().then(d => setAirQuality(d as AirQualityData)).catch(() => {})
@@ -260,6 +262,34 @@ export default function Dashboard() {
         </h1>
         <p className="text-gray-500 text-sm mt-0.5">Here's what's happening at the club.</p>
       </div>
+
+      {/* Admin-sent member alerts */}
+      {adminAlerts.length > 0 && (
+        <div className="space-y-2">
+          {adminAlerts.map(a => {
+            const styles: Record<string, string> = {
+              info:    'bg-blue-50 border-blue-200 text-blue-800',
+              warning: 'bg-amber-50 border-amber-200 text-amber-800',
+              danger:  'bg-red-50 border-red-200 text-red-800',
+            }
+            const icons: Record<string, string> = { info: 'ℹ️', warning: '⚠️', danger: '🚨' }
+            return (
+              <div key={a.id} className={`flex items-start gap-3 border rounded-xl px-4 py-3 ${styles[a.type] ?? styles.info}`}>
+                <span className="text-base shrink-0">{icons[a.type] ?? icons.info}</span>
+                <p className="flex-1 text-sm">{a.message}</p>
+                <button
+                  onClick={() => {
+                    api.memberAlerts.dismiss(a.id).catch(() => {})
+                    setAdminAlerts(prev => prev.filter(x => x.id !== a.id))
+                  }}
+                  className="shrink-0 opacity-40 hover:opacity-70 transition text-lg leading-none"
+                  title="Dismiss"
+                >✕</button>
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       {/* Alerts */}
       {(() => {

@@ -45,9 +45,11 @@ type User struct {
 	Family       *string   `json:"family,omitempty"`
 	USTARanking  *string   `json:"usta_ranking,omitempty"`
 	Birthday     *string   `json:"birthday,omitempty"` // "YYYY-MM-DD"
-	HasFamily    bool      `json:"has_family"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	HasFamily    bool       `json:"has_family"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
+	LastLoginAt  *time.Time `json:"last_login_at,omitempty"`
+	LoginCount   int        `json:"login_count"`
 }
 
 type Court struct {

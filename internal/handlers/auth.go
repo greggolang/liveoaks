@@ -102,6 +102,7 @@ func (h *AuthHandler) Login(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "invalid credentials")
 	}
 
+	h.DB.Exec(c.Request().Context(), `UPDATE users SET last_login_at = NOW(), login_count = login_count + 1 WHERE id = $1`, user.ID)
 	h.Logger.Log(c.Request().Context(), "login", user.FirstName+" "+user.LastName, user.ID, c.RealIP())
 
 	claims := &middleware.Claims{

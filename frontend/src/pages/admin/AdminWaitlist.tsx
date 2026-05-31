@@ -7,7 +7,7 @@ const USTA_RATINGS = ['2.5', '3.0', '3.5', '4.0', '4.5', '5.0']
 interface Entry {
   id: string; first_name: string; last_name: string
   email?: string; phone?: string; notes?: string; usta_ranking?: string
-  status: string; position?: number; created_at: string
+  status: string; position?: number; application_date?: string; created_at: string
 }
 
 const STATUS_COLOR: Record<string, string> = {
@@ -64,6 +64,7 @@ export default function AdminWaitlist() {
               <tr>
                 <th className="px-3 py-3 text-left w-10">#</th>
                 <th className="px-4 py-3 text-left">Name</th>
+                <th className="px-4 py-3 text-left">Applied</th>
                 <th className="px-4 py-3 text-left">Contact</th>
                 <th className="px-4 py-3 text-left">Notes</th>
                 <th className="px-4 py-3 text-left">Status</th>
@@ -78,6 +79,11 @@ export default function AdminWaitlist() {
                   </td>
                   <td className="px-4 py-3 font-medium text-gray-800">
                     {w.first_name} {w.last_name}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
+                    {w.application_date
+                      ? new Date(w.application_date + 'T12:00:00').toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+                      : <span className="text-gray-300">—</span>}
                   </td>
                   <td className="px-4 py-3">
                     {editContact === w.id ? (

@@ -82,6 +82,7 @@ func main() {
 	google := &handlers.GoogleHandler{DB: pool, ServiceAccount: []byte(cfg.GoogleSAJSON)}
 	camera := &handlers.CameraHandler{DB: pool, CameraToken: cfg.CameraToken, HLSDir: cfg.CameraHLSDir, SiteURL: cfg.SiteURL, Mailer: mailer}
 	camera.Init()
+	alerts := &handlers.AlertsHandler{DB: pool}
 	contacts := &handlers.ContactsHandler{DB: pool}
 	friends := &handlers.FriendsHandler{DB: pool}
 	perms := &handlers.PermissionsHandler{DB: pool}
@@ -359,6 +360,13 @@ func main() {
 	authed.GET("/camera/embed", camera.EmbedURL)
 	adminOnly.PUT("/camera/url", camera.UpdateURL)
 	boardPlus.GET("/admin/camera/status", camera.AdminStatus)
+
+	// Member alerts (admin → member dashboard)
+	authed.GET("/member-alerts", alerts.GetMyAlerts)
+	authed.POST("/member-alerts/:id/dismiss", alerts.Dismiss)
+	boardPlus.GET("/admin/member-alerts/:userId", alerts.AdminList)
+	boardPlus.POST("/admin/member-alerts", alerts.AdminCreate)
+	boardPlus.DELETE("/admin/member-alerts/:id", alerts.AdminDelete)
 
 	// Serve uploaded files
 	e.GET("/uploads/documents/:filename", uploads.ServeDocument)
