@@ -33,6 +33,7 @@ interface AuthContextType {
   bookingMaxDaysAhead: number
   hasPermission: (page: string) => boolean
   clubLogo: string
+  setClubLogo: (url: string) => void
 }
 
 const AuthContext = createContext<AuthContextType>(null!)
@@ -109,6 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       bookingMaxDaysAhead,
       hasPermission: (page: string) => (user ? allRoles(user).includes('admin') : false) || myPages.has(page),
       clubLogo,
+      setClubLogo,
     }}>
       {children}
     </AuthContext.Provider>
