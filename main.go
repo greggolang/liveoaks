@@ -86,7 +86,7 @@ func main() {
 	friends := &handlers.FriendsHandler{DB: pool}
 	perms := &handlers.PermissionsHandler{DB: pool}
 	feedback := &handlers.FeedbackHandler{DB: pool}
-	family := &handlers.FamilyHandler{DB: pool}
+	family := &handlers.FamilyHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	groups := &handlers.GroupsHandler{DB: pool}
 	notes := &handlers.NotesHandler{DB: pool}
 	broadcast := &handlers.BroadcastHandler{DB: pool, Mailer: mailer}
@@ -126,6 +126,7 @@ func main() {
 	authed.POST("/bookings", bookings.Create)
 	authed.PUT("/bookings/:id", bookings.Update)
 	authed.DELETE("/bookings/:id", bookings.Delete)
+	authed.GET("/booking-cancel-reasons", bookings.ListCancelReasons)
 
 	authed.GET("/announcements", announcements.List)
 	authed.POST("/announcements/:id/read", announcements.Confirm)
@@ -172,6 +173,8 @@ func main() {
 	// Board+
 	boardPlus := authed.Group("", mw.RequireRole(mw.BoardRoleList()...))
 	boardPlus.POST("/admin/bookings", bookings.AdminCreate)
+	boardPlus.POST("/admin/booking-cancel-reasons", bookings.CreateCancelReason)
+	boardPlus.DELETE("/admin/booking-cancel-reasons/:id", bookings.DeleteCancelReason)
 	boardPlus.POST("/announcements", announcements.Create)
 	boardPlus.PUT("/announcements/:id", announcements.Update)
 	boardPlus.DELETE("/announcements/:id", announcements.Delete)
@@ -318,6 +321,7 @@ func main() {
 	authed.POST("/family-members", family.Create)
 	authed.PUT("/family-members/:id", family.Update)
 	authed.DELETE("/family-members/:id", family.Delete)
+	authed.PUT("/family-members/:id/password", family.SetPassword)
 	boardPlus.GET("/admin/users/:userId/family", family.AdminList)
 	boardPlus.POST("/admin/users/:userId/family", family.AdminCreate)
 	boardPlus.PUT("/admin/users/:userId/family/:id", family.AdminUpdate)

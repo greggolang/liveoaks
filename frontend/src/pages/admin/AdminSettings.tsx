@@ -79,6 +79,29 @@ export default function AdminSettings() {
   const load = () => api.admin.settings().then(d => setSettings(d as Record<string, string>))
   useEffect(() => { load() }, [])
 
+  // Cancellation reasons
+  const [cancelReasons, setCancelReasons] = useState<{ id: string; reason: string }[]>([])
+  const [newReason, setNewReason] = useState('')
+  const [addingReason, setAddingReason] = useState(false)
+  useEffect(() => {
+    api.bookings.cancelReasons.list()
+      .then(d => setCancelReasons(d as { id: string; reason: string }[]))
+      .catch(() => {})
+  }, [])
+  const addReason = async () => {
+    if (!newReason.trim()) return
+    setAddingReason(true)
+    try {
+      const d = await api.bookings.cancelReasons.create(newReason.trim()) as { id: string; reason: string }
+      setCancelReasons(prev => [...prev, d])
+      setNewReason('')
+    } finally { setAddingReason(false) }
+  }
+  const removeReason = async (id: string) => {
+    await api.bookings.cancelReasons.delete(id)
+    setCancelReasons(prev => prev.filter(r => r.id !== id))
+  }
+
   // Bylaws PDF state
   const [bylawsUploadedAt, setBylawsUploadedAt] = useState<string | null>(null)
   const [bylawsFile, setBylawsFile] = useState<File | null>(null)
@@ -310,6 +333,42 @@ export default function AdminSettings() {
         <p className="text-xs text-gray-400 mt-3">
           Uploading replaces the version members see and download on the Bylaws page.
         </p>
+      </div>
+
+      {/* Cancellation Reasons */}
+      <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 mt-6">
+        <h3 className="font-semibold text-gray-800 mb-1">Booking Cancellation Reasons</h3>
+        <p className="text-sm text-gray-500 mb-4">
+          These canned reasons appear in the cancellation modal so members can quickly pick one.
+          Members can also type a custom reason.
+        </p>
+        <div className="space-y-2 mb-4">
+          {cancelReasons.length === 0 && (
+            <p className="text-sm text-gray-400 italic">No reasons defined yet.</p>
+          )}
+          {cancelReasons.map(r => (
+            <div key={r.id} className="flex items-center justify-between gap-3 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg">
+              <span className="text-sm text-gray-700">{r.reason}</span>
+              <button onClick={() => removeReason(r.id)}
+                className="text-gray-300 hover:text-red-500 transition text-sm shrink-0">
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+        <div className="flex gap-2">
+          <input
+            value={newReason}
+            onChange={e => setNewReason(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && addReason()}
+            placeholder="Add a reason…"
+            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+          />
+          <button onClick={addReason} disabled={addingReason || !newReason.trim()}
+            className="px-4 py-2 bg-green-700 text-white rounded-lg text-sm font-medium hover:bg-green-800 transition disabled:opacity-50">
+            Add
+          </button>
+        </div>
       </div>
     </div>
   )

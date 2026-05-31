@@ -371,13 +371,6 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 			ctaHTML = fmt.Sprintf(`<p style="margin:16px 0"><a href="%s/bookings" style="color:#15803d">View your bookings →</a></p>`, h.SiteURL)
 		}
 
-		icalURL := fmt.Sprintf("%s/api/bookings/%s/ical", h.SiteURL, booking.ID)
-		calHTML := calendarLinksHTML(
-			fmt.Sprintf("%s – %s – Live Oaks Tennis Club", matchLabel, courtName),
-			fmt.Sprintf("Match Type: %s\nCourt: %s\nHost: %s", matchLabel, courtName, hostName),
-			req.StartTime, req.EndTime, icalURL,
-		)
-
 		body := fmt.Sprintf(`
 <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
   <h2 style="color:#15803d">🎾 Booking Confirmed</h2>
@@ -391,8 +384,7 @@ func (h *BookingsHandler) Create(c echo.Context) error {
     <ul style="margin:8px 0;padding-left:20px;color:#374151">%s</ul>
   </div>
   %s
-  %s
-</div>`, hostName, courtName, startStr, endStr, matchLabel, rosterHTML, ctaHTML, calHTML)
+</div>`, hostName, courtName, startStr, endStr, matchLabel, rosterHTML, ctaHTML)
 		go h.Mailer.Send(hostEmail, "Booking confirmed – "+courtName, body)
 	}
 
@@ -502,6 +494,11 @@ func (h *BookingsHandler) Delete(c echo.Context) error {
 	userID := c.Get("user_id").(string)
 	role := c.Get("role").(string)
 
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	c.Bind(&req) // optional body — ignore bind errors
+
 	var ownerID string
 	err := h.DB.QueryRow(c.Request().Context(),
 		`SELECT user_id FROM bookings WHERE id = $1`, id).Scan(&ownerID)
@@ -533,27 +530,97 @@ func (h *BookingsHandler) Delete(c echo.Context) error {
 
 	// Email all roster players before the booking is deleted
 	if h.Mailer != nil {
-		var courtName string
+		var courtName, matchType string
 		var startTime, endTime time.Time
 		h.DB.QueryRow(c.Request().Context(),
-			`SELECT ct.name, b.start_time, b.end_time FROM bookings b
-			 JOIN courts ct ON ct.id = b.court_id WHERE b.id = $1`, id,
-		).Scan(&courtName, &startTime, &endTime)
+			`SELECT ct.name, COALESCE(b.match_type,'casual'), b.start_time, b.end_time
+			 FROM bookings b JOIN courts ct ON ct.id = b.court_id WHERE b.id = $1`, id,
+		).Scan(&courtName, &matchType, &startTime, &endTime)
 		if courtName != "" {
-			card := bookingCard(courtName, startTime, endTime, loadTimezone(c.Request().Context(), h.DB))
+			loc := loadTimezone(c.Request().Context(), h.DB)
+			startStr := startTime.In(loc).Format("Mon Jan 2 at 3:04 PM MST")
+			endStr := endTime.In(loc).Format("3:04 PM MST")
+			matchTypeLabels := map[string]string{
+				"singles": "Singles", "doubles": "Doubles",
+				"casual": "Hit Session", "ball_machine": "Ball Machine",
+			}
+			matchLabel := matchTypeLabels[matchType]
+			if matchLabel == "" {
+				matchLabel = "Tennis"
+			}
+			var reasonHTML string
+			if req.Reason != "" {
+				reasonHTML = fmt.Sprintf(`
+  <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px;margin:12px 0;color:#991b1b">
+    <strong>Reason:</strong> %s
+  </div>`, req.Reason)
+			}
 			body := fmt.Sprintf(`
 <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
   <h2 style="color:#dc2626">❌ Booking Cancelled</h2>
   <p>The following court booking has been cancelled:</p>
-  <div style="background:#fef2f2;border-radius:8px;padding:16px;margin:16px 0">%s</div>
+  <div style="background:#fef2f2;border-radius:8px;padding:16px;margin:16px 0">
+    <div style="margin:4px 0">🎾 <strong>%s</strong></div>
+    <div style="margin:4px 0">⏰ <strong>%s – %s</strong></div>
+    <div style="margin:4px 0">📋 <strong>%s</strong></div>
+  </div>
+  %s
   <a href="%s/bookings" style="color:#15803d">View your bookings →</a>
-</div>`, card, h.SiteURL)
+</div>`, courtName, startStr, endStr, matchLabel, reasonHTML, h.SiteURL)
 			go h.emailRoster(id, "Booking cancelled – "+courtName, body)
 		}
 	}
 
 	h.DB.Exec(c.Request().Context(), `DELETE FROM bookings WHERE id = $1`, id)
 	h.Logger.Log(c.Request().Context(), "booking_cancelled", id, userID, c.RealIP())
+	return c.NoContent(http.StatusNoContent)
+}
+
+// ListCancelReasons returns all admin-defined cancellation reasons.
+func (h *BookingsHandler) ListCancelReasons(c echo.Context) error {
+	rows, err := h.DB.Query(c.Request().Context(),
+		`SELECT id, reason FROM booking_cancel_reasons ORDER BY sort_order, created_at`)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch reasons")
+	}
+	defer rows.Close()
+	type Item struct {
+		ID     string `json:"id"`
+		Reason string `json:"reason"`
+	}
+	items := []Item{}
+	for rows.Next() {
+		var i Item
+		if err := rows.Scan(&i.ID, &i.Reason); err != nil {
+			continue
+		}
+		items = append(items, i)
+	}
+	return c.JSON(http.StatusOK, items)
+}
+
+// CreateCancelReason adds a new canned cancellation reason (admin+).
+func (h *BookingsHandler) CreateCancelReason(c echo.Context) error {
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	if err := c.Bind(&req); err != nil || req.Reason == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "reason required")
+	}
+	var id string
+	err := h.DB.QueryRow(c.Request().Context(),
+		`INSERT INTO booking_cancel_reasons (reason) VALUES ($1) RETURNING id`, req.Reason,
+	).Scan(&id)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not create reason")
+	}
+	return c.JSON(http.StatusCreated, map[string]string{"id": id, "reason": req.Reason})
+}
+
+// DeleteCancelReason removes a canned cancellation reason (admin+).
+func (h *BookingsHandler) DeleteCancelReason(c echo.Context) error {
+	h.DB.Exec(c.Request().Context(),
+		`DELETE FROM booking_cancel_reasons WHERE id = $1`, c.Param("id"))
 	return c.NoContent(http.StatusNoContent)
 }
 

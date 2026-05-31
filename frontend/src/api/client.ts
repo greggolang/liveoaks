@@ -62,7 +62,15 @@ export const api = {
     adminCreate: (data: object) => request('/admin/bookings', { method: 'POST', body: JSON.stringify(data) }),
     create: (data: object) => request('/bookings', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: object) => request(`/bookings/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-    delete: (id: string) => request(`/bookings/${id}`, { method: 'DELETE' }),
+    delete: (id: string, reason?: string) => request(`/bookings/${id}`, {
+      method: 'DELETE',
+      body: reason ? JSON.stringify({ reason }) : undefined,
+    }),
+    cancelReasons: {
+      list: () => request('/booking-cancel-reasons'),
+      create: (reason: string) => request('/admin/booking-cancel-reasons', { method: 'POST', body: JSON.stringify({ reason }) }),
+      delete: (id: string) => request(`/admin/booking-cancel-reasons/${id}`, { method: 'DELETE' }),
+    },
   },
   announcements: {
     list: () => request('/announcements'),
@@ -236,6 +244,8 @@ export const api = {
     adminCreate: (userId: string, data: object) => request(`/admin/users/${userId}/family`, { method: 'POST', body: JSON.stringify(data) }),
     adminUpdate: (userId: string, id: string, data: object) => request(`/admin/users/${userId}/family/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     adminDelete: (userId: string, id: string) => request(`/admin/users/${userId}/family/${id}`, { method: 'DELETE' }),
+    setPassword: (id: string, password: string) =>
+      request(`/family-members/${id}/password`, { method: 'PUT', body: JSON.stringify({ password }) }),
   },
   feedback: {
     submit: (message: string, type: 'idea' | 'bug', page?: string) =>

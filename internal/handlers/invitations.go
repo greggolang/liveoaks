@@ -361,12 +361,6 @@ func (h *InvitationsHandler) AddPlayer(c echo.Context) error {
 			matchLabel = "Tennis"
 		}
 		playerFirst := req.PlayerName
-		icalURL := fmt.Sprintf("%s/api/bookings/%s/ical", h.SiteURL, bookingID)
-		calHTML := calendarLinksHTML(
-			fmt.Sprintf("%s – %s – Live Oaks Tennis Club", matchLabel, courtName),
-			fmt.Sprintf("Match Type: %s\nCourt: %s\nAdded by: %s", matchLabel, courtName, hostName),
-			bookingStart, bookingEnd, icalURL,
-		)
 		body := fmt.Sprintf(`
 <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
   <h2 style="color:#15803d">🎾 You've Been Added to a Booking</h2>
@@ -375,9 +369,8 @@ func (h *InvitationsHandler) AddPlayer(c echo.Context) error {
   <div style="background:#f0fdf4;border-radius:8px;padding:16px;margin:16px 0">%s
     <div style="margin-top:8px;color:#166534;font-size:14px">%s</div>
   </div>
-  %s
   <p style="margin-top:4px"><a href="%s/bookings" style="color:#15803d;font-size:13px">View bookings →</a></p>
-</div>`, playerFirst, hostName, card, matchLabel, calHTML, h.SiteURL)
+</div>`, playerFirst, hostName, card, matchLabel, h.SiteURL)
 		go h.Mailer.Send(req.PlayerEmail, "You've been added to a booking – "+courtName, body)
 	}
 
@@ -628,13 +621,15 @@ func (h *InvitationsHandler) sendDeclinedEmail(to, playerName, court, dateStr, b
 }
 
 func (h *InvitationsHandler) sendAcceptedEmail(to, playerName, court, dateStr, bookingID string) {
-	// Fetch current roster and capacity
+	// Fetch current roster, capacity, and times
 	type rosterRow struct {
 		name   string
 		isHost bool
 	}
 	var players []rosterRow
 	var playersNeeded int
+	var startTime, endTime time.Time
+	var matchType string
 
 	rows, err := h.DB.Query(context.Background(), `
 		SELECT mp.player_name, mp.is_host
@@ -650,7 +645,9 @@ func (h *InvitationsHandler) sendAcceptedEmail(to, playerName, court, dateStr, b
 		}
 	}
 	h.DB.QueryRow(context.Background(),
-		`SELECT players_needed FROM bookings WHERE id = $1`, bookingID).Scan(&playersNeeded)
+		`SELECT players_needed, start_time, end_time, COALESCE(match_type,'casual')
+		 FROM bookings WHERE id = $1`, bookingID,
+	).Scan(&playersNeeded, &startTime, &endTime, &matchType)
 
 	// Roster list HTML
 	rosterHTML := ""
@@ -680,6 +677,25 @@ func (h *InvitationsHandler) sendAcceptedEmail(to, playerName, court, dateStr, b
 </p>`, spotsLeft, map[bool]string{true: "", false: "s"}[spotsLeft == 1], h.SiteURL)
 	}
 
+	// Calendar link — only when roster is complete
+	calHTML := ""
+	if spotsLeft <= 0 {
+		matchTypeLabels := map[string]string{
+			"singles": "Singles", "doubles": "Doubles",
+			"casual": "Hit Session", "ball_machine": "Ball Machine",
+		}
+		matchLabel := matchTypeLabels[matchType]
+		if matchLabel == "" {
+			matchLabel = "Tennis"
+		}
+		icalURL := fmt.Sprintf("%s/api/bookings/%s/ical", h.SiteURL, bookingID)
+		calHTML = calendarLinksHTML(
+			fmt.Sprintf("%s – %s – Live Oaks Tennis Club", matchLabel, court),
+			fmt.Sprintf("Match Type: %s\nCourt: %s", matchLabel, court),
+			startTime, endTime, icalURL,
+		)
+	}
+
 	body := fmt.Sprintf(`
 <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
   <h2 style="color:#15803d">✓ Invitation Accepted</h2>
@@ -691,8 +707,9 @@ func (h *InvitationsHandler) sendAcceptedEmail(to, playerName, court, dateStr, b
     <ul style="margin:8px 0;padding-left:20px;color:#374151">%s</ul>
   </div>
   %s
+  %s
   <p><a href="%s/bookings" style="color:#15803d;font-size:13px">View all your bookings →</a></p>
-</div>`, playerName, court, dateStr, rosterHTML, spotsHTML, h.SiteURL)
+</div>`, playerName, court, dateStr, rosterHTML, spotsHTML, calHTML, h.SiteURL)
 	h.Mailer.Send(to, playerName+" accepted your match invitation", body)
 }
 
@@ -749,13 +766,6 @@ func (h *InvitationsHandler) sendMatchFullHostEmail(to, bookingID string) {
 		}
 	}
 
-	icalURL := fmt.Sprintf("%s/api/bookings/%s/ical", h.SiteURL, bookingID)
-	calHTML := calendarLinksHTML(
-		fmt.Sprintf("%s – %s – Live Oaks Tennis Club", matchLabel, courtName),
-		fmt.Sprintf("Match Type: %s\nCourt: %s", matchLabel, courtName),
-		startTime, endTime, icalURL,
-	)
-
 	body := fmt.Sprintf(`
 <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
   <h2 style="color:#15803d">🎾 Your Match is Full!</h2>
@@ -767,8 +777,7 @@ func (h *InvitationsHandler) sendMatchFullHostEmail(to, bookingID string) {
     <div style="margin-top:12px;font-weight:600;color:#166534">Your Roster:</div>
     <ul style="margin:8px 0;padding-left:20px;color:#374151">%s</ul>
   </div>
-  %s
   <p><a href="%s/bookings" style="color:#15803d;font-size:13px">View your bookings →</a></p>
-</div>`, courtName, timeStr, endStr, matchLabel, rosterHTML, calHTML, h.SiteURL)
+</div>`, courtName, timeStr, endStr, matchLabel, rosterHTML, h.SiteURL)
 	h.Mailer.Send(to, "Your match is full – "+courtName, body)
 }

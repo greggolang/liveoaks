@@ -15,6 +15,7 @@ interface UserProfile {
 interface FamilyMember {
   id: string; first_name: string; last_name: string
   relationship: string; birthday?: string; email?: string; phone?: string
+  linked_user_id?: string
 }
 
 export default function Profile() {
@@ -37,6 +38,12 @@ export default function Profile() {
   const [editFamilyForm, setEditFamilyForm] = useState(emptyFamilyForm)
   const [savingEditFamily, setSavingEditFamily] = useState(false)
   const [editFamilyError, setEditFamilyError] = useState('')
+  // Family member password
+  const [settingPasswordId, setSettingPasswordId] = useState<string | null>(null)
+  const [pwFamilyForm, setPwFamilyForm] = useState({ password: '', confirm: '' })
+  const [savingFamilyPw, setSavingFamilyPw] = useState(false)
+  const [familyPwError, setFamilyPwError] = useState('')
+  const [familyPwDone, setFamilyPwDone] = useState(false)
 
   const loadFamily = () => api.family.list().then(d => setFamilyMembers(d as FamilyMember[]))
 
@@ -94,6 +101,31 @@ export default function Profile() {
     if (!confirm('Remove this family member?')) return
     await api.family.delete(id)
     loadFamily()
+  }
+
+  const openFamilyPassword = (id: string) => {
+    setSettingPasswordId(id)
+    setPwFamilyForm({ password: '', confirm: '' })
+    setFamilyPwError('')
+    setFamilyPwDone(false)
+    setEditingFamilyId(null)
+  }
+
+  const saveFamilyPassword = async (id: string) => {
+    setFamilyPwError('')
+    if (pwFamilyForm.password.length < 8) { setFamilyPwError('Password must be at least 8 characters.'); return }
+    if (pwFamilyForm.password !== pwFamilyForm.confirm) { setFamilyPwError('Passwords do not match.'); return }
+    setSavingFamilyPw(true)
+    try {
+      await api.family.setPassword(id, pwFamilyForm.password)
+      setFamilyPwDone(true)
+      loadFamily()
+      setTimeout(() => { setSettingPasswordId(null); setFamilyPwDone(false) }, 1500)
+    } catch (err: any) {
+      setFamilyPwError(err.message || 'Could not set password.')
+    } finally {
+      setSavingFamilyPw(false)
+    }
   }
 
   const set = (f: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -282,12 +314,57 @@ export default function Profile() {
                       </button>
                     </div>
                   </div>
+                ) : settingPasswordId === m.id ? (
+                  <div className="border border-indigo-200 bg-indigo-50 rounded-xl p-4 space-y-3">
+                    <p className="text-xs font-medium text-indigo-800">
+                      {m.linked_user_id ? 'Reset' : 'Set'} login password for {m.first_name}
+                    </p>
+                    {familyPwDone ? (
+                      <p className="text-sm font-semibold text-green-700">✓ Password saved!</p>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">New Password *</label>
+                            <input type="password" value={pwFamilyForm.password}
+                              onChange={e => setPwFamilyForm(f => ({ ...f, password: e.target.value }))}
+                              autoFocus
+                              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Confirm Password *</label>
+                            <input type="password" value={pwFamilyForm.confirm}
+                              onChange={e => setPwFamilyForm(f => ({ ...f, confirm: e.target.value }))}
+                              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                          </div>
+                        </div>
+                        {familyPwError && <p className="text-sm text-red-600">{familyPwError}</p>}
+                        <div className="flex gap-3">
+                          <button onClick={() => saveFamilyPassword(m.id)} disabled={savingFamilyPw}
+                            className="bg-indigo-700 hover:bg-indigo-800 text-white font-semibold px-5 py-2 rounded-lg text-sm transition disabled:opacity-50">
+                            {savingFamilyPw ? 'Saving…' : 'Save Password'}
+                          </button>
+                          <button onClick={() => setSettingPasswordId(null)}
+                            className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition">
+                            Cancel
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 ) : (
                   <div className="flex items-start justify-between bg-gray-50 rounded-xl px-4 py-3">
                     <div>
-                      <span className="font-medium text-gray-800 text-sm">{m.first_name} {m.last_name}</span>
-                      <span className="ml-2 text-xs text-gray-400 capitalize">{m.relationship}</span>
-                      {m.birthday && <span className="ml-2 text-xs text-gray-400">b. {m.birthday}</span>}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-gray-800 text-sm">{m.first_name} {m.last_name}</span>
+                        <span className="text-xs text-gray-400 capitalize">{m.relationship}</span>
+                        {m.birthday && <span className="text-xs text-gray-400">b. {m.birthday}</span>}
+                        {m.linked_user_id && (
+                          <span className="text-xs font-medium text-green-700 bg-green-100 px-1.5 py-0.5 rounded-full">
+                            ✓ Can log in
+                          </span>
+                        )}
+                      </div>
                       {(m.email || m.phone) && (
                         <div className="text-xs text-gray-400 mt-0.5 space-x-2">
                           {m.email && <span>{m.email}</span>}
@@ -296,6 +373,12 @@ export default function Profile() {
                       )}
                     </div>
                     <div className="flex gap-3 shrink-0 ml-3">
+                      {m.email && (
+                        <button onClick={() => openFamilyPassword(m.id)}
+                          className="text-xs text-indigo-500 hover:text-indigo-700 font-medium transition">
+                          {m.linked_user_id ? 'Reset Password' : 'Set Password'}
+                        </button>
+                      )}
                       <button onClick={() => openEditFamily(m)}
                         className="text-xs text-blue-500 hover:text-blue-700 font-medium transition">Edit</button>
                       <button onClick={() => removeFamily(m.id)}
