@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { api } from '../../api/client'
+import { formatPhone } from '../../utils/phone'
 
 interface Signup {
   id: string; full_name: string; email: string; phone?: string; member_status: string
@@ -174,7 +175,7 @@ export default function AdminEventSignups() {
 
               {expanded === s.id && (
                 <div className="border-t border-gray-100 px-4 py-4 bg-gray-50 grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                  {s.phone && <div><span className="text-gray-500">Phone:</span> {s.phone}</div>}
+                  {s.phone && <div><span className="text-gray-500">Phone:</span> {formatPhone(s.phone)}</div>}
                   {s.playing_tennis && s.skill_level && <div><span className="text-gray-500">Skill:</span> {s.skill_level}</div>}
                   {s.playing_tennis && s.formats?.length ? <div><span className="text-gray-500">Formats:</span> {s.formats.join(', ')}</div> : null}
                   {s.preferred_partner && <div><span className="text-gray-500">Partner:</span> {s.preferred_partner}</div>}
@@ -185,7 +186,7 @@ export default function AdminEventSignups() {
                   {s.volunteer_roles?.filter(r => r !== 'Not This Time').length ? (
                     <div className="col-span-2"><span className="text-gray-500">Volunteering:</span> {s.volunteer_roles?.filter(r => r !== 'Not This Time').join(', ')} ({s.volunteer_time})</div>
                   ) : null}
-                  {s.emergency_name && <div><span className="text-gray-500">Emergency:</span> {s.emergency_name} {s.emergency_phone}</div>}
+                  {s.emergency_name && <div><span className="text-gray-500">Emergency:</span> {s.emergency_name} {formatPhone(s.emergency_phone)}</div>}
                   {s.comments && <div className="col-span-3 italic text-gray-600">"{s.comments}"</div>}
                 </div>
               )}

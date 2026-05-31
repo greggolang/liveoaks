@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../../api/client'
+import { formatPhone } from '../../utils/phone'
 
 const USTA_RATINGS = ['2.5', '3.0', '3.5', '4.0', '4.5', '5.0']
 
@@ -117,7 +118,7 @@ export default function AdminWaitlist() {
                         {w.email || w.phone ? (
                           <>
                             {w.email && <div className="text-gray-600 text-xs">{w.email}</div>}
-                            {w.phone && <div className="text-gray-400 text-xs">{w.phone}</div>}
+                            {w.phone && <div className="text-gray-400 text-xs">{formatPhone(w.phone)}</div>}
                             {w.usta_ranking && (
                               <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium mt-0.5 inline-block">
                                 USTA {w.usta_ranking}

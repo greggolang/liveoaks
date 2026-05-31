@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
+import { formatPhone } from '../utils/phone'
 
 const USTA_RATINGS = ['2.5', '3.0', '3.5', '4.0', '4.5', '5.0']
-const RELATIONSHIPS = ['spouse', 'child', 'parent', 'sibling', 'other']
+const RELATIONSHIPS = ['spouse', 'child', 'parent']
 const emptyFamilyForm = { first_name: '', last_name: '', relationship: 'spouse', birthday: '', email: '', phone: '' }
 
 interface UserProfile {
@@ -31,9 +32,11 @@ export default function Profile() {
   const [showFamilyForm, setShowFamilyForm] = useState(false)
   const [familyForm, setFamilyForm] = useState(emptyFamilyForm)
   const [savingFamily, setSavingFamily] = useState(false)
+  const [familyError, setFamilyError] = useState('')
   const [editingFamilyId, setEditingFamilyId] = useState<string | null>(null)
   const [editFamilyForm, setEditFamilyForm] = useState(emptyFamilyForm)
   const [savingEditFamily, setSavingEditFamily] = useState(false)
+  const [editFamilyError, setEditFamilyError] = useState('')
 
   const loadFamily = () => api.family.list().then(d => setFamilyMembers(d as FamilyMember[]))
 
@@ -47,13 +50,18 @@ export default function Profile() {
   }, [])
 
   const addFamilyMember = async () => {
-    if (!familyForm.first_name || !familyForm.last_name || !familyForm.birthday) return
+    setFamilyError('')
+    if (!familyForm.first_name || !familyForm.last_name) { setFamilyError('First and last name are required.'); return }
+    if (familyForm.relationship === 'child' && !familyForm.birthday) { setFamilyError('Please add a birthday for children.'); return }
     setSavingFamily(true)
     try {
       await api.family.create(familyForm)
       setFamilyForm(emptyFamilyForm)
+      setFamilyError('')
       setShowFamilyForm(false)
       loadFamily()
+    } catch (err: any) {
+      setFamilyError(err.message || 'Could not save family member.')
     } finally { setSavingFamily(false) }
   }
 
@@ -68,12 +76,17 @@ export default function Profile() {
   }
 
   const saveEditFamily = async () => {
-    if (!editingFamilyId || !editFamilyForm.first_name || !editFamilyForm.last_name || !editFamilyForm.birthday) return
+    setEditFamilyError('')
+    if (!editingFamilyId || !editFamilyForm.first_name || !editFamilyForm.last_name) { setEditFamilyError('First and last name are required.'); return }
+    if (editFamilyForm.relationship === 'child' && !editFamilyForm.birthday) { setEditFamilyError('Please add a birthday for children.'); return }
     setSavingEditFamily(true)
     try {
       await api.family.update(editingFamilyId, editFamilyForm)
       setEditingFamilyId(null)
+      setEditFamilyError('')
       loadFamily()
+    } catch (err: any) {
+      setEditFamilyError(err.message || 'Could not save family member.')
     } finally { setSavingEditFamily(false) }
   }
 
@@ -257,12 +270,13 @@ export default function Profile() {
                           className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                       </div>
                     </div>
+                    {editFamilyError && <p className="text-sm text-red-600">{editFamilyError}</p>}
                     <div className="flex gap-3">
                       <button onClick={saveEditFamily} disabled={savingEditFamily}
                         className="bg-blue-700 hover:bg-blue-800 text-white font-semibold px-5 py-2 rounded-lg text-sm transition disabled:opacity-50">
                         {savingEditFamily ? 'Saving…' : 'Save'}
                       </button>
-                      <button onClick={() => setEditingFamilyId(null)}
+                      <button onClick={() => { setEditingFamilyId(null); setEditFamilyError('') }}
                         className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition">
                         Cancel
                       </button>
@@ -277,7 +291,7 @@ export default function Profile() {
                       {(m.email || m.phone) && (
                         <div className="text-xs text-gray-400 mt-0.5 space-x-2">
                           {m.email && <span>{m.email}</span>}
-                          {m.phone && <span>{m.phone}</span>}
+                          {m.phone && <span>{formatPhone(m.phone)}</span>}
                         </div>
                       )}
                     </div>
@@ -336,12 +350,13 @@ export default function Profile() {
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
               </div>
             </div>
+            {familyError && <p className="text-sm text-red-600">{familyError}</p>}
             <div className="flex gap-3">
               <button onClick={addFamilyMember} disabled={savingFamily}
                 className="bg-green-700 hover:bg-green-800 text-white font-semibold px-5 py-2 rounded-lg text-sm transition disabled:opacity-50">
                 {savingFamily ? 'Adding…' : 'Add Family Member'}
               </button>
-              <button onClick={() => { setShowFamilyForm(false); setFamilyForm(emptyFamilyForm) }}
+              <button onClick={() => { setShowFamilyForm(false); setFamilyForm(emptyFamilyForm); setFamilyError('') }}
                 className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition">
                 Cancel
               </button>

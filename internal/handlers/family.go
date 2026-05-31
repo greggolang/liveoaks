@@ -67,8 +67,11 @@ func (h *FamilyHandler) Create(c echo.Context) error {
 		Notes        string `json:"notes"`
 		Birthday     string `json:"birthday"`
 	}
-	if err := c.Bind(&req); err != nil || req.FirstName == "" || req.LastName == "" || req.Birthday == "" {
-		return echo.NewHTTPError(http.StatusBadRequest, "first name, last name, and birthday required")
+	if err := c.Bind(&req); err != nil || req.FirstName == "" || req.LastName == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "first name and last name required")
+	}
+	if req.Relationship == "child" && req.Birthday == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "birthday is required for children")
 	}
 	if req.Relationship == "" {
 		req.Relationship = "other"
@@ -77,7 +80,7 @@ func (h *FamilyHandler) Create(c echo.Context) error {
 	var bday *time.Time
 	err := h.DB.QueryRow(c.Request().Context(),
 		`INSERT INTO family_members (user_id, first_name, last_name, relationship, phone, email, notes, birthday)
-		 VALUES ($1, $2, $3, $4, NULLIF($5,''), NULLIF($6,''), NULLIF($7,''), $8::date)
+		 VALUES ($1, $2, $3, $4, NULLIF($5,''), NULLIF($6,''), NULLIF($7,''), NULLIF($8,'')::date)
 		 RETURNING id, user_id, first_name, last_name, relationship, phone, email, notes, birthday, created_at`,
 		userID, req.FirstName, req.LastName, req.Relationship, req.Phone, req.Email, req.Notes, req.Birthday,
 	).Scan(&m.ID, &m.UserID, &m.FirstName, &m.LastName, &m.Relationship, &m.Phone, &m.Email, &m.Notes, &bday, &m.CreatedAt)
@@ -100,13 +103,16 @@ func (h *FamilyHandler) Update(c echo.Context) error {
 		Notes        string `json:"notes"`
 		Birthday     string `json:"birthday"`
 	}
-	if err := c.Bind(&req); err != nil || req.FirstName == "" || req.LastName == "" || req.Birthday == "" {
-		return echo.NewHTTPError(http.StatusBadRequest, "first name, last name, and birthday required")
+	if err := c.Bind(&req); err != nil || req.FirstName == "" || req.LastName == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "first name and last name required")
+	}
+	if req.Relationship == "child" && req.Birthday == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "birthday is required for children")
 	}
 	_, err := h.DB.Exec(c.Request().Context(),
 		`UPDATE family_members SET first_name=$1, last_name=$2, relationship=$3,
 		 phone=NULLIF($4,''), email=NULLIF($5,''), notes=NULLIF($6,''),
-		 birthday=$7::date
+		 birthday=NULLIF($7,'')::date
 		 WHERE id=$8 AND user_id=$9`,
 		req.FirstName, req.LastName, req.Relationship, req.Phone, req.Email, req.Notes, req.Birthday, id, userID)
 	if err != nil {
@@ -135,8 +141,11 @@ func (h *FamilyHandler) AdminCreate(c echo.Context) error {
 		Notes        string `json:"notes"`
 		Birthday     string `json:"birthday"`
 	}
-	if err := c.Bind(&req); err != nil || req.FirstName == "" || req.LastName == "" || req.Birthday == "" {
-		return echo.NewHTTPError(http.StatusBadRequest, "first name, last name, and birthday required")
+	if err := c.Bind(&req); err != nil || req.FirstName == "" || req.LastName == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "first name and last name required")
+	}
+	if req.Relationship == "child" && req.Birthday == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "birthday is required for children")
 	}
 	if req.Relationship == "" {
 		req.Relationship = "other"
@@ -145,7 +154,7 @@ func (h *FamilyHandler) AdminCreate(c echo.Context) error {
 	var bday *time.Time
 	err := h.DB.QueryRow(c.Request().Context(),
 		`INSERT INTO family_members (user_id, first_name, last_name, relationship, phone, email, notes, birthday)
-		 VALUES ($1, $2, $3, $4, NULLIF($5,''), NULLIF($6,''), NULLIF($7,''), $8::date)
+		 VALUES ($1, $2, $3, $4, NULLIF($5,''), NULLIF($6,''), NULLIF($7,''), NULLIF($8,'')::date)
 		 RETURNING id, user_id, first_name, last_name, relationship, phone, email, notes, birthday, created_at`,
 		targetUserID, req.FirstName, req.LastName, req.Relationship, req.Phone, req.Email, req.Notes, req.Birthday,
 	).Scan(&m.ID, &m.UserID, &m.FirstName, &m.LastName, &m.Relationship, &m.Phone, &m.Email, &m.Notes, &bday, &m.CreatedAt)
@@ -169,13 +178,16 @@ func (h *FamilyHandler) AdminUpdate(c echo.Context) error {
 		Notes        string `json:"notes"`
 		Birthday     string `json:"birthday"`
 	}
-	if err := c.Bind(&req); err != nil || req.FirstName == "" || req.LastName == "" || req.Birthday == "" {
-		return echo.NewHTTPError(http.StatusBadRequest, "first name, last name, and birthday required")
+	if err := c.Bind(&req); err != nil || req.FirstName == "" || req.LastName == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "first name and last name required")
+	}
+	if req.Relationship == "child" && req.Birthday == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "birthday is required for children")
 	}
 	_, err := h.DB.Exec(c.Request().Context(),
 		`UPDATE family_members SET first_name=$1, last_name=$2, relationship=$3,
 		 phone=NULLIF($4,''), email=NULLIF($5,''), notes=NULLIF($6,''),
-		 birthday=$7::date
+		 birthday=NULLIF($7,'')::date
 		 WHERE id=$8 AND user_id=$9`,
 		req.FirstName, req.LastName, req.Relationship, req.Phone, req.Email, req.Notes, req.Birthday, memberID, targetUserID)
 	if err != nil {

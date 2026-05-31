@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 import { Link } from 'react-router-dom'
+import { formatPhone } from '../utils/phone'
 
 interface Member { id: string; first_name: string; last_name: string; email: string; phone?: string; address?: string; family?: string; type: 'member' }
 interface Contact { id: string; first_name: string; last_name: string; email?: string; phone?: string; address?: string; family?: string; category: string; notes?: string; type: 'contact' }
@@ -211,7 +212,7 @@ export default function MemberDirectory() {
                     <a href={`mailto:${e.email}`} className="text-green-700 text-xs hover:underline truncate block">{e.email}</a>
                   )}
                   {e.phone && (
-                    <a href={`tel:${e.phone}`} className="text-gray-600 text-xs mt-0.5 hover:text-green-700 block">📞 {e.phone}</a>
+                    <a href={`tel:${e.phone}`} className="text-gray-600 text-xs mt-0.5 hover:text-green-700 block">📞 {formatPhone(e.phone)}</a>
                   )}
                   {e.address && <div className="text-gray-500 text-xs mt-0.5">📍 {e.address}</div>}
                   {e.family && <div className="text-gray-400 text-xs mt-0.5">👨‍👩‍👧 {e.family}</div>}

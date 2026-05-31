@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../../api/client'
+import { formatPhone } from '../../utils/phone'
 
 const USTA_RATINGS = ['2.5', '3.0', '3.5', '4.0', '4.5', '5.0']
 
@@ -28,12 +29,15 @@ const ALL_ASSIGNABLE_ROLES = [
 
 const emptyEdit = { first_name: '', last_name: '', email: '', phone: '', address: '', family: '', usta_ranking: '', birthday: '' }
 const emptyNew = { first_name: '', last_name: '', email: '', phone: '', password: '', role: 'member', status: 'active' }
-const RELATIONSHIPS = ['spouse', 'child', 'parent', 'sibling', 'other']
+const RELATIONSHIPS = ['spouse', 'child', 'parent']
 
 interface FamilyMember { id: string; first_name: string; last_name: string; relationship: string; phone?: string; email?: string; birthday?: string }
+interface WaitlistEntry { id: string; first_name: string; last_name: string; email?: string; phone?: string; usta_ranking?: string; status: string; created_at: string }
 
 export default function AdminUsers() {
   const [users, setUsers] = useState<User[]>([])
+  const [waitlist, setWaitlist] = useState<WaitlistEntry[]>([])
+  const [waitlistFilter, setWaitlistFilter] = useState(false)
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -49,14 +53,22 @@ export default function AdminUsers() {
   const [showFamilyForm, setShowFamilyForm] = useState(false)
   const [familyForm, setFamilyForm] = useState({ first_name: '', last_name: '', relationship: 'spouse', birthday: '', email: '', phone: '' })
   const [savingFamily, setSavingFamily] = useState(false)
+  const [familyError, setFamilyError] = useState('')
   const [editingFamilyId, setEditingFamilyId] = useState<string | null>(null)
   const [editFamilyForm, setEditFamilyForm] = useState({ first_name: '', last_name: '', relationship: 'spouse', birthday: '', email: '', phone: '' })
   const [savingEditFamily, setSavingEditFamily] = useState(false)
+  const [editFamilyError, setEditFamilyError] = useState('')
   const [editExtraRoles, setEditExtraRoles] = useState<string[]>([])
   const [savingExtraRoles, setSavingExtraRoles] = useState(false)
 
   const load = () => api.admin.users().then(d => setUsers(d as User[]))
+  const loadWaitlist = () => api.waitlist.list().then(d => setWaitlist(d as WaitlistEntry[]))
   const loadFamily = (userId: string) => api.family.adminList(userId).then(d => setFamilyMembers(d as FamilyMember[]))
+  const deleteWaitlistEntry = async (id: string, name: string) => {
+    if (!confirm(`Remove ${name} from the waitlist?`)) return
+    await api.waitlist.delete(id)
+    loadWaitlist()
+  }
 
   const openEdit = (u: User) => {
     setEditing(u)
@@ -72,13 +84,23 @@ export default function AdminUsers() {
   }
 
   const addFamilyMember = async () => {
-    if (!editing || !familyForm.first_name || !familyForm.last_name || !familyForm.birthday) return
+    if (!editing || !familyForm.first_name || !familyForm.last_name) {
+      setFamilyError('First and last name are required.')
+      return
+    }
+    if (familyForm.relationship === 'child' && !familyForm.birthday) {
+      setFamilyError('Birthday is required for children.')
+      return
+    }
     setSavingFamily(true)
+    setFamilyError('')
     try {
       await api.family.adminCreate(editing.id, familyForm)
       setFamilyForm({ first_name: '', last_name: '', relationship: 'spouse', birthday: '', email: '', phone: '' })
       setShowFamilyForm(false)
       loadFamily(editing.id)
+    } catch (err: any) {
+      setFamilyError(err.message || 'Could not save family member.')
     } finally { setSavingFamily(false) }
   }
 
@@ -100,12 +122,22 @@ export default function AdminUsers() {
 
   const saveEditFamily = async () => {
     if (!editing || !editingFamilyId) return
-    if (!editFamilyForm.first_name || !editFamilyForm.last_name || !editFamilyForm.birthday) return
+    if (!editFamilyForm.first_name || !editFamilyForm.last_name) {
+      setEditFamilyError('First and last name are required.')
+      return
+    }
+    if (editFamilyForm.relationship === 'child' && !editFamilyForm.birthday) {
+      setEditFamilyError('Birthday is required for children.')
+      return
+    }
     setSavingEditFamily(true)
+    setEditFamilyError('')
     try {
       await api.family.adminUpdate(editing.id, editingFamilyId, editFamilyForm)
       setEditingFamilyId(null)
       loadFamily(editing.id)
+    } catch (err: any) {
+      setEditFamilyError(err.message || 'Could not save family member.')
     } finally { setSavingEditFamily(false) }
   }
 
@@ -119,7 +151,7 @@ export default function AdminUsers() {
       load()
     } finally { setSaving(false) }
   }
-  useEffect(() => { load() }, [])
+  useEffect(() => { load(); loadWaitlist() }, [])
 
   const setRole = async (id: string, role: string) => {
     await api.admin.updateRole(id, role)
@@ -168,7 +200,14 @@ export default function AdminUsers() {
     return true
   })
 
-  const hasFilters = search || roleFilter || statusFilter || familyFilter
+  const waitlistFiltered = waitlist.filter(w => {
+    if (!search) return true
+    const q = search.toLowerCase()
+    return w.first_name.toLowerCase().includes(q) || w.last_name.toLowerCase().includes(q) ||
+      (w.email ?? '').toLowerCase().includes(q) || (w.phone ?? '').includes(q)
+  })
+
+  const hasFilters = search || roleFilter || statusFilter || familyFilter || waitlistFilter
 
   const roleColor = (role: string): string => {
     if (role === 'admin') return 'bg-purple-100 text-purple-700'
@@ -192,8 +231,8 @@ export default function AdminUsers() {
 
   const counts = {
     total: users.length,
-    active: users.filter(u => u.status === 'active').length,
-    pending: users.filter(u => u.status === 'pending').length,
+    members: users.filter(u => u.role === 'member').length,
+    waitlist: waitlist.length,
     inactive: users.filter(u => u.status === 'inactive').length,
     board: users.filter(u => BOARD_ROLES.includes(u.role)).length,
     admin: users.filter(u => u.role === 'admin').length,
@@ -205,7 +244,7 @@ export default function AdminUsers() {
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-bold text-gray-800">Members</h2>
         <div className="flex items-center gap-3">
-          <span className="text-xs text-gray-400">{filtered.length} of {users.length} shown</span>
+          <span className="text-xs text-gray-400">{waitlistFilter ? waitlistFiltered.length : filtered.length} of {waitlistFilter ? waitlist.length : users.length} shown</span>
           <button onClick={() => { setShowAddModal(true); setAddForm(emptyNew); setAddError('') }}
             className="bg-green-700 hover:bg-green-800 text-white text-sm font-medium px-4 py-1.5 rounded-lg transition">
             + Add Member
@@ -214,15 +253,15 @@ export default function AdminUsers() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 md:grid-cols-7 gap-3 mb-5">
+      <div className="grid grid-cols-4 md:grid-cols-8 gap-3 mb-5">
         {[
-          { label: 'Total',      value: counts.total,      color: 'bg-gray-50 border-gray-200 text-gray-700',   active: !statusFilter && !roleFilter && !familyFilter, click: () => { setStatusFilter(''); setRoleFilter(''); setFamilyFilter(false) } },
-          { label: 'Active',     value: counts.active,     color: 'bg-green-50 border-green-200 text-green-700',  active: statusFilter === 'active',   click: () => { setStatusFilter('active');   setFamilyFilter(false) } },
-          { label: 'Pending',    value: counts.pending,    color: 'bg-yellow-50 border-yellow-200 text-yellow-700', active: statusFilter === 'pending',  click: () => { setStatusFilter('pending');  setFamilyFilter(false) } },
-          { label: 'Inactive',   value: counts.inactive,   color: 'bg-red-50 border-red-200 text-red-700',        active: statusFilter === 'inactive',  click: () => { setStatusFilter('inactive'); setFamilyFilter(false) } },
-          { label: 'Board',      value: counts.board,      color: 'bg-blue-50 border-blue-200 text-blue-700',     active: roleFilter === 'board',       click: () => { setRoleFilter('board');      setFamilyFilter(false) } },
-          { label: 'Admin',      value: counts.admin,      color: 'bg-purple-50 border-purple-200 text-purple-700', active: roleFilter === 'admin',     click: () => { setRoleFilter('admin');      setFamilyFilter(false) } },
-          { label: 'Has Family', value: counts.withFamily, color: 'bg-orange-50 border-orange-200 text-orange-700', active: familyFilter,               click: () => { setFamilyFilter(f => !f); setRoleFilter(''); setStatusFilter('') } },
+          { label: 'Total Users', value: counts.total,    color: 'bg-gray-50 border-gray-200 text-gray-700',    active: !statusFilter && !roleFilter && !familyFilter && !waitlistFilter, click: () => { setStatusFilter(''); setRoleFilter(''); setFamilyFilter(false); setWaitlistFilter(false) } },
+          { label: 'Members',    value: counts.members,  color: 'bg-green-50 border-green-200 text-green-700',   active: roleFilter === 'member',       click: () => { setRoleFilter('member'); setStatusFilter(''); setFamilyFilter(false); setWaitlistFilter(false) } },
+          { label: 'Wait List',  value: counts.waitlist, color: 'bg-amber-50 border-amber-200 text-amber-700',   active: waitlistFilter,                click: () => { setWaitlistFilter(w => !w); setRoleFilter(''); setStatusFilter(''); setFamilyFilter(false) } },
+          { label: 'Inactive',   value: counts.inactive,   color: 'bg-red-50 border-red-200 text-red-700',          active: statusFilter === 'inactive',  click: () => { setStatusFilter('inactive'); setFamilyFilter(false); setWaitlistFilter(false) } },
+          { label: 'Board',      value: counts.board,      color: 'bg-blue-50 border-blue-200 text-blue-700',       active: roleFilter === 'board',       click: () => { setRoleFilter('board');      setFamilyFilter(false); setWaitlistFilter(false) } },
+          { label: 'Admin',      value: counts.admin,      color: 'bg-purple-50 border-purple-200 text-purple-700', active: roleFilter === 'admin',       click: () => { setRoleFilter('admin');      setFamilyFilter(false); setWaitlistFilter(false) } },
+          { label: 'Has Family', value: counts.withFamily, color: 'bg-orange-50 border-orange-200 text-orange-700', active: familyFilter,                 click: () => { setFamilyFilter(f => !f); setRoleFilter(''); setStatusFilter(''); setWaitlistFilter(false) } },
         ].map(s => (
           <button key={s.label} onClick={s.click}
             className={`${s.color} border rounded-xl p-3 text-center hover:opacity-80 transition cursor-pointer ${s.active ? 'ring-2 ring-offset-1 ring-current' : ''}`}>
@@ -265,7 +304,7 @@ export default function AdminUsers() {
           <option value="inactive">Inactive</option>
         </select>
         {hasFilters && (
-          <button onClick={() => { setSearch(''); setRoleFilter(''); setStatusFilter(''); setFamilyFilter(false) }}
+          <button onClick={() => { setSearch(''); setRoleFilter(''); setStatusFilter(''); setFamilyFilter(false); setWaitlistFilter(false) }}
             className="text-sm text-red-500 hover:text-red-700 font-medium px-2">
             Clear
           </button>
@@ -286,7 +325,33 @@ export default function AdminUsers() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {filtered.length === 0 ? (
+            {waitlistFilter ? (
+              waitlistFiltered.length === 0 ? (
+                <tr><td colSpan={6} className="px-4 py-6 text-center text-gray-400 text-sm">No waitlist entries match your search.</td></tr>
+              ) : waitlistFiltered.map(w => (
+                <tr key={`wl-${w.id}`} className="hover:bg-amber-50">
+                  <td className="px-4 py-3 font-medium text-gray-800">{w.first_name} {w.last_name}</td>
+                  <td className="px-4 py-3 text-gray-500">{w.email ?? <span className="text-gray-300">—</span>}</td>
+                  <td className="px-4 py-3">
+                    <span className="text-xs font-medium px-2 py-1 rounded-full bg-amber-100 text-amber-700">Wait List</span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`text-xs font-medium px-2 py-1 rounded-full capitalize ${
+                      w.status === 'contacted' ? 'bg-blue-100 text-blue-700' :
+                      w.status === 'accepted'  ? 'bg-green-100 text-green-700' :
+                      w.status === 'declined'  ? 'bg-gray-100 text-gray-500' :
+                                                 'bg-yellow-100 text-yellow-700'
+                    }`}>{w.status}</span>
+                  </td>
+                  <td className="px-4 py-3 text-gray-400 text-xs">{new Date(w.created_at).toLocaleDateString()}</td>
+                  <td className="px-4 py-3 flex gap-3">
+                    <a href="/admin/waitlist" className="text-blue-500 hover:text-blue-700 text-xs font-medium">Manage</a>
+                    <button onClick={() => deleteWaitlistEntry(w.id, `${w.first_name} ${w.last_name}`)}
+                      className="text-red-400 hover:text-red-600 text-xs">Delete</button>
+                  </td>
+                </tr>
+              ))
+            ) : filtered.length === 0 ? (
               <tr><td colSpan={6} className="px-4 py-6 text-center text-gray-400 text-sm">No members match your search.</td></tr>
             ) : filtered.map(u => (
               <tr key={u.id} className="hover:bg-gray-50">
@@ -467,8 +532,9 @@ export default function AdminUsers() {
                             className="text-xs bg-blue-700 text-white px-2 py-1 rounded hover:bg-blue-800 transition disabled:opacity-50">
                             {savingEditFamily ? 'Saving…' : 'Save'}
                           </button>
-                          <button type="button" onClick={() => setEditingFamilyId(null)}
+                          <button type="button" onClick={() => { setEditingFamilyId(null); setEditFamilyError('') }}
                             className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+                          {editFamilyError && <span className="text-xs text-red-600 w-full">{editFamilyError}</span>}
                         </div>
                       ) : (
                         <div className="flex items-start justify-between bg-gray-50 rounded-lg px-3 py-1.5 text-sm">
@@ -479,7 +545,7 @@ export default function AdminUsers() {
                             {(m.email || m.phone) && (
                               <div className="text-xs text-gray-400 mt-0.5 space-x-2">
                                 {m.email && <span>{m.email}</span>}
-                                {m.phone && <span>{m.phone}</span>}
+                                {m.phone && <span>{formatPhone(m.phone)}</span>}
                               </div>
                             )}
                           </div>
@@ -523,8 +589,9 @@ export default function AdminUsers() {
                     className="text-xs bg-green-700 text-white px-2 py-1 rounded hover:bg-green-800 transition disabled:opacity-50">
                     {savingFamily ? 'Adding…' : 'Add'}
                   </button>
-                  <button type="button" onClick={() => setShowFamilyForm(false)}
+                  <button type="button" onClick={() => { setShowFamilyForm(false); setFamilyError('') }}
                     className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+                  {familyError && <span className="text-xs text-red-600 w-full">{familyError}</span>}
                 </div>
               )}
             </div>
