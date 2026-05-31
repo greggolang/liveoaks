@@ -33,7 +33,7 @@ interface MatchPlayer { id: string; player_name: string; player_email?: string; 
 interface Invitation { id: string; invitee_name: string; invitee_email: string; status: string; is_guest: boolean }
 type GroupParticipant =
   | { kind: 'member'; id: string; first_name: string; last_name: string; email: string }
-  | { kind: 'text'; name: string }
+  | { kind: 'guest'; name: string }
 
 const MATCH_TYPES = [
   { value: 'singles',      label: 'Singles',       ballMachineOnly: false, proCourtOnly: false },
@@ -91,7 +91,7 @@ function formatDate(dateStr: string) {
 }
 
 export default function Bookings() {
-  const { user, isBoard, bookingMaxDaysAhead } = useAuth()
+  const { user, isBoard, bookingMaxDaysAhead, hasPermission } = useAuth()
   const [searchParams] = useSearchParams()
   const today = localDateStr(new Date())
   const [date, setDate] = useState(today)
@@ -158,6 +158,7 @@ export default function Bookings() {
   const [lessonGuest, setLessonGuest] = useState({ name: '', email: '' })
   const [groupParticipants, setGroupParticipants] = useState<GroupParticipant[]>([])
   const [participantInput, setParticipantInput] = useState('')
+  const [guestInput, setGuestInput] = useState('')
   const [groupSearchResults, setGroupSearchResults] = useState<{id: string; first_name: string; last_name: string; email: string}[]>([])
   const [lessonSearchQuery, setLessonSearchQuery] = useState('')
   const [lessonSearchResults, setLessonSearchResults] = useState<{id: string; first_name: string; last_name: string; email: string}[]>([])
@@ -513,7 +514,7 @@ export default function Bookings() {
             if (p.kind === 'member') {
               await api.invitations.addPlayer(booked.id, { user_id: p.id, is_guest: false })
             } else {
-              await api.invitations.addPlayer(booked.id, { player_name: p.name, is_guest: false })
+              await api.invitations.addPlayer(booked.id, { player_name: p.name, is_guest: true })
             }
           }
         }
@@ -630,7 +631,7 @@ export default function Bookings() {
   const resetLessonForm = () => {
     setLessonType(''); setLessonMember(null)
     setLessonGuest({ name: '', email: '' })
-    setGroupParticipants([]); setParticipantInput(''); setGroupSearchResults([])
+    setGroupParticipants([]); setParticipantInput(''); setGuestInput(''); setGroupSearchResults([])
     setLessonSearchQuery(''); setLessonSearchResults([])
   }
 
@@ -732,12 +733,13 @@ export default function Bookings() {
                     {d.label}
                   </button>
                 ))}
-                <select value={matchType} onChange={e => { setMatchType(e.target.value); setPlayersNeeded(PLAYERS_BY_TYPE[e.target.value] ?? 0); setSelectedFriends([]); setDirectPlayers([]); setBookingSearchMode(null); setBookingSearchQuery(''); setBookingSearchResults([]) }}
+                <select value={matchType} onChange={e => { const v = e.target.value; setMatchType(v); setPlayersNeeded(PLAYERS_BY_TYPE[v] ?? 0); if (v === 'teaching_pro') setDuration(1); setSelectedFriends([]); setDirectPlayers([]); setBookingSearchMode(null); setBookingSearchQuery(''); setBookingSearchResults([]) }}
                   className="border border-green-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white text-green-800">
                   {MATCH_TYPES
                     .filter(m =>
                       (!m.ballMachineOnly || courts.find(c => c.id === selected.courtId)?.has_ball_machine) &&
-                      (!m.proCourtOnly    || isProCourt(selected.courtId, courts))
+                      (!m.proCourtOnly    || isProCourt(selected.courtId, courts)) &&
+                      (m.value !== 'teaching_pro' || hasPermission('teaching_pro_booking'))
                     )
                     .map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
                 </select>
@@ -829,20 +831,16 @@ export default function Bookings() {
 
                     {/* Group — Adults or Juniors */}
                     {(lessonType === 'group_adult' || lessonType === 'group_junior') && (
-                      <div className="space-y-2">
-                        <div className="flex gap-2 relative">
-                          <div className="relative flex-1">
+                      <div className="space-y-3">
+
+                        {/* Members sub-section */}
+                        <div>
+                          <p className="text-xs font-semibold text-gray-600 mb-1.5">Members</p>
+                          <div className="relative">
                             <input value={participantInput}
                               onChange={e => setParticipantInput(e.target.value)}
-                              onKeyDown={e => {
-                                if (e.key === 'Enter' && participantInput.trim()) {
-                                  e.preventDefault()
-                                  setGroupParticipants(p => [...p, { kind: 'text', name: participantInput.trim() }])
-                                  setParticipantInput('')
-                                  setGroupSearchResults([])
-                                }
-                              }}
-                              placeholder={`${lessonType === 'group_junior' ? "Junior's" : "Participant's"} name or search member…`}
+                              onKeyDown={e => { if (e.key === 'Escape') { setParticipantInput(''); setGroupSearchResults([]) } }}
+                              placeholder="Search member by name…"
                               autoFocus
                               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white" />
                             {groupSearchResults.length > 0 && (
@@ -862,35 +860,68 @@ export default function Bookings() {
                               </div>
                             )}
                           </div>
-                          <button type="button"
-                            onClick={() => {
-                              if (participantInput.trim()) {
-                                setGroupParticipants(p => [...p, { kind: 'text', name: participantInput.trim() }])
-                                setParticipantInput('')
-                                setGroupSearchResults([])
-                              }
-                            }}
-                            disabled={!participantInput.trim()}
-                            className="px-4 py-2 bg-green-700 text-white text-sm font-medium rounded-lg hover:bg-green-800 transition disabled:opacity-40">
-                            + Add
-                          </button>
+                          {groupParticipants.filter(p => p.kind === 'member').length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mt-1.5">
+                              {groupParticipants.map((p, i) => p.kind !== 'member' ? null : (
+                                <span key={i} className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-blue-100 text-blue-800">
+                                  {p.first_name} {p.last_name}
+                                  <button type="button" onClick={() => setGroupParticipants(ps => ps.filter((_, j) => j !== i))}
+                                    className="opacity-60 hover:opacity-100 transition leading-none">×</button>
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                        {groupParticipants.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5">
-                            {groupParticipants.map((p, i) => (
-                              <span key={i} className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full ${p.kind === 'member' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}`}>
-                                {p.kind === 'member' ? `${p.first_name} ${p.last_name}` : p.name}
-                                {p.kind === 'member' && <span className="opacity-60 text-[10px]">member</span>}
-                                <button type="button" onClick={() => setGroupParticipants(ps => ps.filter((_, j) => j !== i))}
-                                  className="opacity-60 hover:opacity-100 transition leading-none">×</button>
-                              </span>
-                            ))}
-                            <span className="text-xs text-green-600 self-center font-medium">
-                              {groupParticipants.length} participant{groupParticipants.length !== 1 ? 's' : ''}
-                            </span>
+
+                        {/* Guests sub-section */}
+                        <div>
+                          <p className="text-xs font-semibold text-gray-600 mb-1.5">Guests</p>
+                          <div className="flex gap-2">
+                            <input value={guestInput}
+                              onChange={e => setGuestInput(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter' && guestInput.trim()) {
+                                  e.preventDefault()
+                                  setGroupParticipants(p => [...p, { kind: 'guest', name: guestInput.trim() }])
+                                  setGuestInput('')
+                                }
+                              }}
+                              placeholder={`${lessonType === 'group_junior' ? "Junior guest's" : "Guest's"} name…`}
+                              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white" />
+                            <button type="button"
+                              onClick={() => {
+                                if (guestInput.trim()) {
+                                  setGroupParticipants(p => [...p, { kind: 'guest', name: guestInput.trim() }])
+                                  setGuestInput('')
+                                }
+                              }}
+                              disabled={!guestInput.trim()}
+                              className="px-4 py-2 bg-green-700 text-white text-sm font-medium rounded-lg hover:bg-green-800 transition disabled:opacity-40">
+                              + Add
+                            </button>
                           </div>
-                        )}
-                        {groupParticipants.length === 0 && (
+                          {groupParticipants.filter(p => p.kind === 'guest').length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mt-1.5">
+                              {groupParticipants.map((p, i) => p.kind !== 'guest' ? null : (
+                                <span key={i} className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-green-100 text-green-800">
+                                  {p.name}
+                                  <span className="opacity-50 text-[10px]">guest</span>
+                                  <button type="button" onClick={() => setGroupParticipants(ps => ps.filter((_, j) => j !== i))}
+                                    className="opacity-60 hover:opacity-100 transition leading-none">×</button>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Total count / validation hint */}
+                        {groupParticipants.length > 0 ? (
+                          <p className="text-xs text-green-600 font-medium">
+                            {groupParticipants.length} participant{groupParticipants.length !== 1 ? 's' : ''} —{' '}
+                            {groupParticipants.filter(p => p.kind === 'member').length} member{groupParticipants.filter(p => p.kind === 'member').length !== 1 ? 's' : ''},{' '}
+                            {groupParticipants.filter(p => p.kind === 'guest').length} guest{groupParticipants.filter(p => p.kind === 'guest').length !== 1 ? 's' : ''}
+                          </p>
+                        ) : (
                           <p className="text-xs text-gray-400">Add at least one participant to continue.</p>
                         )}
                       </div>

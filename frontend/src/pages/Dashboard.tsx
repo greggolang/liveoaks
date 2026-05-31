@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { api } from '../api/client'
+import { api, MemberMessage } from '../api/client'
 import { WeatherData, AirQualityData, weatherIcon, weatherLabel, courtCondition, conditionColors, dayLabel, aqiLabel, aqiColor, aqiEmoji } from '../utils/weather'
 
 interface InviteResponse {
@@ -60,6 +60,7 @@ function saveRead(userId: string, ids: Set<string>) {
 
 export default function Dashboard() {
   const { user, isBoard } = useAuth()
+  const navigate = useNavigate()
   const [idea, setIdea] = useState('')
   const [ideaState, setIdeaState] = useState<SubmitState>('idle')
   const [myBookings, setMyBookings] = useState<Booking[]>([])
@@ -67,6 +68,7 @@ export default function Dashboard() {
   const [weather, setWeather] = useState<WeatherData | null>(null)
   const [airQuality, setAirQuality] = useState<AirQualityData | null>(null)
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
+  const [inbox, setInbox] = useState<MemberMessage[]>([])
   const [readIds, setReadIds] = useState<Set<string>>(new Set())
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([])
   const [sentPending, setSentPending] = useState<SentPending[]>([])
@@ -159,6 +161,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     api.announcements.list().then(d => setAnnouncements(d as Announcement[]))
+    api.messages.inbox().then(d => setInbox(d)).catch(() => {})
     api.memberAlerts.getMyAlerts().then(d => setAdminAlerts(d)).catch(() => {})
     api.camera.embedURL().then(d => setCameraURL(d.url)).catch(() => setCameraURL('/camera'))
     api.weather.get().then(d => setWeather(d as WeatherData)).catch(() => {})
@@ -711,42 +714,79 @@ export default function Dashboard() {
         return <div className="space-y-2">{alerts}</div>
       })()}
 
-      {/* Latest News */}
-      {unread.length > 0 && (
-        <div>
-          <h2 className="text-lg font-semibold text-gray-700 mb-3">Announcements</h2>
-          <div className="space-y-3">
-            {unread.map(a => (
-              <div key={a.id} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm flex gap-4 items-start">
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-gray-800">{a.title}</h3>
-                  <p className="text-gray-600 text-sm mt-1">{a.body}</p>
-                  <p className="text-gray-400 text-xs mt-2">
-                    {a.author_first_name} {a.author_last_name} · {new Date(a.created_at).toLocaleDateString()}
-                  </p>
-                </div>
-                {a.require_confirmation ? (
-                  <button
-                    onClick={() => markRead(a.id, true)}
-                    className="shrink-0 bg-green-700 hover:bg-green-800 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition mt-0.5">
-                    Read ✓
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => markRead(a.id, false)}
-                    title="Dismiss"
-                    className="shrink-0 text-gray-300 hover:text-gray-500 transition mt-0.5"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                )}
-              </div>
-            ))}
+      {/* Announcements + unread messages */}
+      {(() => {
+        const unreadMsgs = inbox.filter(m => !m.read_at)
+        if (unread.length === 0 && unreadMsgs.length === 0) return null
+        type FeedItem =
+          | { kind: 'announcement'; data: Announcement; date: string }
+          | { kind: 'message'; data: MemberMessage; date: string }
+        const feed: FeedItem[] = [
+          ...unread.map(a => ({ kind: 'announcement' as const, data: a, date: a.created_at })),
+          ...unreadMsgs.map(m => ({ kind: 'message' as const, data: m, date: m.created_at })),
+        ].sort((x, y) => new Date(y.date).getTime() - new Date(x.date).getTime())
+
+        return (
+          <div>
+            <h2 className="text-lg font-semibold text-gray-700 mb-3">Announcements</h2>
+            <div className="space-y-3">
+              {feed.map(item => {
+                if (item.kind === 'message') {
+                  const m = item.data
+                  return (
+                    <button key={`msg-${m.id}`} type="button"
+                      onClick={() => navigate('/messages')}
+                      className="w-full text-left bg-white border border-blue-200 rounded-xl p-5 shadow-sm flex gap-4 items-start hover:shadow-md transition-shadow">
+                      <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0 mt-2" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-blue-600">Message</span>
+                          <span className="text-xs text-gray-400">from {m.sender_name}</span>
+                        </div>
+                        <p className="font-semibold text-gray-800 mt-0.5 truncate">{m.subject}</p>
+                        <p className="text-gray-500 text-sm mt-1 line-clamp-2">{m.body}</p>
+                        <p className="text-gray-400 text-xs mt-2">{new Date(m.created_at).toLocaleDateString()}</p>
+                      </div>
+                      <span className="shrink-0 self-center bg-blue-100 text-blue-700 text-xs font-medium px-2 py-0.5 rounded-full">
+                        Unread
+                      </span>
+                    </button>
+                  )
+                }
+                const a = item.data as Announcement
+                return (
+                  <div key={a.id} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm flex gap-4 items-start">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-gray-800">{a.title}</h3>
+                      <p className="text-gray-600 text-sm mt-1">{a.body}</p>
+                      <p className="text-gray-400 text-xs mt-2">
+                        {a.author_first_name} {a.author_last_name} · {new Date(a.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    {a.require_confirmation ? (
+                      <button
+                        onClick={() => markRead(a.id, true)}
+                        className="shrink-0 bg-green-700 hover:bg-green-800 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition mt-0.5">
+                        Read ✓
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => markRead(a.id, false)}
+                        title="Dismiss"
+                        className="shrink-0 text-gray-300 hover:text-gray-500 transition mt-0.5"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* My Bookings */}
       <div>
@@ -904,22 +944,6 @@ export default function Dashboard() {
             })}
           </div>
         )}
-      </div>
-
-      {/* Quick links */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          { to: '/bookings?tab=grid',  emoji: '🎾', label: 'Book a Court' },
-          { to: '/pro-shop',  emoji: '🛍️', label: 'Pro Shop' },
-          { to: '/events',    emoji: '📅', label: 'Events' },
-          { to: '/directory', emoji: '👥', label: 'Directory' },
-        ].map(({ to, emoji, label }) => (
-          <Link key={to} to={to}
-            className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col items-center gap-2 hover:border-green-300 hover:shadow-md transition text-center">
-            <span className="text-2xl">{emoji}</span>
-            <span className="text-sm font-medium text-gray-700">{label}</span>
-          </Link>
-        ))}
       </div>
 
       {/* Weather */}

@@ -55,6 +55,29 @@ func (h *PermissionsHandler) GetForRole(c echo.Context) error {
 	return c.JSON(http.StatusOK, pages)
 }
 
+// MyPages returns the distinct pages the current user can access based on their role(s).
+func (h *PermissionsHandler) MyPages(c echo.Context) error {
+	role, _ := c.Get("role").(string)
+	roles := []string{role}
+	if extra, ok := c.Get("extra_roles").([]string); ok {
+		roles = append(roles, extra...)
+	}
+	rows, err := h.DB.Query(c.Request().Context(),
+		`SELECT DISTINCT page FROM page_permissions WHERE role = ANY($1)`, roles)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch permissions")
+	}
+	defer rows.Close()
+	pages := []string{}
+	for rows.Next() {
+		var page string
+		if err := rows.Scan(&page); err == nil {
+			pages = append(pages, page)
+		}
+	}
+	return c.JSON(http.StatusOK, pages)
+}
+
 // Toggle grants or revokes a role's access to a page
 func (h *PermissionsHandler) Toggle(c echo.Context) error {
 	page := c.Param("page")

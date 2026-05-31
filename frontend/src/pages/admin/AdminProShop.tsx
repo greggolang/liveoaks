@@ -68,8 +68,12 @@ export default function AdminProShop() {
 
   const handleDelete = async (id: string, name: string) => {
     if (!confirm(`Delete "${name}"?`)) return
-    await api.proShop.delete(id)
-    load()
+    try {
+      await api.proShop.delete(id)
+      load()
+    } catch (err: any) {
+      alert(`Could not delete "${name}": ${err.message}`)
+    }
   }
 
   const toggleStock = async (item: Item) => {

@@ -130,6 +130,9 @@ func (h *ProShopHandler) Update(c echo.Context) error {
 
 // Delete removes an item permanently.
 func (h *ProShopHandler) Delete(c echo.Context) error {
-	h.DB.Exec(c.Request().Context(), `DELETE FROM pro_shop_items WHERE id=$1`, c.Param("id"))
+	_, err := h.DB.Exec(c.Request().Context(), `DELETE FROM pro_shop_items WHERE id=$1`, c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not delete item")
+	}
 	return c.NoContent(http.StatusNoContent)
 }

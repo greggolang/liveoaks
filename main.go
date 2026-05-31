@@ -239,6 +239,7 @@ func main() {
 	adminOnly.GET("/smtp-ping", admin.SMTPPing)
 	adminOnly.GET("/permissions", perms.GetAll)
 	adminOnly.PUT("/permissions/:page/:role", perms.Toggle)
+	authed.GET("/my-permissions", perms.MyPages)
 	authed.POST("/feedback", feedback.Submit)
 	boardPlus.GET("/feedback/new", feedback.NewFeedback)
 	adminOnly.GET("/feedback", feedback.AdminList)

@@ -115,23 +115,23 @@ export default function AdminSettings() {
   const [cancelReasons, setCancelReasons] = useState<{ id: string; reason: string }[]>([])
   const [newReason, setNewReason] = useState('')
   const [addingReason, setAddingReason] = useState(false)
-  useEffect(() => {
+  const loadReasons = () =>
     api.bookings.cancelReasons.list()
       .then(d => setCancelReasons(d as { id: string; reason: string }[]))
       .catch(() => {})
-  }, [])
+  useEffect(() => { loadReasons() }, [])
   const addReason = async () => {
     if (!newReason.trim()) return
     setAddingReason(true)
     try {
-      const d = await api.bookings.cancelReasons.create(newReason.trim()) as { id: string; reason: string }
-      setCancelReasons(prev => [...prev, d])
+      await api.bookings.cancelReasons.create(newReason.trim())
       setNewReason('')
+      await loadReasons()
     } finally { setAddingReason(false) }
   }
   const removeReason = async (id: string) => {
     await api.bookings.cancelReasons.delete(id)
-    setCancelReasons(prev => prev.filter(r => r.id !== id))
+    await loadReasons()
   }
 
   // Bylaws PDF state

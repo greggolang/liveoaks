@@ -402,7 +402,9 @@ func (h *LiveballHandler) Respond(c echo.Context) error {
 
 	var confirmed int
 	tx.QueryRow(ctx,
-		`SELECT COUNT(*) FROM liveball_invitations WHERE event_id=$1 AND status='confirmed' FOR UPDATE`,
+		`SELECT COUNT(*) FROM (
+			SELECT id FROM liveball_invitations WHERE event_id=$1 AND status='confirmed' FOR UPDATE
+		) AS locked`,
 		eventID,
 	).Scan(&confirmed)
 

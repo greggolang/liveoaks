@@ -275,6 +275,7 @@ export const api = {
   },
   permissions: {
     getAll: () => request<Record<string, string[]>>('/admin/permissions'),
+    mine: () => request<string[]>('/my-permissions'),
     toggle: (page: string, role: string, allowed: boolean) =>
       request(`/admin/permissions/${encodeURIComponent(page)}/${encodeURIComponent(role)}`,
         { method: 'PUT', body: JSON.stringify({ allowed }) }),

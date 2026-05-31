@@ -710,8 +710,11 @@ func (h *BookingsHandler) CreateCancelReason(c echo.Context) error {
 
 // DeleteCancelReason removes a canned cancellation reason (admin+).
 func (h *BookingsHandler) DeleteCancelReason(c echo.Context) error {
-	h.DB.Exec(c.Request().Context(),
+	_, err := h.DB.Exec(c.Request().Context(),
 		`DELETE FROM booking_cancel_reasons WHERE id = $1`, c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not delete reason")
+	}
 	return c.NoContent(http.StatusNoContent)
 }
 

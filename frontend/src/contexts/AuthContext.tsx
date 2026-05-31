@@ -31,6 +31,7 @@ interface AuthContextType {
   isBoard: boolean
   isFamilyMember: boolean
   bookingMaxDaysAhead: number
+  hasPermission: (page: string) => boolean
 }
 
 const AuthContext = createContext<AuthContextType>(null!)
@@ -40,12 +41,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [sessionTimeoutDays, setSessionTimeoutDays] = useState(0)
   const [bookingMaxDaysAhead, setBookingMaxDaysAhead] = useState(5)
+  const [myPages, setMyPages] = useState<Set<string>>(new Set())
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Load current user and session config on mount
   useEffect(() => {
     Promise.all([
       api.auth.me().then((u) => setUser(u as User)).catch(() => setUser(null)),
+      api.permissions.mine().then(pages => setMyPages(new Set(pages))).catch(() => {}),
       fetch('/api/session-config')
         .then(r => r.json())
         .then(d => {
@@ -101,6 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isBoard: user ? allRoles(user).some(r => BOARD_ROLES.includes(r)) : false,
       isFamilyMember: user?.is_family_member ?? false,
       bookingMaxDaysAhead,
+      hasPermission: (page: string) => myPages.has(page),
     }}>
       {children}
     </AuthContext.Provider>
