@@ -43,7 +43,8 @@ type SubmitState = 'idle' | 'sending' | 'done' | 'error'
 
 interface Announcement {
   id: string; title: string; body: string; created_at: string
-  author: { first_name: string; last_name: string }
+  author_first_name: string; author_last_name: string
+  require_confirmation: boolean; confirmed: boolean
 }
 
 function readKey(userId: string) { return `news_read_${userId}` }
@@ -184,14 +185,25 @@ export default function Dashboard() {
     api.bookings.mine().then(d => setMyBookings(d as Booking[]))
   }
 
-  const markRead = (id: string) => {
+  const markRead = (id: string, requireConfirmation: boolean) => {
     if (!user?.id) return
-    const next = new Set(readIds).add(id)
-    setReadIds(next)
-    saveRead(user.id, next)
+    if (requireConfirmation) {
+      // Server-side: confirm and refresh so the server state drives visibility
+      api.announcements.confirmRead(id).then(() => {
+        api.announcements.list().then(d => setAnnouncements(d as Announcement[]))
+      }).catch(() => {})
+    } else {
+      // Local-only dismiss for non-confirmation announcements
+      const next = new Set(readIds).add(id)
+      setReadIds(next)
+      saveRead(user.id, next)
+    }
   }
 
-  const unread = announcements.filter(a => !readIds.has(a.id))
+  const unread = announcements.filter(a => {
+    if (a.require_confirmation) return !a.confirmed
+    return !readIds.has(a.id)
+  })
 
   return (
     <div className="space-y-8">
@@ -637,18 +649,26 @@ export default function Dashboard() {
                   <h3 className="font-semibold text-gray-800">{a.title}</h3>
                   <p className="text-gray-600 text-sm mt-1">{a.body}</p>
                   <p className="text-gray-400 text-xs mt-2">
-                    {a.author.first_name} {a.author.last_name} · {new Date(a.created_at).toLocaleDateString()}
+                    {a.author_first_name} {a.author_last_name} · {new Date(a.created_at).toLocaleDateString()}
                   </p>
                 </div>
-                <button
-                  onClick={() => markRead(a.id)}
-                  title="Mark as read"
-                  className="shrink-0 text-gray-300 hover:text-gray-500 transition mt-0.5"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+                {a.require_confirmation ? (
+                  <button
+                    onClick={() => markRead(a.id, true)}
+                    className="shrink-0 bg-green-700 hover:bg-green-800 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition mt-0.5">
+                    Read ✓
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => markRead(a.id, false)}
+                    title="Dismiss"
+                    className="shrink-0 text-gray-300 hover:text-gray-500 transition mt-0.5"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
               </div>
             ))}
           </div>

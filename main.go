@@ -127,6 +127,7 @@ func main() {
 	authed.DELETE("/bookings/:id", bookings.Delete)
 
 	authed.GET("/announcements", announcements.List)
+	authed.POST("/announcements/:id/read", announcements.Confirm)
 
 	authed.GET("/members/directory", members.Directory)
 	authed.GET("/contacts", contacts.List)
@@ -172,6 +173,7 @@ func main() {
 	boardPlus.POST("/admin/bookings", bookings.AdminCreate)
 	boardPlus.POST("/announcements", announcements.Create)
 	boardPlus.DELETE("/announcements/:id", announcements.Delete)
+	boardPlus.GET("/announcements/:id/reads", announcements.GetReadStats)
 	boardPlus.POST("/contacts", contacts.Create)
 	boardPlus.PUT("/contacts/:id", contacts.Update)
 	boardPlus.DELETE("/contacts/:id", contacts.Delete)

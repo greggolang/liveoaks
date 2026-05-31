@@ -68,6 +68,8 @@ export const api = {
     list: () => request('/announcements'),
     create: (data: object) => request('/announcements', { method: 'POST', body: JSON.stringify(data) }),
     delete: (id: string) => request(`/announcements/${id}`, { method: 'DELETE' }),
+    confirmRead: (id: string) => request(`/announcements/${id}/read`, { method: 'POST' }),
+    getReadStats: (id: string) => request(`/announcements/${id}/reads`),
   },
   members: { directory: () => request('/members/directory') },
   friends: {
