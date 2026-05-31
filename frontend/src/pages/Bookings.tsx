@@ -1246,8 +1246,8 @@ export default function Bookings() {
                             : lessonType === 'guest'
                             ? `${lessonGuest.name}${lessonGuest.email ? ` — ${lessonGuest.email}` : ''} (Guest)`
                             : lessonType === 'group_adult'
-                            ? `Adult Group — ${groupParticipants.join(', ')}`
-                            : `Junior Group — ${groupParticipants.join(', ')}`}
+                            ? `Adult Group — ${groupParticipants.map(p => p.kind === 'member' ? `${p.first_name} ${p.last_name}` : `${p.name} (guest)`).join(', ')}`
+                            : `Junior Group — ${groupParticipants.map(p => p.kind === 'member' ? `${p.first_name} ${p.last_name}` : `${p.name} (guest)`).join(', ')}`}
                         </p>
                       </div>
                     )}
