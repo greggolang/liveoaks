@@ -6,6 +6,7 @@ interface FeedbackItem {
   message: string
   status: string
   type: string
+  page?: string
   created_at: string
   first_name: string
   last_name: string
@@ -99,7 +100,7 @@ export default function AdminFeedback() {
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-gray-800 whitespace-pre-wrap">{item.message}</p>
-                  <p className="text-xs text-gray-400 mt-1.5 flex items-center gap-1.5">
+                  <p className="text-xs text-gray-400 mt-1.5 flex flex-wrap items-center gap-1.5">
                     <span className={`font-medium px-1.5 py-0.5 rounded text-xs ${item.type === 'bug' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'}`}>
                       {item.type === 'bug' ? '🐛 Bug' : '💡 Idea'}
                     </span>
@@ -108,6 +109,14 @@ export default function AdminFeedback() {
                     <span>{new Date(item.created_at).toLocaleDateString('en-US', {
                       month: 'short', day: 'numeric', year: 'numeric'
                     })}</span>
+                    {item.page && (
+                      <>
+                        <span>·</span>
+                        <span className="font-mono text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                          {item.page}
+                        </span>
+                      </>
+                    )}
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">

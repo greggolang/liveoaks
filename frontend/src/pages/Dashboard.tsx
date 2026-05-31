@@ -641,7 +641,7 @@ export default function Dashboard() {
       {/* Latest News */}
       {unread.length > 0 && (
         <div>
-          <h2 className="text-lg font-semibold text-gray-700 mb-3">Latest News</h2>
+          <h2 className="text-lg font-semibold text-gray-700 mb-3">Announcements</h2>
           <div className="space-y-3">
             {unread.map(a => (
               <div key={a.id} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm flex gap-4 items-start">

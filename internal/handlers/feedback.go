@@ -17,6 +17,7 @@ func (h *FeedbackHandler) Submit(c echo.Context) error {
 	var req struct {
 		Message string `json:"message"`
 		Type    string `json:"type"`
+		Page    string `json:"page"`
 	}
 	if err := c.Bind(&req); err != nil || len(req.Message) == 0 {
 		return echo.NewHTTPError(http.StatusBadRequest, "message required")
@@ -28,8 +29,8 @@ func (h *FeedbackHandler) Submit(c echo.Context) error {
 		req.Type = "idea"
 	}
 	_, err := h.DB.Exec(c.Request().Context(),
-		`INSERT INTO feedback (user_id, message, type) VALUES ($1, $2, $3)`,
-		userID, req.Message, req.Type)
+		`INSERT INTO feedback (user_id, message, type, page) VALUES ($1, $2, $3, NULLIF($4, ''))`,
+		userID, req.Message, req.Type, req.Page)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not save feedback")
 	}
@@ -39,7 +40,7 @@ func (h *FeedbackHandler) Submit(c echo.Context) error {
 // NewFeedback returns unread (status='new') feedback for board-level alerts.
 func (h *FeedbackHandler) NewFeedback(c echo.Context) error {
 	rows, err := h.DB.Query(c.Request().Context(),
-		`SELECT f.id, f.message, f.type, f.created_at,
+		`SELECT f.id, f.message, f.type, f.page, f.created_at,
 		        u.first_name, u.last_name
 		 FROM feedback f
 		 JOIN users u ON u.id = f.user_id
@@ -53,6 +54,7 @@ func (h *FeedbackHandler) NewFeedback(c echo.Context) error {
 		ID        string    `json:"id"`
 		Message   string    `json:"message"`
 		Type      string    `json:"type"`
+		Page      *string   `json:"page,omitempty"`
 		CreatedAt time.Time `json:"created_at"`
 		FirstName string    `json:"first_name"`
 		LastName  string    `json:"last_name"`
@@ -60,7 +62,7 @@ func (h *FeedbackHandler) NewFeedback(c echo.Context) error {
 	items := []Item{}
 	for rows.Next() {
 		var i Item
-		if err := rows.Scan(&i.ID, &i.Message, &i.Type, &i.CreatedAt, &i.FirstName, &i.LastName); err != nil {
+		if err := rows.Scan(&i.ID, &i.Message, &i.Type, &i.Page, &i.CreatedAt, &i.FirstName, &i.LastName); err != nil {
 			continue
 		}
 		items = append(items, i)
@@ -70,7 +72,7 @@ func (h *FeedbackHandler) NewFeedback(c echo.Context) error {
 
 func (h *FeedbackHandler) AdminList(c echo.Context) error {
 	rows, err := h.DB.Query(c.Request().Context(),
-		`SELECT f.id, f.message, f.status, f.type, f.created_at,
+		`SELECT f.id, f.message, f.status, f.type, f.page, f.created_at,
 		        u.first_name, u.last_name, u.email
 		 FROM feedback f
 		 JOIN users u ON u.id = f.user_id
@@ -85,6 +87,7 @@ func (h *FeedbackHandler) AdminList(c echo.Context) error {
 		Message   string    `json:"message"`
 		Status    string    `json:"status"`
 		Type      string    `json:"type"`
+		Page      *string   `json:"page,omitempty"`
 		CreatedAt time.Time `json:"created_at"`
 		FirstName string    `json:"first_name"`
 		LastName  string    `json:"last_name"`
@@ -93,7 +96,7 @@ func (h *FeedbackHandler) AdminList(c echo.Context) error {
 	items := []Item{}
 	for rows.Next() {
 		var i Item
-		if err := rows.Scan(&i.ID, &i.Message, &i.Status, &i.Type, &i.CreatedAt, &i.FirstName, &i.LastName, &i.Email); err != nil {
+		if err := rows.Scan(&i.ID, &i.Message, &i.Status, &i.Type, &i.Page, &i.CreatedAt, &i.FirstName, &i.LastName, &i.Email); err != nil {
 			continue
 		}
 		items = append(items, i)

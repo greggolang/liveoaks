@@ -195,6 +195,24 @@ func (h *AnnouncementsHandler) GetReadStats(c echo.Context) error {
 	})
 }
 
+func (h *AnnouncementsHandler) Update(c echo.Context) error {
+	id := c.Param("id")
+	var req struct {
+		Title string `json:"title"`
+		Body  string `json:"body"`
+	}
+	if err := c.Bind(&req); err != nil || req.Title == "" || req.Body == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "title and body required")
+	}
+	_, err := h.DB.Exec(c.Request().Context(),
+		`UPDATE announcements SET title=$1, body=$2, updated_at=NOW() WHERE id=$3`,
+		req.Title, req.Body, id)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not update announcement")
+	}
+	return c.JSON(http.StatusOK, map[string]string{"id": id})
+}
+
 func (h *AnnouncementsHandler) Delete(c echo.Context) error {
 	id := c.Param("id")
 	h.DB.Exec(c.Request().Context(), `DELETE FROM announcements WHERE id = $1`, id)

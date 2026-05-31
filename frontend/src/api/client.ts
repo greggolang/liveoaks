@@ -67,6 +67,7 @@ export const api = {
   announcements: {
     list: () => request('/announcements'),
     create: (data: object) => request('/announcements', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: object) => request(`/announcements/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => request(`/announcements/${id}`, { method: 'DELETE' }),
     confirmRead: (id: string) => request(`/announcements/${id}/read`, { method: 'POST' }),
     getReadStats: (id: string) => request(`/announcements/${id}/reads`),
@@ -237,8 +238,8 @@ export const api = {
     adminDelete: (userId: string, id: string) => request(`/admin/users/${userId}/family/${id}`, { method: 'DELETE' }),
   },
   feedback: {
-    submit: (message: string, type: 'idea' | 'bug') =>
-      request('/feedback', { method: 'POST', body: JSON.stringify({ message, type }) }),
+    submit: (message: string, type: 'idea' | 'bug', page?: string) =>
+      request('/feedback', { method: 'POST', body: JSON.stringify({ message, type, page }) }),
     newItems: () => request('/feedback/new'),
     adminList: () => request('/admin/feedback'),
     updateStatus: (id: string, status: string) =>

@@ -172,6 +172,7 @@ func main() {
 	boardPlus := authed.Group("", mw.RequireRole(mw.BoardRoleList()...))
 	boardPlus.POST("/admin/bookings", bookings.AdminCreate)
 	boardPlus.POST("/announcements", announcements.Create)
+	boardPlus.PUT("/announcements/:id", announcements.Update)
 	boardPlus.DELETE("/announcements/:id", announcements.Delete)
 	boardPlus.GET("/announcements/:id/reads", announcements.GetReadStats)
 	boardPlus.POST("/contacts", contacts.Create)

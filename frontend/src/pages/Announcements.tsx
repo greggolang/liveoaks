@@ -33,6 +33,10 @@ export default function Announcements() {
   const [statsOpen, setStatsOpen] = useState<string | null>(null) // announcement id
   const [stats, setStats] = useState<ReadStats | null>(null)
   const [statsLoading, setStatsLoading] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState({ title: '', body: '' })
+  const [editLoading, setEditLoading] = useState(false)
+  const [editError, setEditError] = useState('')
 
   const load = () => api.announcements.list().then(d => setAnnouncements(d as Announcement[]))
   useEffect(() => { load() }, [])
@@ -57,6 +61,28 @@ export default function Announcements() {
     if (!confirm('Delete this announcement?')) return
     await api.announcements.delete(id)
     load()
+  }
+
+  const openEdit = (a: Announcement) => {
+    setEditingId(a.id)
+    setEditForm({ title: a.title, body: a.body })
+    setEditError('')
+  }
+
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingId) return
+    setEditLoading(true)
+    setEditError('')
+    try {
+      await api.announcements.update(editingId, editForm)
+      setEditingId(null)
+      load()
+    } catch (err: any) {
+      setEditError(err.message)
+    } finally {
+      setEditLoading(false)
+    }
   }
 
   const toggleStats = async (id: string) => {
@@ -132,31 +158,66 @@ export default function Announcements() {
         <div className="space-y-4">
           {announcements.map(a => (
             <div key={a.id} className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-              <div className="flex justify-between items-start gap-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h2 className="font-semibold text-gray-800 text-lg">{a.title}</h2>
-                    {a.require_confirmation && (
-                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 shrink-0">
-                        ✅ Read Confirmation
-                      </span>
+              {editingId === a.id ? (
+                <form onSubmit={handleEdit} className="space-y-3">
+                  <input
+                    value={editForm.title}
+                    onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))}
+                    required
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                  <textarea
+                    value={editForm.body}
+                    onChange={e => setEditForm(f => ({ ...f, body: e.target.value }))}
+                    required
+                    rows={4}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                  {editError && <p className="text-red-600 text-xs">{editError}</p>}
+                  <div className="flex gap-2">
+                    <button type="submit" disabled={editLoading}
+                      className="bg-green-700 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-green-800 transition disabled:opacity-50">
+                      {editLoading ? 'Saving…' : 'Save'}
+                    </button>
+                    <button type="button" onClick={() => setEditingId(null)}
+                      className="px-4 py-1.5 rounded-lg text-sm text-gray-600 hover:bg-gray-100 transition">
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <>
+                  <div className="flex justify-between items-start gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h2 className="font-semibold text-gray-800 text-lg">{a.title}</h2>
+                        {a.require_confirmation && (
+                          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 shrink-0">
+                            ✅ Read Confirmation
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-gray-600 text-sm mt-2 whitespace-pre-wrap">{a.body}</p>
+                      <p className="text-gray-400 text-xs mt-3">
+                        {a.author_first_name} {a.author_last_name} · {new Date(a.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    {isBoard && (
+                      <div className="flex items-center gap-3 shrink-0">
+                        <button onClick={() => openEdit(a)}
+                          className="text-gray-400 hover:text-green-700 text-xs font-medium transition">
+                          Edit
+                        </button>
+                        <button onClick={() => handleDelete(a.id)}
+                          className="text-red-400 hover:text-red-600 text-xs font-medium">
+                          Delete
+                        </button>
+                      </div>
                     )}
                   </div>
-                  <p className="text-gray-600 text-sm mt-2 whitespace-pre-wrap">{a.body}</p>
-                  <p className="text-gray-400 text-xs mt-3">
-                    {a.author_first_name} {a.author_last_name} · {new Date(a.created_at).toLocaleDateString()}
-                  </p>
-                </div>
-                {isBoard && (
-                  <button onClick={() => handleDelete(a.id)}
-                    className="text-red-400 hover:text-red-600 text-xs font-medium shrink-0">
-                    Delete
-                  </button>
-                )}
-              </div>
 
-              {/* Read stats — board only, only for announcements that require confirmation */}
-              {isBoard && a.require_confirmation && (
+                  {/* Read stats — board only, only for announcements that require confirmation */}
+                  {isBoard && a.require_confirmation && (
                 <div className="mt-4 border-t border-gray-100 pt-3">
                   <button
                     onClick={() => toggleStats(a.id)}
@@ -220,6 +281,8 @@ export default function Announcements() {
                     </div>
                   )}
                 </div>
+                  )}
+                </>
               )}
             </div>
           ))}

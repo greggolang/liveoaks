@@ -34,7 +34,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     if (!bugText.trim()) return
     setBugState('sending')
     try {
-      await api.feedback.submit(bugText.trim(), 'bug')
+      await api.feedback.submit(bugText.trim(), 'bug', window.location.pathname)
       setBugState('done')
     } catch {
       setBugState('error')
