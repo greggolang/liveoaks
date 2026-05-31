@@ -124,7 +124,18 @@ func (h *BookingsHandler) Mine(c echo.Context) error {
 		JOIN courts ct ON ct.id = b.court_id
 		LEFT JOIN match_players mp ON mp.booking_id = b.id
 		LEFT JOIN match_invitations mi ON mi.booking_id = b.id
-		WHERE b.user_id = $1 AND b.start_time >= NOW()
+		WHERE b.start_time >= NOW()
+		  AND (
+		    b.user_id = $1
+		    OR EXISTS (
+		      SELECT 1 FROM match_players mp2
+		      WHERE mp2.booking_id = b.id
+		        AND (
+		          mp2.user_id = $1
+		          OR mp2.player_email = (SELECT email FROM users WHERE id = $1)
+		        )
+		    )
+		  )
 		GROUP BY b.id, b.user_id, b.court_id, b.start_time, b.end_time, b.notes,
 		         b.created_at, b.match_type, b.players_needed,
 		         u.first_name, u.last_name, ct.name, ct.number
@@ -687,7 +698,18 @@ func (h *BookingsHandler) History(c echo.Context) error {
 		JOIN users u ON u.id = b.user_id
 		JOIN courts ct ON ct.id = b.court_id
 		LEFT JOIN match_players mp ON mp.booking_id = b.id
-		WHERE b.user_id = $1 AND b.start_time < NOW()
+		WHERE b.start_time < NOW()
+		  AND (
+		    b.user_id = $1
+		    OR EXISTS (
+		      SELECT 1 FROM match_players mp2
+		      WHERE mp2.booking_id = b.id
+		        AND (
+		          mp2.user_id = $1
+		          OR mp2.player_email = (SELECT email FROM users WHERE id = $1)
+		        )
+		    )
+		  )
 		GROUP BY b.id, b.user_id, b.court_id, b.start_time, b.end_time, b.notes,
 		         b.created_at, b.match_type, b.players_needed,
 		         u.first_name, u.last_name, ct.name, ct.number
