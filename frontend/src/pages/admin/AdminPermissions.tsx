@@ -26,6 +26,7 @@ const ROLES: { key: string; label: string; group: string }[] = [
   { key: 'billing',       label: 'Billing',       group: 'Special' },
   { key: 'membership',    label: 'Membership',    group: 'Special' },
   { key: 'usta',          label: 'USTA',          group: 'Special' },
+  { key: 'games',         label: 'Games Admin',   group: 'Special' },
 ]
 
 export default function AdminPermissions() {

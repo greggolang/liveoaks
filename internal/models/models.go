@@ -16,6 +16,7 @@ const (
 	RoleBilling     Role = "billing"
 	RoleMembership  Role = "membership"
 	RoleUSTA        Role = "usta"
+	RoleGames       Role = "games"
 	RoleMember      Role = "member"
 
 	StatusActive   Status = "active"

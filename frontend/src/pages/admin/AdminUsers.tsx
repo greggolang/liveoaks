@@ -125,6 +125,7 @@ export default function AdminUsers() {
     if (role === 'admin') return 'bg-purple-100 text-purple-700'
     if (BOARD_ROLES.includes(role)) return 'bg-blue-100 text-blue-700'
     if (['billing', 'membership', 'usta'].includes(role)) return 'bg-teal-100 text-teal-700'
+    if (role === 'games') return 'bg-orange-100 text-orange-700'
     return 'bg-gray-100 text-gray-700'
   }
 
@@ -132,7 +133,7 @@ export default function AdminUsers() {
     admin: 'Admin', president: 'President', vice_president: 'Vice President',
     secretary: 'Secretary', treasurer: 'Treasurer', entertainment: 'Entertainment',
     house_grounds: 'House & Grounds', billing: 'Billing', membership: 'Membership',
-    usta: 'USTA', member: 'Member',
+    usta: 'USTA', games: 'Games Admin', member: 'Member',
   }
   const statusColor: Record<string, string> = {
     active: 'bg-green-100 text-green-700',
@@ -192,6 +193,7 @@ export default function AdminUsers() {
           className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
           <option value="">All roles</option>
           <option value="member">Member</option>
+          <option value="games">Games Admin</option>
           <option value="billing">Billing</option>
           <option value="membership">Membership</option>
           <option value="usta">USTA</option>
@@ -246,6 +248,7 @@ export default function AdminUsers() {
                       <option value="billing">Billing</option>
                       <option value="membership">Membership</option>
                       <option value="usta">USTA</option>
+                      <option value="games">Games Admin</option>
                     </optgroup>
                     <optgroup label="Board">
                       <option value="entertainment">Entertainment</option>
