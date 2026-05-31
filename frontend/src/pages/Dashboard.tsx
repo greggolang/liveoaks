@@ -83,6 +83,7 @@ export default function Dashboard() {
   const [inviteSending, setInviteSending] = useState(false)
   const [inviteSent, setInviteSent] = useState(false)
   const [toasts, setToasts] = useState<InviteResponse[]>([])
+  const [liveballInvites, setLiveballInvites] = useState<{id: string; event_id: string; title: string; start_time: string; max_players: number; status: string; token: string; position?: number}[]>([])
   const seenIds = useRef<Set<string>>(new Set())
 
   const dismissToast = (id: string) => setToasts(prev => prev.filter(t => t.id !== id))
@@ -122,6 +123,7 @@ export default function Dashboard() {
     api.camera.embedURL().then(d => setCameraURL(d.url)).catch(() => setCameraURL('/camera'))
     api.weather.get().then(d => setWeather(d as WeatherData)).catch(() => {})
     api.invitations.pending().then(d => setPendingInvites(d as PendingInvite[])).catch(() => {})
+    api.liveball.myInvitations().then(d => setLiveballInvites(d as any[])).catch(() => {})
     api.invitations.sentPending().then(d => setSentPending(d as SentPending[])).catch(() => {})
     api.invitations.responses().then(d => setResponseAlerts(d as InviteResponseAlert[])).catch(() => {})
     api.dues.myDues().then(d => setDues(d as Dues[])).catch(() => {})
@@ -218,6 +220,50 @@ export default function Dashboard() {
           (b.players ?? []).length < (b.players_needed ?? 0) + 1
         )
         const alerts: React.ReactNode[] = []
+
+        // LiveBall invitations
+        liveballInvites.forEach(lb => {
+          const start = new Date(lb.start_time)
+          const dateStr = start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+          const timeStr = start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+
+          if (lb.status === 'invited') {
+            alerts.push(
+              <div key={`lb-${lb.id}`} className="flex items-start gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+                <span className="text-xl shrink-0">🎾</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-green-800">LiveBall invitation — spots filling fast!</p>
+                  <p className="text-xs text-green-600 mt-0.5">{lb.title} · {dateStr} at {timeStr}</p>
+                  <p className="text-xs text-green-500 mt-0.5">First {lb.max_players} to accept get in.</p>
+                </div>
+                <a href={`/liveball/${lb.token}/accept`}
+                  className="text-xs font-semibold bg-green-700 text-white px-3 py-1.5 rounded-lg hover:bg-green-800 transition shrink-0">
+                  I'm In →
+                </a>
+              </div>
+            )
+          } else if (lb.status === 'confirmed') {
+            alerts.push(
+              <div key={`lb-${lb.id}`} className="flex items-start gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+                <span className="text-xl shrink-0">✅</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-green-800">You're confirmed for {lb.title}!</p>
+                  <p className="text-xs text-green-600 mt-0.5">{dateStr} at {timeStr} · Spot #{lb.position ?? ''}</p>
+                </div>
+              </div>
+            )
+          } else if (lb.status === 'waitlisted') {
+            alerts.push(
+              <div key={`lb-${lb.id}`} className="flex items-start gap-3 bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3">
+                <span className="text-xl shrink-0">⏳</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-yellow-800">You're on the waitlist for {lb.title}</p>
+                  <p className="text-xs text-yellow-600 mt-0.5">{dateStr} at {timeStr} · We'll email you if a spot opens</p>
+                </div>
+              </div>
+            )
+          }
+        })
 
         // Invitations received — need response
         pendingInvites.forEach(inv => {

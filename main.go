@@ -90,6 +90,7 @@ func main() {
 	groups := &handlers.GroupsHandler{DB: pool}
 	notes := &handlers.NotesHandler{DB: pool}
 	ladder := &handlers.LadderHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
+	liveball := &handlers.LiveballHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	invitations := &handlers.InvitationsHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	signups := &handlers.SignupsHandler{DB: pool}
 	weather := &handlers.WeatherHandler{DB: pool}
@@ -213,6 +214,19 @@ func main() {
 	adminOnly.POST("/email-templates", emailTemplates.Create)
 	adminOnly.PUT("/email-templates/:id", emailTemplates.Update)
 	adminOnly.DELETE("/email-templates/:id", emailTemplates.Delete)
+	// LiveBall — public response
+	api.POST("/liveball/:token/:action", liveball.Respond)
+	// LiveBall — member
+	authed.GET("/liveball/my-invitations", liveball.GetMyInvitations)
+	// LiveBall — board+ admin
+	boardPlus.GET("/admin/liveball", liveball.AdminListEvents)
+	boardPlus.POST("/admin/liveball", liveball.AdminCreateEvent)
+	boardPlus.GET("/admin/liveball/:id/roster", liveball.AdminGetRoster)
+	boardPlus.GET("/admin/liveball/:id/preview", liveball.AdminPreviewInvites)
+	boardPlus.POST("/admin/liveball/:id/invite", liveball.AdminSendInvites)
+	boardPlus.DELETE("/admin/liveball/:id/players/:userId", liveball.AdminRemovePlayer)
+	boardPlus.DELETE("/admin/liveball/:id", liveball.AdminCancelEvent)
+
 	// Tennis Ladder — member routes
 	authed.GET("/ladder", ladder.GetLadders)
 	authed.GET("/ladder/:id", ladder.GetLadder)

@@ -46,6 +46,8 @@ import AdminFantasy from './pages/admin/AdminFantasy'
 import AdminNotes from './pages/admin/AdminNotes'
 import AdminLadder from './pages/admin/AdminLadder'
 import TennisLadder from './pages/TennisLadder'
+import AdminLiveball from './pages/admin/AdminLiveball'
+import LiveballResponse from './pages/LiveballResponse'
 import Fantasy from './pages/Fantasy'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -73,6 +75,8 @@ function AppRoutes() {
       <Route path="/reset-password" element={<PublicRoute><ResetPassword /></PublicRoute>} />
       <Route path="/waitlist" element={<Waitlist />} />
       <Route path="/invite/:token/:action" element={<InviteResponse />} />
+      <Route path="/liveball/:token/:action" element={<LiveballResponse />} />
+      <Route path="/liveball/:token" element={<LiveballResponse />} />
       <Route path="/events/:id/signup" element={<EventSignup />} />
 
       {/* Member pages */}
@@ -117,6 +121,7 @@ function AppRoutes() {
         <Route path="fantasy" element={<AdminFantasy />} />
         <Route path="notes" element={<AdminNotes />} />
         <Route path="ladder" element={<AdminLadder />} />
+        <Route path="liveball" element={<AdminLiveball />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

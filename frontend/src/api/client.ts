@@ -268,6 +268,23 @@ export const api = {
   camera: {
     embedURL: () => request<{ url: string }>('/camera/embed'),
   },
+  liveball: {
+    myInvitations: () => request('/liveball/my-invitations'),
+    respond: (token: string, action: 'accept' | 'decline') =>
+      request(`/liveball/${token}/${action}`, { method: 'POST' }),
+    admin: {
+      list: () => request('/admin/liveball'),
+      create: (data: object) => request('/admin/liveball', { method: 'POST', body: JSON.stringify(data) }),
+      roster: (id: string) => request(`/admin/liveball/${id}/roster`),
+      preview: (id: string, levels: string[]) =>
+        request(`/admin/liveball/${id}/preview?${levels.map(l => `level=${encodeURIComponent(l)}`).join('&')}`),
+      sendInvites: (id: string, data: object) =>
+        request(`/admin/liveball/${id}/invite`, { method: 'POST', body: JSON.stringify(data) }),
+      removePlayer: (id: string, userId: string) =>
+        request(`/admin/liveball/${id}/players/${userId}`, { method: 'DELETE' }),
+      cancelEvent: (id: string) => request(`/admin/liveball/${id}`, { method: 'DELETE' }),
+    },
+  },
   ladder: {
     list: () => request('/ladder'),
     get: (id: string) => request(`/ladder/${id}`),

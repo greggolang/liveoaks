@@ -42,6 +42,7 @@ const sections: Section[] = [
     links: [
       { to: '/admin/fantasy', label: 'Fantasy Tennis Pool' },
       { to: '/admin/ladder', label: 'Tennis Ladder' },
+      { to: '/admin/liveball', label: 'LiveBall Events' },
     ],
   },
   {
