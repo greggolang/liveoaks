@@ -361,7 +361,7 @@ func (h *InvitationsHandler) Cancel(c echo.Context) error {
 func (h *InvitationsHandler) GetResponses(c echo.Context) error {
 	userID := c.Get("user_id").(string)
 	rows, err := h.DB.Query(c.Request().Context(), `
-		SELECT i.id, i.invitee_name, i.status, ct.name, b.start_time, i.responded_at
+		SELECT i.id, b.id, i.invitee_name, i.status, ct.name, b.start_time, i.responded_at
 		FROM match_invitations i
 		JOIN bookings b ON b.id = i.booking_id
 		JOIN courts ct ON ct.id = b.court_id
@@ -376,6 +376,7 @@ func (h *InvitationsHandler) GetResponses(c echo.Context) error {
 	defer rows.Close()
 	type Response struct {
 		ID          string `json:"id"`
+		BookingID   string `json:"booking_id"`
 		InviteeName string `json:"invitee_name"`
 		Status      string `json:"status"`
 		CourtName   string `json:"court_name"`
@@ -386,7 +387,7 @@ func (h *InvitationsHandler) GetResponses(c echo.Context) error {
 	for rows.Next() {
 		var r Response
 		var start, responded interface{}
-		if err := rows.Scan(&r.ID, &r.InviteeName, &r.Status, &r.CourtName, &start, &responded); err != nil {
+		if err := rows.Scan(&r.ID, &r.BookingID, &r.InviteeName, &r.Status, &r.CourtName, &start, &responded); err != nil {
 			continue
 		}
 		r.StartTime = fmt.Sprintf("%v", start)

@@ -28,7 +28,7 @@ interface SentPending {
   start_time: string; sent_at: string
 }
 interface InviteResponseAlert {
-  id: string; invitee_name: string; status: 'accepted' | 'declined'
+  id: string; booking_id: string; invitee_name: string; status: 'accepted' | 'declined'
   court_name: string; start_time: string
 }
 interface Dues {
@@ -76,6 +76,12 @@ export default function Dashboard() {
   const [dues, setDues] = useState<Dues[]>([])
   const [upcomingEvents, setUpcomingEvents] = useState<Event[]>([])
   const [cameraURL, setCameraURL] = useState<string | null>(null)
+  const [friends, setFriends] = useState<{id: string; friend_user_id?: string; friend_name: string; friend_email?: string; is_guest: boolean}[]>([])
+  const [directory, setDirectory] = useState<{id: string; first_name: string; last_name: string; email: string}[]>([])
+  const [invitingFor, setInvitingFor] = useState<{bookingId: string; alertId: string} | null>(null)
+  const [inviteSearch, setInviteSearch] = useState('')
+  const [inviteSending, setInviteSending] = useState(false)
+  const [inviteSent, setInviteSent] = useState(false)
   const [toasts, setToasts] = useState<InviteResponse[]>([])
   const seenIds = useRef<Set<string>>(new Set())
 
@@ -125,6 +131,8 @@ export default function Dashboard() {
     api.invitations.sentPending().then(d => setSentPending(d as SentPending[])).catch(() => {})
     api.invitations.responses().then(d => setResponseAlerts(d as InviteResponseAlert[])).catch(() => {})
     api.dues.myDues().then(d => setDues(d as Dues[])).catch(() => {})
+    api.friends.list().then(d => setFriends(d as any[])).catch(() => {})
+    api.members.directory().then(d => setDirectory((d as any[]).map(m => ({ id: m.id, first_name: m.first_name, last_name: m.last_name, email: m.email })))).catch(() => {})
     api.events.list().then(d => {
       const now = new Date()
       const in7days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
@@ -268,6 +276,100 @@ export default function Dashboard() {
                   <p className={`text-xs mt-0.5 ${accepted ? 'text-green-600' : 'text-red-600'}`}>
                     {r.court_name} · {dateStr} at {timeStr}
                   </p>
+                  {!accepted && (
+                    <div className="mt-2 space-y-2">
+                      {invitingFor?.alertId === r.id ? (
+                        /* Inline invite picker */
+                        <div className="bg-white border border-red-100 rounded-xl p-3 space-y-2">
+                          {inviteSent ? (
+                            <p className="text-xs text-green-700 font-medium">✓ Invite sent!</p>
+                          ) : (<>
+                            {/* Friends quick-select */}
+                            {friends.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5">
+                                {friends.map(f => (
+                                  <button key={f.id} type="button" disabled={inviteSending}
+                                    onClick={async () => {
+                                      setInviteSending(true)
+                                      try {
+                                        await api.invitations.send(r.booking_id, {
+                                          invitee_user_id: f.friend_user_id || null,
+                                          invitee_name: f.friend_name,
+                                          invitee_email: f.friend_email || '',
+                                          is_guest: f.is_guest,
+                                        })
+                                        setInviteSent(true)
+                                        setSentPending(p => [...p, { id: 'tmp', booking_id: r.booking_id, invitee_name: f.friend_name, court_name: r.court_name, start_time: r.start_time, sent_at: new Date().toISOString() }])
+                                      } catch {} finally { setInviteSending(false) }
+                                    }}
+                                    className="text-xs px-2.5 py-1 rounded-full border border-gray-200 text-gray-700 hover:border-red-400 hover:text-red-700 bg-white transition disabled:opacity-50">
+                                    {f.friend_name}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                            {/* Member search */}
+                            <input
+                              value={inviteSearch}
+                              onChange={e => setInviteSearch(e.target.value)}
+                              placeholder="Search member by name…"
+                              className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-red-400"
+                            />
+                            {inviteSearch.length >= 2 && (
+                              <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 bg-white max-h-32 overflow-y-auto">
+                                {directory
+                                  .filter(m => `${m.first_name} ${m.last_name}`.toLowerCase().includes(inviteSearch.toLowerCase()) || m.email.toLowerCase().includes(inviteSearch.toLowerCase()))
+                                  .slice(0, 8)
+                                  .map(m => (
+                                    <div key={m.id} className="flex items-center justify-between px-3 py-1.5">
+                                      <div>
+                                        <div className="text-xs font-medium text-gray-800">{m.first_name} {m.last_name}</div>
+                                        <div className="text-xs text-gray-400">{m.email}</div>
+                                      </div>
+                                      <button type="button" disabled={inviteSending}
+                                        onClick={async () => {
+                                          setInviteSending(true)
+                                          try {
+                                            await api.invitations.send(r.booking_id, {
+                                              invitee_user_id: m.id,
+                                              invitee_name: `${m.first_name} ${m.last_name}`,
+                                              invitee_email: m.email,
+                                              is_guest: false,
+                                            })
+                                            setInviteSent(true)
+                                            setInviteSearch('')
+                                          } catch {} finally { setInviteSending(false) }
+                                        }}
+                                        className="text-xs bg-red-700 text-white px-2 py-1 rounded hover:bg-red-800 transition disabled:opacity-50">
+                                        Invite
+                                      </button>
+                                    </div>
+                                  ))}
+                              </div>
+                            )}
+                          </>)}
+                          <button type="button" onClick={() => { setInvitingFor(null); setInviteSearch(''); setInviteSent(false) }}
+                            className="text-xs text-gray-400 hover:text-gray-600">Close</button>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2">
+                          <button onClick={async () => {
+                            if (!confirm('Cancel this booking?')) return
+                            await api.bookings.delete(r.booking_id).catch(() => {})
+                            dismissAlert(r.id)
+                            api.bookings.mine().then(d => setMyBookings(d as Booking[]))
+                          }}
+                            className="text-xs font-semibold bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-1.5 rounded-lg transition">
+                            Cancel Booking
+                          </button>
+                          <button onClick={() => { setInvitingFor({ bookingId: r.booking_id, alertId: r.id }); setInviteSearch(''); setInviteSent(false) }}
+                            className="text-xs font-semibold bg-red-700 hover:bg-red-800 text-white px-3 py-1.5 rounded-lg transition">
+                            Invite Someone Else →
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <button onClick={() => dismissAlert(r.id)}
                   className="text-gray-400 hover:text-gray-600 transition text-lg leading-none shrink-0 self-start">×</button>
