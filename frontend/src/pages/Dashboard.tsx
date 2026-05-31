@@ -88,6 +88,7 @@ export default function Dashboard() {
   const [liveballInvites, setLiveballInvites] = useState<{id: string; event_id: string; title: string; start_time: string; max_players: number; status: string; token: string; position?: number}[]>([])
   const [boardMeetingInvites, setBoardMeetingInvites] = useState<{id: string; event_id: string; token: string; status: string; title: string; start_time: string; end_time?: string; location?: string}[]>([])
   const seenIds = useRef<Set<string>>(new Set())
+  const dismissedAlertIds = useRef<Set<string>>(new Set())
 
   const dismissToast = (id: string) => setToasts(prev => prev.filter(t => t.id !== id))
 
@@ -105,7 +106,9 @@ export default function Dashboard() {
   const refreshAlerts = useCallback(() => {
     api.invitations.pending().then(d => setPendingInvites(d as PendingInvite[])).catch(() => {})
     api.invitations.sentPending().then(d => setSentPending(d as SentPending[])).catch(() => {})
-    api.invitations.responses().then(d => setResponseAlerts(d as InviteResponseAlert[])).catch(() => {})
+    api.invitations.responses().then(d =>
+      setResponseAlerts((d as InviteResponseAlert[]).filter(r => !dismissedAlertIds.current.has(r.id)))
+    ).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -130,7 +133,9 @@ export default function Dashboard() {
     api.boardMeetings.myInvitations().then(d => setBoardMeetingInvites(d as any[])).catch(() => {})
     if (isBoard) api.feedback.newItems().then(d => setNewFeedback(d as any[])).catch(() => {})
     api.invitations.sentPending().then(d => setSentPending(d as SentPending[])).catch(() => {})
-    api.invitations.responses().then(d => setResponseAlerts(d as InviteResponseAlert[])).catch(() => {})
+    api.invitations.responses().then(d =>
+      setResponseAlerts((d as InviteResponseAlert[]).filter(r => !dismissedAlertIds.current.has(r.id)))
+    ).catch(() => {})
     api.dues.myDues().then(d => setDues(d as Dues[])).catch(() => {})
     api.friends.list().then(d => setFriends(d as any[])).catch(() => {})
     api.members.directory().then(d => setDirectory((d as any[]).map(m => ({ id: m.id, first_name: m.first_name, last_name: m.last_name, email: m.email })))).catch(() => {})
@@ -501,7 +506,10 @@ export default function Dashboard() {
                 </div>
                 {accepted && (
                   <button
-                    onClick={() => setResponseAlerts(prev => prev.filter(ra => ra.id !== r.id))}
+                    onClick={() => {
+                      dismissedAlertIds.current.add(r.id)
+                      setResponseAlerts(prev => prev.filter(ra => ra.id !== r.id))
+                    }}
                     className="text-green-400 hover:text-green-600 shrink-0 leading-none text-lg mt-0.5"
                     title="Dismiss">
                     ×

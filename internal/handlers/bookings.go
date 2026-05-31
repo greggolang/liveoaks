@@ -327,15 +327,62 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 	if h.Mailer != nil && hostEmail != "" {
 		var courtName string
 		h.DB.QueryRow(c.Request().Context(), `SELECT name FROM courts WHERE id = $1`, req.CourtID).Scan(&courtName)
-		card := bookingCard(courtName, req.StartTime, req.EndTime, loadTimezone(c.Request().Context(), h.DB))
+		loc := loadTimezone(c.Request().Context(), h.DB)
+
+		matchTypeLabels := map[string]string{
+			"singles":      "Singles",
+			"doubles":      "Doubles",
+			"casual":       "Hit Session",
+			"ball_machine": "Ball Machine",
+		}
+		matchLabel := matchTypeLabels[req.MatchType]
+		if matchLabel == "" {
+			matchLabel = "Tennis"
+		}
+
+		startStr := req.StartTime.In(loc).Format("Mon Jan 2 at 3:04 PM MST")
+		endStr := req.EndTime.In(loc).Format("3:04 PM MST")
+
+		// Roster section — only the host at this point
+		rosterHTML := fmt.Sprintf(`<li style="margin:4px 0">%s (Host)</li>`, hostName)
+		for i := 0; i < req.PlayersNeeded; i++ {
+			rosterHTML += `<li style="margin:4px 0;color:#9ca3af;font-style:italic">Open spot</li>`
+		}
+
+		// CTA depending on match type
+		var ctaHTML string
+		if req.PlayersNeeded > 0 {
+			plural := "s"
+			if req.PlayersNeeded == 1 {
+				plural = ""
+			}
+			ctaHTML = fmt.Sprintf(`
+<div style="background:#fefce8;border:1px solid #fde047;border-radius:8px;padding:12px;margin:16px 0;color:#854d0e">
+  ⚠️ You need <strong>%d more player%s</strong> — invite them from the bookings page.
+</div>
+<p style="margin:16px 0">
+  <a href="%s/bookings" style="background:#15803d;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block">
+    Invite Players →
+  </a>
+</p>`, req.PlayersNeeded, plural, h.SiteURL)
+		} else {
+			ctaHTML = fmt.Sprintf(`<p style="margin:16px 0"><a href="%s/bookings" style="color:#15803d">View your bookings →</a></p>`, h.SiteURL)
+		}
+
 		body := fmt.Sprintf(`
 <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
   <h2 style="color:#15803d">🎾 Booking Confirmed</h2>
   <p>Hi %s,</p>
   <p>Your court booking is confirmed:</p>
-  <div style="background:#f0fdf4;border-radius:8px;padding:16px;margin:16px 0">%s</div>
-  <a href="%s/bookings" style="color:#15803d">View your bookings →</a>
-</div>`, hostName, card, h.SiteURL)
+  <div style="background:#f0fdf4;border-radius:8px;padding:16px;margin:16px 0">
+    <div style="margin:4px 0">🎾 <strong>%s</strong></div>
+    <div style="margin:4px 0">⏰ <strong>%s – %s</strong></div>
+    <div style="margin:4px 0">📋 <strong>%s</strong></div>
+    <div style="margin-top:12px;font-weight:600;color:#166534">Players:</div>
+    <ul style="margin:8px 0;padding-left:20px;color:#374151">%s</ul>
+  </div>
+  %s
+</div>`, hostName, courtName, startStr, endStr, matchLabel, rosterHTML, ctaHTML)
 		go h.Mailer.Send(hostEmail, "Booking confirmed – "+courtName, body)
 	}
 

@@ -218,7 +218,7 @@ func (h *InvitationsHandler) Respond(c echo.Context) error {
 			bookingID, inv.ID, inv.InviteeUserID, inv.InviteeName, inv.InviteeEmail, inv.IsGuest)
 
 		// Notify host
-		go h.sendAcceptedEmail(inviterEmail, inv.InviteeName, courtName, dateStr)
+		go h.sendAcceptedEmail(inviterEmail, inv.InviteeName, courtName, dateStr, bookingID)
 
 		// Check if match is now full and cancel remaining
 		go h.checkMatchFull(bookingID, inv.InviterID, inviterEmail)
@@ -620,7 +620,59 @@ func (h *InvitationsHandler) sendDeclinedEmail(to, playerName, court, dateStr, b
 	h.Mailer.Send(to, playerName+" declined your match invitation", body)
 }
 
-func (h *InvitationsHandler) sendAcceptedEmail(to, playerName, court, dateStr string) {
+func (h *InvitationsHandler) sendAcceptedEmail(to, playerName, court, dateStr, bookingID string) {
+	// Fetch current roster and capacity
+	type rosterRow struct {
+		name   string
+		isHost bool
+	}
+	var players []rosterRow
+	var playersNeeded int
+
+	rows, err := h.DB.Query(context.Background(), `
+		SELECT mp.player_name, mp.is_host
+		FROM match_players mp
+		WHERE mp.booking_id = $1
+		ORDER BY mp.is_host DESC, mp.added_at`, bookingID)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var r rosterRow
+			rows.Scan(&r.name, &r.isHost)
+			players = append(players, r)
+		}
+	}
+	h.DB.QueryRow(context.Background(),
+		`SELECT players_needed FROM bookings WHERE id = $1`, bookingID).Scan(&playersNeeded)
+
+	// Roster list HTML
+	rosterHTML := ""
+	for _, p := range players {
+		label := p.name
+		if p.isHost {
+			label += " (Host)"
+		}
+		rosterHTML += fmt.Sprintf(`<li style="margin:4px 0">%s</li>`, label)
+	}
+
+	// Still-needed section
+	spotsLeft := playersNeeded + 1 - len(players) // +1 because players_needed excludes host
+	var spotsHTML string
+	if spotsLeft <= 0 {
+		spotsHTML = `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px;margin:16px 0;color:#166534;font-weight:600">
+  ✅ Your roster is full — you're all set!
+</div>`
+	} else {
+		spotsHTML = fmt.Sprintf(`<div style="background:#fefce8;border:1px solid #fde047;border-radius:8px;padding:12px;margin:16px 0;color:#854d0e">
+  ⚠️ You still need <strong>%d more player%s</strong> for this match.
+</div>
+<p style="margin:16px 0">
+  <a href="%s/bookings" style="background:#15803d;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block">
+    Invite Someone →
+  </a>
+</p>`, spotsLeft, map[bool]string{true: "", false: "s"}[spotsLeft == 1], h.SiteURL)
+	}
+
 	body := fmt.Sprintf(`
 <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
   <h2 style="color:#15803d">✓ Invitation Accepted</h2>
@@ -628,9 +680,12 @@ func (h *InvitationsHandler) sendAcceptedEmail(to, playerName, court, dateStr st
   <div style="background:#f0fdf4;border-radius:8px;padding:16px;margin:20px 0">
     <div style="margin:4px 0">🎾 <strong>%s</strong></div>
     <div style="margin:4px 0">📅 <strong>%s</strong></div>
+    <div style="margin-top:12px;font-weight:600;color:#166534">Current Roster:</div>
+    <ul style="margin:8px 0;padding-left:20px;color:#374151">%s</ul>
   </div>
-  <a href="%s/bookings" style="background:#15803d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block">View Booking →</a>
-</div>`, playerName, court, dateStr, h.SiteURL)
+  %s
+  <p><a href="%s/bookings" style="color:#15803d;font-size:13px">View all your bookings →</a></p>
+</div>`, playerName, court, dateStr, rosterHTML, spotsHTML, h.SiteURL)
 	h.Mailer.Send(to, playerName+" accepted your match invitation", body)
 }
 
