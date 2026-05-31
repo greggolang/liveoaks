@@ -41,6 +41,7 @@ const sections: Section[] = [
     heading: 'Games',
     links: [
       { to: '/admin/fantasy', label: 'Fantasy Tennis Pool' },
+      { to: '/admin/ladder', label: 'Tennis Ladder' },
     ],
   },
   {

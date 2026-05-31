@@ -44,6 +44,8 @@ import AdminBookingDocs from './pages/admin/AdminBookingDocs'
 import AdminBookings from './pages/admin/AdminBookings'
 import AdminFantasy from './pages/admin/AdminFantasy'
 import AdminNotes from './pages/admin/AdminNotes'
+import AdminLadder from './pages/admin/AdminLadder'
+import TennisLadder from './pages/TennisLadder'
 import Fantasy from './pages/Fantasy'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -93,6 +95,7 @@ function AppRoutes() {
       <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
       <Route path="/friends" element={<ProtectedRoute><Friends /></ProtectedRoute>} />
       <Route path="/fantasy" element={<ProtectedRoute><Fantasy /></ProtectedRoute>} />
+      <Route path="/ladder" element={<ProtectedRoute><TennisLadder /></ProtectedRoute>} />
 
       {/* Admin */}
       <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>}>
@@ -113,6 +116,7 @@ function AppRoutes() {
         <Route path="booking-docs" element={<AdminBookingDocs />} />
         <Route path="fantasy" element={<AdminFantasy />} />
         <Route path="notes" element={<AdminNotes />} />
+        <Route path="ladder" element={<AdminLadder />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

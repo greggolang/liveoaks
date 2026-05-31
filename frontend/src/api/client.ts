@@ -268,6 +268,34 @@ export const api = {
   camera: {
     embedURL: () => request<{ url: string }>('/camera/embed'),
   },
+  ladder: {
+    list: () => request('/ladder'),
+    get: (id: string) => request(`/ladder/${id}`),
+    register: (id: string, data: object) => request(`/ladder/${id}/register`, { method: 'POST', body: JSON.stringify(data) }),
+    myStatus: (id: string) => request(`/ladder/${id}/me`),
+    createChallenge: (id: string, data: object) => request(`/ladder/${id}/challenge`, { method: 'POST', body: JSON.stringify(data) }),
+    respondChallenge: (challengeId: string, action: 'accept' | 'decline') =>
+      request(`/challenges/${challengeId}/respond`, { method: 'PUT', body: JSON.stringify({ action }) }),
+    leaderboard: (id: string) => request(`/ladder/${id}/leaderboard`),
+    admin: {
+      list: () => request('/admin/ladder'),
+      create: (data: object) => request('/admin/ladder', { method: 'POST', body: JSON.stringify(data) }),
+      update: (id: string, data: object) => request(`/admin/ladder/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+      delete: (id: string) => request(`/admin/ladder/${id}?confirm=true`, { method: 'DELETE' }),
+      registrations: (id: string) => request(`/admin/ladder/${id}/registrations`),
+      approveReg: (ladderId: string, userId: string, status: string) =>
+        request(`/admin/ladder/${ladderId}/registrations/${userId}`, { method: 'PUT', body: JSON.stringify({ status }) }),
+      setRank: (ladderId: string, userId: string, rank: number) =>
+        request(`/admin/ladder/${ladderId}/rank`, { method: 'PUT', body: JSON.stringify({ user_id: userId, rank }) }),
+      challenges: (id: string, status?: string) => request(`/admin/ladder/${id}/challenges${status ? `?status=${status}` : ''}`),
+      enterResult: (challengeId: string, winnerId: string, score: string) =>
+        request(`/admin/challenges/${challengeId}/result`, { method: 'PUT', body: JSON.stringify({ winner_id: winnerId, score }) }),
+      forfeit: (challengeId: string) =>
+        request(`/admin/challenges/${challengeId}/forfeit`, { method: 'PUT' }),
+      awardPoints: (ladderId: string, data: object) =>
+        request(`/admin/ladder/${ladderId}/points`, { method: 'POST', body: JSON.stringify(data) }),
+    },
+  },
   notes: {
     list: () => request('/admin/notes'),
     create: (title: string, body: string) => request('/admin/notes', { method: 'POST', body: JSON.stringify({ title, body }) }),

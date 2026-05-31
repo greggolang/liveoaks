@@ -49,6 +49,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <NavLink to="/directory" className={navLink}>Directory</NavLink>
               <NavLink to="/friends" className={navLink}>Friends</NavLink>
               <NavLink to="/fantasy" className={navLink}>Fantasy Pool</NavLink>
+              <NavLink to="/ladder" className={navLink}>Ladder</NavLink>
               {isBoard && <NavLink to="/email" className={navLink}>Email</NavLink>}
               {isBoard && <NavLink to="/drive" className={navLink}>Drive</NavLink>}
               {isBoard && <NavLink to="/admin" className={navLink}>Admin</NavLink>}
@@ -87,7 +88,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <div className="md:hidden mt-3 pb-2 border-t border-green-600 flex flex-col gap-2 pt-3 text-sm">
               {[
                 ['/bookings', 'Book Court'],
-                ['/directory', 'Directory'], ['/friends', 'Friends'], ['/fantasy', 'Fantasy Pool'],
+                ['/directory', 'Directory'], ['/friends', 'Friends'], ['/fantasy', 'Fantasy Pool'], ['/ladder', 'Ladder'],
                 ...(isBoard ? [['/email', 'Email'], ['/drive', 'Drive'], ['/admin', 'Admin']] : []),
               ].map(([to, label]) => (
                 <Link key={to} to={to} onClick={() => setMenuOpen(false)}

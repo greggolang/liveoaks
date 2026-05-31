@@ -89,6 +89,7 @@ func main() {
 	family := &handlers.FamilyHandler{DB: pool}
 	groups := &handlers.GroupsHandler{DB: pool}
 	notes := &handlers.NotesHandler{DB: pool}
+	ladder := &handlers.LadderHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	invitations := &handlers.InvitationsHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	signups := &handlers.SignupsHandler{DB: pool}
 	weather := &handlers.WeatherHandler{DB: pool}
@@ -212,6 +213,28 @@ func main() {
 	adminOnly.POST("/email-templates", emailTemplates.Create)
 	adminOnly.PUT("/email-templates/:id", emailTemplates.Update)
 	adminOnly.DELETE("/email-templates/:id", emailTemplates.Delete)
+	// Tennis Ladder — member routes
+	authed.GET("/ladder", ladder.GetLadders)
+	authed.GET("/ladder/:id", ladder.GetLadder)
+	authed.POST("/ladder/:id/register", ladder.Register)
+	authed.GET("/ladder/:id/me", ladder.GetMyStatus)
+	authed.POST("/ladder/:id/challenge", ladder.CreateChallenge)
+	authed.PUT("/challenges/:id/respond", ladder.RespondChallenge)
+	authed.GET("/ladder/:id/leaderboard", ladder.GetSeasonLeaderboard)
+
+	// Tennis Ladder — admin routes
+	adminOnly.GET("/ladder", ladder.AdminGetLadders)
+	adminOnly.POST("/ladder", ladder.AdminCreateLadder)
+	adminOnly.PUT("/ladder/:id", ladder.AdminUpdateLadder)
+	adminOnly.DELETE("/ladder/:id", ladder.AdminDeleteLadder)
+	adminOnly.GET("/ladder/:id/registrations", ladder.AdminGetRegistrations)
+	adminOnly.PUT("/ladder/:id/registrations/:userId", ladder.AdminApproveRegistration)
+	adminOnly.PUT("/ladder/:id/rank", ladder.AdminSetRank)
+	adminOnly.GET("/ladder/:id/challenges", ladder.AdminGetChallenges)
+	adminOnly.PUT("/challenges/:id/result", ladder.AdminEnterResult)
+	adminOnly.PUT("/challenges/:id/forfeit", ladder.AdminForfeit)
+	adminOnly.POST("/ladder/:id/points", ladder.AdminAwardPoints)
+
 	// Admin notes (board+)
 	boardPlus.GET("/admin/notes", notes.List)
 	boardPlus.POST("/admin/notes", notes.Create)
