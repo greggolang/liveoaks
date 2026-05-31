@@ -135,11 +135,21 @@ export default function Bookings() {
   const [editError, setEditError] = useState('')
   const [showTutorial, setShowTutorial] = useState(false)
   // Cancel modal
-  const [cancelModal, setCancelModal] = useState<{ bookingId: string } | null>(null)
+  const [cancelModal, setCancelModal] = useState<{ bookingId: string; isHost: boolean } | null>(null)
   const [cancelReasons, setCancelReasons] = useState<{ id: string; reason: string }[]>([])
   const [cancelSelected, setCancelSelected] = useState('')
   const [cancelCustom, setCancelCustom] = useState('')
   const [cancelling, setCancelling] = useState(false)
+
+  // Transfer host modal (doubles only)
+  const [transferModal, setTransferModal] = useState<{
+    bookingId: string
+    players: { id: string; player_name: string }[]
+  } | null>(null)
+  const [transferTarget, setTransferTarget] = useState('')
+  const [transferReason, setTransferReason] = useState('')
+  const [transferring, setTransferring] = useState(false)
+  const [transferError, setTransferError] = useState('')
 
   const load = useCallback(() => {
     api.bookings.list(date).then(d => setBookings(d as Booking[]))
@@ -469,8 +479,8 @@ export default function Bookings() {
     }
   }
 
-  const openCancelModal = (id: string) => {
-    setCancelModal({ bookingId: id })
+  const openCancelModal = (id: string, isHost = false) => {
+    setCancelModal({ bookingId: id, isHost })
     setCancelSelected('')
     setCancelCustom('')
   }
@@ -1376,7 +1386,7 @@ export default function Bookings() {
                           Edit booking
                         </button>
                         <span className="text-gray-200">|</span>
-                        <button onClick={() => { openCancelModal(b.id) }}
+                        <button onClick={() => { openCancelModal(b.id, b.user_id === user?.id) }}
                           className="text-sm text-red-500 hover:text-red-700 font-medium transition">
                           Cancel this booking
                         </button>
@@ -1437,7 +1447,7 @@ export default function Bookings() {
                                   </span>
                                   {(isMe || isBoard) && (
                                     <button
-                                      onClick={e => { e.stopPropagation(); openCancelModal(booking.id) }}
+                                      onClick={e => { e.stopPropagation(); openCancelModal(booking.id, isMe) }}
                                       className={`text-xs shrink-0 hover:opacity-70 transition ${isMe ? 'text-green-200' : 'text-green-600'}`}>
                                       ✕
                                     </button>
@@ -1651,10 +1661,24 @@ export default function Bookings() {
                           className={`text-sm px-3 py-1.5 rounded-lg font-medium transition ${isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
                           👥 {isActive ? 'Hide' : 'Roster & Invite'}
                         </button>
-                        <button onClick={() => openCancelModal(b.id)}
+                        <button onClick={() => openCancelModal(b.id, b.user_id === user?.id)}
                           className="text-red-400 hover:text-red-600 text-sm font-medium transition">
                           Cancel
                         </button>
+                        {b.user_id === user?.id && b.match_type === 'doubles' && (() => {
+                          const others = (rosterMap[b.id]?.players ?? []).filter(p => !p.is_host)
+                          if (others.length === 0) return null
+                          return (
+                            <button onClick={() => {
+                              setTransferTarget('')
+                              setTransferReason('')
+                              setTransferError('')
+                              setTransferModal({ bookingId: b.id, players: others })
+                            }} className="text-amber-500 hover:text-amber-700 text-sm font-medium transition">
+                              Transfer Host &amp; Leave
+                            </button>
+                          )
+                        })()}
                       </div>
                     </div>
 
@@ -1876,15 +1900,21 @@ export default function Bookings() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
             <h3 className="text-lg font-bold text-gray-800">Cancel Booking</h3>
-            <p className="text-sm text-gray-500">Optionally tell your players why this booking is being cancelled.</p>
+            <p className="text-sm text-gray-500">
+              {cancelModal.isHost
+                ? 'A reason is required so your players know why the match was cancelled.'
+                : 'Optionally tell your players why this booking is being cancelled.'}
+            </p>
 
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">Reason</label>
+              <label className="block text-sm font-medium text-gray-700">
+                Reason {cancelModal.isHost && <span className="text-red-500">*</span>}
+              </label>
               <select
                 value={cancelSelected}
                 onChange={e => { setCancelSelected(e.target.value); setCancelCustom('') }}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400">
-                <option value="">No reason / skip</option>
+                <option value="">{cancelModal.isHost ? 'Select a reason…' : 'No reason / skip'}</option>
                 {cancelReasons.map(r => (
                   <option key={r.id} value={r.reason}>{r.reason}</option>
                 ))}
@@ -1905,7 +1935,11 @@ export default function Bookings() {
             <div className="flex gap-3 pt-1">
               <button
                 onClick={confirmCancel}
-                disabled={cancelling || (cancelSelected === '__custom__' && !cancelCustom.trim())}
+                disabled={
+                  cancelling ||
+                  (cancelSelected === '__custom__' && !cancelCustom.trim()) ||
+                  (cancelModal.isHost && !cancelSelected)
+                }
                 className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 rounded-lg text-sm transition disabled:opacity-50">
                 {cancelling ? 'Cancelling…' : 'Cancel Booking'}
               </button>
@@ -1914,6 +1948,68 @@ export default function Bookings() {
                 disabled={cancelling}
                 className="flex-1 border border-gray-200 text-gray-600 hover:bg-gray-50 font-medium py-2.5 rounded-lg text-sm transition">
                 Keep Booking
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Transfer host modal (doubles) */}
+      {transferModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
+            <h3 className="text-lg font-bold text-gray-800">Transfer Host &amp; Leave</h3>
+            <p className="text-sm text-gray-500">
+              Choose who takes over as host. The match stays on the books and the new host can invite someone to fill your spot.
+            </p>
+
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">New Host <span className="text-red-500">*</span></label>
+              <select value={transferTarget} onChange={e => setTransferTarget(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+                <option value="">Select a player…</option>
+                {transferModal.players.map(p => (
+                  <option key={p.id} value={p.id}>{p.player_name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">Reason <span className="text-red-500">*</span></label>
+              <textarea
+                value={transferReason}
+                onChange={e => setTransferReason(e.target.value)}
+                placeholder="Why are you leaving? Your teammates will be notified."
+                rows={2}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
+              />
+            </div>
+
+            {transferError && <p className="text-red-600 text-sm">{transferError}</p>}
+
+            <div className="flex gap-3 pt-1">
+              <button
+                disabled={!transferTarget || !transferReason.trim() || transferring}
+                onClick={async () => {
+                  if (!transferModal) return
+                  setTransferring(true)
+                  setTransferError('')
+                  try {
+                    await api.invitations.withdraw(transferModal.bookingId, transferReason.trim(), transferTarget)
+                    setTransferModal(null)
+                    loadMine()
+                  } catch (err: any) {
+                    setTransferError(err.message || 'Could not transfer — try again.')
+                  } finally {
+                    setTransferring(false)
+                  }
+                }}
+                className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-semibold py-2.5 rounded-lg text-sm transition disabled:opacity-50">
+                {transferring ? 'Transferring…' : 'Transfer &amp; Leave'}
+              </button>
+              <button onClick={() => setTransferModal(null)} disabled={transferring}
+                className="flex-1 border border-gray-200 text-gray-600 hover:bg-gray-50 font-medium py-2.5 rounded-lg text-sm transition">
+                Stay in Match
               </button>
             </div>
           </div>

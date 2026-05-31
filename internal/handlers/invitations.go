@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -830,7 +831,8 @@ func (h *InvitationsHandler) WithdrawFromBooking(c echo.Context) error {
 	bookingID := c.Param("id")
 
 	var req struct {
-		Reason string `json:"reason"`
+		Reason            string  `json:"reason"`
+		TransferToPlayerID *string `json:"transfer_to_player_id"`
 	}
 	c.Bind(&req)
 
@@ -887,6 +889,10 @@ func (h *InvitationsHandler) WithdrawFromBooking(c echo.Context) error {
 	).Scan(&playerRowID, &playerName, &playerEmail, &isHost)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "you are not on this booking's roster")
+	}
+
+	if isHost && strings.TrimSpace(req.Reason) == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "a reason is required when the host cancels or transfers a booking")
 	}
 
 	loc := loadTimezone(ctx, h.DB)
@@ -966,12 +972,22 @@ func (h *InvitationsHandler) WithdrawFromBooking(c echo.Context) error {
 	if isHost {
 		var nextRowID, nextPlayerName string
 		var nextUserID *string
-		h.DB.QueryRow(ctx, `
-			SELECT id, player_name, user_id FROM match_players
-			WHERE booking_id=$1 AND withdrew_at IS NULL
-			ORDER BY added_at LIMIT 1`,
-			bookingID,
-		).Scan(&nextRowID, &nextPlayerName, &nextUserID)
+		if req.TransferToPlayerID != nil && *req.TransferToPlayerID != "" {
+			// Host explicitly chose who to transfer to.
+			h.DB.QueryRow(ctx, `
+				SELECT id, player_name, user_id FROM match_players
+				WHERE booking_id=$1 AND id=$2 AND withdrew_at IS NULL`,
+				bookingID, *req.TransferToPlayerID,
+			).Scan(&nextRowID, &nextPlayerName, &nextUserID)
+		} else {
+			// Fall back to earliest-added remaining player.
+			h.DB.QueryRow(ctx, `
+				SELECT id, player_name, user_id FROM match_players
+				WHERE booking_id=$1 AND withdrew_at IS NULL
+				ORDER BY added_at LIMIT 1`,
+				bookingID,
+			).Scan(&nextRowID, &nextPlayerName, &nextUserID)
+		}
 		if nextRowID != "" {
 			h.DB.Exec(ctx, `UPDATE match_players SET is_host=TRUE WHERE id=$1`, nextRowID)
 			if nextUserID != nil {

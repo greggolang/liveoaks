@@ -95,8 +95,8 @@ export const api = {
     send: (bookingId: string, data: object) => request(`/bookings/${bookingId}/invite`, { method: 'POST', body: JSON.stringify(data) }),
     addPlayer: (bookingId: string, data: object) => request(`/bookings/${bookingId}/players`, { method: 'POST', body: JSON.stringify(data) }),
     removePlayer: (bookingId: string, playerId: string) => request(`/bookings/${bookingId}/players/${playerId}`, { method: 'DELETE' }),
-    withdraw: (bookingId: string, reason?: string) =>
-      request(`/bookings/${bookingId}/withdraw`, { method: 'POST', body: JSON.stringify({ reason: reason ?? '' }) }),
+    withdraw: (bookingId: string, reason: string, transferToPlayerId?: string) =>
+      request(`/bookings/${bookingId}/withdraw`, { method: 'POST', body: JSON.stringify({ reason, transfer_to_player_id: transferToPlayerId ?? null }) }),
     respond: (token: string, action: 'accept' | 'decline') => request(`/invite/${token}/${action}`, { method: 'POST' }),
     cancel: (id: string) => request(`/invitations/${id}/cancel`, { method: 'PUT' }),
     responses: () => request('/invitations/responses'),
