@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { api } from '../api/client'
-import { WeatherData, weatherIcon, weatherLabel, courtCondition, conditionColors, dayLabel } from '../utils/weather'
+import { WeatherData, AirQualityData, weatherIcon, weatherLabel, courtCondition, conditionColors, dayLabel, aqiLabel, aqiColor, aqiEmoji } from '../utils/weather'
 
 interface InviteResponse {
   id: string
@@ -65,6 +65,7 @@ export default function Dashboard() {
   const [myBookings, setMyBookings] = useState<Booking[]>([])
   const [bookingCountdown, setBookingCountdown] = useState(30)
   const [weather, setWeather] = useState<WeatherData | null>(null)
+  const [airQuality, setAirQuality] = useState<AirQualityData | null>(null)
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [readIds, setReadIds] = useState<Set<string>>(new Set())
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([])
@@ -149,6 +150,7 @@ export default function Dashboard() {
     api.announcements.list().then(d => setAnnouncements(d as Announcement[]))
     api.camera.embedURL().then(d => setCameraURL(d.url)).catch(() => setCameraURL('/camera'))
     api.weather.get().then(d => setWeather(d as WeatherData)).catch(() => {})
+    api.weather.airQuality().then(d => setAirQuality(d as AirQualityData)).catch(() => {})
     api.invitations.pending().then(d => setPendingInvites(d as PendingInvite[])).catch(() => {})
     api.liveball.myInvitations().then(d => setLiveballInvites(d as any[])).catch(() => {})
     api.boardMeetings.myInvitations().then(d => setBoardMeetingInvites(d as any[])).catch(() => {})
@@ -723,7 +725,7 @@ export default function Dashboard() {
       </div>
 
       {/* Weather */}
-      {weather && <WeatherWidget weather={weather} />}
+      {weather && <WeatherWidget weather={weather} airQuality={airQuality} />}
 
       {/* My Bookings */}
       <div>
@@ -923,12 +925,13 @@ export default function Dashboard() {
   )
 }
 
-function WeatherWidget({ weather }: { weather: WeatherData }) {
+function WeatherWidget({ weather, airQuality }: { weather: WeatherData; airQuality: AirQualityData | null }) {
   const cur = weather.current
   const daily = weather.daily
   const todayCode = daily.weathercode[0] ?? cur.weathercode
   const todayPrecip = daily.precipitation_probability_max[0] ?? 0
   const condition = courtCondition(todayCode, todayPrecip)
+  const aqi = airQuality?.current?.us_aqi ?? null
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
@@ -944,6 +947,11 @@ function WeatherWidget({ weather }: { weather: WeatherData }) {
             <span>💨 {Math.round(cur.windspeed_10m)} mph</span>
             <span>💧 {cur.relativehumidity_2m}% humidity</span>
             {todayPrecip > 0 && <span>🌂 {todayPrecip}% rain</span>}
+            {aqi !== null && (
+              <span className={`font-medium px-1.5 py-0.5 rounded border text-xs ${aqiColor(aqi)}`}>
+                {aqiEmoji(aqi)} AQI {aqi} · {aqiLabel(aqi)}
+              </span>
+            )}
           </div>
         </div>
         <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${conditionColors[condition]}`}>

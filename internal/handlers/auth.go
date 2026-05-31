@@ -146,18 +146,27 @@ func (h *AuthHandler) Me(c echo.Context) error {
 	userID := c.Get("user_id").(string)
 	var user models.User
 	var role, status string
+	var isFamilyMember bool
 	err := h.DB.QueryRow(c.Request().Context(),
 		`SELECT id, first_name, last_name, email, role::text, status::text, phone, address, family, usta_ranking, created_at,
-		        COALESCE(extra_roles, ARRAY[]::text[])
+		        COALESCE(extra_roles, ARRAY[]::text[]),
+		        EXISTS(SELECT 1 FROM family_members WHERE linked_user_id = $1) AS is_family_member
 		 FROM users WHERE id = $1`,
 		userID,
-	).Scan(&user.ID, &user.FirstName, &user.LastName, &user.Email, &role, &status, &user.Phone, &user.Address, &user.Family, &user.USTARanking, &user.CreatedAt, &user.ExtraRoles)
+	).Scan(&user.ID, &user.FirstName, &user.LastName, &user.Email, &role, &status, &user.Phone, &user.Address, &user.Family, &user.USTARanking, &user.CreatedAt, &user.ExtraRoles, &isFamilyMember)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "user not found")
 	}
 	user.Role = models.Role(role)
 	user.Status = models.Status(status)
-	return c.JSON(http.StatusOK, user)
+	// Return as a map so we can include the virtual is_family_member field
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"id": user.ID, "first_name": user.FirstName, "last_name": user.LastName,
+		"email": user.Email, "role": user.Role, "status": user.Status,
+		"phone": user.Phone, "address": user.Address, "family": user.Family,
+		"usta_ranking": user.USTARanking, "created_at": user.CreatedAt,
+		"extra_roles": user.ExtraRoles, "is_family_member": isFamilyMember,
+	})
 }
 
 func (h *AuthHandler) UpdateProfile(c echo.Context) error {

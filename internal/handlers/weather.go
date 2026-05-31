@@ -15,12 +15,14 @@ import (
 type WeatherHandler struct {
 	DB *pgxpool.Pool
 
-	mu         sync.Mutex
-	cached     []byte
-	cachedAt   time.Time
-	cachedLat  string
-	cachedLon  string
-	coordsAt   time.Time
+	mu          sync.Mutex
+	cached      []byte
+	cachedAt    time.Time
+	cachedLat   string
+	cachedLon   string
+	coordsAt    time.Time
+	aqCached    []byte
+	aqCachedAt  time.Time
 }
 
 // resolveCoords looks up lat/lon for a zip code using the free zippopotam.us API.
@@ -119,6 +121,58 @@ func (h *WeatherHandler) Get(c echo.Context) error {
 	h.mu.Lock()
 	h.cached = body
 	h.cachedAt = time.Now()
+	h.mu.Unlock()
+
+	return c.JSONBlob(http.StatusOK, body)
+}
+
+// AirQuality returns current US AQI from the Open-Meteo Air Quality API,
+// using the same lat/lon settings as the weather endpoint. Cached 30 minutes.
+func (h *WeatherHandler) AirQuality(c echo.Context) error {
+	h.mu.Lock()
+	if h.aqCached != nil && time.Since(h.aqCachedAt) < 30*time.Minute {
+		data := h.aqCached
+		h.mu.Unlock()
+		return c.JSONBlob(http.StatusOK, data)
+	}
+	h.mu.Unlock()
+
+	var zip, lat, lon string
+	h.DB.QueryRow(c.Request().Context(), `SELECT value FROM settings WHERE key = 'weather_zip'`).Scan(&zip)
+	if zip != "" {
+		lat, lon, _ = h.resolveCoords(zip)
+	}
+	if lat == "" {
+		h.DB.QueryRow(c.Request().Context(), `SELECT value FROM settings WHERE key = 'weather_lat'`).Scan(&lat)
+		h.DB.QueryRow(c.Request().Context(), `SELECT value FROM settings WHERE key = 'weather_lon'`).Scan(&lon)
+	}
+	if lat == "" {
+		lat = "34.1161"
+	}
+	if lon == "" {
+		lon = "-118.1498"
+	}
+
+	url := fmt.Sprintf(
+		"https://air-quality-api.open-meteo.com/v1/air-quality?latitude=%s&longitude=%s"+
+			"&current=us_aqi&timezone=America%%2FLos_Angeles",
+		lat, lon,
+	)
+
+	resp, err := http.Get(url) //nolint:gosec
+	if err != nil {
+		return echo.NewHTTPError(http.StatusServiceUnavailable, "air quality unavailable")
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not read air quality data")
+	}
+
+	h.mu.Lock()
+	h.aqCached = body
+	h.aqCachedAt = time.Now()
 	h.mu.Unlock()
 
 	return c.JSONBlob(http.StatusOK, body)

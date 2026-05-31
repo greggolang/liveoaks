@@ -104,6 +104,7 @@ func main() {
 	// Public
 	api.GET("/session-config", admin.GetSessionConfig)
 	api.GET("/weather", weather.Get)
+	api.GET("/air-quality", weather.AirQuality)
 	api.POST("/auth/register", auth.Register)
 	api.POST("/auth/login", auth.Login)
 	api.POST("/auth/forgot-password", auth.ForgotPassword)

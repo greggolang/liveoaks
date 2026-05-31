@@ -107,7 +107,10 @@ export const api = {
     update: (id: string, data: object) => request(`/contacts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => request(`/contacts/${id}`, { method: 'DELETE' }),
   },
-  weather: { get: () => request('/weather') },
+  weather: {
+    get: () => request('/weather'),
+    airQuality: () => request('/air-quality'),
+  },
   events: {
     list: () => request('/events'),
     get: (id: string) => request(`/events/${id}`),

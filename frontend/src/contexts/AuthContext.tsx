@@ -15,6 +15,7 @@ interface User {
   role: string
   extra_roles?: string[]
   status: string
+  is_family_member?: boolean
 }
 
 function allRoles(u: User): string[] {
@@ -28,6 +29,7 @@ interface AuthContextType {
   logout: () => Promise<void>
   isAdmin: boolean
   isBoard: boolean
+  isFamilyMember: boolean
   bookingMaxDaysAhead: number
 }
 
@@ -97,6 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout,
       isAdmin: user ? allRoles(user).includes('admin') : false,
       isBoard: user ? allRoles(user).some(r => BOARD_ROLES.includes(r)) : false,
+      isFamilyMember: user?.is_family_member ?? false,
       bookingMaxDaysAhead,
     }}>
       {children}

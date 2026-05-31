@@ -20,6 +20,37 @@ export interface WeatherData {
   daily: WeatherDaily
 }
 
+export interface AirQualityData {
+  current: { us_aqi: number }
+}
+
+export function aqiLabel(aqi: number): string {
+  if (aqi <= 50)  return 'Good'
+  if (aqi <= 100) return 'Moderate'
+  if (aqi <= 150) return 'Unhealthy for Sensitive Groups'
+  if (aqi <= 200) return 'Unhealthy'
+  if (aqi <= 300) return 'Very Unhealthy'
+  return 'Hazardous'
+}
+
+export function aqiColor(aqi: number): string {
+  if (aqi <= 50)  return 'text-green-700 bg-green-50 border-green-200'
+  if (aqi <= 100) return 'text-yellow-700 bg-yellow-50 border-yellow-200'
+  if (aqi <= 150) return 'text-orange-700 bg-orange-50 border-orange-200'
+  if (aqi <= 200) return 'text-red-700 bg-red-50 border-red-200'
+  if (aqi <= 300) return 'text-purple-700 bg-purple-50 border-purple-200'
+  return 'text-gray-800 bg-gray-900 border-gray-700'
+}
+
+export function aqiEmoji(aqi: number): string {
+  if (aqi <= 50)  return '🟢'
+  if (aqi <= 100) return '🟡'
+  if (aqi <= 150) return '🟠'
+  if (aqi <= 200) return '🔴'
+  if (aqi <= 300) return '🟣'
+  return '⚫'
+}
+
 export function weatherIcon(code: number): string {
   if (code === 0) return '☀️'
   if (code === 1) return '🌤️'

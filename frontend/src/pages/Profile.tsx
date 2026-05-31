@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
+import { useAuth } from '../contexts/AuthContext'
 import { formatPhone } from '../utils/phone'
 
 const USTA_RATINGS = ['2.5', '3.0', '3.5', '4.0', '4.5', '5.0']
@@ -19,6 +20,7 @@ interface FamilyMember {
 }
 
 export default function Profile() {
+  const { isFamilyMember } = useAuth()
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [form, setForm] = useState({ first_name: '', last_name: '', phone: '', address: '', usta_ranking: '' })
   const [pwForm, setPwForm] = useState({ current: '', new: '', confirm: '' })
@@ -245,7 +247,8 @@ export default function Profile() {
         </div>
       </form>
 
-      {/* Family members */}
+      {/* Family members — hidden for family member accounts (spouse/child logins) */}
+      {!isFamilyMember && <>
       <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm space-y-3">
         <div className="flex items-center justify-between">
           <div>
@@ -447,6 +450,8 @@ export default function Profile() {
           </div>
         )}
       </div>
+
+      </>}
 
       {/* Membership info */}
       <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 flex gap-6 text-sm">

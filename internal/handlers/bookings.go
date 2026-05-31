@@ -325,7 +325,8 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 		`INSERT INTO match_players (booking_id, user_id, player_name, is_host) VALUES ($1, $2, $3, true)`,
 		booking.ID, userID, hostName)
 
-	// Confirmation email to host
+	// Confirmation email to host — sent after a short delay so the frontend has
+	// time to POST invitations and direct-player additions before we snapshot the roster.
 	if h.Mailer != nil && hostEmail != "" {
 		var courtName string
 		h.DB.QueryRow(c.Request().Context(), `SELECT name FROM courts WHERE id = $1`, req.CourtID).Scan(&courtName)
@@ -344,34 +345,82 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 
 		startStr := req.StartTime.In(loc).Format("Mon Jan 2 at 3:04 PM MST")
 		endStr := req.EndTime.In(loc).Format("3:04 PM MST")
+		bookingID := booking.ID
+		playersNeeded := req.PlayersNeeded
 
-		// Roster section — only the host at this point
-		rosterHTML := fmt.Sprintf(`<li style="margin:4px 0">%s (Host)</li>`, hostName)
-		for i := 0; i < req.PlayersNeeded; i++ {
-			rosterHTML += `<li style="margin:4px 0;color:#9ca3af;font-style:italic">Open spot</li>`
-		}
+		go func() {
+			// Wait for the frontend to finish posting invitations / direct players
+			time.Sleep(5 * time.Second)
 
-		// CTA depending on match type
-		var ctaHTML string
-		if req.PlayersNeeded > 0 {
-			plural := "s"
-			if req.PlayersNeeded == 1 {
-				plural = ""
+			// Confirmed players on the roster
+			rosterHTML := ""
+			var confirmedCount int
+			prows, _ := h.DB.Query(context.Background(), `
+				SELECT player_name, is_host FROM match_players
+				WHERE booking_id = $1 ORDER BY is_host DESC, added_at`, bookingID)
+			if prows != nil {
+				defer prows.Close()
+				for prows.Next() {
+					var name string
+					var isHost bool
+					prows.Scan(&name, &isHost)
+					suffix := ""
+					if isHost {
+						suffix = " (Host)"
+					}
+					rosterHTML += fmt.Sprintf(`<li style="margin:4px 0">%s%s</li>`, name, suffix)
+					confirmedCount++
+				}
 			}
-			ctaHTML = fmt.Sprintf(`
+
+			// Pending invitations
+			inviteHTML := ""
+			irows, _ := h.DB.Query(context.Background(), `
+				SELECT invitee_name FROM match_invitations
+				WHERE booking_id = $1 AND status = 'pending'
+				ORDER BY created_at`, bookingID)
+			if irows != nil {
+				defer irows.Close()
+				for irows.Next() {
+					var name string
+					irows.Scan(&name)
+					inviteHTML += fmt.Sprintf(`<li style="margin:4px 0;color:#6b7280;font-style:italic">%s (invited)</li>`, name)
+				}
+			}
+
+			// Remaining open spots
+			openSpots := playersNeeded + 1 - confirmedCount
+			if openSpots < 0 {
+				openSpots = 0
+			}
+			for i := 0; i < openSpots; i++ {
+				if inviteHTML == "" {
+					rosterHTML += `<li style="margin:4px 0;color:#9ca3af;font-style:italic">Open spot</li>`
+				}
+			}
+
+			playerSection := rosterHTML + inviteHTML
+
+			var ctaHTML string
+			if openSpots > 0 && inviteHTML == "" {
+				plural := "s"
+				if openSpots == 1 {
+					plural = ""
+				}
+				ctaHTML = fmt.Sprintf(`
 <div style="background:#fefce8;border:1px solid #fde047;border-radius:8px;padding:12px;margin:16px 0;color:#854d0e">
-  ⚠️ You need <strong>%d more player%s</strong> — invite them from the bookings page.
+  ⚠️ You still need <strong>%d more player%s</strong> — invite them from the bookings page.
 </div>
 <p style="margin:16px 0">
   <a href="%s/bookings" style="background:#15803d;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block">
     Invite Players →
   </a>
-</p>`, req.PlayersNeeded, plural, h.SiteURL)
-		} else {
-			ctaHTML = fmt.Sprintf(`<p style="margin:16px 0"><a href="%s/bookings" style="color:#15803d">View your bookings →</a></p>`, h.SiteURL)
-		}
+</p>`, openSpots, plural, h.SiteURL)
+			} else {
+				ctaHTML = fmt.Sprintf(`<p style="margin:16px 0"><a href="%s/bookings" style="color:#15803d">View your bookings →</a></p>`, h.SiteURL)
+			}
 
-		body := fmt.Sprintf(`
+			body := fmt.Sprintf(`
 <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
   <h2 style="color:#15803d">🎾 Booking Confirmed</h2>
   <p>Hi %s,</p>
@@ -384,8 +433,9 @@ func (h *BookingsHandler) Create(c echo.Context) error {
     <ul style="margin:8px 0;padding-left:20px;color:#374151">%s</ul>
   </div>
   %s
-</div>`, hostName, courtName, startStr, endStr, matchLabel, rosterHTML, ctaHTML)
-		go h.Mailer.Send(hostEmail, "Booking confirmed – "+courtName, body)
+</div>`, hostName, courtName, startStr, endStr, matchLabel, playerSection, ctaHTML)
+			h.Mailer.Send(hostEmail, "Booking confirmed – "+courtName, body)
+		}()
 	}
 
 	h.Logger.Log(c.Request().Context(), "booking_created",
