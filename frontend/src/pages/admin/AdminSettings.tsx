@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../../api/client'
-import { useAuth } from '../../contexts/AuthContext'
 
 const GUEST_FEE_SETTINGS = [
   { key: 'guest_participation_enabled', label: 'Allow guest participation',       hint: 'Guests can be added to court bookings.', type: 'boolean' as const },
@@ -98,8 +97,6 @@ export default function AdminSettings() {
   const [cameraSaved, setCameraSaved] = useState(false)
   const [cameraError, setCameraError] = useState('')
 
-  const { setClubLogo: pushLogoToHeader } = useAuth()
-
   // Club logo
   const [photos, setPhotos] = useState<Photo[]>([])
   const [logoSaving, setLogoSaving] = useState(false)
@@ -191,7 +188,7 @@ export default function AdminSettings() {
     try {
       await api.admin.updateSetting('club_logo', url)
       setSettings(s => ({ ...s, club_logo: url }))
-      pushLogoToHeader(url)
+      window.dispatchEvent(new CustomEvent('club-logo-changed', { detail: url }))
     } catch (err: any) {
       setLogoError(err.message || 'Could not save logo')
     } finally { setLogoSaving(false) }

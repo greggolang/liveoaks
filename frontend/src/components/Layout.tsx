@@ -7,7 +7,18 @@ import { APP_VERSION } from '../version'
 type BugState = 'idle' | 'sending' | 'done' | 'error'
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  const { user, logout, isAdmin, isBoard, clubLogo } = useAuth()
+  const { user, logout, isAdmin, isBoard } = useAuth()
+  const [clubLogo, setClubLogo] = useState('')
+
+  useEffect(() => {
+    fetch('/api/session-config')
+      .then(r => r.json())
+      .then(d => { if (d.club_logo) setClubLogo(d.club_logo) })
+      .catch(() => {})
+    const handler = (e: Event) => setClubLogo((e as CustomEvent<string>).detail)
+    window.addEventListener('club-logo-changed', handler)
+    return () => window.removeEventListener('club-logo-changed', handler)
+  }, [])
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
   const [bugOpen, setBugOpen] = useState(false)
