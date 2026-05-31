@@ -25,6 +25,7 @@ import RoleEmail from './pages/RoleEmail'
 import RoleDrive from './pages/RoleDrive'
 import Profile from './pages/Profile'
 import Friends from './pages/Friends'
+import Messages from './pages/Messages'
 import InviteResponse from './pages/InviteResponse'
 import EventSignup from './pages/EventSignup'
 import AdminEventSignups from './pages/admin/AdminEventSignups'
@@ -108,6 +109,7 @@ function AppRoutes() {
       <Route path="/drive" element={<ProtectedRoute><RoleDrive /></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
       <Route path="/friends" element={<ProtectedRoute><Friends /></ProtectedRoute>} />
+      <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
       <Route path="/fantasy" element={<ProtectedRoute><Fantasy /></ProtectedRoute>} />
       <Route path="/ladder" element={<ProtectedRoute><TennisLadder /></ProtectedRoute>} />
 

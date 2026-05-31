@@ -101,6 +101,7 @@ func main() {
 	weather := &handlers.WeatherHandler{DB: pool}
 	fantasy := &handlers.FantasyHandler{DB: pool}
 	bookingReminder := &handlers.BookingReminderHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
+	messages := &handlers.MessagesHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 
 	api := e.Group("/api")
 
@@ -148,6 +149,15 @@ func main() {
 	authed.GET("/dues/me", dues.MyDues)
 	authed.GET("/guests/me", guests.MyGuests)
 	authed.POST("/guests", guests.Log)
+
+	// Member-to-member messages
+	authed.GET("/messages/inbox", messages.Inbox)
+	authed.GET("/messages/sent", messages.Sent)
+	authed.GET("/messages/unread-count", messages.UnreadCount)
+	authed.GET("/messages/:id", messages.Get)
+	authed.POST("/messages", messages.Send)
+	authed.PUT("/messages/read-all", messages.MarkAllRead)
+	authed.DELETE("/messages/:id", messages.Delete)
 
 	// Friends
 	authed.GET("/friends", friends.List)

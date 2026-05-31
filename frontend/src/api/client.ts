@@ -8,6 +8,16 @@ export interface EmailMessage {
 }
 export interface EmailThreadDetail { id: string; subject: string; messages: EmailMessage[] }
 
+export interface MemberMessage {
+  id: string
+  sender_id: string; sender_name: string
+  recipient_id: string; recipient_name: string
+  subject: string; body: string
+  reply_to_id?: string; reply_to_subject?: string; reply_to_sender_name?: string
+  read_at?: string
+  created_at: string
+}
+
 export interface DriveFile {
   id: string; name: string; mime_type: string; modified_time: string
   size?: number; web_view_link?: string; icon_link?: string; is_folder: boolean
@@ -444,6 +454,16 @@ export const api = {
         request(`/admin/fantasy/participants/${userId}/paid`, { method: 'PUT', body: JSON.stringify({ paid }) }),
       pickPopularity: (tid: string) => request(`/admin/fantasy/picks/popularity/${tid}`),
     },
+  },
+  messages: {
+    inbox: () => request<MemberMessage[]>('/messages/inbox'),
+    sent: () => request<MemberMessage[]>('/messages/sent'),
+    unreadCount: () => request<{ count: number }>('/messages/unread-count'),
+    get: (id: string) => request<MemberMessage>(`/messages/${id}`),
+    send: (data: { recipient_id: string; subject: string; body: string; reply_to?: string }) =>
+      request<MemberMessage>('/messages', { method: 'POST', body: JSON.stringify(data) }),
+    markAllRead: () => request('/messages/read-all', { method: 'PUT' }),
+    delete: (id: string) => request(`/messages/${id}`, { method: 'DELETE' }),
   },
   bookingReminder: {
     getInfo: (token: string) => request(`/booking-reminder/${token}`),

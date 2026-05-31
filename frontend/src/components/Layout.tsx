@@ -15,6 +15,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [bugState, setBugState] = useState<BugState>('idle')
   const [showFantasy, setShowFantasy] = useState(false)
   const [showLadder, setShowLadder] = useState(false)
+  const [unreadMessages, setUnreadMessages] = useState(0)
 
   useEffect(() => {
     api.fantasy.tournaments()
@@ -23,6 +24,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     api.ladder.list()
       .then((d: any) => setShowLadder((d as any[]).some((l: any) => l.status === 'open')))
       .catch(() => {})
+
+    // Poll unread message count every 60 seconds
+    const fetchUnread = () =>
+      api.messages.unreadCount().then(d => setUnreadMessages(d.count)).catch(() => {})
+    fetchUnread()
+    const interval = setInterval(fetchUnread, 60000)
+    return () => clearInterval(interval)
   }, [])
 
   const handleLogout = async () => { await logout(); navigate('/login') }
@@ -57,6 +65,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             {/* Desktop nav */}
             <div className="hidden md:flex items-center gap-5 text-sm font-medium flex-wrap justify-end">
               <NavLink to="/friends" className={navLink}>Friends</NavLink>
+              <NavLink to="/messages" className={({ isActive }) =>
+                `relative hover:text-green-200 transition text-sm ${isActive ? 'text-white font-semibold' : 'text-green-100'}`}>
+                Messages
+                {unreadMessages > 0 && (
+                  <span className="absolute -top-2 -right-3 bg-red-500 text-white text-xs font-bold min-w-[1.1rem] h-[1.1rem] rounded-full flex items-center justify-center px-0.5 leading-none">
+                    {unreadMessages > 99 ? '99+' : unreadMessages}
+                  </span>
+                )}
+              </NavLink>
               {showFantasy && <NavLink to="/fantasy" className={navLink}>Fantasy Pool</NavLink>}
               {showLadder && <NavLink to="/ladder" className={navLink}>Ladder</NavLink>}
               {isBoard && <NavLink to="/email" className={navLink}>Email</NavLink>}
@@ -96,7 +113,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           {menuOpen && (
             <div className="md:hidden mt-3 pb-2 border-t border-green-600 flex flex-col gap-2 pt-3 text-sm">
               {[
-                ['/friends', 'Friends'], ...(showFantasy ? [['/fantasy', 'Fantasy Pool']] : []), ...(showLadder ? [['/ladder', 'Ladder']] : []),
+                ['/friends', 'Friends'],
+                ['/messages', unreadMessages > 0 ? `Messages (${unreadMessages})` : 'Messages'],
+                ...(showFantasy ? [['/fantasy', 'Fantasy Pool']] : []),
+                ...(showLadder ? [['/ladder', 'Ladder']] : []),
                 ...(isBoard ? [['/email', 'Email'], ['/drive', 'Drive'], ['/admin', 'Admin']] : []),
               ].map(([to, label]) => (
                 <Link key={to} to={to} onClick={() => setMenuOpen(false)}
