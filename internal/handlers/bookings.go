@@ -165,12 +165,12 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 	if req.StartTime.Before(time.Now()) {
 		return echo.NewHTTPError(http.StatusBadRequest, "cannot book in the past")
 	}
-	loc, err := time.LoadLocation("America/Los_Angeles")
-	if err != nil {
-		loc = time.UTC
-	}
+	loc := loadTimezone(c.Request().Context(), h.DB)
 	localStart := req.StartTime.In(loc)
 	localEnd := req.EndTime.In(loc)
+	// UTC boundaries for the local booking day — used for all per-day limit checks.
+	dayStart := time.Date(localStart.Year(), localStart.Month(), localStart.Day(), 0, 0, 0, 0, loc).UTC()
+	dayEnd := dayStart.Add(24 * time.Hour)
 	if localStart.Hour() < 8 {
 		return echo.NewHTTPError(http.StatusBadRequest, "bookings cannot start before 8:00 AM")
 	}
@@ -201,8 +201,8 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 			var usedMin float64
 			h.DB.QueryRow(c.Request().Context(),
 				`SELECT COALESCE(SUM(EXTRACT(EPOCH FROM (end_time - start_time))/60),0)
-				 FROM bookings WHERE user_id = $1 AND start_time::date = $2::date`,
-				userID, req.StartTime).Scan(&usedMin)
+				 FROM bookings WHERE user_id = $1 AND start_time >= $2 AND start_time < $3`,
+				userID, dayStart, dayEnd).Scan(&usedMin)
 			newMin := req.EndTime.Sub(req.StartTime).Minutes()
 			if int(usedMin)+int(newMin) > maxMin {
 				return echo.NewHTTPError(http.StatusBadRequest,
@@ -239,12 +239,13 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 			var tooClose int
 			h.DB.QueryRow(c.Request().Context(),
 				`SELECT COUNT(*) FROM bookings
-				 WHERE user_id = $1 AND court_id = $2 AND start_time::date = $3::date
+				 WHERE user_id = $1 AND court_id = $2
+				   AND start_time >= $3 AND start_time < $4
 				   AND (
-				     (end_time > $4 - make_interval(mins => $5) AND end_time <= $4) OR
-				     (start_time >= $6 AND start_time < $6 + make_interval(mins => $5))
+				     (end_time > $5 - make_interval(mins => $6) AND end_time <= $5) OR
+				     (start_time >= $7 AND start_time < $7 + make_interval(mins => $6))
 				   )`,
-				userID, req.CourtID, req.StartTime, req.StartTime, minGap, req.EndTime).Scan(&tooClose)
+				userID, req.CourtID, dayStart, dayEnd, req.StartTime, minGap, req.EndTime).Scan(&tooClose)
 			if tooClose > 0 {
 				return echo.NewHTTPError(http.StatusBadRequest,
 					fmt.Sprintf("bookings on the same court must be at least %d minutes apart", minGap))
@@ -264,8 +265,8 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 	}
 	var bookingsToday int
 	h.DB.QueryRow(c.Request().Context(),
-		`SELECT COUNT(*) FROM bookings WHERE user_id = $1 AND start_time::date = $2::date`,
-		userID, req.StartTime).Scan(&bookingsToday)
+		`SELECT COUNT(*) FROM bookings WHERE user_id = $1 AND start_time >= $2 AND start_time < $3`,
+		userID, dayStart, dayEnd).Scan(&bookingsToday)
 	if bookingsToday >= maxPerDay {
 		if maxPerDay == 1 {
 			return echo.NewHTTPError(http.StatusBadRequest, "you already have a booking on this date")
@@ -279,7 +280,7 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 	}
 
 	var booking models.Booking
-	err = h.DB.QueryRow(c.Request().Context(),
+	err := h.DB.QueryRow(c.Request().Context(),
 		`INSERT INTO bookings (user_id, court_id, start_time, end_time, notes, match_type, players_needed)
 		 VALUES ($1, $2, $3, $4, NULLIF($5, ''), $6, $7)
 		 RETURNING id, user_id, court_id, start_time, end_time, notes, created_at`,
