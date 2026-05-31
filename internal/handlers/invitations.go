@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -363,13 +364,14 @@ func (h *InvitationsHandler) AddPlayer(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not add player")
 	}
 
-	// Auto-log a $5 guest fee in guest_passes when a guest is added to a booking.
-	// The fee is billed to the booking's host (regardless of who adds the guest).
+	// Auto-log the guest fee in guest_passes when a guest is added to a booking.
+	// Fee rate is read from settings (peak vs off-peak hours).
 	if req.IsGuest {
+		fee := h.lookupGuestFee(c.Request().Context(), bookingStart)
 		h.DB.Exec(c.Request().Context(),
 			`INSERT INTO guest_passes (member_id, guest_name, guest_email, visit_date, fee, source, notes)
-			 VALUES ($1, $2, NULLIF($3,''), $4::date, 5.00, 'booking', 'Court booking guest fee')`,
-			hostID, req.PlayerName, req.PlayerEmail, bookingStart.Format("2006-01-02"))
+			 VALUES ($1, $2, NULLIF($3,''), $4::date, $5, 'booking', 'Court booking guest fee')`,
+			hostID, req.PlayerName, req.PlayerEmail, bookingStart.Format("2006-01-02"), fee)
 	}
 
 	// Email non-guest players who have an email address.
@@ -842,8 +844,25 @@ func (h *InvitationsHandler) WithdrawFromBooking(c echo.Context) error {
 	if time.Now().After(startTime) {
 		return echo.NewHTTPError(http.StatusBadRequest, "this booking has already started")
 	}
-	if time.Until(startTime) < 30*time.Minute {
-		return echo.NewHTTPError(http.StatusBadRequest, "cannot withdraw within 30 minutes of the booking — contact a board member for help")
+
+	// Respect booking_allow_sub setting.
+	var allowSub string
+	h.DB.QueryRow(ctx, `SELECT value FROM settings WHERE key='booking_allow_sub'`).Scan(&allowSub)
+	if allowSub == "false" {
+		return echo.NewHTTPError(http.StatusBadRequest, "player withdrawal is not currently enabled for this club")
+	}
+
+	// Enforce configurable minimum withdrawal notice.
+	var noticeStr string
+	h.DB.QueryRow(ctx, `SELECT value FROM settings WHERE key='withdrawal_min_notice_hours'`).Scan(&noticeStr)
+	minNoticeMinutes := 30.0 // default: 30 min
+	if h, err := strconv.ParseFloat(noticeStr, 64); err == nil && h >= 0 {
+		minNoticeMinutes = h * 60
+	}
+	if minNoticeMinutes > 0 && time.Until(startTime) < time.Duration(minNoticeMinutes)*time.Minute {
+		hoursLeft := minNoticeMinutes / 60
+		return echo.NewHTTPError(http.StatusBadRequest,
+			fmt.Sprintf("cannot withdraw within %.3g hour(s) of the booking — contact a board member for help", hoursLeft))
 	}
 
 	var playerRowID, playerName string
@@ -1069,4 +1088,33 @@ func (h *InvitationsHandler) sendPlayerWithdrewDoublesEmail(to, toName, playerNa
   <a href="%s/bookings" style="background:#15803d;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block;margin-top:8px">View Match &amp; Invite →</a>
 </div>`, toName, playerName, court, matchLabel, startStr, endStr, reasonLine, hostTransferLine, h.SiteURL)
 	h.Mailer.Send(to, playerName+" withdrew — open spot on your match", body)
+}
+
+// lookupGuestFee returns the configured guest fee based on peak/off-peak hours.
+func (h *InvitationsHandler) lookupGuestFee(ctx context.Context, bookingStart time.Time) float64 {
+	rows, err := h.DB.Query(ctx, `
+		SELECT key, value FROM settings
+		WHERE key IN ('guest_fee_peak','guest_fee_offpeak','peak_hours_start','peak_hours_end')`)
+	if err != nil {
+		return 5.00
+	}
+	defer rows.Close()
+	cfg := map[string]string{}
+	for rows.Next() {
+		var k, v string
+		rows.Scan(&k, &v)
+		cfg[k] = v
+	}
+	loc := loadTimezone(ctx, h.DB)
+	hhmm := bookingStart.In(loc).Format("15:04")
+	isPeak := cfg["peak_hours_start"] != "" && cfg["peak_hours_end"] != "" &&
+		hhmm >= cfg["peak_hours_start"] && hhmm < cfg["peak_hours_end"]
+	feeKey := "guest_fee_offpeak"
+	if isPeak {
+		feeKey = "guest_fee_peak"
+	}
+	if fee, err := strconv.ParseFloat(cfg[feeKey], 64); err == nil {
+		return fee
+	}
+	return 5.00
 }

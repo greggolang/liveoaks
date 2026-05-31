@@ -1,6 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../../api/client'
 
+const GUEST_FEE_SETTINGS = [
+  { key: 'guest_participation_enabled', label: 'Allow guest participation',       hint: 'Guests can be added to court bookings.', type: 'boolean' as const },
+  { key: 'guest_fee_peak',              label: 'Guest fee — peak hours ($)',       hint: 'Fee charged per guest during peak hours.' },
+  { key: 'guest_fee_offpeak',           label: 'Guest fee — off-peak hours ($)',   hint: 'Fee charged per guest outside peak hours.' },
+  { key: 'peak_hours_start',            label: 'Peak hours start',                 hint: 'e.g. 08:00 — when peak pricing begins.', type: 'time' as const },
+  { key: 'peak_hours_end',              label: 'Peak hours end',                   hint: 'e.g. 18:00 — when peak pricing ends.',   type: 'time' as const },
+]
+const GUEST_FEE_KEYS = new Set(GUEST_FEE_SETTINGS.map(s => s.key))
+
 const LABELS: Record<string, string> = {
   club_name:                    'Club Name',
   dues_amount:                  'Annual Dues Amount ($)',
@@ -32,7 +41,8 @@ const BOOKING_SECTIONS: BookingSection[] = [
       { key: 'booking_max_days_ahead',     label: 'Max days ahead a court can be booked',         hint: 'How far in advance members may book. Enforced on save.',                     enforced: true },
       { key: 'booking_open_time',          label: 'Time next reservation day opens',               hint: 'e.g. 06:00 — when tomorrow\'s slots become bookable. Leave blank for midnight.', type: 'time' },
       { key: 'booking_min_gap_minutes',    label: 'Min gap between a member\'s bookings (minutes)', hint: 'Prevents back-to-back "sandwich" reservations on the same court. Set to 30 to require a 30-min gap. 0 = disabled.', enforced: true },
-      { key: 'booking_cancel_hours',       label: 'Min hours notice to cancel',                   hint: 'Members must cancel at least this many hours before the booking starts. Admins and board can always cancel. Leave blank to allow any-time cancellation.', enforced: true },
+      { key: 'booking_cancel_hours',            label: 'Min hours notice to cancel',              hint: 'Members must cancel at least this many hours before the booking starts. Admins and board can always cancel. Leave blank to allow any-time cancellation.', enforced: true },
+      { key: 'withdrawal_min_notice_hours',     label: 'Min hours notice to withdraw from a match', hint: 'Players cannot remove themselves within this many hours of a booking\'s start. Default 0.5 (30 min). Set to 0 to disable.', enforced: true },
     ],
   },
   {
@@ -49,6 +59,8 @@ const BOOKING_KEYS = new Set(BOOKING_SECTIONS.flatMap(s => s.settings.map(x => x
 // Keys managed elsewhere or in dedicated sections — hide from the generic list
 const HIDDEN_KEYS = new Set([
   ...BOOKING_KEYS,
+  ...GUEST_FEE_KEYS,
+  'camera_url',
   'timezone',
   'weather_lat', 'weather_lon', 'weather_zip',
   'smtp_host','smtp_port','smtp_user','smtp_pass','smtp_from',
@@ -76,8 +88,26 @@ export default function AdminSettings() {
   const [settings, setSettings] = useState<Record<string, string>>({})
   const [saved, setSaved] = useState<Record<string, boolean>>({})
   const [showPass, setShowPass] = useState<Record<string, boolean>>({})
-  const load = () => api.admin.settings().then(d => setSettings(d as Record<string, string>))
+  const [cameraURL, setCameraURL] = useState('')
+  const [cameraSaved, setCameraSaved] = useState(false)
+  const [cameraError, setCameraError] = useState('')
+  const load = () => api.admin.settings().then(d => {
+    const s = d as Record<string, string>
+    setSettings(s)
+    if (s['camera_url']) setCameraURL(s['camera_url'])
+  })
   useEffect(() => { load() }, [])
+
+  const saveCamera = async () => {
+    setCameraError('')
+    try {
+      await api.camera.updateURL(cameraURL)
+      setCameraSaved(true)
+      setTimeout(() => setCameraSaved(false), 2000)
+    } catch (e: unknown) {
+      setCameraError(e instanceof Error ? e.message : 'Save failed')
+    }
+  }
 
   // Cancellation reasons
   const [cancelReasons, setCancelReasons] = useState<{ id: string; reason: string }[]>([])
@@ -239,6 +269,61 @@ export default function AdminSettings() {
             {hint && <p className="text-xs text-gray-400 mt-1 ml-[calc(224px+1rem)]">{hint}</p>}
           </div>
             ))}
+          </div>
+        ))}
+      </div>
+
+      {/* Live Camera */}
+      <h2 className="text-xl font-bold text-gray-800 mt-8 mb-1">Live Camera</h2>
+      <p className="text-sm text-gray-500 mb-4">RTSP stream URL for the court camera. Changes take effect immediately — no restart required.</p>
+      <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+        <div className="flex items-center gap-4">
+          <label className="w-56 text-sm font-medium text-gray-700 shrink-0">RTSP Stream URL</label>
+          <input
+            value={cameraURL}
+            onChange={e => setCameraURL(e.target.value)}
+            placeholder="rtsp://user:pass@ip/stream"
+            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-500"
+          />
+          <button onClick={saveCamera}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition shrink-0 ${cameraSaved ? 'bg-green-100 text-green-700' : 'bg-green-700 text-white hover:bg-green-800'}`}>
+            {cameraSaved ? 'Saved!' : 'Save'}
+          </button>
+        </div>
+        {cameraError && <p className="text-red-500 text-xs mt-2 ml-[calc(224px+1rem)]">{cameraError}</p>}
+        <p className="text-xs text-gray-400 mt-2 ml-[calc(224px+1rem)]">URL must start with <span className="font-mono">rtsp://</span>. The stream is also auto-restarted if the camera goes offline.</p>
+      </div>
+
+      {/* Guest Fees */}
+      <h2 className="text-xl font-bold text-gray-800 mt-8 mb-1">Guest Fees</h2>
+      <p className="text-sm text-gray-500 mb-4">Fee charged per guest added to a court booking. Peak vs. off-peak is determined by the booking's start time.</p>
+      <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 space-y-5">
+        {GUEST_FEE_SETTINGS.map(({ key, label, hint, type }) => (
+          <div key={key}>
+            <div className="flex items-center gap-4">
+              <label className="w-56 text-sm font-medium text-gray-700 shrink-0">{label}</label>
+              {type === 'boolean' ? (
+                <select value={settings[key] ?? 'true'}
+                  onChange={e => setSettings(s => ({ ...s, [key]: e.target.value }))}
+                  className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
+                  <option value="true">Yes</option>
+                  <option value="false">No</option>
+                </select>
+              ) : type === 'time' ? (
+                <input type="time" value={settings[key] ?? ''}
+                  onChange={e => setSettings(s => ({ ...s, [key]: e.target.value }))}
+                  className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+              ) : (
+                <input value={settings[key] ?? ''}
+                  onChange={e => setSettings(s => ({ ...s, [key]: e.target.value }))}
+                  className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+              )}
+              <button onClick={() => save(key)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition shrink-0 ${saved[key] ? 'bg-green-100 text-green-700' : 'bg-green-700 text-white hover:bg-green-800'}`}>
+                {saved[key] ? 'Saved!' : 'Save'}
+              </button>
+            </div>
+            {hint && <p className="text-xs text-gray-400 mt-1 ml-[calc(224px+1rem)]">{hint}</p>}
           </div>
         ))}
       </div>

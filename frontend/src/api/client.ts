@@ -95,6 +95,8 @@ export const api = {
     send: (bookingId: string, data: object) => request(`/bookings/${bookingId}/invite`, { method: 'POST', body: JSON.stringify(data) }),
     addPlayer: (bookingId: string, data: object) => request(`/bookings/${bookingId}/players`, { method: 'POST', body: JSON.stringify(data) }),
     removePlayer: (bookingId: string, playerId: string) => request(`/bookings/${bookingId}/players/${playerId}`, { method: 'DELETE' }),
+    withdraw: (bookingId: string, reason?: string) =>
+      request(`/bookings/${bookingId}/withdraw`, { method: 'POST', body: JSON.stringify({ reason: reason ?? '' }) }),
     respond: (token: string, action: 'accept' | 'decline') => request(`/invite/${token}/${action}`, { method: 'POST' }),
     cancel: (id: string) => request(`/invitations/${id}/cancel`, { method: 'PUT' }),
     responses: () => request('/invitations/responses'),
@@ -290,6 +292,8 @@ export const api = {
   },
   camera: {
     embedURL: () => request<{ url: string }>('/camera/embed'),
+    updateURL: (url: string) =>
+      request<{ url: string }>('/admin/camera/url', { method: 'PUT', body: JSON.stringify({ url }) }),
   },
   boardMeetings: {
     myInvitations: () => request('/board-meetings/invitations/mine'),

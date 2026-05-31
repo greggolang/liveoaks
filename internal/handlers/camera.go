@@ -109,6 +109,20 @@ func (h *CameraHandler) CameraStatus() string {
 	return fmt.Sprintf("Camera %s — %s", state, u)
 }
 
+// UpdateURL is the admin endpoint to change the RTSP stream URL at runtime.
+func (h *CameraHandler) UpdateURL(c echo.Context) error {
+	var req struct {
+		URL string `json:"url"`
+	}
+	if err := c.Bind(&req); err != nil || req.URL == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "url required")
+	}
+	if err := h.SetURL(req.URL); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+	return c.JSON(http.StatusOK, map[string]string{"url": req.URL})
+}
+
 // SetURL updates the in-memory URL and persists it to the DB.
 func (h *CameraHandler) SetURL(newURL string) error {
 	newURL = strings.TrimSpace(newURL)
