@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -18,14 +19,17 @@ import (
 
 const defaultCameraURL = "rtsp://admin:spruce2600@67.49.101.121/h264Preview_01_sub"
 
+const restartCooldown = 10 * time.Minute
+
 type CameraHandler struct {
 	DB          *pgxpool.Pool
 	CameraToken string
 	HLSDir      string
 
-	mu    sync.Mutex
-	url   string
-	isUp  bool
+	mu          sync.Mutex
+	url         string
+	isUp        bool
+	lastRestart time.Time
 }
 
 // Init loads the saved URL from DB and starts the background health monitor.
@@ -149,6 +153,25 @@ func (h *CameraHandler) checkHealth() {
 		log.Printf("[camera] offline: %s", addr)
 	} else if isUp && !wasUp {
 		log.Printf("[camera] back online: %s", addr)
+	}
+
+	if !isUp {
+		h.mu.Lock()
+		canRestart := time.Since(h.lastRestart) >= restartCooldown
+		if canRestart {
+			h.lastRestart = time.Now()
+		}
+		h.mu.Unlock()
+
+		if canRestart {
+			log.Printf("[camera] restarting camera-hls service")
+			out, err := exec.Command("systemctl", "restart", "camera-hls").CombinedOutput()
+			if err != nil {
+				log.Printf("[camera] restart failed: %v — %s", err, out)
+			} else {
+				log.Printf("[camera] restart issued")
+			}
+		}
 	}
 }
 

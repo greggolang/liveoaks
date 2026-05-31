@@ -1,0 +1,2 @@
+ALTER TABLE match_players ADD COLUMN IF NOT EXISTS withdrew_at TIMESTAMPTZ;
+ALTER TABLE match_players ADD COLUMN IF NOT EXISTS withdraw_reason TEXT;

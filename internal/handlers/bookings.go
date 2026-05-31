@@ -33,7 +33,7 @@ func (h *BookingsHandler) emailRoster(bookingID, subject, body string) {
 	rows, err := h.DB.Query(context.Background(),
 		`SELECT u.email FROM match_players mp
 		 JOIN users u ON u.id = mp.user_id
-		 WHERE mp.booking_id = $1 AND mp.user_id IS NOT NULL`, bookingID)
+		 WHERE mp.booking_id = $1 AND mp.user_id IS NOT NULL AND mp.withdrew_at IS NULL`, bookingID)
 	if err != nil {
 		return
 	}
@@ -75,7 +75,7 @@ func (h *BookingsHandler) List(c echo.Context) error {
 		FROM bookings b
 		JOIN users u ON u.id = b.user_id
 		JOIN courts ct ON ct.id = b.court_id
-		LEFT JOIN match_players mp ON mp.booking_id = b.id`
+		LEFT JOIN match_players mp ON mp.booking_id = b.id AND mp.withdrew_at IS NULL`
 	const groupBy = ` GROUP BY b.id, b.user_id, b.court_id, b.start_time, b.end_time, b.notes,
 		       b.created_at, b.match_type, b.players_needed,
 		       u.first_name, u.last_name, ct.name, ct.number`
@@ -122,7 +122,7 @@ func (h *BookingsHandler) Mine(c echo.Context) error {
 		FROM bookings b
 		JOIN users u ON u.id = b.user_id
 		JOIN courts ct ON ct.id = b.court_id
-		LEFT JOIN match_players mp ON mp.booking_id = b.id
+		LEFT JOIN match_players mp ON mp.booking_id = b.id AND mp.withdrew_at IS NULL
 		LEFT JOIN match_invitations mi ON mi.booking_id = b.id
 		WHERE b.start_time >= NOW()
 		  AND (
@@ -130,6 +130,7 @@ func (h *BookingsHandler) Mine(c echo.Context) error {
 		    OR EXISTS (
 		      SELECT 1 FROM match_players mp2
 		      WHERE mp2.booking_id = b.id
+		        AND mp2.withdrew_at IS NULL
 		        AND (
 		          mp2.user_id = $1
 		          OR mp2.player_email = (SELECT email FROM users WHERE id = $1)
@@ -368,7 +369,7 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 			var confirmedCount int
 			prows, _ := h.DB.Query(context.Background(), `
 				SELECT player_name, is_host FROM match_players
-				WHERE booking_id = $1 ORDER BY is_host DESC, added_at`, bookingID)
+				WHERE booking_id = $1 AND withdrew_at IS NULL ORDER BY is_host DESC, added_at`, bookingID)
 			if prows != nil {
 				defer prows.Close()
 				for prows.Next() {
@@ -697,7 +698,7 @@ func (h *BookingsHandler) History(c echo.Context) error {
 		FROM bookings b
 		JOIN users u ON u.id = b.user_id
 		JOIN courts ct ON ct.id = b.court_id
-		LEFT JOIN match_players mp ON mp.booking_id = b.id
+		LEFT JOIN match_players mp ON mp.booking_id = b.id AND mp.withdrew_at IS NULL
 		WHERE b.start_time < NOW()
 		  AND (
 		    b.user_id = $1
@@ -776,7 +777,7 @@ func (h *BookingsHandler) ICal(c echo.Context) error {
 
 	rows, _ := h.DB.Query(c.Request().Context(), `
 		SELECT player_name, is_host FROM match_players
-		WHERE booking_id = $1 ORDER BY is_host DESC, added_at`, id)
+		WHERE booking_id = $1 AND withdrew_at IS NULL ORDER BY is_host DESC, added_at`, id)
 	var playerNames []string
 	if rows != nil {
 		defer rows.Close()

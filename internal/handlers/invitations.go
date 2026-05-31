@@ -36,6 +36,7 @@ type Invitation struct {
 
 type MatchPlayer struct {
 	ID          string    `json:"id"`
+	UserID      *string   `json:"user_id,omitempty"`
 	PlayerName  string    `json:"player_name"`
 	PlayerEmail *string   `json:"player_email,omitempty"`
 	IsGuest     bool      `json:"is_guest"`
@@ -48,8 +49,10 @@ func (h *InvitationsHandler) GetRoster(c echo.Context) error {
 	bookingID := c.Param("id")
 
 	prows, err := h.DB.Query(c.Request().Context(), `
-		SELECT id, player_name, player_email, is_guest, is_host, added_at
-		FROM match_players WHERE booking_id = $1 ORDER BY is_host DESC, added_at`, bookingID)
+		SELECT id, user_id, player_name, player_email, is_guest, is_host, added_at
+		FROM match_players
+		WHERE booking_id = $1 AND withdrew_at IS NULL
+		ORDER BY is_host DESC, added_at`, bookingID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch roster")
 	}
@@ -57,7 +60,7 @@ func (h *InvitationsHandler) GetRoster(c echo.Context) error {
 	players := []MatchPlayer{}
 	for prows.Next() {
 		var p MatchPlayer
-		if err := prows.Scan(&p.ID, &p.PlayerName, &p.PlayerEmail, &p.IsGuest, &p.IsHost, &p.AddedAt); err != nil {
+		if err := prows.Scan(&p.ID, &p.UserID, &p.PlayerName, &p.PlayerEmail, &p.IsGuest, &p.IsHost, &p.AddedAt); err != nil {
 			continue
 		}
 		players = append(players, p)
@@ -111,6 +114,16 @@ func (h *InvitationsHandler) Send(c echo.Context) error {
 		bookingID, req.InviteeEmail).Scan(&existing)
 	if existing > 0 {
 		return echo.NewHTTPError(http.StatusConflict, "this player has already been invited or has declined")
+	}
+
+	// Block re-inviting a player who already withdrew from this booking
+	var withdrew int
+	h.DB.QueryRow(c.Request().Context(),
+		`SELECT COUNT(*) FROM match_players
+		 WHERE booking_id = $1 AND player_email = $2 AND withdrew_at IS NOT NULL`,
+		bookingID, req.InviteeEmail).Scan(&withdrew)
+	if withdrew > 0 {
+		return echo.NewHTTPError(http.StatusConflict, "this player has already withdrawn from this booking")
 	}
 
 	// Get booking details
@@ -298,6 +311,17 @@ func (h *InvitationsHandler) AddPlayer(c echo.Context) error {
 		req.IsGuest = false // spouse or under-26 family member — treated as member, no guest fee
 	}
 
+	// Block re-adding a player who already withdrew from this booking
+	if req.UserID != nil && *req.UserID != "" {
+		var withdrawn int
+		h.DB.QueryRow(c.Request().Context(),
+			`SELECT COUNT(*) FROM match_players WHERE booking_id = $1 AND user_id = $2 AND withdrew_at IS NOT NULL`,
+			bookingID, *req.UserID).Scan(&withdrawn)
+		if withdrawn > 0 {
+			return echo.NewHTTPError(http.StatusConflict, "this player has already withdrawn from this booking")
+		}
+	}
+
 	// Enforce player capacity by match type
 	maxPlayers := map[string]int{
 		"casual": 2, "singles": 2, "doubles": 4, "ball_machine": 1,
@@ -305,7 +329,7 @@ func (h *InvitationsHandler) AddPlayer(c echo.Context) error {
 	if maxPlayers > 0 {
 		var playerCount int
 		h.DB.QueryRow(c.Request().Context(),
-			`SELECT COUNT(*) FROM match_players WHERE booking_id = $1`, bookingID,
+			`SELECT COUNT(*) FROM match_players WHERE booking_id = $1 AND withdrew_at IS NULL`, bookingID,
 		).Scan(&playerCount)
 		if playerCount >= maxPlayers {
 			return echo.NewHTTPError(http.StatusBadRequest, "this booking is already full")
@@ -560,7 +584,7 @@ func (h *InvitationsHandler) checkMatchFull(bookingID, inviterID, inviterEmail s
 	var playersNeeded, confirmedCount int
 	h.DB.QueryRow(context.Background(),
 		`SELECT b.players_needed,
-		        (SELECT COUNT(*) FROM match_players WHERE booking_id = b.id) as confirmed
+		        (SELECT COUNT(*) FROM match_players WHERE booking_id = b.id AND withdrew_at IS NULL) as confirmed
 		 FROM bookings b WHERE b.id = $1`, bookingID,
 	).Scan(&playersNeeded, &confirmedCount)
 
@@ -634,7 +658,7 @@ func (h *InvitationsHandler) sendAcceptedEmail(to, playerName, court, dateStr, b
 	rows, err := h.DB.Query(context.Background(), `
 		SELECT mp.player_name, mp.is_host
 		FROM match_players mp
-		WHERE mp.booking_id = $1
+		WHERE mp.booking_id = $1 AND mp.withdrew_at IS NULL
 		ORDER BY mp.is_host DESC, mp.added_at`, bookingID)
 	if err == nil {
 		defer rows.Close()
@@ -752,7 +776,7 @@ func (h *InvitationsHandler) sendMatchFullHostEmail(to, bookingID string) {
 	// Full confirmed roster
 	rows, _ := h.DB.Query(context.Background(), `
 		SELECT player_name, is_host FROM match_players
-		WHERE booking_id = $1 ORDER BY is_host DESC, added_at`, bookingID)
+		WHERE booking_id = $1 AND withdrew_at IS NULL ORDER BY is_host DESC, added_at`, bookingID)
 	rosterHTML := ""
 	if rows != nil {
 		defer rows.Close()
@@ -790,4 +814,259 @@ func (h *InvitationsHandler) sendMatchFullHostEmail(to, bookingID string) {
   <p><a href="%s/bookings" style="color:#15803d;font-size:13px">View your bookings →</a></p>
 </div>`, courtName, timeStr, endStr, matchLabel, rosterHTML, calHTML, h.SiteURL)
 	h.Mailer.Send(to, "Your match is full – "+courtName, body)
+}
+
+// WithdrawFromBooking lets any roster member remove themselves with a reason.
+func (h *InvitationsHandler) WithdrawFromBooking(c echo.Context) error {
+	ctx := c.Request().Context()
+	userID := c.Get("user_id").(string)
+	bookingID := c.Param("id")
+
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	c.Bind(&req)
+
+	var matchType, courtName, bookingHostID string
+	var startTime, endTime time.Time
+	err := h.DB.QueryRow(ctx, `
+		SELECT b.match_type, b.user_id, b.start_time, b.end_time, ct.name
+		FROM bookings b
+		JOIN courts ct ON ct.id = b.court_id
+		WHERE b.id = $1`, bookingID,
+	).Scan(&matchType, &bookingHostID, &startTime, &endTime, &courtName)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, "booking not found")
+	}
+
+	if time.Now().After(startTime) {
+		return echo.NewHTTPError(http.StatusBadRequest, "this booking has already started")
+	}
+	if time.Until(startTime) < 30*time.Minute {
+		return echo.NewHTTPError(http.StatusBadRequest, "cannot withdraw within 30 minutes of the booking — contact a board member for help")
+	}
+
+	var playerRowID, playerName string
+	var playerEmail *string
+	var isHost bool
+	err = h.DB.QueryRow(ctx, `
+		SELECT id, player_name, player_email, is_host
+		FROM match_players
+		WHERE booking_id = $1 AND user_id = $2 AND withdrew_at IS NULL`,
+		bookingID, userID,
+	).Scan(&playerRowID, &playerName, &playerEmail, &isHost)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, "you are not on this booking's roster")
+	}
+
+	loc := loadTimezone(ctx, h.DB)
+	startStr := startTime.In(loc).Format("Mon Jan 2 at 3:04 PM MST")
+	endStr := endTime.In(loc).Format("3:04 PM MST")
+	matchTypeLabels := map[string]string{
+		"singles": "Singles", "doubles": "Doubles",
+		"casual": "Hit Session", "ball_machine": "Ball Machine",
+	}
+	matchLabel := matchTypeLabels[matchType]
+	if matchLabel == "" {
+		matchLabel = "Tennis"
+	}
+
+	// Send the withdrawing player a confirmation email.
+	pemail := ""
+	if playerEmail != nil {
+		pemail = *playerEmail
+	}
+	if pemail != "" && h.Mailer != nil {
+		go h.sendWithdrawConfirmationEmail(pemail, playerName, courtName, startStr, endStr, matchLabel, req.Reason)
+	}
+
+	// Case A: host withdraws from singles/casual → cancel the whole booking.
+	if isHost && matchType != "doubles" {
+		type otherP struct{ name, email string }
+		var others []otherP
+		orows, _ := h.DB.Query(ctx, `
+			SELECT player_name, COALESCE(player_email,'')
+			FROM match_players
+			WHERE booking_id = $1 AND user_id != $2 AND withdrew_at IS NULL`,
+			bookingID, userID)
+		if orows != nil {
+			defer orows.Close()
+			for orows.Next() {
+				var op otherP
+				orows.Scan(&op.name, &op.email)
+				others = append(others, op)
+			}
+		}
+		h.DB.Exec(ctx, `UPDATE match_invitations SET status='cancelled', responded_at=NOW() WHERE booking_id=$1 AND status='pending'`, bookingID)
+		h.DB.Exec(ctx, `DELETE FROM bookings WHERE id = $1`, bookingID)
+		for _, op := range others {
+			if op.email != "" {
+				o := op
+				go h.sendHostCancelledEmail(o.email, o.name, playerName, courtName, startStr, endStr, req.Reason, matchLabel)
+			}
+		}
+		return c.NoContent(http.StatusNoContent)
+	}
+
+	// All other cases: soft-withdraw.
+	h.DB.Exec(ctx, `UPDATE match_players SET withdrew_at=NOW(), withdraw_reason=$1 WHERE id=$2`, req.Reason, playerRowID)
+	// Cancel pending invitations this player sent.
+	h.DB.Exec(ctx, `UPDATE match_invitations SET status='cancelled', responded_at=NOW() WHERE booking_id=$1 AND inviter_id=$2 AND status='pending'`, bookingID, userID)
+
+	// Auto-cancel the booking if the roster is now empty.
+	var remaining int
+	h.DB.QueryRow(ctx, `SELECT COUNT(*) FROM match_players WHERE booking_id=$1 AND withdrew_at IS NULL`, bookingID).Scan(&remaining)
+	if remaining == 0 {
+		h.DB.Exec(ctx, `UPDATE match_invitations SET status='cancelled', responded_at=NOW() WHERE booking_id=$1 AND status='pending'`, bookingID)
+		h.DB.Exec(ctx, `DELETE FROM bookings WHERE id=$1`, bookingID)
+		return c.NoContent(http.StatusNoContent)
+	}
+
+	// Case B: non-host withdraws from singles → notify host.
+	if !isHost && matchType == "singles" {
+		var hostEmail, hostName string
+		h.DB.QueryRow(ctx, `SELECT email, first_name || ' ' || last_name FROM users WHERE id=$1`, bookingHostID).
+			Scan(&hostEmail, &hostName)
+		go h.sendPlayerWithdrewSinglesEmail(hostEmail, hostName, playerName, courtName, startStr, endStr, req.Reason)
+		return c.NoContent(http.StatusNoContent)
+	}
+
+	// Cases C & D: doubles (or casual multi-player) — notify everyone; transfer host if needed.
+	newHostName := ""
+	if isHost {
+		var nextRowID, nextPlayerName string
+		var nextUserID *string
+		h.DB.QueryRow(ctx, `
+			SELECT id, player_name, user_id FROM match_players
+			WHERE booking_id=$1 AND withdrew_at IS NULL
+			ORDER BY added_at LIMIT 1`,
+			bookingID,
+		).Scan(&nextRowID, &nextPlayerName, &nextUserID)
+		if nextRowID != "" {
+			h.DB.Exec(ctx, `UPDATE match_players SET is_host=TRUE WHERE id=$1`, nextRowID)
+			if nextUserID != nil {
+				h.DB.Exec(ctx, `UPDATE bookings SET user_id=$1 WHERE id=$2`, *nextUserID, bookingID)
+			}
+			newHostName = nextPlayerName
+		}
+	}
+
+	type remP struct {
+		name, email string
+		isHost      bool
+	}
+	var remPlayers []remP
+	rrows, _ := h.DB.Query(ctx, `
+		SELECT player_name, COALESCE(player_email,''), is_host
+		FROM match_players
+		WHERE booking_id=$1 AND withdrew_at IS NULL
+		ORDER BY is_host DESC, added_at`, bookingID)
+	if rrows != nil {
+		defer rrows.Close()
+		for rrows.Next() {
+			var rp remP
+			rrows.Scan(&rp.name, &rp.email, &rp.isHost)
+			remPlayers = append(remPlayers, rp)
+		}
+	}
+	for _, rp := range remPlayers {
+		if rp.email != "" {
+			r := rp
+			go h.sendPlayerWithdrewDoublesEmail(r.email, r.name, playerName, courtName, startStr, endStr, req.Reason, matchLabel, newHostName)
+		}
+	}
+	return c.NoContent(http.StatusNoContent)
+}
+
+func (h *InvitationsHandler) sendWithdrawConfirmationEmail(to, name, court, startStr, endStr, matchLabel, reason string) {
+	reasonLine := ""
+	if reason != "" {
+		reasonLine = fmt.Sprintf(`<p style="color:#6b7280;font-size:14px">Your reason: <em>%s</em></p>`, reason)
+	}
+	body := fmt.Sprintf(`
+<div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
+  <h2 style="color:#6b7280">You've Left the Booking</h2>
+  <p>Hi %s,</p>
+  <p>You've been removed from the following match:</p>
+  <div style="background:#f9fafb;border-radius:8px;padding:16px;margin:16px 0">
+    <div style="margin:4px 0">🎾 <strong>%s</strong></div>
+    <div style="margin:4px 0">📋 <strong>%s</strong></div>
+    <div style="margin:4px 0">📅 <strong>%s – %s</strong></div>
+  </div>
+  %s
+  <p style="color:#6b7280;font-size:13px">If this was a mistake, contact the booking host.</p>
+</div>`, name, court, matchLabel, startStr, endStr, reasonLine)
+	h.Mailer.Send(to, "You've left a booking – "+court, body)
+}
+
+func (h *InvitationsHandler) sendHostCancelledEmail(to, toName, hostName, court, startStr, endStr, reason, matchLabel string) {
+	reasonLine := ""
+	if reason != "" {
+		reasonLine = fmt.Sprintf(`<p><strong>Reason:</strong> %s</p>`, reason)
+	}
+	body := fmt.Sprintf(`
+<div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
+  <h2 style="color:#dc2626">Match Cancelled</h2>
+  <p>Hi %s,</p>
+  <p><strong>%s</strong> has cancelled the following booking:</p>
+  <div style="background:#fef2f2;border-radius:8px;padding:16px;margin:16px 0">
+    <div style="margin:4px 0">🎾 <strong>%s</strong></div>
+    <div style="margin:4px 0">📋 <strong>%s</strong></div>
+    <div style="margin:4px 0">📅 <strong>%s – %s</strong></div>
+  </div>
+  %s
+  <p>The booking has been removed from your schedule.</p>
+  <a href="%s/bookings" style="background:#15803d;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block;margin-top:8px">Book a New Court →</a>
+</div>`, toName, hostName, court, matchLabel, startStr, endStr, reasonLine, h.SiteURL)
+	h.Mailer.Send(to, "Match cancelled by host – "+court, body)
+}
+
+func (h *InvitationsHandler) sendPlayerWithdrewSinglesEmail(hostEmail, hostName, playerName, court, startStr, endStr, reason string) {
+	reasonLine := ""
+	if reason != "" {
+		reasonLine = fmt.Sprintf(`<p><strong>Reason:</strong> %s</p>`, reason)
+	}
+	body := fmt.Sprintf(`
+<div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
+  <h2 style="color:#d97706">Player Withdrew</h2>
+  <p>Hi %s,</p>
+  <p><strong>%s</strong> has withdrawn from your match:</p>
+  <div style="background:#fffbeb;border-radius:8px;padding:16px;margin:16px 0">
+    <div style="margin:4px 0">🎾 <strong>%s</strong></div>
+    <div style="margin:4px 0">📅 <strong>%s – %s</strong></div>
+  </div>
+  %s
+  <p>You'll need to invite someone else to fill the open spot.</p>
+  <a href="%s/bookings" style="background:#15803d;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block;margin-top:8px">Invite Someone →</a>
+</div>`, hostName, playerName, court, startStr, endStr, reasonLine, h.SiteURL)
+	h.Mailer.Send(hostEmail, playerName+" withdrew from your match – "+court, body)
+}
+
+func (h *InvitationsHandler) sendPlayerWithdrewDoublesEmail(to, toName, playerName, court, startStr, endStr, reason, matchLabel, newHostName string) {
+	reasonLine := ""
+	if reason != "" {
+		reasonLine = fmt.Sprintf(`<p><strong>Reason:</strong> %s</p>`, reason)
+	}
+	hostTransferLine := ""
+	if newHostName != "" {
+		hostTransferLine = fmt.Sprintf(`<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px;margin:12px 0;color:#166534">
+  <strong>%s</strong> is now the host of this match.
+</div>`, newHostName)
+	}
+	body := fmt.Sprintf(`
+<div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
+  <h2 style="color:#d97706">Player Withdrew — Spot Available</h2>
+  <p>Hi %s,</p>
+  <p><strong>%s</strong> has withdrawn from the match:</p>
+  <div style="background:#fffbeb;border-radius:8px;padding:16px;margin:16px 0">
+    <div style="margin:4px 0">🎾 <strong>%s</strong></div>
+    <div style="margin:4px 0">📋 <strong>%s</strong></div>
+    <div style="margin:4px 0">📅 <strong>%s – %s</strong></div>
+  </div>
+  %s
+  %s
+  <p>There is now an open spot. Any player on the match can invite someone to fill it.</p>
+  <a href="%s/bookings" style="background:#15803d;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block;margin-top:8px">View Match &amp; Invite →</a>
+</div>`, toName, playerName, court, matchLabel, startStr, endStr, reasonLine, hostTransferLine, h.SiteURL)
+	h.Mailer.Send(to, playerName+" withdrew — open spot on your match", body)
 }

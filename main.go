@@ -159,6 +159,7 @@ func main() {
 	authed.POST("/bookings/:id/invite", invitations.Send)
 	authed.POST("/bookings/:id/players", invitations.AddPlayer)
 	authed.DELETE("/bookings/:id/players/:playerId", invitations.RemovePlayer)
+	authed.POST("/bookings/:id/withdraw", invitations.WithdrawFromBooking)
 	authed.PUT("/invitations/:id/cancel", invitations.Cancel)
 	authed.GET("/invitations/responses", invitations.GetResponses)
 	authed.GET("/invitations/pending", invitations.GetPendingForMe)
