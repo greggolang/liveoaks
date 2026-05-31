@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { api } from '../api/client'
+import { WeatherData, weatherIcon, weatherLabel, courtCondition, conditionColors, dayLabel } from '../utils/weather'
 
 interface InviteResponse {
   id: string
@@ -41,6 +42,7 @@ export default function Dashboard() {
   const [ideaState, setIdeaState] = useState<SubmitState>('idle')
   const [myBookings, setMyBookings] = useState<Booking[]>([])
   const [bookingCountdown, setBookingCountdown] = useState(30)
+  const [weather, setWeather] = useState<WeatherData | null>(null)
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [readIds, setReadIds] = useState<Set<string>>(new Set())
   const [cameraURL, setCameraURL] = useState<string | null>(null)
@@ -73,6 +75,7 @@ export default function Dashboard() {
   useEffect(() => {
     api.announcements.list().then(d => setAnnouncements(d as Announcement[]))
     api.camera.embedURL().then(d => setCameraURL(d.url)).catch(() => setCameraURL('/camera'))
+    api.weather.get().then(d => setWeather(d as WeatherData)).catch(() => {})
     const refreshBookings = () => api.bookings.mine().then(d => setMyBookings(d as Booking[]))
     refreshBookings()
     const timer = setInterval(() => {
@@ -155,6 +158,9 @@ export default function Dashboard() {
           </Link>
         ))}
       </div>
+
+      {/* Weather */}
+      {weather && <WeatherWidget weather={weather} />}
 
       {/* My Bookings */}
       <div>
@@ -256,6 +262,56 @@ export default function Dashboard() {
         onReset={() => { setIdeaState('idle'); setIdea('') }}
         doneMessage="Thanks — your idea was sent!"
       />
+    </div>
+  )
+}
+
+function WeatherWidget({ weather }: { weather: WeatherData }) {
+  const cur = weather.current
+  const daily = weather.daily
+  const todayCode = daily.weathercode[0] ?? cur.weathercode
+  const todayPrecip = daily.precipitation_probability_max[0] ?? 0
+  const condition = courtCondition(todayCode, todayPrecip)
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+      {/* Current conditions */}
+      <div className="flex items-center gap-4 px-5 py-4 border-b border-gray-100">
+        <span className="text-4xl">{weatherIcon(cur.weathercode)}</span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-gray-800">{Math.round(cur.temperature_2m)}°F</span>
+            <span className="text-sm text-gray-500">{weatherLabel(cur.weathercode)}</span>
+          </div>
+          <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-0.5 text-xs text-gray-400">
+            <span>💨 {Math.round(cur.windspeed_10m)} mph</span>
+            <span>💧 {cur.relativehumidity_2m}% humidity</span>
+            {todayPrecip > 0 && <span>🌂 {todayPrecip}% rain</span>}
+          </div>
+        </div>
+        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${conditionColors[condition]}`}>
+          {condition === 'good' ? '✓ Good for tennis' : condition === 'caution' ? '⚠ Play with caution' : '✗ Poor conditions'}
+        </span>
+      </div>
+
+      {/* 7-day forecast strip */}
+      <div className="grid grid-cols-7 divide-x divide-gray-100">
+        {daily.time.map((date, i) => {
+          const code = daily.weathercode[i]
+          const precip = daily.precipitation_probability_max[i]
+          const cond = courtCondition(code, precip)
+          return (
+            <div key={date} className="flex flex-col items-center gap-0.5 py-3 px-1">
+              <span className="text-xs font-medium text-gray-500">{dayLabel(date)}</span>
+              <span className="text-lg">{weatherIcon(code)}</span>
+              <span className="text-xs font-semibold text-gray-700">{Math.round(daily.temperature_2m_max[i])}°</span>
+              <span className="text-xs text-gray-400">{Math.round(daily.temperature_2m_min[i])}°</span>
+              {precip > 0 && <span className="text-xs text-blue-500">{precip}%</span>}
+              <span className={`w-2 h-2 rounded-full mt-0.5 ${cond === 'good' ? 'bg-green-400' : cond === 'caution' ? 'bg-yellow-400' : 'bg-red-400'}`} />
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }

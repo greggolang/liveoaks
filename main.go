@@ -90,11 +90,13 @@ func main() {
 	groups := &handlers.GroupsHandler{DB: pool}
 	invitations := &handlers.InvitationsHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	signups := &handlers.SignupsHandler{DB: pool}
+	weather := &handlers.WeatherHandler{DB: pool}
 
 	api := e.Group("/api")
 
 	// Public
 	api.GET("/session-config", admin.GetSessionConfig)
+	api.GET("/weather", weather.Get)
 	api.POST("/auth/register", auth.Register)
 	api.POST("/auth/login", auth.Login)
 	api.POST("/auth/forgot-password", auth.ForgotPassword)

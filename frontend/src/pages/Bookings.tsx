@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { api } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
+import { WeatherData, weatherIcon, weatherLabel, courtCondition, conditionColors } from '../utils/weather'
 
 interface Court { id: number; name: string; number: number; has_ball_machine?: boolean }
 interface Booking {
@@ -92,6 +93,7 @@ export default function Bookings() {
   const [tab, setTab] = useState<'grid' | 'mine'>('mine')
   const [gridCountdown, setGridCountdown] = useState(30)
   const [mineCountdown, setMineCountdown] = useState(20)
+  const [weather, setWeather] = useState<WeatherData | null>(null)
   const [myBookings, setMyBookings] = useState<Booking[]>([])
   // Invite state
   const [friends, setFriends] = useState<Friend[]>([])
@@ -142,6 +144,7 @@ export default function Bookings() {
 
   useEffect(() => {
     api.courts.list().then(d => setCourts(d as Court[]))
+    api.weather.get().then(d => setWeather(d as WeatherData)).catch(() => {})
     api.friends.list().then(d => setFriends(d as Friend[]))
     api.groups.list().then(d => setFriendGroups(d as FriendGroup[]))
     api.family.list().then(d => setFamilyMembers(d as FamilyMember[]))
@@ -467,6 +470,20 @@ export default function Bookings() {
                     className="text-xs border border-gray-200 rounded px-2 py-1 text-gray-500 focus:outline-none focus:ring-1 focus:ring-green-500" />
                 </div>
                 <div className="flex items-center gap-3">
+                  {weather && (() => {
+                    const idx = weather.daily.time.indexOf(date)
+                    if (idx === -1) return null
+                    const code = weather.daily.weathercode[idx]
+                    const precip = weather.daily.precipitation_probability_max[idx]
+                    const hi = Math.round(weather.daily.temperature_2m_max[idx])
+                    const lo = Math.round(weather.daily.temperature_2m_min[idx])
+                    const cond = courtCondition(code, precip)
+                    return (
+                      <span className={`hidden sm:flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border ${conditionColors[cond]}`}>
+                        {weatherIcon(code)} {hi}°/{lo}° {precip > 0 ? `· ${precip}% rain` : weatherLabel(code)}
+                      </span>
+                    )
+                  })()}
                   <span className="text-xs text-gray-400">↻ {gridCountdown}s</span>
                   <button onClick={() => !atMax && setDate(d => addDays(d, 1))}
                     disabled={atMax}
