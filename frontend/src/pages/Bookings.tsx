@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 import { WeatherData, weatherIcon, weatherLabel, courtCondition, conditionColors } from '../utils/weather'
@@ -80,6 +81,7 @@ function formatDate(dateStr: string) {
 
 export default function Bookings() {
   const { user, isBoard, bookingMaxDaysAhead } = useAuth()
+  const [searchParams] = useSearchParams()
   const today = localDateStr(new Date())
   const [date, setDate] = useState(today)
   const [courts, setCourts] = useState<Court[]>([])
@@ -90,7 +92,7 @@ export default function Bookings() {
   const [playersNeeded, setPlayersNeeded] = useState(PLAYERS_BY_TYPE['casual'])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [tab, setTab] = useState<'grid' | 'mine'>('mine')
+  const [tab, setTab] = useState<'grid' | 'mine'>(searchParams.get('tab') === 'grid' ? 'grid' : 'mine')
   const [gridCountdown, setGridCountdown] = useState(30)
   const [mineCountdown, setMineCountdown] = useState(20)
   const [weather, setWeather] = useState<WeatherData | null>(null)

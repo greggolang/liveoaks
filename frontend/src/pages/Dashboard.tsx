@@ -146,7 +146,7 @@ export default function Dashboard() {
       {/* Quick links */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { to: '/bookings',  emoji: '🎾', label: 'Book a Court' },
+          { to: '/bookings?tab=grid',  emoji: '🎾', label: 'Book a Court' },
           { to: '/pro-shop',  emoji: '🛍️', label: 'Pro Shop' },
           { to: '/events',    emoji: '📅', label: 'Events' },
           { to: '/directory', emoji: '👥', label: 'Directory' },
@@ -169,7 +169,7 @@ export default function Dashboard() {
             <h2 className="text-lg font-semibold text-gray-700">My Upcoming Bookings</h2>
             <span className="text-xs text-gray-400">↻ {bookingCountdown}s</span>
           </div>
-          <Link to="/bookings"
+          <Link to="/bookings?tab=grid"
             className="bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-4 py-1.5 rounded-lg transition whitespace-nowrap">
             Book a Court
           </Link>

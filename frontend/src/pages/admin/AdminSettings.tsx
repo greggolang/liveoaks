@@ -49,7 +49,7 @@ const BOOKING_KEYS = new Set(BOOKING_SECTIONS.flatMap(s => s.settings.map(x => x
 const HIDDEN_KEYS = new Set([
   ...BOOKING_KEYS,
   'timezone',
-  'weather_lat', 'weather_lon',
+  'weather_lat', 'weather_lon', 'weather_zip',
   'smtp_host','smtp_port','smtp_user','smtp_pass','smtp_from',
   'google_email_president','google_email_vice_president','google_email_secretary',
   'google_email_treasurer','google_email_billing','google_email_entertainment','google_email_house_grounds',
@@ -158,27 +158,23 @@ export default function AdminSettings() {
 
       {/* Weather Location */}
       <h2 className="text-xl font-bold text-gray-800 mt-8 mb-1">Weather Location</h2>
-      <p className="text-sm text-gray-500 mb-4">Coordinates used for the weather forecast on the dashboard and booking page.</p>
-      <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 space-y-3">
-        {[
-          { key: 'weather_lat', label: 'Latitude',  placeholder: '34.1161' },
-          { key: 'weather_lon', label: 'Longitude', placeholder: '-118.1498' },
-        ].map(({ key, label, placeholder }) => (
-          <div key={key} className="flex items-center gap-4">
-            <label className="w-56 text-sm font-medium text-gray-700 shrink-0">{label}</label>
-            <input
-              value={settings[key] ?? ''}
-              onChange={e => setSettings(s => ({ ...s, [key]: e.target.value }))}
-              placeholder={placeholder}
-              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-            />
-            <button onClick={() => save(key)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition shrink-0 ${saved[key] ? 'bg-green-100 text-green-700' : 'bg-green-700 text-white hover:bg-green-800'}`}>
-              {saved[key] ? 'Saved!' : 'Save'}
-            </button>
-          </div>
-        ))}
-        <p className="text-xs text-gray-400 ml-[calc(224px+1rem)]">Decimal degrees — positive N/E, negative S/W. Default: South Pasadena, CA.</p>
+      <p className="text-sm text-gray-500 mb-4">US zip code used for the weather forecast on the dashboard and booking page.</p>
+      <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+        <div className="flex items-center gap-4">
+          <label className="w-56 text-sm font-medium text-gray-700 shrink-0">Zip Code</label>
+          <input
+            value={settings['weather_zip'] ?? ''}
+            onChange={e => setSettings(s => ({ ...s, weather_zip: e.target.value }))}
+            placeholder="91030"
+            maxLength={5}
+            className="w-32 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+          />
+          <button onClick={() => save('weather_zip')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition shrink-0 ${saved['weather_zip'] ? 'bg-green-100 text-green-700' : 'bg-green-700 text-white hover:bg-green-800'}`}>
+            {saved['weather_zip'] ? 'Saved!' : 'Save'}
+          </button>
+        </div>
+        <p className="text-xs text-gray-400 mt-2 ml-[calc(224px+1rem)]">5-digit US zip code. Coordinates are looked up automatically.</p>
       </div>
 
       {/* Booking System */}

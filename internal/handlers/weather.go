@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,9 +15,53 @@ import (
 type WeatherHandler struct {
 	DB *pgxpool.Pool
 
-	mu       sync.Mutex
-	cached   []byte
-	cachedAt time.Time
+	mu         sync.Mutex
+	cached     []byte
+	cachedAt   time.Time
+	cachedLat  string
+	cachedLon  string
+	coordsAt   time.Time
+}
+
+// resolveCoords looks up lat/lon for a zip code using the free zippopotam.us API.
+// Results are cached for 24 hours.
+func (h *WeatherHandler) resolveCoords(zip string) (lat, lon string, err error) {
+	h.mu.Lock()
+	if h.cachedLat != "" && time.Since(h.coordsAt) < 24*time.Hour {
+		lat, lon = h.cachedLat, h.cachedLon
+		h.mu.Unlock()
+		return
+	}
+	h.mu.Unlock()
+
+	resp, err := http.Get("https://api.zippopotam.us/us/" + zip) //nolint:gosec
+	if err != nil {
+		return "", "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", "", fmt.Errorf("zip lookup failed: %d", resp.StatusCode)
+	}
+
+	var result struct {
+		Places []struct {
+			Latitude  string `json:"latitude"`
+			Longitude string `json:"longitude"`
+		} `json:"places"`
+	}
+	if err = json.NewDecoder(resp.Body).Decode(&result); err != nil || len(result.Places) == 0 {
+		return "", "", fmt.Errorf("invalid zip response")
+	}
+
+	lat = result.Places[0].Latitude
+	lon = result.Places[0].Longitude
+
+	h.mu.Lock()
+	h.cachedLat = lat
+	h.cachedLon = lon
+	h.coordsAt = time.Now()
+	h.mu.Unlock()
+	return
 }
 
 func (h *WeatherHandler) Get(c echo.Context) error {
@@ -28,9 +73,22 @@ func (h *WeatherHandler) Get(c echo.Context) error {
 	}
 	h.mu.Unlock()
 
-	var lat, lon string
-	h.DB.QueryRow(c.Request().Context(), `SELECT value FROM settings WHERE key = 'weather_lat'`).Scan(&lat)
-	h.DB.QueryRow(c.Request().Context(), `SELECT value FROM settings WHERE key = 'weather_lon'`).Scan(&lon)
+	// Prefer zip code; fall back to raw lat/lon settings
+	var zip, lat, lon string
+	h.DB.QueryRow(c.Request().Context(), `SELECT value FROM settings WHERE key = 'weather_zip'`).Scan(&zip)
+
+	if zip != "" {
+		var err error
+		lat, lon, err = h.resolveCoords(zip)
+		if err != nil {
+			// fall through to lat/lon fallback
+			zip = ""
+		}
+	}
+	if zip == "" {
+		h.DB.QueryRow(c.Request().Context(), `SELECT value FROM settings WHERE key = 'weather_lat'`).Scan(&lat)
+		h.DB.QueryRow(c.Request().Context(), `SELECT value FROM settings WHERE key = 'weather_lon'`).Scan(&lon)
+	}
 	if lat == "" {
 		lat = "34.1161"
 	}
