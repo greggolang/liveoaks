@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate, NavLink } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { api } from '../api/client'
@@ -13,6 +13,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [bugOpen, setBugOpen] = useState(false)
   const [bugText, setBugText] = useState('')
   const [bugState, setBugState] = useState<BugState>('idle')
+  const [showFantasy, setShowFantasy] = useState(false)
+  const [showLadder, setShowLadder] = useState(false)
+
+  useEffect(() => {
+    api.fantasy.tournaments()
+      .then((d: any) => setShowFantasy((d as any[]).some((t: any) => t.status === 'open' || t.status === 'locked')))
+      .catch(() => {})
+    api.ladder.list()
+      .then((d: any) => setShowLadder((d as any[]).some((l: any) => l.status === 'open')))
+      .catch(() => {})
+  }, [])
 
   const handleLogout = async () => { await logout(); navigate('/login') }
 
@@ -47,8 +58,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <div className="hidden md:flex items-center gap-5 text-sm font-medium flex-wrap justify-end">
               <NavLink to="/directory" className={navLink}>Directory</NavLink>
               <NavLink to="/friends" className={navLink}>Friends</NavLink>
-              <NavLink to="/fantasy" className={navLink}>Fantasy Pool</NavLink>
-              <NavLink to="/ladder" className={navLink}>Ladder</NavLink>
+              {showFantasy && <NavLink to="/fantasy" className={navLink}>Fantasy Pool</NavLink>}
+              {showLadder && <NavLink to="/ladder" className={navLink}>Ladder</NavLink>}
               {isBoard && <NavLink to="/email" className={navLink}>Email</NavLink>}
               {isBoard && <NavLink to="/drive" className={navLink}>Drive</NavLink>}
               {isBoard && <NavLink to="/admin" className={navLink}>Admin</NavLink>}
@@ -86,7 +97,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           {menuOpen && (
             <div className="md:hidden mt-3 pb-2 border-t border-green-600 flex flex-col gap-2 pt-3 text-sm">
               {[
-                ['/directory', 'Directory'], ['/friends', 'Friends'], ['/fantasy', 'Fantasy Pool'], ['/ladder', 'Ladder'],
+                ['/directory', 'Directory'], ['/friends', 'Friends'], ...(showFantasy ? [['/fantasy', 'Fantasy Pool']] : []), ...(showLadder ? [['/ladder', 'Ladder']] : []),
                 ...(isBoard ? [['/email', 'Email'], ['/drive', 'Drive'], ['/admin', 'Admin']] : []),
               ].map(([to, label]) => (
                 <Link key={to} to={to} onClick={() => setMenuOpen(false)}
