@@ -114,6 +114,7 @@ func main() {
 
 	authed.GET("/bookings", bookings.List)
 	authed.GET("/bookings/mine", bookings.Mine)
+	authed.GET("/bookings/history", bookings.History)
 	authed.POST("/bookings", bookings.Create)
 	authed.PUT("/bookings/:id", bookings.Update)
 	authed.DELETE("/bookings/:id", bookings.Delete)
@@ -148,12 +149,15 @@ func main() {
 	authed.DELETE("/bookings/:id/players/:playerId", invitations.RemovePlayer)
 	authed.PUT("/invitations/:id/cancel", invitations.Cancel)
 	authed.GET("/invitations/responses", invitations.GetResponses)
+	authed.GET("/invitations/pending", invitations.GetPendingForMe)
+	authed.GET("/invitations/sent/pending", invitations.GetSentPending)
 
 	// Public invite response (no auth needed)
 	api.POST("/invite/:token/:action", invitations.Respond)
 
 	// Board+
 	boardPlus := authed.Group("", mw.RequireRole(mw.BoardRoleList()...))
+	boardPlus.POST("/admin/bookings", bookings.AdminCreate)
 	boardPlus.POST("/announcements", announcements.Create)
 	boardPlus.DELETE("/announcements/:id", announcements.Delete)
 	boardPlus.POST("/contacts", contacts.Create)

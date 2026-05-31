@@ -14,9 +14,29 @@ interface InviteResponse {
 
 interface Booking {
   id: string; court_id: number; start_time: string; end_time: string
-  match_type?: string
+  match_type?: string; players_needed?: number
   user: { first_name: string; last_name: string }
   court: { name: string; number: number }
+  players?: string[]
+}
+interface PendingInvite {
+  id: string; token: string; court_name: string
+  start_time: string; end_time: string; inviter_name: string
+}
+interface SentPending {
+  id: string; booking_id: string; invitee_name: string; court_name: string
+  start_time: string; sent_at: string
+}
+interface InviteResponseAlert {
+  id: string; invitee_name: string; status: 'accepted' | 'declined'
+  court_name: string; start_time: string
+}
+interface Dues {
+  id: string; amount: number; due_date: string; status: string; paid_at?: string
+}
+interface Event {
+  id: string; title: string; start_time: string; event_type: string
+  signup_enabled?: boolean
 }
 type SubmitState = 'idle' | 'sending' | 'done' | 'error'
 
@@ -45,6 +65,16 @@ export default function Dashboard() {
   const [weather, setWeather] = useState<WeatherData | null>(null)
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [readIds, setReadIds] = useState<Set<string>>(new Set())
+  const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([])
+  const [sentPending, setSentPending] = useState<SentPending[]>([])
+  const [responseAlerts, setResponseAlerts] = useState<InviteResponseAlert[]>([])
+  const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set())
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState({ duration: 1.5, matchType: 'casual' })
+  const [editSaving, setEditSaving] = useState(false)
+  const [editError, setEditError] = useState('')
+  const [dues, setDues] = useState<Dues[]>([])
+  const [upcomingEvents, setUpcomingEvents] = useState<Event[]>([])
   const [cameraURL, setCameraURL] = useState<string | null>(null)
   const [toasts, setToasts] = useState<InviteResponse[]>([])
   const seenIds = useRef<Set<string>>(new Set())
@@ -69,13 +99,40 @@ export default function Dashboard() {
   }, [checkResponses])
 
   useEffect(() => {
-    if (user?.id) setReadIds(loadRead(user.id))
+    if (user?.id) {
+      setReadIds(loadRead(user.id))
+      try {
+        const dismissed = JSON.parse(localStorage.getItem(`dismissed_alerts_${user.id}`) || '[]')
+        setDismissedAlerts(new Set(dismissed))
+      } catch {}
+    }
   }, [user?.id])
+
+  const dismissAlert = (id: string) => {
+    if (!user?.id) return
+    setDismissedAlerts(prev => {
+      const next = new Set(prev).add(id)
+      localStorage.setItem(`dismissed_alerts_${user.id}`, JSON.stringify([...next]))
+      return next
+    })
+  }
 
   useEffect(() => {
     api.announcements.list().then(d => setAnnouncements(d as Announcement[]))
     api.camera.embedURL().then(d => setCameraURL(d.url)).catch(() => setCameraURL('/camera'))
     api.weather.get().then(d => setWeather(d as WeatherData)).catch(() => {})
+    api.invitations.pending().then(d => setPendingInvites(d as PendingInvite[])).catch(() => {})
+    api.invitations.sentPending().then(d => setSentPending(d as SentPending[])).catch(() => {})
+    api.invitations.responses().then(d => setResponseAlerts(d as InviteResponseAlert[])).catch(() => {})
+    api.dues.myDues().then(d => setDues(d as Dues[])).catch(() => {})
+    api.events.list().then(d => {
+      const now = new Date()
+      const in7days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
+      setUpcomingEvents((d as Event[]).filter(e => {
+        const t = new Date(e.start_time)
+        return t >= now && t <= in7days
+      }))
+    }).catch(() => {})
     const refreshBookings = () => api.bookings.mine().then(d => setMyBookings(d as Booking[]))
     refreshBookings()
     const timer = setInterval(() => {
@@ -86,6 +143,38 @@ export default function Dashboard() {
     }, 1000)
     return () => clearInterval(timer)
   }, [])
+
+  const openEdit = (b: Booking) => {
+    const dHours = (new Date(b.end_time).getTime() - new Date(b.start_time).getTime()) / 3600000
+    setEditForm({ duration: dHours <= 1 ? 1 : 1.5, matchType: b.match_type ?? 'casual' })
+    setEditError('')
+    setEditingId(b.id)
+  }
+
+  const saveEdit = async (b: Booking) => {
+    setEditSaving(true)
+    setEditError('')
+    try {
+      const newEnd = new Date(new Date(b.start_time).getTime() + editForm.duration * 3600000)
+      await api.bookings.update(b.id, {
+        match_type: editForm.matchType,
+        players_needed: 0,
+        end_time: newEnd.toISOString(),
+        court_id: b.court_id,
+      })
+      setEditingId(null)
+      api.bookings.mine().then(d => setMyBookings(d as Booking[]))
+    } catch (err: any) {
+      setEditError(err.message)
+    } finally { setEditSaving(false) }
+  }
+
+  const cancelBooking = async (id: string) => {
+    if (!confirm('Cancel this booking?')) return
+    await api.bookings.delete(id)
+    setEditingId(null)
+    api.bookings.mine().then(d => setMyBookings(d as Booking[]))
+  }
 
   const markRead = (id: string) => {
     if (!user?.id) return
@@ -113,6 +202,184 @@ export default function Dashboard() {
         </h1>
         <p className="text-gray-500 text-sm mt-0.5">Here's what's happening at the club.</p>
       </div>
+
+      {/* Alerts */}
+      {(() => {
+        const unpaidDues = dues.filter(d => d.status !== 'paid')
+        const soonBooking = myBookings.find(b => {
+          const mins = (new Date(b.start_time).getTime() - Date.now()) / 60000
+          return mins > 0 && mins <= 120
+        })
+        const openSpotBooking = myBookings.find(b =>
+          b.match_type && b.match_type !== 'ball_machine' &&
+          (b.players_needed ?? 0) > 0 &&
+          (b.players ?? []).length < (b.players_needed ?? 0) + 1
+        )
+        const alerts: React.ReactNode[] = []
+
+        // Invitations received — need response
+        pendingInvites.forEach(inv => {
+          const start = new Date(inv.start_time)
+          const dateStr = start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+          const timeStr = start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+          alerts.push(
+            <div key={inv.id} className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
+              <span className="text-xl shrink-0">🎾</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-blue-800">Match invitation from {inv.inviter_name}</p>
+                <p className="text-xs text-blue-600 mt-0.5">{inv.court_name} · {dateStr} at {timeStr}</p>
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <button onClick={async () => {
+                  await api.invitations.respond(inv.token, 'accept').catch(() => {})
+                  setPendingInvites(p => p.filter(x => x.id !== inv.id))
+                  api.bookings.mine().then(d => setMyBookings(d as Booking[]))
+                }}
+                  className="text-xs font-semibold bg-green-700 text-white px-3 py-1.5 rounded-lg hover:bg-green-800 transition">
+                  Accept
+                </button>
+                <button onClick={async () => {
+                  await api.invitations.respond(inv.token, 'decline').catch(() => {})
+                  setPendingInvites(p => p.filter(x => x.id !== inv.id))
+                }}
+                  className="text-xs font-semibold bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-300 transition">
+                  Decline
+                </button>
+              </div>
+            </div>
+          )
+        })
+
+        // Invitations you sent — accepted or declined (dismissible)
+        responseAlerts
+          .filter(r => !dismissedAlerts.has(r.id))
+          .forEach(r => {
+            const start = new Date(r.start_time)
+            const dateStr = start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+            const timeStr = start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+            const accepted = r.status === 'accepted'
+            alerts.push(
+              <div key={r.id} className={`flex items-start gap-3 rounded-xl px-4 py-3 ${accepted ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+                <span className="text-xl shrink-0">{accepted ? '✅' : '❌'}</span>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm font-semibold ${accepted ? 'text-green-800' : 'text-red-800'}`}>
+                    {r.invitee_name} {accepted ? 'accepted' : 'declined'} your invitation
+                  </p>
+                  <p className={`text-xs mt-0.5 ${accepted ? 'text-green-600' : 'text-red-600'}`}>
+                    {r.court_name} · {dateStr} at {timeStr}
+                  </p>
+                </div>
+                <button onClick={() => dismissAlert(r.id)}
+                  className="text-gray-400 hover:text-gray-600 transition text-lg leading-none shrink-0 self-start">×</button>
+              </div>
+            )
+          })
+
+        // Invitations you sent — still waiting for a response
+        sentPending.forEach(p => {
+          const start = new Date(p.start_time)
+          const dateStr = start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+          const timeStr = start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+          alerts.push(
+            <div key={`sp-${p.id}`} className="flex items-start gap-3 bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3">
+              <span className="text-xl shrink-0">⏳</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-yellow-800">Waiting for {p.invitee_name} to respond</p>
+                <p className="text-xs text-yellow-600 mt-0.5">{p.court_name} · {dateStr} at {timeStr}</p>
+              </div>
+              <Link to="/bookings" className="text-xs font-semibold text-yellow-700 hover:underline shrink-0 self-center">
+                View →
+              </Link>
+            </div>
+          )
+        })
+
+        if (soonBooking) {
+          const start = new Date(soonBooking.start_time)
+          const mins = Math.round((start.getTime() - Date.now()) / 60000)
+          alerts.push(
+            <div key="soon" className="flex items-start gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+              <span className="text-xl shrink-0">⏰</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-green-800">Court booking in {mins} minute{mins !== 1 ? 's' : ''}</p>
+                <p className="text-xs text-green-600 mt-0.5">
+                  {soonBooking.court.name} · {start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                </p>
+              </div>
+              <Link to="/bookings" className="text-xs font-semibold text-green-700 hover:underline shrink-0 self-center">
+                View →
+              </Link>
+            </div>
+          )
+        }
+
+        upcomingEvents.forEach(ev => {
+          const start = new Date(ev.start_time)
+          const dateStr = start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+          alerts.push(
+            <div key={ev.id} className="flex items-start gap-3 bg-purple-50 border border-purple-200 rounded-xl px-4 py-3">
+              <span className="text-xl shrink-0">📅</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-purple-800">{ev.title}</p>
+                <p className="text-xs text-purple-600 mt-0.5">{dateStr}
+                  {ev.signup_enabled && <span className="ml-2 bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded text-xs font-medium">Sign-ups open</span>}
+                </p>
+              </div>
+              <Link to="/events" className="text-xs font-semibold text-purple-700 hover:underline shrink-0 self-center">
+                View →
+              </Link>
+            </div>
+          )
+        })
+
+        if (openSpotBooking) {
+          const start = new Date(openSpotBooking.start_time)
+          const spotsLeft = (openSpotBooking.players_needed ?? 0) + 1 - (openSpotBooking.players ?? []).length
+          const hasPendingInvite = sentPending.some(p => p.booking_id === openSpotBooking.id)
+          const dateStr = start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+          alerts.push(
+            <div key="openspot" className="flex items-start gap-3 bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3">
+              <span className="text-xl shrink-0">👥</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-yellow-800">
+                  {hasPendingInvite
+                    ? `Waiting for invite to respond · ${spotsLeft} open spot${spotsLeft !== 1 ? 's' : ''} on your ${dateStr} booking`
+                    : `${spotsLeft} open spot${spotsLeft !== 1 ? 's' : ''} on your ${dateStr} booking`}
+                </p>
+                <p className="text-xs text-yellow-600 mt-0.5">
+                  {openSpotBooking.court.name} · {hasPendingInvite ? 'Invite sent — waiting for response' : 'Invite someone to fill the roster'}
+                </p>
+              </div>
+              <Link to="/bookings" className="text-xs font-semibold text-yellow-700 hover:underline shrink-0 self-center">
+                Manage →
+              </Link>
+            </div>
+          )
+        }
+
+        unpaidDues.forEach(d => {
+          const overdue = new Date(d.due_date) < new Date()
+          alerts.push(
+            <div key={d.id} className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+              <span className="text-xl shrink-0">💳</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-red-800">
+                  {overdue ? 'Overdue dues balance' : 'Dues payment due'} — ${d.amount.toFixed(2)}
+                </p>
+                <p className="text-xs text-red-600 mt-0.5">
+                  {overdue ? 'Was due' : 'Due'} {new Date(d.due_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                </p>
+              </div>
+              <Link to="/dues" className="text-xs font-semibold text-red-700 hover:underline shrink-0 self-center">
+                View →
+              </Link>
+            </div>
+          )
+        })
+
+        if (alerts.length === 0) return null
+        return <div className="space-y-2">{alerts}</div>
+      })()}
 
       {/* Latest News */}
       {unread.length > 0 && (
@@ -183,30 +450,86 @@ export default function Dashboard() {
             {myBookings.map(b => {
               const start = new Date(b.start_time)
               const end = new Date(b.end_time)
+              const isEditing = editingId === b.id
+              const matchLabel = b.match_type === 'ball_machine' ? '🤖 Ball Machine'
+                : b.match_type === 'singles' ? 'Singles'
+                : b.match_type === 'doubles' ? 'Doubles' : null
               return (
-                <div key={b.id} className="bg-white border border-gray-200 rounded-xl px-4 py-3 shadow-sm flex items-center gap-4">
-                  <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center text-green-700 font-bold text-base shrink-0">
-                    {b.court.number}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-gray-800 text-sm">{b.court.name}
-                      {b.match_type && b.match_type !== 'casual' && (
-                        <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-normal">
-                          {b.match_type === 'ball_machine' ? '🤖 Ball Machine'
-                            : b.match_type === 'singles' ? 'Singles'
-                            : b.match_type === 'doubles' ? 'Doubles'
-                            : b.match_type}
-                        </span>
-                      )}
+                <div key={b.id} className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+                  {/* Card row */}
+                  <div className="px-4 py-3 flex items-center gap-4">
+                    <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center text-green-700 font-bold text-base shrink-0">
+                      {b.court.number}
                     </div>
-                    <div className="text-xs text-gray-500 mt-0.5">
-                      {start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                      {' · '}
-                      {start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
-                      {' – '}
-                      {end.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-gray-800 text-sm">
+                        {b.court.name}
+                        {matchLabel && (
+                          <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-normal">
+                            {matchLabel}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-0.5">
+                        {start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                        {' · '}
+                        {start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                        {' – '}
+                        {end.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                      </div>
                     </div>
+                    <button
+                      onClick={() => isEditing ? setEditingId(null) : openEdit(b)}
+                      className={`text-xs font-medium px-3 py-1.5 rounded-lg transition shrink-0 ${
+                        isEditing ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-green-50 text-green-700 hover:bg-green-100'
+                      }`}>
+                      {isEditing ? 'Close' : 'Edit'}
+                    </button>
                   </div>
+
+                  {/* Inline edit panel */}
+                  {isEditing && (
+                    <div className="border-t border-gray-100 bg-gray-50 px-4 py-4 space-y-3">
+                      {/* Duration */}
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs font-medium text-gray-600 w-24 shrink-0">Duration</span>
+                        <div className="flex gap-2">
+                          {[{ label: '1 hr', hours: 1 }, { label: '1½ hr', hours: 1.5 }].map(d => (
+                            <button key={d.hours} type="button"
+                              onClick={() => setEditForm(f => ({ ...f, duration: d.hours }))}
+                              className={`px-3 py-1 rounded-lg text-xs font-medium transition ${
+                                editForm.duration === d.hours ? 'bg-green-700 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:border-green-400'
+                              }`}>
+                              {d.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      {/* Match type */}
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs font-medium text-gray-600 w-24 shrink-0">Type</span>
+                        <select value={editForm.matchType}
+                          onChange={e => setEditForm(f => ({ ...f, matchType: e.target.value }))}
+                          className="border border-gray-300 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-green-500">
+                          <option value="casual">Hit Session</option>
+                          <option value="singles">Singles</option>
+                          <option value="doubles">Doubles</option>
+                          <option value="ball_machine">Ball Machine</option>
+                        </select>
+                      </div>
+                      {editError && <p className="text-red-600 text-xs">{editError}</p>}
+                      <div className="flex items-center gap-3 pt-1">
+                        <button onClick={() => saveEdit(b)} disabled={editSaving}
+                          className="text-xs font-semibold bg-green-700 hover:bg-green-800 text-white px-4 py-1.5 rounded-lg transition disabled:opacity-50">
+                          {editSaving ? 'Saving…' : 'Save Changes'}
+                        </button>
+                        <button onClick={() => cancelBooking(b.id)}
+                          className="text-xs font-medium text-red-500 hover:text-red-700 transition">
+                          Cancel Booking
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )
             })}

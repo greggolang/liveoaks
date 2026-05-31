@@ -32,6 +32,7 @@ const BOOKING_SECTIONS: BookingSection[] = [
       { key: 'booking_max_days_ahead',     label: 'Max days ahead a court can be booked',         hint: 'How far in advance members may book. Enforced on save.',                     enforced: true },
       { key: 'booking_open_time',          label: 'Time next reservation day opens',               hint: 'e.g. 06:00 — when tomorrow\'s slots become bookable. Leave blank for midnight.', type: 'time' },
       { key: 'booking_min_gap_minutes',    label: 'Min gap between a member\'s bookings (minutes)', hint: 'Prevents back-to-back "sandwich" reservations on the same court. Set to 30 to require a 30-min gap. 0 = disabled.', enforced: true },
+      { key: 'booking_cancel_hours',       label: 'Min hours notice to cancel',                   hint: 'Members must cancel at least this many hours before the booking starts. Admins and board can always cancel. Leave blank to allow any-time cancellation.', enforced: true },
     ],
   },
   {

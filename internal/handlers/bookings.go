@@ -275,6 +275,19 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 			fmt.Sprintf("members may not make more than %d bookings per day", maxPerDay))
 	}
 
+	// ── Max duration limit ────────────────────────────────────────────────
+	var maxDurStr string
+	if scanErr := h.DB.QueryRow(c.Request().Context(),
+		`SELECT value FROM settings WHERE key = 'booking_max_duration_hours'`).Scan(&maxDurStr); scanErr == nil {
+		if maxDurF, convErr := strconv.ParseFloat(maxDurStr, 64); convErr == nil && maxDurF > 0 {
+			durationHours := req.EndTime.Sub(req.StartTime).Hours()
+			if durationHours > maxDurF {
+				return echo.NewHTTPError(http.StatusBadRequest,
+					fmt.Sprintf("bookings may not exceed %.0g hour(s)", maxDurF))
+			}
+		}
+	}
+
 	if req.MatchType == "" {
 		req.MatchType = "casual"
 	}
@@ -431,6 +444,24 @@ func (h *BookingsHandler) Delete(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusForbidden, "cannot cancel another member's booking")
 	}
 
+	// ── Cancellation notice period (members only) ──────────────────────
+	if ownerID == userID && role != "admin" && role != "board" {
+		var cancelHoursStr string
+		if scanErr := h.DB.QueryRow(c.Request().Context(),
+			`SELECT value FROM settings WHERE key = 'booking_cancel_hours'`).Scan(&cancelHoursStr); scanErr == nil {
+			if cancelHours, convErr := strconv.ParseFloat(cancelHoursStr, 64); convErr == nil && cancelHours > 0 {
+				var startTime time.Time
+				h.DB.QueryRow(c.Request().Context(),
+					`SELECT start_time FROM bookings WHERE id = $1`, id).Scan(&startTime)
+				hoursUntil := time.Until(startTime).Hours()
+				if hoursUntil >= 0 && hoursUntil < cancelHours {
+					return echo.NewHTTPError(http.StatusBadRequest,
+						fmt.Sprintf("bookings must be cancelled at least %.0g hour(s) before the start time", cancelHours))
+				}
+			}
+		}
+	}
+
 	// Email all roster players before the booking is deleted
 	if h.Mailer != nil {
 		var courtName string
@@ -455,4 +486,97 @@ func (h *BookingsHandler) Delete(c echo.Context) error {
 	h.DB.Exec(c.Request().Context(), `DELETE FROM bookings WHERE id = $1`, id)
 	h.Logger.Log(c.Request().Context(), "booking_cancelled", id, userID, c.RealIP())
 	return c.NoContent(http.StatusNoContent)
+}
+
+// History returns the current user's past bookings (most recent first).
+func (h *BookingsHandler) History(c echo.Context) error {
+	userID := c.Get("user_id").(string)
+	rows, err := h.DB.Query(c.Request().Context(), `
+		SELECT b.id, b.user_id, b.court_id, b.start_time, b.end_time, b.notes, b.created_at,
+		       COALESCE(b.match_type, ''), b.players_needed,
+		       u.first_name, u.last_name, ct.name, ct.number,
+		       COALESCE(array_agg(mp.player_name ORDER BY mp.is_host DESC, mp.added_at)
+		                FILTER (WHERE mp.player_name IS NOT NULL), ARRAY[]::text[]) AS players
+		FROM bookings b
+		JOIN users u ON u.id = b.user_id
+		JOIN courts ct ON ct.id = b.court_id
+		LEFT JOIN match_players mp ON mp.booking_id = b.id
+		WHERE b.user_id = $1 AND b.start_time < NOW()
+		GROUP BY b.id, b.user_id, b.court_id, b.start_time, b.end_time, b.notes,
+		         b.created_at, b.match_type, b.players_needed,
+		         u.first_name, u.last_name, ct.name, ct.number
+		ORDER BY b.start_time DESC LIMIT 30`, userID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch history")
+	}
+	defer rows.Close()
+	bookings := []models.Booking{}
+	for rows.Next() {
+		var b models.Booking
+		b.User = &models.User{}
+		b.Court = &models.Court{}
+		if err := rows.Scan(&b.ID, &b.UserID, &b.CourtID, &b.StartTime, &b.EndTime, &b.Notes, &b.CreatedAt,
+			&b.MatchType, &b.PlayersNeeded,
+			&b.User.FirstName, &b.User.LastName, &b.Court.Name, &b.Court.Number,
+			&b.Players); err != nil {
+			continue
+		}
+		bookings = append(bookings, b)
+	}
+	return c.JSON(http.StatusOK, bookings)
+}
+
+// AdminCreate allows board/admin to create a booking on behalf of any member,
+// bypassing per-member daily/weekly limits.
+func (h *BookingsHandler) AdminCreate(c echo.Context) error {
+	var req struct {
+		UserID        string    `json:"user_id"`
+		CourtID       int       `json:"court_id"`
+		StartTime     time.Time `json:"start_time"`
+		EndTime       time.Time `json:"end_time"`
+		MatchType     string    `json:"match_type"`
+		Notes         string    `json:"notes"`
+		PlayersNeeded int       `json:"players_needed"`
+	}
+	if err := c.Bind(&req); err != nil || req.UserID == "" || req.CourtID == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "user_id and court_id required")
+	}
+	if req.EndTime.Before(req.StartTime) || req.EndTime.Equal(req.StartTime) {
+		return echo.NewHTTPError(http.StatusBadRequest, "end time must be after start time")
+	}
+	if req.MatchType == "" {
+		req.MatchType = "casual"
+	}
+	// Check court conflict only
+	var conflicts int
+	h.DB.QueryRow(c.Request().Context(),
+		`SELECT COUNT(*) FROM bookings WHERE court_id = $1 AND start_time < $2 AND end_time > $3`,
+		req.CourtID, req.EndTime, req.StartTime).Scan(&conflicts)
+	if conflicts > 0 {
+		return echo.NewHTTPError(http.StatusConflict, "court already booked for that time")
+	}
+
+	var booking models.Booking
+	err := h.DB.QueryRow(c.Request().Context(),
+		`INSERT INTO bookings (user_id, court_id, start_time, end_time, notes, match_type, players_needed)
+		 VALUES ($1, $2, $3, $4, NULLIF($5,''), $6, $7)
+		 RETURNING id, user_id, court_id, start_time, end_time, notes, created_at`,
+		req.UserID, req.CourtID, req.StartTime, req.EndTime, req.Notes, req.MatchType, req.PlayersNeeded,
+	).Scan(&booking.ID, &booking.UserID, &booking.CourtID, &booking.StartTime, &booking.EndTime, &booking.Notes, &booking.CreatedAt)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not create booking")
+	}
+	// Add member as host
+	var memberName string
+	h.DB.QueryRow(c.Request().Context(),
+		`SELECT first_name || ' ' || last_name FROM users WHERE id = $1`, req.UserID).Scan(&memberName)
+	h.DB.Exec(c.Request().Context(),
+		`INSERT INTO match_players (booking_id, user_id, player_name, is_host) VALUES ($1, $2, $3, true)`,
+		booking.ID, req.UserID, memberName)
+
+	adminID := c.Get("user_id").(string)
+	h.Logger.Log(c.Request().Context(), "admin_booking_created",
+		fmt.Sprintf("for %s on court %d at %s", memberName, req.CourtID, req.StartTime.Format("2006-01-02 15:04")),
+		adminID, c.RealIP())
+	return c.JSON(http.StatusCreated, booking)
 }

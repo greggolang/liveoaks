@@ -396,6 +396,90 @@ func (h *InvitationsHandler) GetResponses(c echo.Context) error {
 	return c.JSON(http.StatusOK, results)
 }
 
+// GetSentPending returns invitations the current user sent that are still awaiting a response.
+func (h *InvitationsHandler) GetSentPending(c echo.Context) error {
+	userID := c.Get("user_id").(string)
+	rows, err := h.DB.Query(c.Request().Context(), `
+		SELECT i.id, b.id, i.invitee_name, ct.name, b.start_time, i.created_at
+		FROM match_invitations i
+		JOIN bookings b ON b.id = i.booking_id
+		JOIN courts ct ON ct.id = b.court_id
+		WHERE b.user_id = $1
+		  AND i.status = 'pending'
+		  AND i.expires_at > NOW()
+		  AND b.start_time > NOW()
+		ORDER BY b.start_time, i.created_at`, userID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch pending invitations")
+	}
+	defer rows.Close()
+	type SentPending struct {
+		ID          string `json:"id"`
+		BookingID   string `json:"booking_id"`
+		InviteeName string `json:"invitee_name"`
+		CourtName   string `json:"court_name"`
+		StartTime   string `json:"start_time"`
+		SentAt      string `json:"sent_at"`
+	}
+	results := []SentPending{}
+	for rows.Next() {
+		var p SentPending
+		var start, sent interface{}
+		if err := rows.Scan(&p.ID, &p.BookingID, &p.InviteeName, &p.CourtName, &start, &sent); err != nil { //nolint
+			continue
+		}
+		p.StartTime = fmt.Sprintf("%v", start)
+		p.SentAt = fmt.Sprintf("%v", sent)
+		results = append(results, p)
+	}
+	return c.JSON(http.StatusOK, results)
+}
+
+// GetPendingForMe returns invitations sent to the current user that haven't been responded to.
+func (h *InvitationsHandler) GetPendingForMe(c echo.Context) error {
+	userID := c.Get("user_id").(string)
+	var email string
+	h.DB.QueryRow(c.Request().Context(), `SELECT email FROM users WHERE id = $1`, userID).Scan(&email)
+
+	rows, err := h.DB.Query(c.Request().Context(), `
+		SELECT i.id, i.token, ct.name, b.start_time, b.end_time,
+		       u.first_name || ' ' || u.last_name
+		FROM match_invitations i
+		JOIN bookings b ON b.id = i.booking_id
+		JOIN courts ct ON ct.id = b.court_id
+		JOIN users u ON u.id = b.user_id
+		WHERE (i.invitee_user_id = $1 OR i.invitee_email = $2)
+		  AND i.status = 'pending'
+		  AND i.expires_at > NOW()
+		  AND b.start_time > NOW()
+		ORDER BY b.start_time`, userID, email)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch invitations")
+	}
+	defer rows.Close()
+
+	type PendingInvite struct {
+		ID          string `json:"id"`
+		Token       string `json:"token"`
+		CourtName   string `json:"court_name"`
+		StartTime   string `json:"start_time"`
+		EndTime     string `json:"end_time"`
+		InviterName string `json:"inviter_name"`
+	}
+	results := []PendingInvite{}
+	for rows.Next() {
+		var p PendingInvite
+		var start, end interface{}
+		if err := rows.Scan(&p.ID, &p.Token, &p.CourtName, &start, &end, &p.InviterName); err != nil {
+			continue
+		}
+		p.StartTime = fmt.Sprintf("%v", start)
+		p.EndTime = fmt.Sprintf("%v", end)
+		results = append(results, p)
+	}
+	return c.JSON(http.StatusOK, results)
+}
+
 func (h *InvitationsHandler) checkMatchFull(bookingID, inviterID, inviterEmail string) {
 	var playersNeeded, confirmedCount int
 	h.DB.QueryRow(context.Background(),

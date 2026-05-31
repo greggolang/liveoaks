@@ -97,6 +97,8 @@ export default function Bookings() {
   const [mineCountdown, setMineCountdown] = useState(20)
   const [weather, setWeather] = useState<WeatherData | null>(null)
   const [myBookings, setMyBookings] = useState<Booking[]>([])
+  const [history, setHistory] = useState<Booking[]>([])
+  const [showHistory, setShowHistory] = useState(false)
   // Invite state
   const [friends, setFriends] = useState<Friend[]>([])
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([])
@@ -188,6 +190,7 @@ export default function Bookings() {
     if (tab !== 'mine') return
     loadMine()
     setMineCountdown(20)
+    api.bookings.history().then(d => setHistory(d as Booking[])).catch(() => {})
     api.friends.list().then(d => setFriends(d as Friend[]))
     api.groups.list().then(d => setFriendGroups(d as FriendGroup[]))
     const timer = setInterval(() => {
@@ -1278,11 +1281,60 @@ export default function Bookings() {
 
       {tab === 'mine' && (
         <div>
-          <div className="flex items-center gap-2 mb-4">
-            <h2 className="text-lg font-semibold text-gray-700">My Upcoming Bookings</h2>
-            <span className="text-xs text-gray-400">↻ {mineCountdown}s</span>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-semibold text-gray-700">
+                {showHistory ? 'Booking History' : 'My Upcoming Bookings'}
+              </h2>
+              {!showHistory && <span className="text-xs text-gray-400">↻ {mineCountdown}s</span>}
+            </div>
+            <button onClick={() => setShowHistory(h => !h)}
+              className="text-xs font-medium text-gray-500 hover:text-green-700 transition">
+              {showHistory ? '← Upcoming' : 'History →'}
+            </button>
           </div>
-          {myBookings.length === 0 ? (
+          {showHistory ? (
+            history.length === 0 ? (
+              <div className="bg-white border border-gray-200 rounded-xl p-8 text-center shadow-sm text-sm text-gray-400">
+                No booking history yet.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {history.map(b => {
+                  const start = new Date(b.start_time)
+                  const end = new Date(b.end_time)
+                  return (
+                    <div key={b.id} className="bg-white border border-gray-100 rounded-xl px-4 py-3 shadow-sm flex items-center gap-4 opacity-80">
+                      <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center text-gray-500 font-bold text-base shrink-0">
+                        {b.court.number}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-gray-700 text-sm">{b.court.name}
+                          {b.match_type && b.match_type !== 'casual' && (
+                            <span className="ml-2 text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-normal">
+                              {b.match_type === 'ball_machine' ? '🤖 Ball Machine' : b.match_type === 'singles' ? 'Singles' : 'Doubles'}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-400 mt-0.5">
+                          {start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                          {' · '}
+                          {start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                          {' – '}
+                          {end.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                        </div>
+                        {(b.players ?? []).length > 1 && (
+                          <div className="text-xs text-gray-400 mt-0.5">
+                            with {(b.players ?? []).slice(1).map(p => p.split(' ')[0]).join(', ')}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          ) : myBookings.length === 0 ? (
             <div className="bg-white border border-gray-200 rounded-xl p-8 text-center shadow-sm">
               <p className="text-gray-400 text-sm mb-3">You have no upcoming bookings.</p>
               <button onClick={() => setTab('grid')}

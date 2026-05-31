@@ -58,6 +58,8 @@ export const api = {
   bookings: {
     list: (date?: string) => request(`/bookings${date ? `?date=${date}` : ''}`),
     mine: () => request('/bookings/mine'),
+    history: () => request('/bookings/history'),
+    adminCreate: (data: object) => request('/admin/bookings', { method: 'POST', body: JSON.stringify(data) }),
     create: (data: object) => request('/bookings', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: object) => request(`/bookings/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => request(`/bookings/${id}`, { method: 'DELETE' }),
@@ -84,6 +86,8 @@ export const api = {
     respond: (token: string, action: 'accept' | 'decline') => request(`/invite/${token}/${action}`, { method: 'POST' }),
     cancel: (id: string) => request(`/invitations/${id}/cancel`, { method: 'PUT' }),
     responses: () => request('/invitations/responses'),
+    pending: () => request('/invitations/pending'),
+    sentPending: () => request('/invitations/sent/pending'),
   },
   contacts: {
     list: () => request('/contacts'),
