@@ -148,6 +148,8 @@ export default function AdminUsers() {
     } finally { setAddSaving(false) }
   }
 
+  const BOARD_ROLES = ['president', 'vice_president', 'secretary', 'treasurer', 'entertainment', 'house_grounds', 'billing', 'membership', 'usta']
+
   const filtered = users.filter(u => {
     if (roleFilter === 'board') { if (!BOARD_ROLES.includes(u.role)) return false }
     else if (roleFilter && u.role !== roleFilter) return false
@@ -165,8 +167,6 @@ export default function AdminUsers() {
   })
 
   const hasFilters = search || roleFilter || statusFilter
-
-  const BOARD_ROLES = ['president', 'vice_president', 'secretary', 'treasurer', 'entertainment', 'house_grounds', 'billing', 'membership', 'usta']
 
   const roleColor = (role: string): string => {
     if (role === 'admin') return 'bg-purple-100 text-purple-700'
