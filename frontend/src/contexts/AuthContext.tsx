@@ -104,7 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isBoard: user ? allRoles(user).some(r => BOARD_ROLES.includes(r)) : false,
       isFamilyMember: user?.is_family_member ?? false,
       bookingMaxDaysAhead,
-      hasPermission: (page: string) => myPages.has(page),
+      hasPermission: (page: string) => (user ? allRoles(user).includes('admin') : false) || myPages.has(page),
     }}>
       {children}
     </AuthContext.Provider>

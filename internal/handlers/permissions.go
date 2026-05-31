@@ -56,6 +56,8 @@ func (h *PermissionsHandler) GetForRole(c echo.Context) error {
 }
 
 // MyPages returns the distinct pages the current user can access based on their role(s).
+// Admin access is handled client-side (admins always have everything).
+// The 'pro' role implicitly has teaching_pro_booking even without a DB row.
 func (h *PermissionsHandler) MyPages(c echo.Context) error {
 	role, _ := c.Get("role").(string)
 	roles := []string{role}
@@ -68,12 +70,23 @@ func (h *PermissionsHandler) MyPages(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch permissions")
 	}
 	defer rows.Close()
-	pages := []string{}
+	pageSet := map[string]struct{}{}
 	for rows.Next() {
 		var page string
 		if err := rows.Scan(&page); err == nil {
-			pages = append(pages, page)
+			pageSet[page] = struct{}{}
 		}
+	}
+	// 'pro' role always has teaching_pro_booking
+	for _, r := range roles {
+		if r == "pro" {
+			pageSet["teaching_pro_booking"] = struct{}{}
+			break
+		}
+	}
+	pages := make([]string, 0, len(pageSet))
+	for p := range pageSet {
+		pages = append(pages, p)
 	}
 	return c.JSON(http.StatusOK, pages)
 }
