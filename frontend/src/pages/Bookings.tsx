@@ -631,13 +631,8 @@ export default function Bookings() {
                                 if (q.length < 2) { setBookingInviteResults([]); return }
                                 const lower = q.toLowerCase()
                                 const famResults = familyMembers
-                                  .filter(fm => {
-                                    const age = familyAge(fm.birthday)
-                                    return (fm.relationship.toLowerCase() === 'spouse' || (age !== null && age < 26)) &&
-                                      fm.email &&
-                                      !selectedMemberInvites.some(x => x.id === fm.id)
-                                  })
-                                  .filter(fm => `${fm.first_name} ${fm.last_name}`.toLowerCase().includes(lower) || (fm.email ?? '').toLowerCase().includes(lower))
+                                  .filter(fm => fm.email && !selectedMemberInvites.some(x => x.id === fm.id))
+                                  .filter(fm => `${fm.first_name} ${fm.last_name}`.toLowerCase().includes(lower) || fm.email!.toLowerCase().includes(lower))
                                   .map(fm => ({ id: fm.id, first_name: fm.first_name, last_name: fm.last_name, email: fm.email ?? '', isFamilyMember: true as const, relationship: fm.relationship }))
                                 const memberResults = directory.filter(m =>
                                   m.id !== user?.id &&
