@@ -38,6 +38,12 @@ const sections: Section[] = [
     ],
   },
   {
+    heading: 'Games',
+    links: [
+      { to: '/admin/fantasy', label: 'Fantasy Tennis Pool' },
+    ],
+  },
+  {
     heading: 'Feedback',
     links: [
       { to: '/admin/feedback', label: 'Site Ideas' },

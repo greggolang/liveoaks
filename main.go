@@ -91,6 +91,7 @@ func main() {
 	invitations := &handlers.InvitationsHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	signups := &handlers.SignupsHandler{DB: pool}
 	weather := &handlers.WeatherHandler{DB: pool}
+	fantasy := &handlers.FantasyHandler{DB: pool}
 
 	api := e.Group("/api")
 
@@ -211,6 +212,32 @@ func main() {
 	adminOnly.GET("/receipts", uploads.ListReceipts)
 	adminOnly.POST("/receipts", uploads.UploadReceipt)
 	adminOnly.DELETE("/receipts/:id", uploads.DeleteReceipt)
+
+	// Fantasy Tennis Pool — member routes
+	authed.GET("/fantasy/tournaments", fantasy.GetTournaments)
+	authed.GET("/fantasy/players", fantasy.GetPlayers)
+	authed.GET("/fantasy/leaderboard", fantasy.GetLeaderboard)
+	authed.GET("/fantasy/me", fantasy.GetMyStatus)
+	authed.GET("/fantasy/picks", fantasy.GetMyPicks)
+	authed.GET("/fantasy/scores", fantasy.GetMyScores)
+	authed.GET("/fantasy/results/:tid", fantasy.GetResults)
+	authed.POST("/fantasy/join", fantasy.JoinPool)
+	authed.PUT("/fantasy/picks/:tid", fantasy.SavePicks)
+
+	// Fantasy Tennis Pool — admin routes
+	adminOnly.GET("/fantasy/tournaments", fantasy.AdminGetTournaments)
+	adminOnly.POST("/fantasy/tournaments", fantasy.AdminCreateTournament)
+	adminOnly.PUT("/fantasy/tournaments/:id", fantasy.AdminUpdateTournament)
+	adminOnly.DELETE("/fantasy/tournaments/:id", fantasy.AdminDeleteTournament)
+	adminOnly.GET("/fantasy/players", fantasy.AdminGetPlayers)
+	adminOnly.POST("/fantasy/players", fantasy.AdminCreatePlayer)
+	adminOnly.PUT("/fantasy/players/:id", fantasy.AdminUpdatePlayer)
+	adminOnly.DELETE("/fantasy/players/:id", fantasy.AdminDeletePlayer)
+	adminOnly.PUT("/fantasy/results", fantasy.AdminSaveResult)
+	adminOnly.DELETE("/fantasy/results/:tid/:pid", fantasy.AdminDeleteResult)
+	adminOnly.GET("/fantasy/participants", fantasy.AdminGetParticipants)
+	adminOnly.PUT("/fantasy/participants/:userId/paid", fantasy.AdminUpdateParticipantPaid)
+	adminOnly.GET("/fantasy/picks/popularity/:tid", fantasy.AdminGetPickPopularity)
 
 	authed.GET("/family-members", family.List)
 	authed.POST("/family-members", family.Create)

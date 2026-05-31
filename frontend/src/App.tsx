@@ -42,6 +42,8 @@ import AdminEmailTemplates from './pages/admin/AdminEmailTemplates'
 import AdminReceipts from './pages/admin/AdminReceipts'
 import AdminBookingDocs from './pages/admin/AdminBookingDocs'
 import AdminBookings from './pages/admin/AdminBookings'
+import AdminFantasy from './pages/admin/AdminFantasy'
+import Fantasy from './pages/Fantasy'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -89,6 +91,7 @@ function AppRoutes() {
       <Route path="/drive" element={<ProtectedRoute><RoleDrive /></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
       <Route path="/friends" element={<ProtectedRoute><Friends /></ProtectedRoute>} />
+      <Route path="/fantasy" element={<ProtectedRoute><Fantasy /></ProtectedRoute>} />
 
       {/* Admin */}
       <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>}>
@@ -107,6 +110,7 @@ function AppRoutes() {
         <Route path="receipts" element={<AdminReceipts />} />
         <Route path="bookings" element={<AdminBookings />} />
         <Route path="booking-docs" element={<AdminBookingDocs />} />
+        <Route path="fantasy" element={<AdminFantasy />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

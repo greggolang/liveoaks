@@ -79,6 +79,62 @@ type Announcement struct {
 	Author    *User     `json:"author,omitempty"`
 }
 
+// ————— Fantasy Tennis Pool —————
+
+type FantasyTournament struct {
+	ID        string  `json:"id"`
+	Name      string  `json:"name"`
+	Year      int     `json:"year"`
+	StartDate *string `json:"start_date"`
+	EndDate   *string `json:"end_date"`
+	Status    string  `json:"status"` // draft | open | locked | completed
+}
+
+type FantasyPlayer struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Gender  string `json:"gender"` // M | W
+	Country string `json:"country,omitempty"`
+}
+
+type FantasyParticipant struct {
+	ID        string `json:"id"`
+	UserID    string `json:"user_id"`
+	Name      string `json:"name"`
+	EntryPaid bool   `json:"entry_paid"`
+	JoinedAt  string `json:"joined_at"`
+}
+
+type FantasyPick struct {
+	ID           string         `json:"id"`
+	UserID       string         `json:"user_id"`
+	TournamentID string         `json:"tournament_id"`
+	PlayerID     string         `json:"player_id"`
+	PickSlot     string         `json:"pick_slot"` // M1 | M2 | W1 | W2
+	Player       *FantasyPlayer `json:"player,omitempty"`
+}
+
+type FantasyResult struct {
+	ID           string         `json:"id"`
+	PlayerID     string         `json:"player_id"`
+	TournamentID string         `json:"tournament_id"`
+	Result       string         `json:"result"` // R1..R4 | QF | SF | F | Champion
+	PrizeMoney   float64        `json:"prize_money"`
+	Player       *FantasyPlayer `json:"player,omitempty"`
+	PickCount    int            `json:"pick_count,omitempty"`
+	ValuePerPick float64        `json:"value_per_pick,omitempty"`
+}
+
+type FantasyStanding struct {
+	Rank             int                `json:"rank"`
+	UserID           string             `json:"user_id"`
+	Name             string             `json:"name"`
+	TotalScore       float64            `json:"total_score"`
+	TournamentScores map[string]float64 `json:"tournament_scores"`
+}
+
+// ————————————————————————————
+
 type Due struct {
 	ID        string     `json:"id"`
 	UserID    string     `json:"user_id"`

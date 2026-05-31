@@ -268,4 +268,34 @@ export const api = {
   camera: {
     embedURL: () => request<{ url: string }>('/camera/embed'),
   },
+  fantasy: {
+    // Member
+    tournaments: () => request('/fantasy/tournaments'),
+    players: (gender?: 'M' | 'W') => request(`/fantasy/players${gender ? `?gender=${gender}` : ''}`),
+    leaderboard: () => request('/fantasy/leaderboard'),
+    myStatus: () => request('/fantasy/me'),
+    myPicks: () => request('/fantasy/picks'),
+    myScores: () => request('/fantasy/scores'),
+    results: (tid: string) => request(`/fantasy/results/${tid}`),
+    join: () => request('/fantasy/join', { method: 'POST' }),
+    savePicks: (tid: string, picks: { slot: string; player_id: string }[]) =>
+      request(`/fantasy/picks/${tid}`, { method: 'PUT', body: JSON.stringify({ picks }) }),
+    // Admin
+    admin: {
+      tournaments: () => request('/admin/fantasy/tournaments'),
+      createTournament: (data: object) => request('/admin/fantasy/tournaments', { method: 'POST', body: JSON.stringify(data) }),
+      updateTournament: (id: string, data: object) => request(`/admin/fantasy/tournaments/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+      deleteTournament: (id: string) => request(`/admin/fantasy/tournaments/${id}`, { method: 'DELETE' }),
+      players: () => request('/admin/fantasy/players'),
+      createPlayer: (data: object) => request('/admin/fantasy/players', { method: 'POST', body: JSON.stringify(data) }),
+      updatePlayer: (id: string, data: object) => request(`/admin/fantasy/players/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+      deletePlayer: (id: string) => request(`/admin/fantasy/players/${id}`, { method: 'DELETE' }),
+      saveResult: (data: object) => request('/admin/fantasy/results', { method: 'PUT', body: JSON.stringify(data) }),
+      deleteResult: (tid: string, pid: string) => request(`/admin/fantasy/results/${tid}/${pid}`, { method: 'DELETE' }),
+      participants: () => request('/admin/fantasy/participants'),
+      updatePaid: (userId: string, paid: boolean) =>
+        request(`/admin/fantasy/participants/${userId}/paid`, { method: 'PUT', body: JSON.stringify({ paid }) }),
+      pickPopularity: (tid: string) => request(`/admin/fantasy/picks/popularity/${tid}`),
+    },
+  },
 }
