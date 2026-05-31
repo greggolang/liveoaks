@@ -66,7 +66,7 @@ func (h *CameraHandler) Page(c echo.Context) error {
 }
 
 func (h *CameraHandler) Proxy(c echo.Context) error {
-	name := filepath.Base(c.Param("path"))
+	name := filepath.Base(c.Param("*"))
 	fp := filepath.Join(h.HLSDir, name)
 	switch filepath.Ext(name) {
 	case ".m3u8":
