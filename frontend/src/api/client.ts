@@ -290,6 +290,13 @@ export const api = {
       request('/admin/test-email', { method: 'POST', body: JSON.stringify({ to }) }),
     smtpPing: () => request('/admin/smtp-ping'),
   },
+  proShop: {
+    list: () => request<{ id: string; name: string; description: string; price: number; category: string; emoji: string; in_stock: boolean; sort_order: number }[]>('/pro-shop'),
+    adminList: () => request<{ id: string; name: string; description: string; price: number; category: string; emoji: string; in_stock: boolean; sort_order: number }[]>('/admin/pro-shop'),
+    create: (data: object) => request('/admin/pro-shop', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: object) => request(`/admin/pro-shop/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    delete: (id: string) => request(`/admin/pro-shop/${id}`, { method: 'DELETE' }),
+  },
   memberAlerts: {
     getMyAlerts: () => request<{ id: string; message: string; type: string; created_at: string; created_by_name?: string }[]>('/member-alerts'),
     dismiss: (id: string) => request(`/member-alerts/${id}/dismiss`, { method: 'POST' }),

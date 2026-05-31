@@ -83,6 +83,7 @@ func main() {
 	camera := &handlers.CameraHandler{DB: pool, CameraToken: cfg.CameraToken, HLSDir: cfg.CameraHLSDir, SiteURL: cfg.SiteURL, Mailer: mailer}
 	camera.Init()
 	alerts := &handlers.AlertsHandler{DB: pool}
+	proshop := &handlers.ProShopHandler{DB: pool}
 	contacts := &handlers.ContactsHandler{DB: pool}
 	friends := &handlers.FriendsHandler{DB: pool}
 	perms := &handlers.PermissionsHandler{DB: pool}
@@ -360,6 +361,13 @@ func main() {
 	authed.GET("/camera/embed", camera.EmbedURL)
 	adminOnly.PUT("/camera/url", camera.UpdateURL)
 	boardPlus.GET("/admin/camera/status", camera.AdminStatus)
+
+	// Pro Shop
+	authed.GET("/pro-shop", proshop.List)
+	boardPlus.GET("/admin/pro-shop", proshop.AdminList)
+	boardPlus.POST("/admin/pro-shop", proshop.Create)
+	boardPlus.PUT("/admin/pro-shop/:id", proshop.Update)
+	boardPlus.DELETE("/admin/pro-shop/:id", proshop.Delete)
 
 	// Member alerts (admin → member dashboard)
 	authed.GET("/member-alerts", alerts.GetMyAlerts)

@@ -10,6 +10,7 @@ const sections: Section[] = [
     links: [
       { to: '/events', label: 'Events' },
       { to: '/announcements', label: 'Announcements' },
+      { to: '/admin/pro-shop', label: 'Pro Shop' },
       { to: '/documents', label: 'Documents' },
       { to: '/photos', label: 'Photos' },
       { to: '/usta-teams', label: 'USTA Teams' },

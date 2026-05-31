@@ -748,25 +748,6 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Quick links */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          { to: '/bookings?tab=grid',  emoji: '🎾', label: 'Book a Court' },
-          { to: '/pro-shop',  emoji: '🛍️', label: 'Pro Shop' },
-          { to: '/events',    emoji: '📅', label: 'Events' },
-          { to: '/directory', emoji: '👥', label: 'Directory' },
-        ].map(({ to, emoji, label }) => (
-          <Link key={to} to={to}
-            className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col items-center gap-2 hover:border-green-300 hover:shadow-md transition text-center">
-            <span className="text-2xl">{emoji}</span>
-            <span className="text-sm font-medium text-gray-700">{label}</span>
-          </Link>
-        ))}
-      </div>
-
-      {/* Weather */}
-      {weather && <WeatherWidget weather={weather} airQuality={airQuality} />}
-
       {/* My Bookings */}
       <div>
         <div className="flex items-center justify-between mb-3">
@@ -922,6 +903,25 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      {/* Quick links */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { to: '/bookings?tab=grid',  emoji: '🎾', label: 'Book a Court' },
+          { to: '/pro-shop',  emoji: '🛍️', label: 'Pro Shop' },
+          { to: '/events',    emoji: '📅', label: 'Events' },
+          { to: '/directory', emoji: '👥', label: 'Directory' },
+        ].map(({ to, emoji, label }) => (
+          <Link key={to} to={to}
+            className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col items-center gap-2 hover:border-green-300 hover:shadow-md transition text-center">
+            <span className="text-2xl">{emoji}</span>
+            <span className="text-sm font-medium text-gray-700">{label}</span>
+          </Link>
+        ))}
+      </div>
+
+      {/* Weather */}
+      {weather && <WeatherWidget weather={weather} airQuality={airQuality} />}
 
       {/* Court Camera */}
       <div>

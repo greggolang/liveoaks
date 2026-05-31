@@ -49,6 +49,7 @@ import TennisLadder from './pages/TennisLadder'
 import AdminLiveball from './pages/admin/AdminLiveball'
 import AdminBroadcast from './pages/admin/AdminBroadcast'
 import AdminBoardMeetings from './pages/admin/AdminBoardMeetings'
+import AdminProShop from './pages/admin/AdminProShop'
 import BoardMeetingResponse from './pages/BoardMeetingResponse'
 import LiveballResponse from './pages/LiveballResponse'
 import BookingReminderResponse from './pages/BookingReminderResponse'
@@ -127,6 +128,7 @@ function AppRoutes() {
         <Route path="booking-docs" element={<AdminBookingDocs />} />
         <Route path="fantasy" element={<AdminFantasy />} />
         <Route path="notes" element={<AdminNotes />} />
+        <Route path="pro-shop" element={<AdminProShop />} />
         <Route path="ladder" element={<AdminLadder />} />
         <Route path="liveball" element={<AdminLiveball />} />
         <Route path="broadcast" element={<AdminBroadcast />} />

@@ -1,37 +1,36 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { api } from '../api/client'
 
 interface Product {
   id: string
   name: string
   description: string
   price: number
-  category: 'drinks' | 'balls'
+  category: string
   emoji: string
+  in_stock: boolean
+  sort_order: number
 }
 
-const PRODUCTS: Product[] = [
-  // Drinks
-  { id: 'water',        category: 'drinks', emoji: '💧', name: 'Water',             description: 'Bottled water, 16.9 oz',         price: 1.50 },
-  { id: 'sports',       category: 'drinks', emoji: '🥤', name: 'Sports Drink',      description: 'Gatorade, assorted flavors',     price: 2.50 },
-  { id: 'soda',         category: 'drinks', emoji: '🥫', name: 'Soda',              description: 'Coke, Diet Coke, or Sprite',     price: 2.00 },
-  { id: 'energy',       category: 'drinks', emoji: '⚡', name: 'Energy Drink',      description: 'Red Bull, 8.4 oz',               price: 3.50 },
-  // Balls
-  { id: 'balls_penn',   category: 'balls',  emoji: '🎾', name: 'Penn Championship', description: 'Regular duty, can of 3',         price: 5.00 },
-  { id: 'balls_wilson', category: 'balls',  emoji: '🎾', name: 'Wilson US Open',    description: 'Extra duty, can of 3',           price: 5.50 },
-]
-
 export default function ProShop() {
+  const [products, setProducts] = useState<Product[]>([])
+  const [loading, setLoading] = useState(true)
   const [cart, setCart] = useState<Record<string, number>>({})
+
+  useEffect(() => {
+    api.proShop.list()
+      .then(d => setProducts(d as Product[]))
+      .finally(() => setLoading(false))
+  }, [])
 
   const setQty = (id: string, qty: number) =>
     setCart(c => qty <= 0 ? (({ [id]: _, ...rest }) => rest)(c) : { ...c, [id]: qty })
 
-  const cartItems = PRODUCTS.filter(p => (cart[p.id] ?? 0) > 0)
+  const cartItems = products.filter(p => (cart[p.id] ?? 0) > 0)
   const total = cartItems.reduce((sum, p) => sum + p.price * cart[p.id], 0)
   const itemCount = Object.values(cart).reduce((a, b) => a + b, 0)
 
-  const drinks = PRODUCTS.filter(p => p.category === 'drinks')
-  const balls  = PRODUCTS.filter(p => p.category === 'balls')
+  const categories = [...new Set(products.map(p => p.category))]
 
   return (
     <div className="max-w-4xl">
@@ -47,17 +46,29 @@ export default function ProShop() {
         )}
       </div>
 
-      <div className="space-y-8">
-        <Section title="Drinks">
-          {drinks.map(p => <ProductCard key={p.id} product={p} qty={cart[p.id] ?? 0} onChange={qty => setQty(p.id, qty)} />)}
-        </Section>
+      {loading ? (
+        <p className="text-gray-400 text-sm">Loading…</p>
+      ) : products.length === 0 ? (
+        <p className="text-gray-400 text-sm">No items available right now.</p>
+      ) : (
+        <div className="space-y-8">
+          {categories.map(cat => {
+            const items = products.filter(p => p.category === cat)
+            const label = cat.charAt(0).toUpperCase() + cat.slice(1)
+            return (
+              <div key={cat}>
+                <h2 className="text-lg font-semibold text-gray-700 mb-3">{label}</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {items.map(p => (
+                    <ProductCard key={p.id} product={p} qty={cart[p.id] ?? 0} onChange={qty => setQty(p.id, qty)} />
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
 
-        <Section title="Balls">
-          {balls.map(p => <ProductCard key={p.id} product={p} qty={cart[p.id] ?? 0} onChange={qty => setQty(p.id, qty)} />)}
-        </Section>
-      </div>
-
-      {/* Cart summary */}
       {cartItems.length > 0 && (
         <div className="mt-8 bg-white border border-gray-200 rounded-xl shadow-sm p-6">
           <h2 className="text-base font-semibold text-gray-800 mb-4">Order Summary</h2>
@@ -91,17 +102,6 @@ export default function ProShop() {
   )
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <h2 className="text-lg font-semibold text-gray-700 mb-3">{title}</h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {children}
-      </div>
-    </div>
-  )
-}
-
 function ProductCard({ product, qty, onChange }: { product: Product; qty: number; onChange: (qty: number) => void }) {
   return (
     <div className={`bg-white border rounded-xl p-4 shadow-sm flex items-center gap-4 transition ${qty > 0 ? 'border-green-300' : 'border-gray-200'}`}>
@@ -114,25 +114,15 @@ function ProductCard({ product, qty, onChange }: { product: Product; qty: number
       <div className="flex items-center gap-2 shrink-0">
         {qty > 0 ? (
           <>
-            <button
-              onClick={() => onChange(qty - 1)}
-              className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-base flex items-center justify-center transition"
-            >
-              −
-            </button>
+            <button onClick={() => onChange(qty - 1)}
+              className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-base flex items-center justify-center transition">−</button>
             <span className="w-5 text-center text-sm font-semibold text-gray-800">{qty}</span>
-            <button
-              onClick={() => onChange(qty + 1)}
-              className="w-7 h-7 rounded-full bg-green-700 hover:bg-green-800 text-white font-bold text-base flex items-center justify-center transition"
-            >
-              +
-            </button>
+            <button onClick={() => onChange(qty + 1)}
+              className="w-7 h-7 rounded-full bg-green-700 hover:bg-green-800 text-white font-bold text-base flex items-center justify-center transition">+</button>
           </>
         ) : (
-          <button
-            onClick={() => onChange(1)}
-            className="px-3 py-1.5 bg-green-700 hover:bg-green-800 text-white text-xs font-semibold rounded-lg transition"
-          >
+          <button onClick={() => onChange(1)}
+            className="px-3 py-1.5 bg-green-700 hover:bg-green-800 text-white text-xs font-semibold rounded-lg transition">
             Add
           </button>
         )}
