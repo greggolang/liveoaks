@@ -236,6 +236,7 @@ export const api = {
   feedback: {
     submit: (message: string, type: 'idea' | 'bug') =>
       request('/feedback', { method: 'POST', body: JSON.stringify({ message, type }) }),
+    newItems: () => request('/feedback/new'),
     adminList: () => request('/admin/feedback'),
     updateStatus: (id: string, status: string) =>
       request(`/admin/feedback/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),

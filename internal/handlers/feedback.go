@@ -36,6 +36,38 @@ func (h *FeedbackHandler) Submit(c echo.Context) error {
 	return c.JSON(http.StatusCreated, map[string]bool{"success": true})
 }
 
+// NewFeedback returns unread (status='new') feedback for board-level alerts.
+func (h *FeedbackHandler) NewFeedback(c echo.Context) error {
+	rows, err := h.DB.Query(c.Request().Context(),
+		`SELECT f.id, f.message, f.type, f.created_at,
+		        u.first_name, u.last_name
+		 FROM feedback f
+		 JOIN users u ON u.id = f.user_id
+		 WHERE f.status = 'new'
+		 ORDER BY f.created_at DESC`)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch feedback")
+	}
+	defer rows.Close()
+	type Item struct {
+		ID        string    `json:"id"`
+		Message   string    `json:"message"`
+		Type      string    `json:"type"`
+		CreatedAt time.Time `json:"created_at"`
+		FirstName string    `json:"first_name"`
+		LastName  string    `json:"last_name"`
+	}
+	items := []Item{}
+	for rows.Next() {
+		var i Item
+		if err := rows.Scan(&i.ID, &i.Message, &i.Type, &i.CreatedAt, &i.FirstName, &i.LastName); err != nil {
+			continue
+		}
+		items = append(items, i)
+	}
+	return c.JSON(http.StatusOK, items)
+}
+
 func (h *FeedbackHandler) AdminList(c echo.Context) error {
 	rows, err := h.DB.Query(c.Request().Context(),
 		`SELECT f.id, f.message, f.status, f.type, f.created_at,

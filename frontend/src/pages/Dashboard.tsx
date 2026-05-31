@@ -58,7 +58,7 @@ function saveRead(userId: string, ids: Set<string>) {
 }
 
 export default function Dashboard() {
-  const { user } = useAuth()
+  const { user, isBoard } = useAuth()
   const [idea, setIdea] = useState('')
   const [ideaState, setIdeaState] = useState<SubmitState>('idle')
   const [myBookings, setMyBookings] = useState<Booking[]>([])
@@ -83,6 +83,7 @@ export default function Dashboard() {
   const [inviteSending, setInviteSending] = useState(false)
   const [inviteSent, setInviteSent] = useState(false)
   const [toasts, setToasts] = useState<InviteResponse[]>([])
+  const [newFeedback, setNewFeedback] = useState<{id: string; message: string; type: string; created_at: string; first_name: string; last_name: string}[]>([])
   const [liveballInvites, setLiveballInvites] = useState<{id: string; event_id: string; title: string; start_time: string; max_players: number; status: string; token: string; position?: number}[]>([])
   const [boardMeetingInvites, setBoardMeetingInvites] = useState<{id: string; event_id: string; token: string; status: string; title: string; start_time: string; end_time?: string; location?: string}[]>([])
   const seenIds = useRef<Set<string>>(new Set())
@@ -126,6 +127,7 @@ export default function Dashboard() {
     api.invitations.pending().then(d => setPendingInvites(d as PendingInvite[])).catch(() => {})
     api.liveball.myInvitations().then(d => setLiveballInvites(d as any[])).catch(() => {})
     api.boardMeetings.myInvitations().then(d => setBoardMeetingInvites(d as any[])).catch(() => {})
+    if (isBoard) api.feedback.newItems().then(d => setNewFeedback(d as any[])).catch(() => {})
     api.invitations.sentPending().then(d => setSentPending(d as SentPending[])).catch(() => {})
     api.invitations.responses().then(d => setResponseAlerts(d as InviteResponseAlert[])).catch(() => {})
     api.dues.myDues().then(d => setDues(d as Dues[])).catch(() => {})
@@ -267,6 +269,35 @@ export default function Dashboard() {
             )
           }
         })
+
+        // New feedback alerts (board members only)
+        if (isBoard) {
+          newFeedback.forEach(fb => {
+            const isBug = fb.type === 'bug'
+            alerts.push(
+              <div key={`fb-${fb.id}`} className={`flex items-start gap-3 rounded-xl px-4 py-3 ${isBug ? 'bg-red-50 border border-red-200' : 'bg-indigo-50 border border-indigo-200'}`}>
+                <span className="text-xl shrink-0">{isBug ? '🐛' : '💡'}</span>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm font-semibold ${isBug ? 'text-red-800' : 'text-indigo-800'}`}>
+                    {isBug ? 'Bug report' : 'Feature request'} from {fb.first_name} {fb.last_name}
+                  </p>
+                  <p className={`text-xs mt-0.5 line-clamp-2 ${isBug ? 'text-red-600' : 'text-indigo-600'}`}>{fb.message}</p>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <a href="/admin/feedback" className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition ${isBug ? 'bg-red-700 hover:bg-red-800 text-white' : 'bg-indigo-700 hover:bg-indigo-800 text-white'}`}>
+                    View
+                  </a>
+                  <button onClick={async () => {
+                    await api.feedback.updateStatus(fb.id, 'reviewing').catch(() => {})
+                    setNewFeedback(p => p.filter(x => x.id !== fb.id))
+                  }} className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1.5 transition">
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            )
+          })
+        }
 
         // LiveBall invitations
         liveballInvites.forEach(lb => {

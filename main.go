@@ -210,6 +210,7 @@ func main() {
 	adminOnly.GET("/permissions", perms.GetAll)
 	adminOnly.PUT("/permissions/:page/:role", perms.Toggle)
 	authed.POST("/feedback", feedback.Submit)
+	boardPlus.GET("/feedback/new", feedback.NewFeedback)
 	adminOnly.GET("/feedback", feedback.AdminList)
 	adminOnly.PUT("/feedback/:id/status", feedback.UpdateStatus)
 	adminOnly.DELETE("/feedback/:id", feedback.Delete)
