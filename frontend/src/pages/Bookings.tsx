@@ -627,6 +627,23 @@ export default function Bookings() {
                             </button>
                           )
                         })}
+                        {familyMembers.filter(fm => {
+                          const rel = fm.relationship.toLowerCase()
+                          return (rel === 'spouse' || rel === 'child') && fm.email &&
+                            !selectedMemberInvites.some(x => x.id === fm.id)
+                        }).map(fm => {
+                          const atLimit = spotsLeft === 0
+                          return (
+                            <button key={fm.id} type="button"
+                              onClick={() => !atLimit && setSelectedMemberInvites(s => [...s, { id: fm.id, first_name: fm.first_name, last_name: fm.last_name, email: fm.email ?? '', isFamilyMember: true, relationship: fm.relationship }])}
+                              disabled={atLimit}
+                              className={`px-2.5 py-1 rounded-full text-xs font-medium transition
+                                ${atLimit ? 'bg-gray-100 text-gray-300 cursor-not-allowed' :
+                                  'bg-white border border-purple-300 text-purple-700 hover:bg-purple-50'}`}>
+                              {fm.first_name} <span className="opacity-60 capitalize">({fm.relationship})</span>
+                            </button>
+                          )
+                        })}
                         {selectedMemberInvites.map(m => (
                           <button key={m.id} type="button"
                             onClick={() => setSelectedMemberInvites(s => s.filter(x => x.id !== m.id))}
