@@ -84,6 +84,7 @@ export default function Dashboard() {
   const [inviteSent, setInviteSent] = useState(false)
   const [toasts, setToasts] = useState<InviteResponse[]>([])
   const [liveballInvites, setLiveballInvites] = useState<{id: string; event_id: string; title: string; start_time: string; max_players: number; status: string; token: string; position?: number}[]>([])
+  const [boardMeetingInvites, setBoardMeetingInvites] = useState<{id: string; event_id: string; token: string; status: string; title: string; start_time: string; end_time?: string; location?: string}[]>([])
   const seenIds = useRef<Set<string>>(new Set())
 
   const dismissToast = (id: string) => setToasts(prev => prev.filter(t => t.id !== id))
@@ -124,6 +125,7 @@ export default function Dashboard() {
     api.weather.get().then(d => setWeather(d as WeatherData)).catch(() => {})
     api.invitations.pending().then(d => setPendingInvites(d as PendingInvite[])).catch(() => {})
     api.liveball.myInvitations().then(d => setLiveballInvites(d as any[])).catch(() => {})
+    api.boardMeetings.myInvitations().then(d => setBoardMeetingInvites(d as any[])).catch(() => {})
     api.invitations.sentPending().then(d => setSentPending(d as SentPending[])).catch(() => {})
     api.invitations.responses().then(d => setResponseAlerts(d as InviteResponseAlert[])).catch(() => {})
     api.dues.myDues().then(d => setDues(d as Dues[])).catch(() => {})
@@ -220,6 +222,51 @@ export default function Dashboard() {
           (b.players ?? []).length < (b.players_needed ?? 0) + 1
         )
         const alerts: React.ReactNode[] = []
+
+        // Board meeting invitations
+        boardMeetingInvites.forEach(bm => {
+          const start = new Date(bm.start_time)
+          const dateStr = start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+          const timeStr = start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+          if (bm.status === 'invited') {
+            alerts.push(
+              <div key={`bm-${bm.id}`} className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
+                <span className="text-xl shrink-0">🏛️</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-blue-800">Board Meeting — RSVP requested</p>
+                  <p className="text-xs text-blue-600 mt-0.5">{bm.title} · {dateStr} at {timeStr}</p>
+                  {bm.location && <p className="text-xs text-blue-500 mt-0.5">📍 {bm.location}</p>}
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <button onClick={async () => {
+                    await api.boardMeetings.respond(bm.token, 'accept').catch(() => {})
+                    setBoardMeetingInvites(p => p.map(x => x.id === bm.id ? { ...x, status: 'accepted' } : x))
+                  }}
+                    className="text-xs font-semibold bg-blue-700 text-white px-3 py-1.5 rounded-lg hover:bg-blue-800 transition">
+                    Accept
+                  </button>
+                  <button onClick={async () => {
+                    await api.boardMeetings.respond(bm.token, 'decline').catch(() => {})
+                    setBoardMeetingInvites(p => p.filter(x => x.id !== bm.id))
+                  }}
+                    className="text-xs font-semibold bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-300 transition">
+                    Decline
+                  </button>
+                </div>
+              </div>
+            )
+          } else if (bm.status === 'accepted') {
+            alerts.push(
+              <div key={`bm-${bm.id}`} className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
+                <span className="text-xl shrink-0">✅</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-blue-800">You're confirmed for {bm.title}</p>
+                  <p className="text-xs text-blue-600 mt-0.5">{dateStr} at {timeStr}{bm.location ? ` · ${bm.location}` : ''}</p>
+                </div>
+              </div>
+            )
+          }
+        })
 
         // LiveBall invitations
         liveballInvites.forEach(lb => {

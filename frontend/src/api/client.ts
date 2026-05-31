@@ -270,6 +270,17 @@ export const api = {
   camera: {
     embedURL: () => request<{ url: string }>('/camera/embed'),
   },
+  boardMeetings: {
+    myInvitations: () => request('/board-meetings/invitations/mine'),
+    respond: (token: string, action: 'accept' | 'decline') =>
+      request(`/board-meetings/invite/${token}/${action}`, { method: 'POST' }),
+    admin: {
+      list: () => request('/admin/board-meetings'),
+      create: (data: object) => request('/admin/board-meetings', { method: 'POST', body: JSON.stringify(data) }),
+      roster: (id: string) => request(`/admin/board-meetings/${id}/roster`),
+      delete: (id: string) => request(`/admin/board-meetings/${id}`, { method: 'DELETE' }),
+    },
+  },
   liveball: {
     myInvitations: () => request('/liveball/my-invitations'),
     respond: (token: string, action: 'accept' | 'decline') =>

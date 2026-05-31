@@ -92,6 +92,7 @@ func main() {
 	broadcast := &handlers.BroadcastHandler{DB: pool, Mailer: mailer}
 	ladder := &handlers.LadderHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	liveball := &handlers.LiveballHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
+	boardMeetings := &handlers.BoardMeetingsHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	invitations := &handlers.InvitationsHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	signups := &handlers.SignupsHandler{DB: pool}
 	weather := &handlers.WeatherHandler{DB: pool}
@@ -216,6 +217,16 @@ func main() {
 	adminOnly.POST("/email-templates", emailTemplates.Create)
 	adminOnly.PUT("/email-templates/:id", emailTemplates.Update)
 	adminOnly.DELETE("/email-templates/:id", emailTemplates.Delete)
+	// Board Meetings — public response (no auth)
+	api.POST("/board-meetings/invite/:token/:action", boardMeetings.Respond)
+	// Board Meetings — member
+	authed.GET("/board-meetings/invitations/mine", boardMeetings.MyInvitations)
+	// Board Meetings — board+
+	boardPlus.GET("/admin/board-meetings", boardMeetings.List)
+	boardPlus.POST("/admin/board-meetings", boardMeetings.Create)
+	boardPlus.GET("/admin/board-meetings/:id/roster", boardMeetings.Roster)
+	boardPlus.DELETE("/admin/board-meetings/:id", boardMeetings.Delete)
+
 	// LiveBall — public response
 	api.POST("/liveball/:token/:action", liveball.Respond)
 	// LiveBall — member

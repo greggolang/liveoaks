@@ -114,12 +114,12 @@ export default function Bookings() {
   const [directPlayers, setDirectPlayers] = useState<DirectPlayer[]>([])
   const [bookingSearchMode, setBookingSearchMode] = useState<'member' | 'guest' | null>(null)
   const [bookingSearchQuery, setBookingSearchQuery] = useState('')
-  const [bookingSearchResults, setBookingSearchResults] = useState<{id: string; first_name: string; last_name: string; email: string}[]>([])
+  const [bookingSearchResults, setBookingSearchResults] = useState<{id: string; first_name: string; last_name: string; email: string; isFamilyMember?: boolean; relationship?: string}[]>([])
   const [bookingGuestForm, setBookingGuestForm] = useState({ name: '', email: '' })
   // Add player directly (roster panel)
   const [addPlayerMode, setAddPlayerMode] = useState<'member' | 'guest' | null>(null)
   const [addPlayerQuery, setAddPlayerQuery] = useState('')
-  const [addPlayerResults, setAddPlayerResults] = useState<{id: string; first_name: string; last_name: string; email: string}[]>([])
+  const [addPlayerResults, setAddPlayerResults] = useState<{id: string; first_name: string; last_name: string; email: string; isFamilyMember?: boolean; relationship?: string}[]>([])
   const [guestAddForm, setGuestAddForm] = useState({ name: '', email: '' })
   const [addingPlayer, setAddingPlayer] = useState(false)
   const [bookingDetail, setBookingDetail] = useState<Booking | null>(null)
@@ -179,13 +179,19 @@ export default function Bookings() {
     if (bookingSearchMode !== 'member') return
     if (bookingSearchQuery.length < 2) { setBookingSearchResults([]); return }
     const q = bookingSearchQuery.toLowerCase()
-    setBookingSearchResults(
-      directory.filter(m =>
-        m.id !== user?.id &&
-        (`${m.first_name} ${m.last_name}`.toLowerCase().includes(q) || m.email.toLowerCase().includes(q))
-      ).slice(0, 20)
-    )
-  }, [bookingSearchQuery, bookingSearchMode, directory, user?.id])
+    const famResults = familyMembers
+      .filter(fm => {
+        const age = familyAge(fm.birthday)
+        return (fm.relationship.toLowerCase() === 'spouse' || (age !== null && age < 26)) &&
+          !directPlayers.some(p => p.name === `${fm.first_name} ${fm.last_name}`)
+      })
+      .filter(fm => `${fm.first_name} ${fm.last_name}`.toLowerCase().includes(q) || (fm.email ?? '').toLowerCase().includes(q))
+      .map(fm => ({ id: fm.id, first_name: fm.first_name, last_name: fm.last_name, email: fm.email ?? '', isFamilyMember: true as const, relationship: fm.relationship }))
+    const memberResults = directory
+      .filter(m => m.id !== user?.id && (`${m.first_name} ${m.last_name}`.toLowerCase().includes(q) || m.email.toLowerCase().includes(q)))
+      .slice(0, 20)
+    setBookingSearchResults([...famResults, ...memberResults])
+  }, [bookingSearchQuery, bookingSearchMode, directory, user?.id, familyMembers, directPlayers])
   useEffect(() => {
     if (tab !== 'mine') return
     loadMine()
@@ -248,12 +254,17 @@ export default function Bookings() {
     setAddPlayerQuery(q)
     if (q.length < 2) { setAddPlayerResults([]); return }
     const lower = q.toLowerCase()
-    setAddPlayerResults(
-      directory.filter(m =>
-        m.id !== user?.id &&
-        (`${m.first_name} ${m.last_name}`.toLowerCase().includes(lower) || m.email.toLowerCase().includes(lower))
-      ).slice(0, 20)
-    )
+    const famResults = familyMembers
+      .filter(fm => {
+        const age = familyAge(fm.birthday)
+        return fm.relationship.toLowerCase() === 'spouse' || (age !== null && age < 26)
+      })
+      .filter(fm => `${fm.first_name} ${fm.last_name}`.toLowerCase().includes(lower) || (fm.email ?? '').toLowerCase().includes(lower))
+      .map(fm => ({ id: fm.id, first_name: fm.first_name, last_name: fm.last_name, email: fm.email ?? '', isFamilyMember: true as const, relationship: fm.relationship }))
+    const memberResults = directory
+      .filter(m => m.id !== user?.id && (`${m.first_name} ${m.last_name}`.toLowerCase().includes(lower) || m.email.toLowerCase().includes(lower)))
+      .slice(0, 20)
+    setAddPlayerResults([...famResults, ...memberResults])
   }
 
   const addMemberPlayer = async (bookingId: string, userId: string) => {
@@ -584,19 +595,6 @@ export default function Bookings() {
                             className="ml-0.5 opacity-60 hover:opacity-100">✕</button>
                         </span>
                       ))}
-                      {/* Family members as quick-add (spouses or under-26 with birthday on file) */}
-                      {familyMembers.filter(fm => {
-                        const age = familyAge(fm.birthday)
-                        return fm.relationship.toLowerCase() === 'spouse' || (age !== null && age < 26)
-                      }).filter(fm => !directPlayers.some(p => p.name === `${fm.first_name} ${fm.last_name}`)).map(fm => (
-                        spotsLeft > 0 && (
-                          <button key={fm.id} type="button"
-                            onClick={() => setDirectPlayers(s => [...s, { name: `${fm.first_name} ${fm.last_name}`, email: fm.email ?? '', isGuest: false }])}
-                            className="px-2.5 py-1 rounded-full text-xs font-medium bg-purple-50 border border-purple-200 text-purple-700 hover:bg-purple-100 transition">
-                            + {fm.first_name} <span className="opacity-60 capitalize">({fm.relationship})</span>
-                          </button>
-                        )
-                      ))}
                       {bookingSearchMode === null && (
                         spotsLeft === 0
                           ? <span className="text-xs text-gray-400 italic self-center">Booking is full</span>
@@ -628,19 +626,28 @@ export default function Bookings() {
                     {bookingSearchResults.length > 0 && (
                       <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 bg-white max-h-36 overflow-y-auto">
                         {bookingSearchResults.map(m => {
-                          const already = directPlayers.some(p => p.userId === m.id)
+                          const already = m.isFamilyMember
+                            ? directPlayers.some(p => p.name === `${m.first_name} ${m.last_name}`)
+                            : directPlayers.some(p => p.userId === m.id)
                           const full = selectedFriends.length + directPlayers.length >= (PLAYERS_BY_TYPE[matchType] ?? 0)
                           return (
                             <div key={m.id} className="flex items-center justify-between px-3 py-1.5">
                               <div>
-                                <div className="text-xs font-medium text-gray-800">{m.first_name} {m.last_name}</div>
-                                <div className="text-xs text-gray-400">{m.email}</div>
+                                <div className="text-xs font-medium text-gray-800">
+                                  {m.first_name} {m.last_name}
+                                  {m.isFamilyMember && <span className="ml-1.5 text-purple-600 font-normal capitalize">({m.relationship})</span>}
+                                </div>
+                                <div className="text-xs text-gray-400">{m.isFamilyMember ? 'Family member' : m.email}</div>
                               </div>
                               <button type="button"
                                 disabled={already || full}
                                 onClick={() => {
                                   if (already) return
-                                  setDirectPlayers(s => [...s, { name: `${m.first_name} ${m.last_name}`, email: m.email, userId: m.id, isGuest: false }])
+                                  if (m.isFamilyMember) {
+                                    setDirectPlayers(s => [...s, { name: `${m.first_name} ${m.last_name}`, email: m.email, isGuest: false }])
+                                  } else {
+                                    setDirectPlayers(s => [...s, { name: `${m.first_name} ${m.last_name}`, email: m.email, userId: m.id, isGuest: false }])
+                                  }
                                   setBookingSearchQuery('')
                                   setBookingSearchResults([])
                                   setBookingSearchMode(null)
@@ -1001,20 +1008,35 @@ export default function Bookings() {
                               />
                               {addPlayerResults.length > 0 && (
                                 <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 bg-white max-h-36 overflow-y-auto">
-                                  {addPlayerResults.map(m => (
-                                    <div key={m.id} className="flex items-center justify-between px-3 py-1.5">
-                                      <div>
-                                        <div className="text-xs font-medium text-gray-800">{m.first_name} {m.last_name}</div>
-                                        <div className="text-xs text-gray-400">{m.email}</div>
+                                  {addPlayerResults.map(m => {
+                                    const onRoster = roster?.players.some(p => p.player_name === `${m.first_name} ${m.last_name}` || (m.email && p.player_email === m.email))
+                                    return (
+                                      <div key={m.id} className="flex items-center justify-between px-3 py-1.5">
+                                        <div>
+                                          <div className="text-xs font-medium text-gray-800">
+                                            {m.first_name} {m.last_name}
+                                            {m.isFamilyMember && <span className="ml-1.5 text-purple-600 font-normal capitalize">({m.relationship})</span>}
+                                          </div>
+                                          <div className="text-xs text-gray-400">{m.isFamilyMember ? 'Family member' : m.email}</div>
+                                        </div>
+                                        <button
+                                          onClick={() => {
+                                            if (m.isFamilyMember) {
+                                              setAddingPlayer(true)
+                                              api.invitations.addPlayer(b.id, { player_name: `${m.first_name} ${m.last_name}`, player_email: m.email, is_guest: false })
+                                                .then(() => { setAddPlayerQuery(''); setAddPlayerResults([]); refreshRoster(b.id) })
+                                                .finally(() => setAddingPlayer(false))
+                                            } else {
+                                              addMemberPlayer(b.id, m.id)
+                                            }
+                                          }}
+                                          disabled={addingPlayer || !!onRoster}
+                                          className="text-xs bg-green-700 text-white px-2 py-1 rounded hover:bg-green-800 transition disabled:opacity-50">
+                                          {onRoster ? '✓' : 'Add'}
+                                        </button>
                                       </div>
-                                      <button
-                                        onClick={() => addMemberPlayer(b.id, m.id)}
-                                        disabled={addingPlayer || roster?.players.some(p => p.player_email === m.email)}
-                                        className="text-xs bg-green-700 text-white px-2 py-1 rounded hover:bg-green-800 transition disabled:opacity-50">
-                                        {roster?.players.some(p => p.player_email === m.email) ? '✓' : 'Add'}
-                                      </button>
-                                    </div>
-                                  ))}
+                                    )
+                                  })}
                                 </div>
                               )}
                               <button onClick={() => { setAddPlayerMode(null); setAddPlayerQuery(''); setAddPlayerResults([]) }}
@@ -1521,24 +1543,6 @@ export default function Bookings() {
                             if (full) return null
                             return (
                             <div className="flex gap-2 flex-wrap">
-                              {/* Family member quick-add (spouses or under-26 with birthday) */}
-                              {familyMembers.filter(fm => {
-                                const age = familyAge(fm.birthday)
-                                return (fm.relationship.toLowerCase() === 'spouse' || (age !== null && age < 26)) &&
-                                  !roster?.players.some(p => p.player_name === `${fm.first_name} ${fm.last_name}`)
-                              }).map(fm => (
-                                <button key={fm.id} onClick={async () => {
-                                  await api.invitations.addPlayer(b.id, {
-                                    player_name: `${fm.first_name} ${fm.last_name}`,
-                                    player_email: fm.email ?? '',
-                                    is_guest: false,
-                                  })
-                                  refreshRoster(b.id)
-                                }}
-                                  className="px-3 py-1.5 rounded-lg text-xs font-medium bg-purple-50 border border-purple-200 text-purple-700 hover:bg-purple-100 transition">
-                                  + {fm.first_name} <span className="opacity-60 capitalize">({fm.relationship})</span>
-                                </button>
-                              ))}
                               <button onClick={() => setAddPlayerMode('member')}
                                 className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-gray-200 text-gray-700 hover:border-green-400 hover:text-green-700 transition">
                                 + Search Member
@@ -1564,20 +1568,35 @@ export default function Bookings() {
                               </div>
                               {addPlayerResults.length > 0 && (
                                 <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 bg-white max-h-40 overflow-y-auto">
-                                  {addPlayerResults.map(m => (
-                                    <div key={m.id} className="flex items-center justify-between px-3 py-1.5 hover:bg-gray-50">
-                                      <div>
-                                        <div className="text-xs font-medium text-gray-800">{m.first_name} {m.last_name}</div>
-                                        <div className="text-xs text-gray-400">{m.email}</div>
+                                  {addPlayerResults.map(m => {
+                                    const onRoster = roster.players.some(p => p.player_name === `${m.first_name} ${m.last_name}` || (m.email && p.player_email === m.email))
+                                    return (
+                                      <div key={m.id} className="flex items-center justify-between px-3 py-1.5 hover:bg-gray-50">
+                                        <div>
+                                          <div className="text-xs font-medium text-gray-800">
+                                            {m.first_name} {m.last_name}
+                                            {m.isFamilyMember && <span className="ml-1.5 text-purple-600 font-normal capitalize">({m.relationship})</span>}
+                                          </div>
+                                          <div className="text-xs text-gray-400">{m.isFamilyMember ? 'Family member' : m.email}</div>
+                                        </div>
+                                        <button
+                                          onClick={() => {
+                                            if (m.isFamilyMember) {
+                                              setAddingPlayer(true)
+                                              api.invitations.addPlayer(b.id, { player_name: `${m.first_name} ${m.last_name}`, player_email: m.email, is_guest: false })
+                                                .then(() => { setAddPlayerQuery(''); setAddPlayerResults([]); refreshRoster(b.id) })
+                                                .finally(() => setAddingPlayer(false))
+                                            } else {
+                                              addMemberPlayer(b.id, m.id)
+                                            }
+                                          }}
+                                          disabled={addingPlayer || onRoster}
+                                          className="text-xs bg-green-700 text-white px-2 py-1 rounded hover:bg-green-800 transition disabled:opacity-50">
+                                          {onRoster ? '✓' : 'Add'}
+                                        </button>
                                       </div>
-                                      <button
-                                        onClick={() => addMemberPlayer(b.id, m.id)}
-                                        disabled={addingPlayer || roster.players.some(p => p.player_email === m.email)}
-                                        className="text-xs bg-green-700 text-white px-2 py-1 rounded hover:bg-green-800 transition disabled:opacity-50">
-                                        {roster.players.some(p => p.player_email === m.email) ? '✓' : 'Add'}
-                                      </button>
-                                    </div>
-                                  ))}
+                                    )
+                                  })}
                                 </div>
                               )}
                               <button onClick={() => { setAddPlayerMode(null); setAddPlayerQuery(''); setAddPlayerResults([]) }}

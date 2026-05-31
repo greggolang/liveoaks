@@ -6,7 +6,7 @@ const USTA_RATINGS = ['2.5', '3.0', '3.5', '4.0', '4.5', '5.0']
 interface User {
   id: string; first_name: string; last_name: string; email: string
   role: string; extra_roles?: string[]; status: string; phone?: string; address?: string; family?: string
-  usta_ranking?: string; created_at: string
+  usta_ranking?: string; birthday?: string; created_at: string
 }
 
 // All assignable roles (used for extra_roles checkboxes)
@@ -26,7 +26,7 @@ const ALL_ASSIGNABLE_ROLES = [
   { value: 'member',         label: 'Member',         group: 'General' },
 ]
 
-const emptyEdit = { first_name: '', last_name: '', email: '', phone: '', address: '', family: '', usta_ranking: '' }
+const emptyEdit = { first_name: '', last_name: '', email: '', phone: '', address: '', family: '', usta_ranking: '', birthday: '' }
 const emptyNew = { first_name: '', last_name: '', email: '', phone: '', password: '', role: 'member', status: 'active' }
 const RELATIONSHIPS = ['spouse', 'child', 'parent', 'sibling', 'other']
 
@@ -46,7 +46,7 @@ export default function AdminUsers() {
   const [addSaving, setAddSaving] = useState(false)
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([])
   const [showFamilyForm, setShowFamilyForm] = useState(false)
-  const [familyForm, setFamilyForm] = useState({ first_name: '', last_name: '', relationship: 'spouse', birthday: '' })
+  const [familyForm, setFamilyForm] = useState({ first_name: '', last_name: '', relationship: 'spouse', birthday: '', email: '', phone: '' })
   const [savingFamily, setSavingFamily] = useState(false)
   const [editExtraRoles, setEditExtraRoles] = useState<string[]>([])
   const [savingExtraRoles, setSavingExtraRoles] = useState(false)
@@ -58,10 +58,11 @@ export default function AdminUsers() {
     setEditing(u)
     setEditExtraRoles(u.extra_roles ?? [])
     setEditForm({ first_name: u.first_name, last_name: u.last_name, email: u.email,
-      phone: u.phone ?? '', address: u.address ?? '', family: u.family ?? '', usta_ranking: u.usta_ranking ?? '' })
+      phone: u.phone ?? '', address: u.address ?? '', family: u.family ?? '', usta_ranking: u.usta_ranking ?? '',
+      birthday: u.birthday ?? '' })
     setFamilyMembers([])
     setShowFamilyForm(false)
-    setFamilyForm({ first_name: '', last_name: '', relationship: 'spouse', birthday: '' })
+    setFamilyForm({ first_name: '', last_name: '', relationship: 'spouse', birthday: '', email: '', phone: '' })
     loadFamily(u.id)
   }
 
@@ -70,7 +71,7 @@ export default function AdminUsers() {
     setSavingFamily(true)
     try {
       await api.family.adminCreate(editing.id, familyForm)
-      setFamilyForm({ first_name: '', last_name: '', relationship: 'spouse', birthday: '' })
+      setFamilyForm({ first_name: '', last_name: '', relationship: 'spouse', birthday: '', email: '', phone: '' })
       setShowFamilyForm(false)
       loadFamily(editing.id)
     } finally { setSavingFamily(false) }
@@ -123,7 +124,8 @@ export default function AdminUsers() {
   }
 
   const filtered = users.filter(u => {
-    if (roleFilter && u.role !== roleFilter) return false
+    if (roleFilter === 'board') { if (!BOARD_ROLES.includes(u.role)) return false }
+    else if (roleFilter && u.role !== roleFilter) return false
     if (statusFilter && u.status !== statusFilter) return false
     if (search) {
       const q = search.toLowerCase()
@@ -139,7 +141,7 @@ export default function AdminUsers() {
 
   const hasFilters = search || roleFilter || statusFilter
 
-  const BOARD_ROLES = ['president', 'vice_president', 'secretary', 'treasurer', 'entertainment', 'house_grounds']
+  const BOARD_ROLES = ['president', 'vice_president', 'secretary', 'treasurer', 'entertainment', 'house_grounds', 'billing', 'membership', 'usta']
 
   const roleColor = (role: string): string => {
     if (role === 'admin') return 'bg-purple-100 text-purple-700'
@@ -166,7 +168,7 @@ export default function AdminUsers() {
     active: users.filter(u => u.status === 'active').length,
     pending: users.filter(u => u.status === 'pending').length,
     inactive: users.filter(u => u.status === 'inactive').length,
-    board: users.filter(u => ['president','vice_president','secretary','treasurer','entertainment','house_grounds'].includes(u.role)).length,
+    board: users.filter(u => BOARD_ROLES.includes(u.role)).length,
     admin: users.filter(u => u.role === 'admin').length,
   }
 
@@ -190,7 +192,7 @@ export default function AdminUsers() {
           { label: 'Active', value: counts.active, color: 'bg-green-50 border-green-200 text-green-700', click: () => setStatusFilter('active') },
           { label: 'Pending', value: counts.pending, color: 'bg-yellow-50 border-yellow-200 text-yellow-700', click: () => setStatusFilter('pending') },
           { label: 'Inactive', value: counts.inactive, color: 'bg-red-50 border-red-200 text-red-700', click: () => setStatusFilter('inactive') },
-          { label: 'Board', value: counts.board, color: 'bg-blue-50 border-blue-200 text-blue-700', click: () => setRoleFilter('president') },
+          { label: 'Board', value: counts.board, color: 'bg-blue-50 border-blue-200 text-blue-700', click: () => setRoleFilter('board') },
           { label: 'Admin', value: counts.admin, color: 'bg-purple-50 border-purple-200 text-purple-700', click: () => setRoleFilter('admin') },
         ].map(s => (
           <button key={s.label} onClick={s.click}
@@ -212,6 +214,7 @@ export default function AdminUsers() {
         <select value={roleFilter} onChange={e => setRoleFilter(e.target.value)}
           className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
           <option value="">All roles</option>
+          <option value="board">All Board</option>
           <option value="member">Member</option>
           <option value="pro">Pro</option>
           <option value="games">Games Admin</option>
@@ -358,6 +361,11 @@ export default function AdminUsers() {
                   {USTA_RATINGS.map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
               </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Birthday</label>
+                <input type="date" value={editForm.birthday} onChange={e => setEditForm(f => ({ ...f, birthday: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+              </div>
             </div>
             {/* Additional roles */}
             <div className="border-t border-gray-100 pt-3">
@@ -404,13 +412,20 @@ export default function AdminUsers() {
               {familyMembers.length > 0 && (
                 <div className="space-y-1.5 mb-2">
                   {familyMembers.map(m => (
-                    <div key={m.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-1.5 text-sm">
-                      <span className="text-gray-800 font-medium">{m.first_name} {m.last_name}
+                    <div key={m.id} className="flex items-start justify-between bg-gray-50 rounded-lg px-3 py-1.5 text-sm">
+                      <div>
+                        <span className="text-gray-800 font-medium">{m.first_name} {m.last_name}</span>
                         <span className="ml-2 text-xs font-normal text-gray-400 capitalize">{m.relationship}</span>
                         {m.birthday && <span className="ml-2 text-xs font-normal text-gray-400">b. {m.birthday}</span>}
-                      </span>
+                        {(m.email || m.phone) && (
+                          <div className="text-xs text-gray-400 mt-0.5 space-x-2">
+                            {m.email && <span>{m.email}</span>}
+                            {m.phone && <span>{m.phone}</span>}
+                          </div>
+                        )}
+                      </div>
                       <button type="button" onClick={() => removeFamilyMember(m.id)}
-                        className="text-xs text-red-400 hover:text-red-600 transition">Remove</button>
+                        className="text-xs text-red-400 hover:text-red-600 transition shrink-0 ml-2">Remove</button>
                     </div>
                   ))}
                 </div>
@@ -421,18 +436,24 @@ export default function AdminUsers() {
               {showFamilyForm && (
                 <div className="flex flex-wrap gap-2 items-end bg-gray-50 rounded-lg p-2">
                   <input value={familyForm.first_name} onChange={e => setFamilyForm(f => ({ ...f, first_name: e.target.value }))}
-                    placeholder="First name"
+                    placeholder="First name *"
                     className="border border-gray-300 rounded px-2 py-1 text-xs w-28 focus:outline-none focus:ring-1 focus:ring-green-500" />
                   <input value={familyForm.last_name} onChange={e => setFamilyForm(f => ({ ...f, last_name: e.target.value }))}
-                    placeholder="Last name"
+                    placeholder="Last name *"
                     className="border border-gray-300 rounded px-2 py-1 text-xs w-28 focus:outline-none focus:ring-1 focus:ring-green-500" />
                   <select value={familyForm.relationship} onChange={e => setFamilyForm(f => ({ ...f, relationship: e.target.value }))}
                     className="border border-gray-300 rounded px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500">
                     {RELATIONSHIPS.map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
                   <input type="date" value={familyForm.birthday} onChange={e => setFamilyForm(f => ({ ...f, birthday: e.target.value }))}
-                    title="Birthday"
+                    title="Birthday *"
                     className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-green-500" />
+                  <input type="email" value={familyForm.email} onChange={e => setFamilyForm(f => ({ ...f, email: e.target.value }))}
+                    placeholder="Email"
+                    className="border border-gray-300 rounded px-2 py-1 text-xs w-36 focus:outline-none focus:ring-1 focus:ring-green-500" />
+                  <input type="tel" value={familyForm.phone} onChange={e => setFamilyForm(f => ({ ...f, phone: e.target.value }))}
+                    placeholder="Phone"
+                    className="border border-gray-300 rounded px-2 py-1 text-xs w-28 focus:outline-none focus:ring-1 focus:ring-green-500" />
                   <button type="button" onClick={addFamilyMember} disabled={savingFamily}
                     className="text-xs bg-green-700 text-white px-2 py-1 rounded hover:bg-green-800 transition disabled:opacity-50">
                     {savingFamily ? 'Adding…' : 'Add'}

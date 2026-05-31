@@ -48,6 +48,8 @@ import AdminLadder from './pages/admin/AdminLadder'
 import TennisLadder from './pages/TennisLadder'
 import AdminLiveball from './pages/admin/AdminLiveball'
 import AdminBroadcast from './pages/admin/AdminBroadcast'
+import AdminBoardMeetings from './pages/admin/AdminBoardMeetings'
+import BoardMeetingResponse from './pages/BoardMeetingResponse'
 import LiveballResponse from './pages/LiveballResponse'
 import Fantasy from './pages/Fantasy'
 
@@ -76,6 +78,7 @@ function AppRoutes() {
       <Route path="/reset-password" element={<PublicRoute><ResetPassword /></PublicRoute>} />
       <Route path="/waitlist" element={<Waitlist />} />
       <Route path="/invite/:token/:action" element={<InviteResponse />} />
+      <Route path="/board-meeting/:token/:action" element={<BoardMeetingResponse />} />
       <Route path="/liveball/:token/:action" element={<LiveballResponse />} />
       <Route path="/liveball/:token" element={<LiveballResponse />} />
       <Route path="/events/:id/signup" element={<EventSignup />} />
@@ -124,6 +127,7 @@ function AppRoutes() {
         <Route path="ladder" element={<AdminLadder />} />
         <Route path="liveball" element={<AdminLiveball />} />
         <Route path="broadcast" element={<AdminBroadcast />} />
+        <Route path="board-meetings" element={<AdminBoardMeetings />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -52,8 +52,9 @@ const sections: Section[] = [
     ],
   },
   {
-    heading: 'Notes',
+    heading: 'Board',
     links: [
+      { to: '/admin/board-meetings', label: 'Board Meetings' },
       { to: '/admin/notes', label: 'Notes' },
     ],
   },

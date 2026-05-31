@@ -44,6 +44,7 @@ type User struct {
 	Address      *string   `json:"address,omitempty"`
 	Family       *string   `json:"family,omitempty"`
 	USTARanking  *string   `json:"usta_ranking,omitempty"`
+	Birthday     *string   `json:"birthday,omitempty"` // "YYYY-MM-DD"
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
