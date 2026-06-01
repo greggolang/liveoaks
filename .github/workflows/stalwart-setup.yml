@@ -183,6 +183,9 @@ jobs:
 
             # ── 5. Firewall ───────────────────────────────────────────────────
             if command -v ufw &>/dev/null; then
+              ufw allow 22/tcp   comment "SSH"
+              ufw allow 80/tcp   comment "HTTP"
+              ufw allow 8080/tcp comment "App"
               ufw allow 25/tcp   comment "SMTP"
               ufw allow 587/tcp  comment "SMTP Submission"
               ufw allow 993/tcp  comment "IMAPS"
