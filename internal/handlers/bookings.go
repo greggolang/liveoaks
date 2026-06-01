@@ -660,15 +660,25 @@ func (h *BookingsHandler) Delete(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusForbidden, "cannot cancel another member's booking")
 	}
 
+	// Snapshot the booking before deletion — used for the cancellation email
+	// and the persistent cancellation log (the bookings row is removed below).
+	var courtName, matchType, ownerName string
+	var startTime, endTime time.Time
+	h.DB.QueryRow(c.Request().Context(),
+		`SELECT ct.name, COALESCE(b.match_type,'casual'), b.start_time, b.end_time,
+		        ou.first_name || ' ' || ou.last_name
+		 FROM bookings b
+		 JOIN courts ct ON ct.id = b.court_id
+		 JOIN users ou ON ou.id = b.user_id
+		 WHERE b.id = $1`, id,
+	).Scan(&courtName, &matchType, &startTime, &endTime, &ownerName)
+
 	// ── Cancellation notice period (members only) ──────────────────────
 	if ownerID == userID && role != "admin" && role != "board" {
 		var cancelHoursStr string
 		if scanErr := h.DB.QueryRow(c.Request().Context(),
 			`SELECT value FROM settings WHERE key = 'booking_cancel_hours'`).Scan(&cancelHoursStr); scanErr == nil {
 			if cancelHours, convErr := strconv.ParseFloat(cancelHoursStr, 64); convErr == nil && cancelHours > 0 {
-				var startTime time.Time
-				h.DB.QueryRow(c.Request().Context(),
-					`SELECT start_time FROM bookings WHERE id = $1`, id).Scan(&startTime)
 				hoursUntil := time.Until(startTime).Hours()
 				if hoursUntil >= 0 && hoursUntil < cancelHours {
 					return echo.NewHTTPError(http.StatusBadRequest,
@@ -680,12 +690,6 @@ func (h *BookingsHandler) Delete(c echo.Context) error {
 
 	// Email all roster players before the booking is deleted
 	if h.Mailer != nil {
-		var courtName, matchType string
-		var startTime, endTime time.Time
-		h.DB.QueryRow(c.Request().Context(),
-			`SELECT ct.name, COALESCE(b.match_type,'casual'), b.start_time, b.end_time
-			 FROM bookings b JOIN courts ct ON ct.id = b.court_id WHERE b.id = $1`, id,
-		).Scan(&courtName, &matchType, &startTime, &endTime)
 		if courtName != "" {
 			loc := loadTimezone(c.Request().Context(), h.DB)
 			startStr := startTime.In(loc).Format("Mon Jan 2 at 3:04 PM MST")
@@ -721,6 +725,16 @@ func (h *BookingsHandler) Delete(c echo.Context) error {
 			go h.emailRoster(id, "Booking cancelled – "+courtName, body)
 		}
 	}
+
+	// Record the cancellation in the persistent log before deleting the booking.
+	var cancelledByName string
+	h.DB.QueryRow(c.Request().Context(),
+		`SELECT first_name || ' ' || last_name FROM users WHERE id = $1`, userID).Scan(&cancelledByName)
+	h.DB.Exec(c.Request().Context(),
+		`INSERT INTO booking_cancellations
+		    (booking_id, court_name, match_type, start_time, end_time, owner_name, reason, cancelled_by, cancelled_by_name)
+		 VALUES ($1, $2, $3, $4, $5, $6, NULLIF($7, ''), $8, $9)`,
+		id, courtName, matchType, startTime, endTime, ownerName, req.Reason, userID, cancelledByName)
 
 	h.DB.Exec(c.Request().Context(), `DELETE FROM bookings WHERE id = $1`, id)
 	h.Logger.Log(c.Request().Context(), "booking_cancelled", id, userID, c.RealIP())
@@ -871,6 +885,52 @@ func (h *BookingsHandler) TeachingProList(c echo.Context) error {
 		bookings = append(bookings, b)
 	}
 	return c.JSON(http.StatusOK, bookings)
+}
+
+// CancellationReport returns logged booking cancellations for a date range (board+).
+// The date range filters on when the cancellation occurred (cancelled_at).
+func (h *BookingsHandler) CancellationReport(c echo.Context) error {
+	from := c.QueryParam("from")
+	to := c.QueryParam("to")
+	if from == "" {
+		from = time.Now().Format("2006-01") + "-01"
+	}
+	if to == "" {
+		to = time.Now().Format("2006-01-02")
+	}
+	rows, err := h.DB.Query(c.Request().Context(), `
+		SELECT id, COALESCE(court_name,''), COALESCE(match_type,''),
+		       start_time, end_time, COALESCE(owner_name,''),
+		       COALESCE(reason,''), COALESCE(cancelled_by_name,''), cancelled_at
+		FROM booking_cancellations
+		WHERE cancelled_at >= $1::date AND cancelled_at < ($2::date + INTERVAL '1 day')
+		ORDER BY cancelled_at DESC`, from, to)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch cancellations")
+	}
+	defer rows.Close()
+
+	type cancellation struct {
+		ID          string    `json:"id"`
+		CourtName   string    `json:"court_name"`
+		MatchType   string    `json:"match_type"`
+		StartTime   time.Time `json:"start_time"`
+		EndTime     time.Time `json:"end_time"`
+		OwnerName   string    `json:"owner_name"`
+		Reason      string    `json:"reason"`
+		CancelledBy string    `json:"cancelled_by_name"`
+		CancelledAt time.Time `json:"cancelled_at"`
+	}
+	list := []cancellation{}
+	for rows.Next() {
+		var x cancellation
+		if err := rows.Scan(&x.ID, &x.CourtName, &x.MatchType, &x.StartTime, &x.EndTime,
+			&x.OwnerName, &x.Reason, &x.CancelledBy, &x.CancelledAt); err != nil {
+			continue
+		}
+		list = append(list, x)
+	}
+	return c.JSON(http.StatusOK, list)
 }
 
 // calendarLinksHTML returns two "Add to Calendar" buttons: Google Calendar and an ICS download.

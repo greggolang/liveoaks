@@ -36,6 +36,7 @@ const sections: Section[] = [
     heading: 'Bookings',
     links: [
       { to: '/admin/bookings', label: 'All Bookings' },
+      { to: '/admin/cancellations', label: 'Cancellations' },
       { to: '/admin/ball-tracking', label: 'Ball Tracking' },
       { to: '/admin/teaching-pro', label: 'Teaching Pro' },
       { to: '/admin/booking-docs', label: 'How Bookings Work' },

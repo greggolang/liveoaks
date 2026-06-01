@@ -342,6 +342,14 @@ export const api = {
       return request(`/admin/teaching-pro${p.toString() ? '?' + p : ''}`)
     },
   },
+  cancellations: {
+    list: (from?: string, to?: string) => {
+      const p = new URLSearchParams()
+      if (from) p.set('from', from)
+      if (to) p.set('to', to)
+      return request(`/admin/booking-cancellations${p.toString() ? '?' + p : ''}`)
+    },
+  },
   balls: {
     summary: (from?: string, to?: string) => {
       const p = new URLSearchParams()

@@ -56,6 +56,7 @@ import AdminProShop from './pages/admin/AdminProShop'
 import AdminBallTracking from './pages/admin/AdminBallTracking'
 import AdminKioskPurchases from './pages/admin/AdminKioskPurchases'
 import AdminTeachingPro from './pages/admin/AdminTeachingPro'
+import AdminCancellations from './pages/admin/AdminCancellations'
 import BoardMeetingResponse from './pages/BoardMeetingResponse'
 import LiveballResponse from './pages/LiveballResponse'
 import BookingReminderResponse from './pages/BookingReminderResponse'
@@ -140,6 +141,7 @@ function AppRoutes() {
         <Route path="ball-tracking" element={<AdminBallTracking />} />
         <Route path="kiosk-purchases" element={<AdminKioskPurchases />} />
         <Route path="teaching-pro" element={<AdminTeachingPro />} />
+        <Route path="cancellations" element={<AdminCancellations />} />
         <Route path="ladder" element={<AdminLadder />} />
         <Route path="liveball" element={<AdminLiveball />} />
         <Route path="broadcast" element={<AdminBroadcast />} />

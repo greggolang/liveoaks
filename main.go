@@ -427,6 +427,7 @@ func main() {
 	boardPlus.GET("/admin/member-alerts", alerts.AdminListAll)
 	boardPlus.GET("/admin/member-alerts/:userId", alerts.AdminList)
 	boardPlus.GET("/admin/teaching-pro", bookings.TeachingProList)
+	boardPlus.GET("/admin/booking-cancellations", bookings.CancellationReport)
 	boardPlus.POST("/admin/member-alerts", alerts.AdminCreate)
 	boardPlus.DELETE("/admin/member-alerts/:id", alerts.AdminDelete)
 
