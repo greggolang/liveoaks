@@ -11,7 +11,7 @@ interface Item   { id: string; name: string; description: string; price: number;
 interface CartItem { item: Item; qty: number }
 
 const RESET_SECONDS = 8
-const IDLE_TIMEOUT_MS = 15000 // return to the welcome screen after 15s of inactivity
+const IDLE_SECONDS = 60 // return to the welcome screen after 60s of inactivity
 
 function avatarInitials(name: string) {
   return name.split(' ').map(n => n[0] ?? '').join('').slice(0, 2).toUpperCase()
@@ -27,6 +27,7 @@ export default function KioskProShop() {
   const [submitting, setSubmitting] = useState(false)
   const [receipt, setReceipt]     = useState<{ member_name: string; grand_total: number } | null>(null)
   const [countdown, setCountdown] = useState(RESET_SECONDS)
+  const [idleRemaining, setIdleRemaining] = useState(IDLE_SECONDS)
   const [kioskEnabled, setKioskEnabled] = useState<boolean | null>(null) // null = loading
   const searchRef = useRef<HTMLInputElement>(null)
 
@@ -67,21 +68,24 @@ export default function KioskProShop() {
     return () => clearInterval(interval)
   }, [step, reset])
 
-  // Idle auto-reset: after 15s with no interaction on any interactive step,
+  // Idle auto-reset: after 60s with no interaction on any interactive step,
   // return to the welcome (home) screen so the next customer starts fresh.
-  // The welcome screen itself is excluded (already home).
+  // A live countdown ("shutdown time") is shown in the upper-right corner.
+  // Any interaction restarts the countdown. The welcome screen is excluded.
   useEffect(() => {
-    if (step === 'welcome') return
-    let timer: ReturnType<typeof setTimeout>
-    const bump = () => {
-      clearTimeout(timer)
-      timer = setTimeout(reset, IDLE_TIMEOUT_MS)
-    }
+    if (step === 'welcome') { setIdleRemaining(IDLE_SECONDS); return }
+    let remaining = IDLE_SECONDS
+    setIdleRemaining(remaining)
+    const bump = () => { remaining = IDLE_SECONDS; setIdleRemaining(remaining) }
     const events = ['pointerdown', 'pointermove', 'keydown', 'touchstart', 'scroll', 'wheel']
     events.forEach(e => window.addEventListener(e, bump, { passive: true }))
-    bump() // start the idle countdown
+    const tick = setInterval(() => {
+      remaining -= 1
+      setIdleRemaining(remaining)
+      if (remaining <= 0) reset()
+    }, 1000)
     return () => {
-      clearTimeout(timer)
+      clearInterval(tick)
       events.forEach(e => window.removeEventListener(e, bump))
     }
   }, [step, reset])
@@ -167,9 +171,17 @@ export default function KioskProShop() {
     </div>
   )
 
+  // "Shutdown time" — live countdown until the kiosk returns to the home screen.
+  const idleBadge = (
+    <div className="fixed top-3 right-3 z-50 bg-black/30 text-white text-xs font-semibold px-3 py-1.5 rounded-full pointer-events-none select-none">
+      Returns to home in {idleRemaining}s
+    </div>
+  )
+
   // ─── MEMBER SELECTION ────────────────────────────────────────────────────
   if (step === 'member') return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
+      {idleBadge}
       <div className="bg-green-700 text-white px-6 py-5 flex items-center gap-4">
         <button onClick={reset}
           className="text-green-200 hover:text-white transition text-2xl leading-none">←</button>
@@ -216,6 +228,7 @@ export default function KioskProShop() {
     const categories = [...new Set(items.map(i => i.category))]
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col">
+        {idleBadge}
         {/* Header */}
         <div className="bg-green-700 text-white px-6 py-4 flex items-center gap-4">
           <button onClick={() => setStep('member')}
@@ -299,6 +312,7 @@ export default function KioskProShop() {
   // ─── CONFIRM ─────────────────────────────────────────────────────────────
   if (step === 'confirm') return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
+      {idleBadge}
       <div className="bg-green-700 text-white px-6 py-4 flex items-center gap-4">
         <button onClick={() => setStep('shop')}
           className="text-green-200 hover:text-white transition text-2xl leading-none">←</button>
