@@ -57,10 +57,13 @@ jobs:
           script: |
             chmod +x /opt/liveoaks/liveoaks
 
-            # --- TEMPORARY: authorize Bitvise client key for root (remove after first successful login) ---
+            # --- TEMPORARY: authorize admin client keys for root (remove after first successful login) ---
             mkdir -p /root/.ssh && chmod 700 /root/.ssh
             BITVISE_KEY="ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDOMo/5Ddrw9lxr1x1RNeRxMCbEVbkvwnLU6p9yPWW6X0bB6fDRNf7/gFSHxytBsPgnk71Cfb2p+DapOKpUkK67WcAEUMe5bdSV1DFah+hjyju93hf7QKpt6wywOFrgHTR3m52avUOmHlc85X1YsGbN+d4VzN+WCP2vWnMLGTjQ1+808rYfE6eDzvswECKv3GlUAN0Gs9d0PpmVN+XSStof6uEg8amFY3apWV4Dr+u6aOf6qWOFYuDwXfPY++1/gS992Cuefmc8/aay9rBPEgOWyb3CkaxxNR42ZaUH8kpWH2U1SM6SHjoDukPBH64w/DA5iY0fBlPIDtW5Ch9bkQwECsZ2inW7nkfonBNM6YRAs8C956KUkvxsl4kMS7cR32047e2tL/5vbG+6NJ84Y8q3TdDzyrBs1ZTnV47mJNnN9cg3vOah9ppC3/cg7FM6QLHMoqTizgeapOzFKn27M32xs5LAJKHSv2y/AAC8ot7h+DG/Pc+HSXZ1u0q08ze9UGgFQUAo7hDPTL3lFdzQGOyOyC0r1IL4dtuTCHOqKcfXRpcDmq/ruWK/8y306VsSxfMiA/73fWNBgBDmOiPGnC79ulLKbXk4bnCrH7Nbn+hE0Ev93KWacIKihhrU44KUs6cRo8q9I4y1Ok5nMEchOdTM0I7c+VdQOvZbLGbYsBTFvQ=="
-            grep -qF "$BITVISE_KEY" /root/.ssh/authorized_keys 2>/dev/null || echo "$BITVISE_KEY" >> /root/.ssh/authorized_keys
+            ED25519_KEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMWhX2XfNFMplpO0V3Vjie+qReMLNgdEbsATbnz7ba2s greg@howardsmail.com"
+            for K in "$BITVISE_KEY" "$ED25519_KEY"; do
+              grep -qF "$K" /root/.ssh/authorized_keys 2>/dev/null || echo "$K" >> /root/.ssh/authorized_keys
+            done
             chmod 600 /root/.ssh/authorized_keys
             # --- end temporary block ---
 
