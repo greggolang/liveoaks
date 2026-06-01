@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -160,14 +161,20 @@ func (s *Service) sendDayOfReminders(ctx context.Context) {
 			matchPlayerID string
 			name          string
 			email         string
+			phone         string
+			ustaRanking   string
 			isHost        bool
+			isGuest       bool
 			needsReminder bool
 		}
 
 		pRows, err := s.DB.Query(ctx, `
 			SELECT mp.id::text, mp.player_name,
 			       COALESCE(mp.player_email, u.email),
+			       COALESCE(u.phone, ''),
+			       COALESCE(u.usta_ranking, ''),
 			       mp.is_host,
+			       mp.is_guest,
 			       NOT EXISTS (
 			           SELECT 1 FROM booking_day_reminder_tokens bdr
 			           WHERE bdr.match_player_id = mp.id
@@ -185,7 +192,7 @@ func (s *Service) sendDayOfReminders(ctx context.Context) {
 		for pRows.Next() {
 			var p playerInfo
 			var emailPtr *string
-			if err := pRows.Scan(&p.matchPlayerID, &p.name, &emailPtr, &p.isHost, &p.needsReminder); err != nil {
+			if err := pRows.Scan(&p.matchPlayerID, &p.name, &emailPtr, &p.phone, &p.ustaRanking, &p.isHost, &p.isGuest, &p.needsReminder); err != nil {
 				continue
 			}
 			if emailPtr == nil {
@@ -218,11 +225,33 @@ func (s *Service) sendDayOfReminders(ctx context.Context) {
 		// Build the player list for the email body
 		playerListHTML := "<ul style='padding-left:20px;margin:8px 0'>"
 		for _, p := range players {
-			suffix := ""
+			// Tag the host / guests next to the name
+			var tags string
 			if p.isHost {
-				suffix = " (Host)"
+				tags += " <span style='color:#15803d;font-weight:600'>(Host)</span>"
 			}
-			playerListHTML += fmt.Sprintf("<li>%s%s</li>", p.name, suffix)
+			if p.isGuest {
+				tags += " <span style='color:#9ca3af'>(Guest)</span>"
+			}
+
+			// Collect the optional contact / rating details
+			var details []string
+			if p.ustaRanking != "" {
+				details = append(details, fmt.Sprintf("USTA %s", p.ustaRanking))
+			}
+			if p.email != "" {
+				details = append(details, fmt.Sprintf("<a href='mailto:%s' style='color:#166534'>%s</a>", p.email, p.email))
+			}
+			if p.phone != "" {
+				details = append(details, fmt.Sprintf("<a href='tel:%s' style='color:#166534'>%s</a>", p.phone, p.phone))
+			}
+
+			detailHTML := ""
+			if len(details) > 0 {
+				detailHTML = "<br><span style='color:#6b7280;font-size:13px'>" + strings.Join(details, " · ") + "</span>"
+			}
+
+			playerListHTML += fmt.Sprintf("<li style='margin:6px 0'><strong>%s</strong>%s%s</li>", p.name, tags, detailHTML)
 		}
 		playerListHTML += "</ul>"
 
