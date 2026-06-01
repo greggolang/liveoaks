@@ -513,6 +513,7 @@ export const api = {
       request(`/admin/kiosk/purchases/${id}`, { method: 'DELETE' }),
   },
   mail: {
+    myAccount: () => request<{ address: string; role_label: string; display_name: string; webmail_url: string } | null>('/my-mail-account'),
     list: () => request<{
       id: string; address: string; role_label: string; display_name: string
       assigned_user_id: string | null; assigned_name: string | null

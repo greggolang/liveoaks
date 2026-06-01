@@ -145,6 +145,35 @@ func (h *MailHandler) Assign(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
+func (h *MailHandler) MyAccount(c echo.Context) error {
+	userID := c.Get("user_id").(string)
+
+	var webmailURL string
+	h.DB.QueryRow(c.Request().Context(),
+		"SELECT value FROM settings WHERE key = 'webmail_url'").Scan(&webmailURL)
+	if webmailURL == "" {
+		webmailURL = "https://mail.webgoserver.com"
+	}
+
+	var address, roleLabel, displayName string
+	err := h.DB.QueryRow(c.Request().Context(), `
+		SELECT address, role_label, display_name
+		FROM mail_accounts
+		WHERE assigned_user_id = $1 AND active = true
+		ORDER BY created_at
+		LIMIT 1
+	`, userID).Scan(&address, &roleLabel, &displayName)
+	if err != nil {
+		return c.JSON(http.StatusOK, nil)
+	}
+	return c.JSON(http.StatusOK, map[string]string{
+		"address":      address,
+		"role_label":   roleLabel,
+		"display_name": displayName,
+		"webmail_url":  webmailURL,
+	})
+}
+
 func (h *MailHandler) Delete(c echo.Context) error {
 	id := c.Param("id")
 	_, err := h.DB.Exec(c.Request().Context(), `DELETE FROM mail_accounts WHERE id=$1`, id)

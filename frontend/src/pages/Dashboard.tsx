@@ -82,6 +82,7 @@ export default function Dashboard() {
   const [cameraURL, setCameraURL] = useState<string | null>(null)
   const [cameraDown, setCameraDown] = useState(false)
   const [adminAlerts, setAdminAlerts] = useState<{ id: string; message: string; type: string }[]>([])
+  const [mailAccount, setMailAccount] = useState<{ address: string; role_label: string; webmail_url: string } | null>(null)
   const [friends, setFriends] = useState<{id: string; friend_user_id?: string; friend_name: string; friend_email?: string; is_guest: boolean}[]>([])
   const [directory, setDirectory] = useState<{id: string; first_name: string; last_name: string; email: string}[]>([])
   const [invitingFor, setInvitingFor] = useState<{bookingId: string; alertId: string} | null>(null)
@@ -164,6 +165,7 @@ export default function Dashboard() {
     api.announcements.list().then(d => setAnnouncements(d as Announcement[]))
     api.messages.inbox().then(d => setInbox(d)).catch(() => {})
     api.memberAlerts.getMyAlerts().then(d => setAdminAlerts(d)).catch(() => {})
+    api.mail.myAccount().then(d => setMailAccount(d)).catch(() => {})
     api.camera.embedURL().then(d => setCameraURL(d.url)).catch(() => setCameraURL('/camera'))
     api.weather.get().then(d => setWeather(d as WeatherData)).catch(() => {})
     api.weather.airQuality().then(d => setAirQuality(d as AirQualityData)).catch(() => {})
@@ -274,6 +276,21 @@ export default function Dashboard() {
         </h1>
         <p className="text-gray-500 text-sm mt-0.5">Here's what's happening at the club.</p>
       </div>
+
+      {/* Club email account (board members with an assigned mailbox) */}
+      {mailAccount && (
+        <div className="flex items-center gap-3 bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-3">
+          <span className="text-2xl shrink-0">📧</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-indigo-800">{mailAccount.role_label} — Club Email</p>
+            <p className="text-xs text-indigo-600 font-mono mt-0.5">{mailAccount.address}</p>
+          </div>
+          <a href={mailAccount.webmail_url} target="_blank" rel="noreferrer"
+            className="shrink-0 text-xs font-semibold bg-indigo-700 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-800 transition">
+            Open Webmail →
+          </a>
+        </div>
+      )}
 
       {/* Admin-sent member alerts */}
       {adminAlerts.length > 0 && (

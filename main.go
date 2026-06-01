@@ -303,6 +303,9 @@ func main() {
 	adminOnly.PUT("/challenges/:id/forfeit", ladder.AdminForfeit)
 	adminOnly.POST("/ladder/:id/points", ladder.AdminAwardPoints)
 
+	// Mail — current user's assigned account (authenticated, not admin-only)
+	authed.GET("/my-mail-account", mail.MyAccount)
+
 	// Mail account management (admin only)
 	adminOnly.GET("/mail/accounts", mail.List)
 	adminOnly.POST("/mail/accounts", mail.Create)
