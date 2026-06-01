@@ -105,7 +105,7 @@ jobs:
             store = "pg"
 
             [directory."sql".query.name]
-            query = "SELECT display_name FROM mail_accounts WHERE address = $1 AND active = true"
+            query = "SELECT address AS name, 'individual' AS type, password_hash AS secret, display_name AS description, quota_mb * 1048576 AS quota FROM mail_accounts WHERE address = $1 AND active = true"
 
             [directory."sql".query.members]
             query = ""
