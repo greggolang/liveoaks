@@ -11,6 +11,7 @@ interface Item   { id: string; name: string; description: string; price: number;
 interface CartItem { item: Item; qty: number }
 
 const RESET_SECONDS = 8
+const IDLE_TIMEOUT_MS = 15000 // return to the welcome screen after 15s of inactivity
 
 function avatarInitials(name: string) {
   return name.split(' ').map(n => n[0] ?? '').join('').slice(0, 2).toUpperCase()
@@ -64,6 +65,25 @@ export default function KioskProShop() {
       })
     }, 1000)
     return () => clearInterval(interval)
+  }, [step, reset])
+
+  // Idle auto-reset: after 15s with no interaction on any interactive step,
+  // return to the welcome (home) screen so the next customer starts fresh.
+  // The welcome screen itself is excluded (already home).
+  useEffect(() => {
+    if (step === 'welcome') return
+    let timer: ReturnType<typeof setTimeout>
+    const bump = () => {
+      clearTimeout(timer)
+      timer = setTimeout(reset, IDLE_TIMEOUT_MS)
+    }
+    const events = ['pointerdown', 'pointermove', 'keydown', 'touchstart', 'scroll', 'wheel']
+    events.forEach(e => window.addEventListener(e, bump, { passive: true }))
+    bump() // start the idle countdown
+    return () => {
+      clearTimeout(timer)
+      events.forEach(e => window.removeEventListener(e, bump))
+    }
   }, [step, reset])
 
   // Focus search when member step opens

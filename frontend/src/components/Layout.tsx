@@ -74,7 +74,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 : <>
                     <img src="/lota-logo.png" alt="Live Oaks Tennis Association crest"
                          className="h-9 w-9 rounded-full bg-white/95 p-0.5" />
-                    <span className="hidden sm:inline text-lg font-bold tracking-wide font-serif">Live Oaks TC</span>
+                    <span className="hidden sm:inline text-lg font-bold tracking-wide font-serif">Live Oaks Tennis Association Members Portal</span>
                   </>
               }
               <span className="text-green-300 text-xs font-normal">v{APP_VERSION}</span>
