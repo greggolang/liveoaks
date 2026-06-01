@@ -1771,22 +1771,28 @@ export default function Bookings() {
                         const extraPlayers = (booking.players ?? []).slice(1)
 
                         // Color scheme:
+                        //   red         = Ball Machine reservation (any owner) — takes precedence
                         //   dark green  = my booking (I'm the host)
                         //   light green = I'm on the roster but not the host
                         //   slate       = I'm not involved in this booking at all
-                        const cellBg = isMe ? 'bg-green-600 text-white'
+                        const cellBg = isBallMachine ? 'bg-red-600 text-white'
+                          : isMe ? 'bg-green-600 text-white'
                           : isOnRoster ? 'bg-green-100 text-green-800'
                           : 'bg-slate-100 text-slate-600'
-                        const subText = isMe ? 'text-green-200'
+                        const subText = isBallMachine ? 'text-red-200'
+                          : isMe ? 'text-green-200'
                           : isOnRoster ? 'text-green-600'
                           : 'text-slate-400'
-                        const dividerColor = isMe ? 'border-green-500'
+                        const dividerColor = isBallMachine ? 'border-red-400'
+                          : isMe ? 'border-green-500'
                           : isOnRoster ? 'border-green-200'
                           : 'border-slate-200'
-                        const cancelBtnColor = isMe ? 'text-green-200'
+                        const cancelBtnColor = isBallMachine ? 'text-red-200'
+                          : isMe ? 'text-green-200'
                           : isOnRoster ? 'text-green-600'
                           : 'text-slate-400'
-                        const compactBg = isMe ? 'bg-green-600'
+                        const compactBg = isBallMachine ? 'bg-red-600'
+                          : isMe ? 'bg-green-600'
                           : isOnRoster ? 'bg-green-100'
                           : 'bg-slate-200'
 
@@ -1879,6 +1885,10 @@ export default function Bookings() {
             <span className="flex items-center gap-1.5">
               <span className="w-4 h-4 bg-slate-200 rounded inline-block"></span>
               Other member's booking
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-4 h-4 bg-red-600 rounded inline-block"></span>
+              🤖 Ball Machine
             </span>
             <span className="flex items-center gap-1.5">
               <span className="w-4 h-4 bg-gray-50 border border-gray-100 rounded inline-block"></span>
@@ -2391,7 +2401,7 @@ const TUTORIAL_STEPS = [
   {
     icon: '🟩',
     title: 'Choose an Open Slot',
-    body: 'The grid shows every court across the top and 30-minute slots down the side (8:00 AM – 7:30 PM). White cells are available — click one to start a booking. Gray cells are in the past. Dark green = your own booking, light green = you\'re on that roster, slate gray = someone else\'s booking.',
+    body: 'The grid shows every court across the top and 30-minute slots down the side (8:00 AM – 7:30 PM). White cells are available — click one to start a booking. Gray cells are in the past. Dark green = your own booking, light green = you\'re on that roster, slate gray = someone else\'s booking, red = a Ball Machine reservation.',
   },
   {
     icon: '⏱',
