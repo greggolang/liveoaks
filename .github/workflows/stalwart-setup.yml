@@ -40,9 +40,14 @@ jobs:
 
             curl -fsSL "$DOWNLOAD_URL" -o /tmp/stalwart-dl/stalwart.tar.gz
             tar -xzf /tmp/stalwart-dl/stalwart.tar.gz -C /tmp/stalwart-dl/
+            echo "Extracted contents:"
+            find /tmp/stalwart-dl/ -type f
 
-            BINARY=$(find /tmp/stalwart-dl/ -maxdepth 1 -type f -executable | head -1)
-            echo "Binary found: $BINARY"
+            # Set executable bit on everything extracted, then find the binary
+            find /tmp/stalwart-dl/ -type f | xargs chmod +x 2>/dev/null || true
+            BINARY=$(find /tmp/stalwart-dl/ -type f \( -name "stalwart" -o -name "stalwart-mail" \) | head -1)
+            [ -z "$BINARY" ] && BINARY=$(find /tmp/stalwart-dl/ -type f -executable | grep -v '\.tar\.' | head -1)
+            echo "Binary: $BINARY"
             install -m 755 "$BINARY" /usr/local/bin/stalwart-mail
             echo "Installed: $(stalwart-mail --version 2>&1 || true)"
 
