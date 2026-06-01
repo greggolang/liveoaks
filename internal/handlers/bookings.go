@@ -162,11 +162,21 @@ func (h *BookingsHandler) Mine(c echo.Context) error {
 	return c.JSON(http.StatusOK, bookings)
 }
 
-// hasTeachingProPermission reports whether the user's role(s) may make Teaching
-// Pro bookings. Admins always qualify; the 'pro' role has it implicitly; any
-// other role qualifies if granted teaching_pro_booking in page_permissions.
+// hasTeachingProPermission reports whether the user may make Teaching Pro
+// bookings. Admins always qualify; the 'pro' role has it implicitly; any other
+// role qualifies if granted teaching_pro_booking in page_permissions.
+//
+// Roles are read fresh from the database (not the JWT) so that a newly assigned
+// role takes effect immediately, without the user having to log in again.
 // Mirrors the logic in PermissionsHandler.MyPages.
-func (h *BookingsHandler) hasTeachingProPermission(ctx context.Context, role string, extraRoles []string) bool {
+func (h *BookingsHandler) hasTeachingProPermission(ctx context.Context, userID string) bool {
+	var role string
+	var extraRoles []string
+	if err := h.DB.QueryRow(ctx,
+		`SELECT role, COALESCE(extra_roles, ARRAY[]::text[]) FROM users WHERE id = $1`,
+		userID).Scan(&role, &extraRoles); err != nil {
+		return false
+	}
 	roles := append([]string{role}, extraRoles...)
 	for _, r := range roles {
 		if r == "admin" || r == "pro" {
@@ -182,8 +192,6 @@ func (h *BookingsHandler) hasTeachingProPermission(ctx context.Context, role str
 
 func (h *BookingsHandler) Create(c echo.Context) error {
 	userID := c.Get("user_id").(string)
-	role, _ := c.Get("role").(string)
-	extraRoles, _ := c.Get("extra_roles").([]string)
 	var req struct {
 		CourtID       int       `json:"court_id"`
 		StartTime     time.Time `json:"start_time"`
@@ -230,13 +238,12 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 		}
 	}
 
-	// Teaching Pro bookings made by an authorized pro are exempt from the
-	// per-member daily/weekly/minutes/gap limits, so the pro can schedule
-	// multiple lessons in a single day. Their teaching bookings are also
-	// excluded from those limit counts (below), so a pro's lessons never
-	// consume the pro's own personal booking allowance.
-	proExempt := req.MatchType == "teaching_pro" &&
-		h.hasTeachingProPermission(c.Request().Context(), role, extraRoles)
+	// Authorized teaching pros get unlimited bookings: any user whose role has
+	// the teaching_pro_booking permission (the 'pro' role, admins, or any role
+	// granted it) is exempt from the per-member daily/weekly/minutes/gap limits,
+	// regardless of match type. This lets the pro schedule as many sessions as
+	// needed in a day.
+	proExempt := h.hasTeachingProPermission(c.Request().Context(), userID)
 
 	// ── Per-day minutes limit ─────────────────────────────────────────────
 	var maxMinStr string
