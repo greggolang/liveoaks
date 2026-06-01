@@ -1,3 +1,18 @@
+export interface DocFile {
+  id: string; title: string; filename: string; original_name: string; created_at: string
+}
+export interface DocFolder {
+  id: string; name: string; sort_order: number; roles: string[]
+  doc_count?: number; docs?: DocFile[]
+}
+export interface PhotoFile {
+  id: string; title: string; filename: string; description?: string; created_at: string
+}
+export interface PhotoFolder {
+  id: string; name: string; sort_order: number; roles: string[]
+  photo_count?: number; photos?: PhotoFile[]
+}
+
 export interface EmailThread {
   id: string; subject: string; from: string; snippet: string
   date: string; unread: boolean; message_count: number
@@ -198,12 +213,20 @@ export const api = {
     },
   },
   documents: {
-    list: () => request('/documents'),
-    upload: (title: string, category: string, file: File) => {
-      const f = new FormData(); f.append('title', title); f.append('category', category); f.append('file', file)
+    list: () => request<DocFolder[]>('/documents'),
+    upload: (title: string, folderId: string, file: File) => {
+      const f = new FormData(); f.append('title', title); f.append('folder_id', folderId); f.append('file', file)
       return upload('/admin/documents', f)
     },
     delete: (id: string) => request(`/admin/documents/${id}`, { method: 'DELETE' }),
+    folders: {
+      adminList: () => request<DocFolder[]>('/admin/document-folders'),
+      create: (data: { name: string; sort_order: number; roles: string[] }) =>
+        request('/admin/document-folders', { method: 'POST', body: JSON.stringify(data) }),
+      update: (id: string, data: { name: string; sort_order: number; roles: string[] }) =>
+        request(`/admin/document-folders/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+      delete: (id: string) => request(`/admin/document-folders/${id}`, { method: 'DELETE' }),
+    },
   },
   dues: {
     myDues: () => request('/dues/me'),
@@ -233,12 +256,22 @@ export const api = {
     delete: (id: string) => request(`/usta-teams/${id}`, { method: 'DELETE' }),
   },
   photos: {
-    list: () => request('/photos'),
-    upload: (title: string, description: string, file: File) => {
-      const f = new FormData(); f.append('title', title); f.append('description', description); f.append('file', file)
+    list: () => request<PhotoFolder[]>('/photos'),
+    upload: (title: string, description: string, folderId: string, file: File) => {
+      const f = new FormData()
+      f.append('title', title); f.append('description', description)
+      f.append('folder_id', folderId); f.append('file', file)
       return upload('/admin/photos', f)
     },
     delete: (id: string) => request(`/admin/photos/${id}`, { method: 'DELETE' }),
+    folders: {
+      adminList: () => request<PhotoFolder[]>('/admin/photo-folders'),
+      create: (data: { name: string; sort_order: number; roles: string[] }) =>
+        request('/admin/photo-folders', { method: 'POST', body: JSON.stringify(data) }),
+      update: (id: string, data: { name: string; sort_order: number; roles: string[] }) =>
+        request(`/admin/photo-folders/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+      delete: (id: string) => request(`/admin/photo-folders/${id}`, { method: 'DELETE' }),
+    },
   },
   groups: {
     list: () => request('/friend-groups'),
@@ -474,6 +507,10 @@ export const api = {
     adminPurchases: (userId?: string) =>
       request<{ id: string; user_id: string; member_name: string; item_name: string; item_price: number; quantity: number; total: number; notes?: string; created_at: string }[]>(
         `/admin/kiosk/purchases${userId ? `?user_id=${userId}` : ''}`),
+    updatePurchase: (id: string, data: { item_name: string; item_price: number; quantity: number; notes: string }) =>
+      request(`/admin/kiosk/purchases/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    deletePurchase: (id: string) =>
+      request(`/admin/kiosk/purchases/${id}`, { method: 'DELETE' }),
   },
   bookingReminder: {
     getInfo: (token: string) => request(`/booking-reminder/${token}`),

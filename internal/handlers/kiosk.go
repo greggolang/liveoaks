@@ -169,3 +169,40 @@ func (h *KioskHandler) AdminPurchaseList(c echo.Context) error {
 	}
 	return c.JSON(http.StatusOK, purchases)
 }
+
+// UpdatePurchase allows an admin to correct a kiosk purchase record.
+func (h *KioskHandler) UpdatePurchase(c echo.Context) error {
+	id := c.Param("id")
+	var req struct {
+		ItemName  string  `json:"item_name"`
+		ItemPrice float64 `json:"item_price"`
+		Quantity  int     `json:"quantity"`
+		Notes     string  `json:"notes"`
+	}
+	if err := c.Bind(&req); err != nil || req.ItemName == "" || req.Quantity < 1 {
+		return echo.NewHTTPError(http.StatusBadRequest, "item_name and quantity required")
+	}
+	total := req.ItemPrice * float64(req.Quantity)
+	_, err := h.DB.Exec(c.Request().Context(), `
+		UPDATE pro_shop_purchases
+		SET item_name=$1, item_price=$2, quantity=$3, total=$4, notes=NULLIF($5,'')
+		WHERE id=$6`,
+		req.ItemName, req.ItemPrice, req.Quantity, total, req.Notes, id)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not update purchase")
+	}
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"id": id, "item_name": req.ItemName, "item_price": req.ItemPrice,
+		"quantity": req.Quantity, "total": total, "notes": req.Notes,
+	})
+}
+
+// DeletePurchase removes a kiosk purchase record.
+func (h *KioskHandler) DeletePurchase(c echo.Context) error {
+	_, err := h.DB.Exec(c.Request().Context(),
+		`DELETE FROM pro_shop_purchases WHERE id=$1`, c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not delete purchase")
+	}
+	return c.NoContent(http.StatusNoContent)
+}

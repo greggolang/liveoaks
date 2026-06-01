@@ -204,8 +204,16 @@ func main() {
 	boardPlus.POST("/events/:id/send-email", events.SendEmail)
 	boardPlus.POST("/admin/documents", uploads.UploadDocument)
 	boardPlus.DELETE("/admin/documents/:id", uploads.DeleteDocument)
+	boardPlus.GET("/admin/document-folders", uploads.AdminListFolders)
+	boardPlus.POST("/admin/document-folders", uploads.CreateFolder)
+	boardPlus.PUT("/admin/document-folders/:id", uploads.UpdateFolder)
+	boardPlus.DELETE("/admin/document-folders/:id", uploads.DeleteFolder)
 	boardPlus.POST("/admin/photos", uploads.UploadPhoto)
 	boardPlus.DELETE("/admin/photos/:id", uploads.DeletePhoto)
+	boardPlus.GET("/admin/photo-folders", uploads.AdminListPhotoFolders)
+	boardPlus.POST("/admin/photo-folders", uploads.CreatePhotoFolder)
+	boardPlus.PUT("/admin/photo-folders/:id", uploads.UpdatePhotoFolder)
+	boardPlus.DELETE("/admin/photo-folders/:id", uploads.DeletePhotoFolder)
 	boardPlus.POST("/usta-teams", usta.Create)
 	boardPlus.DELETE("/usta-teams/:id", usta.Delete)
 
@@ -397,6 +405,8 @@ func main() {
 	api.POST("/kiosk/purchase", kiosk.Purchase)
 	// Kiosk admin — board+ can view all purchases
 	boardPlus.GET("/admin/kiosk/purchases", kiosk.AdminPurchaseList)
+	boardPlus.PUT("/admin/kiosk/purchases/:id", kiosk.UpdatePurchase)
+	boardPlus.DELETE("/admin/kiosk/purchases/:id", kiosk.DeletePurchase)
 
 	// Member alerts (admin → member dashboard)
 	authed.GET("/member-alerts", alerts.GetMyAlerts)

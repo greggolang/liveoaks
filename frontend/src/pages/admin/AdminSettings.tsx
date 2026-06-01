@@ -109,7 +109,9 @@ export default function AdminSettings() {
   })
   useEffect(() => {
     load()
-    api.photos.list().then(d => setPhotos(d as Photo[])).catch(() => {})
+    api.photos.list().then(folders =>
+      setPhotos(folders.flatMap(f => (f.photos ?? []).map(p => ({ id: p.id, title: p.title, filename: p.filename }))))
+    ).catch(() => {})
   }, [])
 
   const saveCamera = async () => {
