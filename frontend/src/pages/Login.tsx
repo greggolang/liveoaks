@@ -25,12 +25,13 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-green-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-lota-50 flex items-center justify-center p-4 font-serif">
       <div className="bg-white rounded-2xl shadow-lg w-full max-w-md p-8">
         <div className="text-center mb-8">
-          <div className="text-5xl mb-2">🎾</div>
-          <h1 className="text-2xl font-bold text-green-800">Liveoaks Tennis Club</h1>
-          <p className="text-gray-500 text-sm mt-1">Sign in to your account</p>
+          <img src="/lota-logo.png" alt="Live Oaks Tennis Association crest"
+               className="h-20 w-20 mx-auto mb-3" />
+          <h1 className="text-2xl font-bold text-lota-800">Live Oaks Tennis Association</h1>
+          <p className="text-gray-500 text-sm mt-1">Sign in to your member account</p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -40,7 +41,7 @@ export default function Login() {
               value={email}
               onChange={e => setEmail(e.target.value)}
               required
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lota-500"
             />
           </div>
           <div>
@@ -50,24 +51,24 @@ export default function Login() {
               value={password}
               onChange={e => setPassword(e.target.value)}
               required
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lota-500"
             />
           </div>
           {error && <p className="text-red-600 text-sm">{error}</p>}
           <div className="flex justify-end">
-            <Link to="/forgot-password" className="text-xs text-green-700 hover:underline">Forgot password?</Link>
+            <Link to="/forgot-password" className="text-xs text-lota-700 hover:underline">Forgot password?</Link>
           </div>
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-green-700 hover:bg-green-800 text-white font-semibold py-2 rounded-lg transition disabled:opacity-50"
+            className="w-full bg-lota-600 hover:bg-lota-700 text-white font-semibold py-2 rounded-lg transition disabled:opacity-50"
           >
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
         <p className="text-center text-sm text-gray-500 mt-6">
           Don't have an account?{' '}
-          <Link to="/register" className="text-green-700 font-medium hover:underline">
+          <Link to="/register" className="text-lota-700 font-medium hover:underline">
             Request membership
           </Link>
         </p>
