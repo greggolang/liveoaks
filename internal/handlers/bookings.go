@@ -496,6 +496,7 @@ func (h *BookingsHandler) Update(c echo.Context) error {
 		Notes         string    `json:"notes"`
 		MatchType     string    `json:"match_type"`
 		PlayersNeeded int       `json:"players_needed"`
+		StartTime     time.Time `json:"start_time"`
 		EndTime       time.Time `json:"end_time"`
 		CourtID       int       `json:"court_id"`
 	}
@@ -503,21 +504,31 @@ func (h *BookingsHandler) Update(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
 	}
 
+	loc := loadTimezone(c.Request().Context(), h.DB)
+
+	// Determine new start time
+	newStart := currentStart
+	if !req.StartTime.IsZero() && !req.StartTime.Equal(currentStart) {
+		if !req.StartTime.After(time.Now()) {
+			return echo.NewHTTPError(http.StatusBadRequest, "cannot move a booking to the past")
+		}
+		newStart = req.StartTime
+	}
+
 	// Determine new end time
 	newEnd := currentEnd
 	if !req.EndTime.IsZero() {
 		newEnd = req.EndTime
-		if !newEnd.After(currentStart) {
+		if !newEnd.After(newStart) {
 			return echo.NewHTTPError(http.StatusBadRequest, "end time must be after start time")
-		}
-		loc, locErr := time.LoadLocation("America/Los_Angeles")
-		if locErr != nil {
-			loc = time.UTC
 		}
 		localEnd := newEnd.In(loc)
 		if localEnd.Hour() > 20 || (localEnd.Hour() == 20 && localEnd.Minute() > 0) {
 			return echo.NewHTTPError(http.StatusBadRequest, "bookings must end by 8:00 PM")
 		}
+	} else if !newStart.Equal(currentStart) {
+		// Start moved but no explicit end — preserve the original duration
+		newEnd = newStart.Add(currentEnd.Sub(currentStart))
 	}
 
 	// Determine new court
@@ -526,14 +537,14 @@ func (h *BookingsHandler) Update(c echo.Context) error {
 		newCourtID = req.CourtID
 	}
 
-	// Check for conflicts whenever the court or duration changes
-	if newCourtID != currentCourtID || newEnd != currentEnd {
+	// Check for conflicts whenever anything time-related or court changes
+	if newCourtID != currentCourtID || !newStart.Equal(currentStart) || !newEnd.Equal(currentEnd) {
 		var conflicts int
 		h.DB.QueryRow(c.Request().Context(),
 			`SELECT COUNT(*) FROM bookings
 			 WHERE court_id = $1 AND id != $2
 			   AND start_time < $3 AND end_time > $4`,
-			newCourtID, id, newEnd, currentStart,
+			newCourtID, id, newEnd, newStart,
 		).Scan(&conflicts)
 		if conflicts > 0 {
 			return echo.NewHTTPError(http.StatusConflict, "court is already booked during that time")
@@ -554,18 +565,20 @@ func (h *BookingsHandler) Update(c echo.Context) error {
 	}
 
 	_, err := h.DB.Exec(c.Request().Context(),
-		`UPDATE bookings SET notes = NULLIF($1,''), match_type = $2, players_needed = $3, end_time = $4, court_id = $5
-		 WHERE id = $6`,
-		req.Notes, req.MatchType, req.PlayersNeeded, newEnd, newCourtID, id)
+		`UPDATE bookings
+		 SET notes = NULLIF($1,''), match_type = $2, players_needed = $3,
+		     start_time = $4, end_time = $5, court_id = $6
+		 WHERE id = $7`,
+		req.Notes, req.MatchType, req.PlayersNeeded, newStart, newEnd, newCourtID, id)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not update booking")
 	}
 
 	// Notify all roster players when the court or time changed
-	if h.Mailer != nil && (newCourtID != currentCourtID || newEnd != currentEnd) {
+	if h.Mailer != nil && (newCourtID != currentCourtID || !newStart.Equal(currentStart) || !newEnd.Equal(currentEnd)) {
 		var courtName string
 		h.DB.QueryRow(c.Request().Context(), `SELECT name FROM courts WHERE id = $1`, newCourtID).Scan(&courtName)
-		card := bookingCard(courtName, currentStart, newEnd, loadTimezone(c.Request().Context(), h.DB))
+		card := bookingCard(courtName, newStart, newEnd, loc)
 		body := fmt.Sprintf(`
 <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
   <h2 style="color:#15803d">📋 Booking Updated</h2>

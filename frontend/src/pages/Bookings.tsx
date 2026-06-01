@@ -141,7 +141,7 @@ export default function Bookings() {
   const [addingPlayer, setAddingPlayer] = useState(false)
   const [bookingDetail, setBookingDetail] = useState<Booking | null>(null)
   const [editingBooking, setEditingBooking] = useState(false)
-  const [editForm, setEditForm] = useState({ matchType: 'casual', playersNeeded: 0, duration: 1.5, courtId: 0 })
+  const [editForm, setEditForm] = useState({ matchType: 'casual', playersNeeded: 0, duration: 1.5, courtId: 0, startSlot: 0 })
   const [editLoading, setEditLoading] = useState(false)
   const [editError, setEditError] = useState('')
   const [showTutorial, setShowTutorial] = useState(false)
@@ -567,11 +567,14 @@ export default function Bookings() {
   const openEdit = (b: Booking) => {
     const dHours = (new Date(b.end_time).getTime() - new Date(b.start_time).getTime()) / 3600000
     const mt = b.match_type ?? 'casual'
+    const bStart = new Date(b.start_time)
+    const startSlot = bStart.getHours() + bStart.getMinutes() / 60
     setEditForm({
       matchType: mt,
       playersNeeded: PLAYERS_BY_TYPE[mt] ?? 0,
       duration: dHours <= 1 ? 1 : 1.5,
       courtId: b.court_id,
+      startSlot,
     })
     setEditError('')
     setEditingBooking(true)
@@ -585,10 +588,13 @@ export default function Bookings() {
     setEditLoading(true)
     setEditError('')
     try {
-      const newEnd = new Date(new Date(b.start_time).getTime() + editForm.duration * 3600000)
+      const dateStr = localDateStr(new Date(b.start_time))
+      const newStart = slotToDate(dateStr, editForm.startSlot)
+      const newEnd = new Date(newStart.getTime() + editForm.duration * 3600000)
       await api.bookings.update(b.id, {
         match_type: editForm.matchType,
         players_needed: editForm.playersNeeded,
+        start_time: newStart.toISOString(),
         end_time: newEnd.toISOString(),
         court_id: editForm.courtId,
       })
@@ -1342,21 +1348,29 @@ export default function Bookings() {
                         <p className="font-semibold text-gray-800 mt-0.5">{bStart.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-gray-400 uppercase tracking-wide">Start Time</p>
-                        <p className="font-semibold text-gray-800 mt-0.5">{bStart.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</p>
+                        <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Start Time</p>
+                        <select
+                          value={editForm.startSlot}
+                          onChange={e => setEditForm(f => ({ ...f, startSlot: parseFloat(e.target.value) }))}
+                          className="border border-gray-300 rounded-lg px-2 py-1 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500">
+                          {HOURS.filter(h => h + editForm.duration <= 20).map(h => (
+                            <option key={h} value={h}>{fmt12(h)}</option>
+                          ))}
+                        </select>
                       </div>
                     </div>
 
                     {/* Court */}
                     {(() => {
-                      const newEnd = new Date(bStart.getTime() + editForm.duration * 3600000)
+                      const editStart = slotToDate(localDateStr(bStart), editForm.startSlot)
+                      const newEnd = new Date(editStart.getTime() + editForm.duration * 3600000)
                       const available = courts.filter(c =>
-                        c.id === b.court_id ||
+                        c.id === editForm.courtId ||
                         !bookings.some(bk =>
                           bk.id !== b.id &&
                           bk.court_id === c.id &&
                           new Date(bk.start_time) < newEnd &&
-                          new Date(bk.end_time) > bStart
+                          new Date(bk.end_time) > editStart
                         )
                       )
                       return (

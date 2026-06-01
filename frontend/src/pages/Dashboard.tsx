@@ -74,7 +74,7 @@ export default function Dashboard() {
   const [sentPending, setSentPending] = useState<SentPending[]>([])
   const [responseAlerts, setResponseAlerts] = useState<InviteResponseAlert[]>([])
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState({ duration: 1.5, matchType: 'casual' })
+  const [editForm, setEditForm] = useState({ duration: 1.5, matchType: 'casual', startSlot: 0 })
   const [editSaving, setEditSaving] = useState(false)
   const [editError, setEditError] = useState('')
   const [dues, setDues] = useState<Dues[]>([])
@@ -199,7 +199,9 @@ export default function Dashboard() {
 
   const openEdit = (b: Booking) => {
     const dHours = (new Date(b.end_time).getTime() - new Date(b.start_time).getTime()) / 3600000
-    setEditForm({ duration: dHours <= 1 ? 1 : 1.5, matchType: b.match_type ?? 'casual' })
+    const s = new Date(b.start_time)
+    const startSlot = s.getHours() + s.getMinutes() / 60
+    setEditForm({ duration: dHours <= 1 ? 1 : 1.5, matchType: b.match_type ?? 'casual', startSlot })
     setEditError('')
     setEditingId(b.id)
   }
@@ -208,10 +210,16 @@ export default function Dashboard() {
     setEditSaving(true)
     setEditError('')
     try {
-      const newEnd = new Date(new Date(b.start_time).getTime() + editForm.duration * 3600000)
+      const orig = new Date(b.start_time)
+      const dateStr = `${orig.getFullYear()}-${String(orig.getMonth()+1).padStart(2,'0')}-${String(orig.getDate()).padStart(2,'0')}`
+      const h = Math.floor(editForm.startSlot)
+      const m = editForm.startSlot % 1 === 0.5 ? '30' : '00'
+      const newStart = new Date(`${dateStr}T${String(h).padStart(2,'0')}:${m}:00`)
+      const newEnd = new Date(newStart.getTime() + editForm.duration * 3600000)
       await api.bookings.update(b.id, {
         match_type: editForm.matchType,
         players_needed: 0,
+        start_time: newStart.toISOString(),
         end_time: newEnd.toISOString(),
         court_id: b.court_id,
       })
@@ -927,6 +935,23 @@ export default function Dashboard() {
                   {/* Inline edit panel */}
                   {isEditing && (
                     <div className="border-t border-gray-100 bg-gray-50 px-4 py-4 space-y-3">
+                      {/* Start time */}
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs font-medium text-gray-600 w-24 shrink-0">Start Time</span>
+                        <select
+                          value={editForm.startSlot}
+                          onChange={e => setEditForm(f => ({ ...f, startSlot: parseFloat(e.target.value) }))}
+                          className="border border-gray-300 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-green-500">
+                          {Array.from({ length: 24 }, (_, i) => i * 0.5 + 8)
+                            .filter(slot => slot + editForm.duration <= 20)
+                            .map(slot => {
+                              const h = Math.floor(slot) % 12 || 12
+                              const m = slot % 1 === 0.5 ? '30' : '00'
+                              const ampm = Math.floor(slot) < 12 ? 'AM' : 'PM'
+                              return <option key={slot} value={slot}>{h}:{m} {ampm}</option>
+                            })}
+                        </select>
+                      </div>
                       {/* Duration */}
                       <div className="flex items-center gap-3">
                         <span className="text-xs font-medium text-gray-600 w-24 shrink-0">Duration</span>
