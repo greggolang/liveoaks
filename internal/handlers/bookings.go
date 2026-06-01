@@ -480,6 +480,14 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 				ctaHTML = fmt.Sprintf(`<p style="margin:16px 0"><a href="%s/bookings" style="color:#15803d">View your bookings →</a></p>`, h.SiteURL)
 			}
 
+			// "Add to Calendar" buttons (Google Calendar + downloadable .ics).
+			// The .ics is served by the public ICal endpoint for this booking.
+			icalURL := fmt.Sprintf("%s/api/bookings/%s/ical", h.SiteURL, bookingID)
+			calHTML := calendarLinksHTML(
+				"Tennis at Live Oaks – "+courtName,
+				matchLabel+" at Live Oaks Tennis Club",
+				req.StartTime, req.EndTime, icalURL)
+
 			body := fmt.Sprintf(`
 <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
   <h2 style="color:#15803d;text-align:center">🎾 Booking Confirmed</h2>
@@ -493,7 +501,8 @@ func (h *BookingsHandler) Create(c echo.Context) error {
     <ul style="margin:8px 0;padding-left:20px;color:#374151">%s</ul>
   </div>
   %s
-</div>`, hostName, courtName, startStr, endStr, matchLabel, playerSection, ctaHTML)
+  %s
+</div>`, hostName, courtName, startStr, endStr, matchLabel, playerSection, ctaHTML, calHTML)
 			h.Mailer.Send(hostEmail, "Booking confirmed – "+courtName, body)
 		}()
 	}
