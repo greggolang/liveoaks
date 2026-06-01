@@ -146,9 +146,25 @@ export default function AdminMail() {
 
   function copyPassword() {
     if (!generatedPw) return
-    navigator.clipboard.writeText(generatedPw)
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(generatedPw).catch(() => fallbackCopy(generatedPw))
+    } else {
+      fallbackCopy(generatedPw)
+    }
     setPwCopied(true)
     setTimeout(() => setPwCopied(false), 2000)
+  }
+
+  function fallbackCopy(text: string) {
+    const ta = document.createElement('textarea')
+    ta.value = text
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.focus()
+    ta.select()
+    document.execCommand('copy')
+    document.body.removeChild(ta)
   }
 
   // --- Delete ---
