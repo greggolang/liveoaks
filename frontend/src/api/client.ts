@@ -512,6 +512,23 @@ export const api = {
     deletePurchase: (id: string) =>
       request(`/admin/kiosk/purchases/${id}`, { method: 'DELETE' }),
   },
+  mail: {
+    list: () => request<{
+      id: string; address: string; role_label: string; display_name: string
+      assigned_user_id: string | null; assigned_name: string | null
+      has_password: boolean; quota_mb: number; active: boolean
+      created_at: string; updated_at: string
+    }[]>('/admin/mail/accounts'),
+    create: (data: { address: string; role_label: string; display_name: string; quota_mb: number }) =>
+      request<{ id: string }>('/admin/mail/accounts', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: { role_label: string; display_name: string; quota_mb: number }) =>
+      request(`/admin/mail/accounts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    resetPassword: (id: string) =>
+      request<{ password: string }>(`/admin/mail/accounts/${id}/reset-password`, { method: 'POST' }),
+    assign: (id: string, userId: string | null) =>
+      request(`/admin/mail/accounts/${id}/assign`, { method: 'POST', body: JSON.stringify({ user_id: userId }) }),
+    delete: (id: string) => request(`/admin/mail/accounts/${id}`, { method: 'DELETE' }),
+  },
   bookingReminder: {
     getInfo: (token: string) => request(`/booking-reminder/${token}`),
     confirm: (token: string) => request(`/booking-reminder/${token}/ok`, { method: 'POST' }),

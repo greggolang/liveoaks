@@ -103,6 +103,7 @@ func main() {
 	bookingReminder := &handlers.BookingReminderHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	messages := &handlers.MessagesHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	kiosk := &handlers.KioskHandler{DB: pool}
+	mail := &handlers.MailHandler{DB: pool}
 
 	api := e.Group("/api")
 
@@ -301,6 +302,14 @@ func main() {
 	adminOnly.PUT("/challenges/:id/result", ladder.AdminEnterResult)
 	adminOnly.PUT("/challenges/:id/forfeit", ladder.AdminForfeit)
 	adminOnly.POST("/ladder/:id/points", ladder.AdminAwardPoints)
+
+	// Mail account management (admin only)
+	adminOnly.GET("/mail/accounts", mail.List)
+	adminOnly.POST("/mail/accounts", mail.Create)
+	adminOnly.PUT("/mail/accounts/:id", mail.Update)
+	adminOnly.POST("/mail/accounts/:id/reset-password", mail.ResetPassword)
+	adminOnly.POST("/mail/accounts/:id/assign", mail.Assign)
+	adminOnly.DELETE("/mail/accounts/:id", mail.Delete)
 
 	// Broadcast email (admin only)
 	adminOnly.GET("/broadcast/recipients", broadcast.PreviewRecipients)

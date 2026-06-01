@@ -51,6 +51,7 @@ import TennisLadder from './pages/TennisLadder'
 import AdminLiveball from './pages/admin/AdminLiveball'
 import AdminBroadcast from './pages/admin/AdminBroadcast'
 import AdminBoardMeetings from './pages/admin/AdminBoardMeetings'
+import AdminMail from './pages/admin/AdminMail'
 import AdminProShop from './pages/admin/AdminProShop'
 import AdminBallTracking from './pages/admin/AdminBallTracking'
 import AdminKioskPurchases from './pages/admin/AdminKioskPurchases'
@@ -143,6 +144,7 @@ function AppRoutes() {
         <Route path="liveball" element={<AdminLiveball />} />
         <Route path="broadcast" element={<AdminBroadcast />} />
         <Route path="board-meetings" element={<AdminBoardMeetings />} />
+        <Route path="mail" element={<AdminMail />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />
