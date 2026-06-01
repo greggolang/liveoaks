@@ -162,8 +162,28 @@ func (h *BookingsHandler) Mine(c echo.Context) error {
 	return c.JSON(http.StatusOK, bookings)
 }
 
+// hasTeachingProPermission reports whether the user's role(s) may make Teaching
+// Pro bookings. Admins always qualify; the 'pro' role has it implicitly; any
+// other role qualifies if granted teaching_pro_booking in page_permissions.
+// Mirrors the logic in PermissionsHandler.MyPages.
+func (h *BookingsHandler) hasTeachingProPermission(ctx context.Context, role string, extraRoles []string) bool {
+	roles := append([]string{role}, extraRoles...)
+	for _, r := range roles {
+		if r == "admin" || r == "pro" {
+			return true
+		}
+	}
+	var ok bool
+	h.DB.QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM page_permissions WHERE page = 'teaching_pro_booking' AND role = ANY($1))`,
+		roles).Scan(&ok)
+	return ok
+}
+
 func (h *BookingsHandler) Create(c echo.Context) error {
 	userID := c.Get("user_id").(string)
+	role, _ := c.Get("role").(string)
+	extraRoles, _ := c.Get("extra_roles").([]string)
 	var req struct {
 		CourtID       int       `json:"court_id"`
 		StartTime     time.Time `json:"start_time"`
@@ -210,15 +230,24 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 		}
 	}
 
+	// Teaching Pro bookings made by an authorized pro are exempt from the
+	// per-member daily/weekly/minutes/gap limits, so the pro can schedule
+	// multiple lessons in a single day. Their teaching bookings are also
+	// excluded from those limit counts (below), so a pro's lessons never
+	// consume the pro's own personal booking allowance.
+	proExempt := req.MatchType == "teaching_pro" &&
+		h.hasTeachingProPermission(c.Request().Context(), role, extraRoles)
+
 	// ── Per-day minutes limit ─────────────────────────────────────────────
 	var maxMinStr string
 	if scanErr := h.DB.QueryRow(c.Request().Context(),
-		`SELECT value FROM settings WHERE key = 'booking_max_minutes_per_day'`).Scan(&maxMinStr); scanErr == nil {
+		`SELECT value FROM settings WHERE key = 'booking_max_minutes_per_day'`).Scan(&maxMinStr); !proExempt && scanErr == nil {
 		if maxMin, convErr := strconv.Atoi(maxMinStr); convErr == nil && maxMin > 0 {
 			var usedMin float64
 			h.DB.QueryRow(c.Request().Context(),
 				`SELECT COALESCE(SUM(EXTRACT(EPOCH FROM (end_time - start_time))/60),0)
-				 FROM bookings WHERE user_id = $1 AND start_time >= $2 AND start_time < $3`,
+				 FROM bookings WHERE user_id = $1 AND start_time >= $2 AND start_time < $3
+				   AND match_type <> 'teaching_pro'`,
 				userID, dayStart, dayEnd).Scan(&usedMin)
 			newMin := req.EndTime.Sub(req.StartTime).Minutes()
 			if int(usedMin)+int(newMin) > maxMin {
@@ -230,6 +259,9 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 
 	// ── Per-week booking limit ────────────────────────────────────────────
 	for _, key := range []string{"booking_max_per_week", "booking_max_courts_per_week"} {
+		if proExempt {
+			break
+		}
 		var maxWkStr string
 		if scanErr := h.DB.QueryRow(c.Request().Context(),
 			`SELECT value FROM settings WHERE key = $1`, key).Scan(&maxWkStr); scanErr == nil {
@@ -237,6 +269,7 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 				var weekCount int
 				h.DB.QueryRow(c.Request().Context(),
 					`SELECT COUNT(*) FROM bookings WHERE user_id = $1
+					 AND match_type <> 'teaching_pro'
 					 AND DATE_TRUNC('week', start_time AT TIME ZONE 'America/Los_Angeles')
 					   = DATE_TRUNC('week', $2 AT TIME ZONE 'America/Los_Angeles')`,
 					userID, req.StartTime).Scan(&weekCount)
@@ -251,13 +284,14 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 	// ── Sandwich gap (min gap between same-member bookings on same court) ─
 	var minGapStr string
 	if scanErr := h.DB.QueryRow(c.Request().Context(),
-		`SELECT value FROM settings WHERE key = 'booking_min_gap_minutes'`).Scan(&minGapStr); scanErr == nil {
+		`SELECT value FROM settings WHERE key = 'booking_min_gap_minutes'`).Scan(&minGapStr); !proExempt && scanErr == nil {
 		if minGap, convErr := strconv.Atoi(minGapStr); convErr == nil && minGap > 0 {
 			var tooClose int
 			h.DB.QueryRow(c.Request().Context(),
 				`SELECT COUNT(*) FROM bookings
 				 WHERE user_id = $1 AND court_id = $2
 				   AND start_time >= $3 AND start_time < $4
+				   AND match_type <> 'teaching_pro'
 				   AND (
 				     (end_time > $5 - make_interval(mins => $6) AND end_time <= $5) OR
 				     (start_time >= $7 AND start_time < $7 + make_interval(mins => $6))
@@ -280,25 +314,29 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 	}
 
 	// ── Per-day booking limit ─────────────────────────────────────────────
-	// Enforce per-day booking limit (default 1, configurable via settings)
-	maxPerDay := 1
-	var maxStr string
-	if scanErr := h.DB.QueryRow(c.Request().Context(),
-		`SELECT value FROM settings WHERE key = 'booking_max_per_day'`).Scan(&maxStr); scanErr == nil {
-		if v, convErr := strconv.Atoi(maxStr); convErr == nil && v > 0 {
-			maxPerDay = v
+	// Enforce per-day booking limit (default 1, configurable via settings).
+	// Teaching Pro bookings by an authorized pro are exempt and don't count.
+	if !proExempt {
+		maxPerDay := 1
+		var maxStr string
+		if scanErr := h.DB.QueryRow(c.Request().Context(),
+			`SELECT value FROM settings WHERE key = 'booking_max_per_day'`).Scan(&maxStr); scanErr == nil {
+			if v, convErr := strconv.Atoi(maxStr); convErr == nil && v > 0 {
+				maxPerDay = v
+			}
 		}
-	}
-	var bookingsToday int
-	h.DB.QueryRow(c.Request().Context(),
-		`SELECT COUNT(*) FROM bookings WHERE user_id = $1 AND start_time >= $2 AND start_time < $3`,
-		userID, dayStart, dayEnd).Scan(&bookingsToday)
-	if bookingsToday >= maxPerDay {
-		if maxPerDay == 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, "you already have a booking on this date")
+		var bookingsToday int
+		h.DB.QueryRow(c.Request().Context(),
+			`SELECT COUNT(*) FROM bookings WHERE user_id = $1 AND start_time >= $2 AND start_time < $3
+			   AND match_type <> 'teaching_pro'`,
+			userID, dayStart, dayEnd).Scan(&bookingsToday)
+		if bookingsToday >= maxPerDay {
+			if maxPerDay == 1 {
+				return echo.NewHTTPError(http.StatusBadRequest, "you already have a booking on this date")
+			}
+			return echo.NewHTTPError(http.StatusBadRequest,
+				fmt.Sprintf("members may not make more than %d bookings per day", maxPerDay))
 		}
-		return echo.NewHTTPError(http.StatusBadRequest,
-			fmt.Sprintf("members may not make more than %d bookings per day", maxPerDay))
 	}
 
 	// ── Max duration limit ────────────────────────────────────────────────
