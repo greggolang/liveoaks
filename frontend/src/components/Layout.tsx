@@ -98,7 +98,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </NavLink>
               {showFantasy && <NavLink to="/fantasy" className={navLink}>Fantasy Pool</NavLink>}
               {showLadder && <NavLink to="/ladder" className={navLink}>Ladder</NavLink>}
-              {isBoard && <NavLink to="/email" className={navLink}>Email</NavLink>}
               {isBoard && <NavLink to="/admin" className={navLink}>Admin</NavLink>}
               <button onClick={openBug}
                 title="Report a bug"
@@ -142,7 +141,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 ['/messages', unreadMessages > 0 ? `Messages (${unreadMessages})` : 'Messages'],
                 ...(showFantasy ? [['/fantasy', 'Fantasy Pool']] : []),
                 ...(showLadder ? [['/ladder', 'Ladder']] : []),
-                ...(isBoard ? [['/email', 'Email'], ['/admin', 'Admin']] : []),
+                ...(isBoard ? [['/admin', 'Admin']] : []),
               ].map(([to, label]) => (
                 <Link key={to} to={to} onClick={() => setMenuOpen(false)}
                   className="text-green-100 hover:text-white">{label}</Link>
