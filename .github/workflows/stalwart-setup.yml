@@ -13,18 +13,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Copy config files to server
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: 172.236.228.11
-          username: root
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: scripts/stalwart-config.toml,scripts/stalwart-mail.service
-          target: /tmp/stalwart-files/
-
-      - name: Install and start Stalwart Mail
+      - name: Install and configure Stalwart Mail
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: 172.236.228.11
@@ -33,7 +22,8 @@ jobs:
           script: |
             set -e
 
-            echo ">>> Fetching latest Stalwart release tag..."
+            # ── 1. Download Stalwart binary ───────────────────────────────────
+            echo ">>> Fetching latest Stalwart release..."
             ARCH="x86_64-unknown-linux-musl"
             TAG=$(curl -fsSL "https://api.github.com/repos/stalwartlabs/mail-server/releases/latest" \
                   | grep '"tag_name"' | sed 's/.*"tag_name": "\(.*\)".*/\1/')
@@ -46,16 +36,133 @@ jobs:
             install -m 755 /tmp/stalwart-dl/stalwart-mail /usr/local/bin/stalwart-mail
             echo "Installed: $(stalwart-mail --version 2>&1 || true)"
 
+            # ── 2. User and directories ───────────────────────────────────────
             id -u stalwart &>/dev/null || useradd -r -s /sbin/nologin stalwart
             mkdir -p /etc/stalwart /var/db/stalwart/blobs /var/db/stalwart/acme
 
-            cp /tmp/stalwart-files/scripts/stalwart-config.toml /etc/stalwart/config.toml
-            cp /tmp/stalwart-files/scripts/stalwart-mail.service /etc/systemd/system/stalwart-mail.service
+            # ── 3. Write Stalwart config ──────────────────────────────────────
+            cat > /etc/stalwart/config.toml << 'TOMLEOF'
+            [server]
+            hostname = "mail.webgoserver.com"
 
-            chown stalwart:stalwart /etc/stalwart/config.toml
-            chmod 600 /etc/stalwart/config.toml
+            [server.listener."smtp"]
+            bind = ["[::]:25"]
+            protocol = "smtp"
+
+            [server.listener."submission"]
+            bind = ["[::]:587"]
+            protocol = "smtp"
+            tls.implicit = false
+
+            [server.listener."imaps"]
+            bind = ["[::]:993"]
+            protocol = "imap"
+            tls.implicit = true
+
+            [server.listener."https"]
+            bind = ["[::]:443"]
+            protocol = "http"
+            tls.implicit = true
+
+            [store."data"]
+            type = "rocksdb"
+            path = "/var/db/stalwart"
+            compression = "lz4"
+
+            [storage]
+            data = "data"
+            fts = "data"
+            blob = "data"
+            lookup = "data"
+            directory = "sql"
+
+            [store."pg"]
+            type = "postgresql"
+            host = "localhost"
+            port = 5432
+            database = "liveoaks"
+            user = "liveoaks"
+            password = "liveoaks2026"
+            pool.max-connections = 10
+
+            [directory."sql"]
+            type = "sql"
+            store = "pg"
+
+            [directory."sql".query.name]
+            query = "SELECT display_name FROM mail_accounts WHERE address = $1 AND active = true"
+
+            [directory."sql".query.members]
+            query = ""
+
+            [directory."sql".query.recipients]
+            query = "SELECT address FROM mail_accounts WHERE address = $1 AND active = true"
+
+            [directory."sql".query.emails]
+            query = "SELECT address FROM mail_accounts WHERE address = $1 AND active = true"
+
+            [directory."sql".query.verify]
+            query = "SELECT address FROM mail_accounts WHERE address ILIKE '%' || $1 || '%' AND active = true"
+
+            [directory."sql".query.expand]
+            query = ""
+
+            [directory."sql".query.domains]
+            query = "SELECT 1 FROM mail_accounts WHERE address LIKE '%@' || $1 AND active = true LIMIT 1"
+
+            [directory."sql".query.secrets]
+            query = "SELECT password_hash FROM mail_accounts WHERE address = $1 AND active = true"
+
+            [acme."letsencrypt"]
+            provider = "letsencrypt"
+            contact = ["greg@howardsmail.com"]
+            domains = ["mail.webgoserver.com"]
+            cache-path = "/var/db/stalwart/acme"
+
+            [certificate."default"]
+            default = true
+
+            [session.auth]
+            mechanisms = ["PLAIN", "LOGIN"]
+            directory = "sql"
+            require = true
+
+            [session.rcpt]
+            directory = "sql"
+
+            [sieve.trusted]
+            directory = "sql"
+
+            [resolver]
+            type = "system"
+
+            [report]
+            domain = "webgoserver.com"
+            TOMLEOF
+
+            # ── 4. Write systemd service ──────────────────────────────────────
+            cat > /etc/systemd/system/stalwart-mail.service << 'SVCEOF'
+            [Unit]
+            Description=Stalwart Mail Server
+            After=network.target postgresql.service
+
+            [Service]
+            Type=simple
+            ExecStart=/usr/local/bin/stalwart-mail --config /etc/stalwart/config.toml
+            User=stalwart
+            Group=stalwart
+            Restart=on-failure
+            RestartSec=5
+            LimitNOFILE=65536
+
+            [Install]
+            WantedBy=multi-user.target
+            SVCEOF
+
             chown -R stalwart:stalwart /var/db/stalwart /etc/stalwart
+            chmod 600 /etc/stalwart/config.toml
 
+            # ── 5. Firewall ───────────────────────────────────────────────────
             if command -v ufw &>/dev/null; then
               ufw allow 25/tcp   comment "SMTP"
               ufw allow 587/tcp  comment "SMTP Submission"
@@ -64,9 +171,13 @@ jobs:
               ufw --force enable
             fi
 
+            # ── 6. Run migrations ─────────────────────────────────────────────
             sudo -u postgres psql -d liveoaks \
               -f /opt/liveoaks/migrations/074_mail_accounts.sql 2>/dev/null || true
+            sudo -u postgres psql -d liveoaks \
+              -f /opt/liveoaks/migrations/075_mail_test_accounts.sql 2>/dev/null || true
 
+            # ── 7. Start ──────────────────────────────────────────────────────
             systemctl daemon-reload
             systemctl enable stalwart-mail
             systemctl restart stalwart-mail
@@ -77,8 +188,7 @@ jobs:
             echo "============================================================"
             echo "  STALWART INSTALLED"
             echo "============================================================"
-            echo "1. Add DNS A record:  mail.webgoserver.com -> 172.236.228.11"
-            echo "2. Once DNS is set, visit: https://mail.webgoserver.com/admin"
-            echo "3. In your app admin panel -> Mail Accounts -> Reset Password"
-            echo "   for each test account, then log in at https://mail.webgoserver.com"
+            echo "1. Confirm DNS A record:  mail.webgoserver.com -> 172.236.228.11"
+            echo "2. Visit: https://mail.webgoserver.com"
+            echo "3. In admin panel -> Mail Accounts -> Assign + Reset Password"
             echo "============================================================"
