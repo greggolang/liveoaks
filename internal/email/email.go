@@ -13,6 +13,19 @@ type Mailer struct {
 	Username string
 	Password string
 	From     string
+	SiteURL  string // used to build the logo image URL in branded emails
+}
+
+// brand wraps an email body with the Live Oaks Tennis Association crest at the
+// top and the association footer at the bottom, so every outgoing email is
+// consistently branded. The logo is loaded from the public site URL.
+func (m *Mailer) brand(body string) string {
+	header := ""
+	if m.SiteURL != "" {
+		header = fmt.Sprintf(`<div style="text-align:center;margin:8px 0 16px"><img src="%s/lota-logo.png" alt="Live Oaks Tennis Association" width="84" height="84" style="width:84px;height:84px" /></div>`, m.SiteURL)
+	}
+	footer := `<div style="text-align:center;margin-top:20px"><div style="color:#166534;font-weight:600">Live Oaks Tennis Association</div><div style="color:#9ca3af;font-size:12px;margin-top:2px">South Pasadena, California · Founded 1912</div></div>`
+	return header + body + footer
 }
 
 func (m *Mailer) Send(to, subject, body string) error {
@@ -20,7 +33,7 @@ func (m *Mailer) Send(to, subject, body string) error {
 	msg.SetHeader("From", fmt.Sprintf("Liveoaks Tennis Club <%s>", m.From))
 	msg.SetHeader("To", to)
 	msg.SetHeader("Subject", subject)
-	msg.SetBody("text/html", body)
+	msg.SetBody("text/html", m.brand(body))
 
 	d := gomail.NewDialer(m.Host, m.Port, m.Username, m.Password)
 	d.Timeout = 15 * time.Second

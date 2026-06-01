@@ -43,6 +43,7 @@ func main() {
 			Username: cfg.SMTPUser,
 			Password: cfg.SMTPPass,
 			From:     cfg.SMTPFrom,
+			SiteURL:  cfg.SiteURL,
 		},
 	}
 

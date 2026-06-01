@@ -47,6 +47,7 @@ func (m *DBMailer) build() *Mailer {
 		Username: or("smtp_user", m.Fallback.Username),
 		Password: or("smtp_pass", m.Fallback.Password),
 		From:     or("smtp_from", m.Fallback.From),
+		SiteURL:  m.Fallback.SiteURL,
 	}
 }
 

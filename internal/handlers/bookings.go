@@ -482,7 +482,7 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 
 			body := fmt.Sprintf(`
 <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
-  <h2 style="color:#15803d">🎾 Booking Confirmed</h2>
+  <h2 style="color:#15803d;text-align:center">🎾 Booking Confirmed</h2>
   <p>Hi %s,</p>
   <p>Your court booking is confirmed:</p>
   <div style="background:#f0fdf4;border-radius:8px;padding:16px;margin:16px 0">
