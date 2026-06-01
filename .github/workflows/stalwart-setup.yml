@@ -24,16 +24,26 @@ jobs:
 
             # ── 1. Download Stalwart binary ───────────────────────────────────
             echo ">>> Fetching latest Stalwart release..."
-            ARCH="x86_64-unknown-linux-musl"
-            TAG=$(curl -fsSL "https://api.github.com/repos/stalwartlabs/mail-server/releases/latest" \
-                  | grep '"tag_name"' | sed 's/.*"tag_name": "\(.*\)".*/\1/')
-            echo "Downloading $TAG..."
             mkdir -p /tmp/stalwart-dl
-            curl -fsSL \
-              "https://github.com/stalwartlabs/mail-server/releases/download/${TAG}/stalwart-mail-${ARCH}.tar.gz" \
-              -o /tmp/stalwart-dl/stalwart.tar.gz
+
+            RELEASE_JSON=$(curl -fsSL "https://api.github.com/repos/stalwartlabs/mail-server/releases/latest")
+            TAG=$(echo "$RELEASE_JSON" | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": "\(.*\)".*/\1/')
+            echo "Latest: $TAG"
+
+            DOWNLOAD_URL=$(echo "$RELEASE_JSON" \
+              | grep '"browser_download_url"' \
+              | grep 'x86_64-unknown-linux-musl' \
+              | grep '\.tar\.gz' \
+              | head -1 \
+              | sed 's/.*"\(https:[^"]*\)".*/\1/')
+            echo "Downloading: $DOWNLOAD_URL"
+
+            curl -fsSL "$DOWNLOAD_URL" -o /tmp/stalwart-dl/stalwart.tar.gz
             tar -xzf /tmp/stalwart-dl/stalwart.tar.gz -C /tmp/stalwart-dl/
-            install -m 755 /tmp/stalwart-dl/stalwart-mail /usr/local/bin/stalwart-mail
+
+            BINARY=$(find /tmp/stalwart-dl/ -maxdepth 1 -type f -executable | head -1)
+            echo "Binary found: $BINARY"
+            install -m 755 "$BINARY" /usr/local/bin/stalwart-mail
             echo "Installed: $(stalwart-mail --version 2>&1 || true)"
 
             # ── 2. User and directories ───────────────────────────────────────
