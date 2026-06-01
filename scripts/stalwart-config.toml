@@ -1,0 +1,100 @@
+[server]
+hostname = "mail.webgoserver.com"
+
+[server.listener."smtp"]
+bind = ["[::]:25"]
+protocol = "smtp"
+
+[server.listener."submission"]
+bind = ["[::]:587"]
+protocol = "smtp"
+tls.implicit = false
+
+[server.listener."imaps"]
+bind = ["[::]:993"]
+protocol = "imap"
+tls.implicit = true
+
+[server.listener."https"]
+bind = ["[::]:443"]
+protocol = "http"
+tls.implicit = true
+
+# Messages stored on local disk via RocksDB
+[store."data"]
+type = "rocksdb"
+path = "/var/db/stalwart"
+compression = "lz4"
+
+[storage]
+data = "data"
+fts = "data"
+blob = "data"
+lookup = "data"
+directory = "sql"
+
+# PostgreSQL — same database as the liveoaks app
+[store."pg"]
+type = "postgresql"
+host = "localhost"
+port = 5432
+database = "liveoaks"
+user = "liveoaks"
+password = "liveoaks2026"
+pool.max-connections = 10
+
+# SQL directory — auth driven by the mail_accounts table
+[directory."sql"]
+type = "sql"
+store = "pg"
+
+[directory."sql".query.name]
+query = "SELECT display_name FROM mail_accounts WHERE address = $1 AND active = true"
+
+[directory."sql".query.members]
+query = ""
+
+[directory."sql".query.recipients]
+query = "SELECT address FROM mail_accounts WHERE address = $1 AND active = true"
+
+[directory."sql".query.emails]
+query = "SELECT address FROM mail_accounts WHERE address = $1 AND active = true"
+
+[directory."sql".query.verify]
+query = "SELECT address FROM mail_accounts WHERE address ILIKE '%' || $1 || '%' AND active = true"
+
+[directory."sql".query.expand]
+query = ""
+
+[directory."sql".query.domains]
+query = "SELECT 1 FROM mail_accounts WHERE address LIKE '%@' || $1 AND active = true LIMIT 1"
+
+[directory."sql".query.secrets]
+query = "SELECT password_hash FROM mail_accounts WHERE address = $1 AND active = true"
+
+# Let's Encrypt — auto-renewing TLS cert for mail.webgoserver.com
+[acme."letsencrypt"]
+provider = "letsencrypt"
+contact = ["greg@howardsmail.com"]
+domains = ["mail.webgoserver.com"]
+cache-path = "/var/db/stalwart/acme"
+
+[certificate."default"]
+default = true
+
+[session.auth]
+mechanisms = ["PLAIN", "LOGIN"]
+directory = "sql"
+require = true
+
+[session.rcpt]
+directory = "sql"
+
+[sieve.trusted]
+directory = "sql"
+
+[resolver]
+type = "system"
+
+[report]
+domain = "webgoserver.com"

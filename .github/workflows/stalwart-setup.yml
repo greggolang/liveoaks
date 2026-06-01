@@ -1,7 +1,7 @@
 name: Install Stalwart Mail Server
 
-# Run this ONCE manually from GitHub Actions → Run workflow.
-# After it completes, DNS records (below) must be updated before email works.
+# Run ONCE manually: Actions → "Install Stalwart Mail Server" → Run workflow
+# Uses webgoserver.com so you can test fully before touching liveoakstennis.com DNS.
 on:
   workflow_dispatch:
 
@@ -10,7 +10,18 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Install and configure Stalwart Mail on server
+      - uses: actions/checkout@v4
+
+      - name: Copy config files to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: 172.236.228.11
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: scripts/stalwart-config.toml,scripts/stalwart-mail.service
+          target: /tmp/stalwart-files/
+
+      - name: Install and start Stalwart Mail
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: 172.236.228.11
@@ -19,186 +30,59 @@ jobs:
           script: |
             set -e
 
-            # ── 1. Download Stalwart Mail binary ──────────────────────────────
-            echo ">>> Downloading Stalwart Mail..."
+            echo ">>> Fetching latest Stalwart release tag..."
             ARCH="x86_64-unknown-linux-musl"
             TAG=$(curl -fsSL "https://api.github.com/repos/stalwartlabs/mail-server/releases/latest" \
                   | grep '"tag_name"' | sed 's/.*"tag_name": "\(.*\)".*/\1/')
-            echo "Latest tag: $TAG"
-            mkdir -p /tmp/stalwart-install
+            echo "Downloading $TAG..."
+            mkdir -p /tmp/stalwart-dl
             curl -fsSL \
               "https://github.com/stalwartlabs/mail-server/releases/download/${TAG}/stalwart-mail-${ARCH}.tar.gz" \
-              -o /tmp/stalwart-install/stalwart.tar.gz
-            tar -xzf /tmp/stalwart-install/stalwart.tar.gz -C /tmp/stalwart-install/
-            install -m 755 /tmp/stalwart-install/stalwart-mail /usr/local/bin/stalwart-mail
+              -o /tmp/stalwart-dl/stalwart.tar.gz
+            tar -xzf /tmp/stalwart-dl/stalwart.tar.gz -C /tmp/stalwart-dl/
+            install -m 755 /tmp/stalwart-dl/stalwart-mail /usr/local/bin/stalwart-mail
+            echo "Installed: $(stalwart-mail --version 2>&1 || true)"
 
-            # ── 2. Create user and directories ───────────────────────────────
             id -u stalwart &>/dev/null || useradd -r -s /sbin/nologin stalwart
             mkdir -p /etc/stalwart /var/db/stalwart/blobs /var/db/stalwart/acme
-            chown -R stalwart:stalwart /var/db/stalwart /etc/stalwart
 
-            # ── 3. Write config ───────────────────────────────────────────────
-            cat > /etc/stalwart/config.toml << 'CONFIG'
-            [server]
-            hostname = "mail.liveoakstennis.com"
-
-            [server.listener."smtp"]
-            bind = ["[::]:25"]
-            protocol = "smtp"
-
-            [server.listener."submission"]
-            bind = ["[::]:587"]
-            protocol = "smtp"
-            tls.implicit = false
-
-            [server.listener."imaps"]
-            bind = ["[::]:993"]
-            protocol = "imap"
-            tls.implicit = true
-
-            [server.listener."https"]
-            bind = ["[::]:443"]
-            protocol = "http"
-            tls.implicit = true
-
-            # ── Storage (messages stored on disk) ─────────────────────────────
-            [store."data"]
-            type = "rocksdb"
-            path = "/var/db/stalwart"
-            compression = "lz4"
-
-            [storage]
-            data = "data"
-            fts = "data"
-            blob = "data"
-            lookup = "data"
-            directory = "sql"
-
-            # ── PostgreSQL store ──────────────────────────────────────────────
-            [store."pg"]
-            type = "postgresql"
-            host = "localhost"
-            port = 5432
-            database = "liveoaks"
-            user = "liveoaks"
-            password = "liveoaks2026"
-            pool.max-connections = 10
-
-            # ── SQL directory (auth from mail_accounts table) ─────────────────
-            [directory."sql"]
-            type = "sql"
-            store = "pg"
-
-            [directory."sql".query.name]
-            query = "SELECT display_name FROM mail_accounts WHERE address = $1 AND active = true"
-
-            [directory."sql".query.members]
-            query = ""
-
-            [directory."sql".query.recipients]
-            query = "SELECT address FROM mail_accounts WHERE address = $1 AND active = true"
-
-            [directory."sql".query.emails]
-            query = "SELECT address FROM mail_accounts WHERE address = $1 AND active = true"
-
-            [directory."sql".query.verify]
-            query = "SELECT address FROM mail_accounts WHERE address ILIKE '%' || $1 || '%' AND active = true"
-
-            [directory."sql".query.expand]
-            query = ""
-
-            [directory."sql".query.domains]
-            query = "SELECT 1 FROM mail_accounts WHERE address LIKE '%@' || $1 AND active = true LIMIT 1"
-
-            [directory."sql".query.secrets]
-            query = "SELECT password_hash FROM mail_accounts WHERE address = $1 AND active = true"
-
-            # ── Let's Encrypt TLS (auto-renews) ───────────────────────────────
-            [acme."letsencrypt"]
-            provider = "letsencrypt"
-            contact = ["admin@liveoakstennis.com"]
-            domains = ["mail.liveoakstennis.com"]
-            cache-path = "/var/db/stalwart/acme"
-
-            [certificate."default"]
-            default = true
-
-            [session.auth]
-            mechanisms = ["PLAIN", "LOGIN"]
-            directory = "sql"
-            require = true
-
-            [session.rcpt]
-            directory = "sql"
-
-            [sieve.trusted]
-            directory = "sql"
-
-            [resolver]
-            type = "system"
-
-            [report]
-            domain = "liveoakstennis.com"
-            CONFIG
-
-            # ── 4. Systemd service ────────────────────────────────────────────
-            cat > /etc/systemd/system/stalwart-mail.service << 'SERVICE'
-            [Unit]
-            Description=Stalwart Mail Server
-            After=network.target postgresql.service
-
-            [Service]
-            Type=simple
-            ExecStart=/usr/local/bin/stalwart-mail --config /etc/stalwart/config.toml
-            User=stalwart
-            Group=stalwart
-            Restart=on-failure
-            RestartSec=5
-            LimitNOFILE=65536
-
-            [Install]
-            WantedBy=multi-user.target
-            SERVICE
+            cp /tmp/stalwart-files/scripts/stalwart-config.toml /etc/stalwart/config.toml
+            cp /tmp/stalwart-files/scripts/stalwart-mail.service /etc/systemd/system/stalwart-mail.service
 
             chown stalwart:stalwart /etc/stalwart/config.toml
             chmod 600 /etc/stalwart/config.toml
+            chown -R stalwart:stalwart /var/db/stalwart /etc/stalwart
 
-            # ── 5. Open firewall ports ────────────────────────────────────────
             if command -v ufw &>/dev/null; then
-              ufw allow 25/tcp comment "SMTP"
-              ufw allow 587/tcp comment "SMTP Submission"
-              ufw allow 993/tcp comment "IMAPS"
-              ufw allow 443/tcp comment "HTTPS Webmail"
+              ufw allow 25/tcp   comment "SMTP"
+              ufw allow 587/tcp  comment "SMTP Submission"
+              ufw allow 993/tcp  comment "IMAPS"
+              ufw allow 443/tcp  comment "HTTPS Webmail"
               ufw --force enable
             fi
 
-            # ── 6. Run migration 074 if not already applied ──────────────────
-            sudo -u postgres psql -d liveoaks -f /opt/liveoaks/migrations/074_mail_accounts.sql 2>/dev/null || true
+            sudo -u postgres psql -d liveoaks \
+              -f /opt/liveoaks/migrations/074_mail_accounts.sql 2>/dev/null || true
 
-            # ── 7. Start service ──────────────────────────────────────────────
+            sudo -u postgres psql -d liveoaks -c "
+              INSERT INTO mail_accounts (address, role_label, display_name) VALUES
+                ('president@webgoserver.com', 'President (test)', 'Liveoaks President - TEST'),
+                ('secretary@webgoserver.com', 'Secretary (test)', 'Liveoaks Secretary - TEST'),
+                ('treasurer@webgoserver.com', 'Treasurer (test)', 'Liveoaks Treasurer - TEST')
+              ON CONFLICT (address) DO NOTHING;"
+
             systemctl daemon-reload
             systemctl enable stalwart-mail
             systemctl restart stalwart-mail
-            sleep 3
+            sleep 4
             systemctl status stalwart-mail --no-pager
 
-            # ── 8. Print DNS instructions ─────────────────────────────────────
             echo ""
-            echo "======================================================"
-            echo "  STALWART INSTALLED — DNS RECORDS REQUIRED"
-            echo "======================================================"
-            echo ""
-            echo "Add these DNS records for liveoakstennis.com:"
-            echo ""
-            echo "  TYPE   NAME                        VALUE"
-            echo "  ----   ----                        -----"
-            echo "  A      mail                        172.236.228.11"
-            echo "  MX     @                           mail.liveoakstennis.com  (priority 10)"
-            echo "  TXT    @                           v=spf1 ip4:172.236.228.11 ~all"
-            echo "  TXT    _dmarc                      v=DMARC1; p=quarantine; rua=mailto:admin@liveoakstennis.com"
-            echo ""
-            echo "  DKIM key — retrieve with:"
-            echo "  stalwart-mail --config /etc/stalwart/config.toml dkim generate --domain liveoakstennis.com"
-            echo ""
-            echo "  After DNS propagates, visit: https://mail.liveoakstennis.com"
-            echo "======================================================"
+            echo "============================================================"
+            echo "  STALWART INSTALLED"
+            echo "============================================================"
+            echo "1. Add DNS A record:  mail.webgoserver.com -> 172.236.228.11"
+            echo "2. Once DNS is set, visit: https://mail.webgoserver.com/admin"
+            echo "3. In your app admin panel -> Mail Accounts -> Reset Password"
+            echo "   for each test account, then log in at https://mail.webgoserver.com"
+            echo "============================================================"
