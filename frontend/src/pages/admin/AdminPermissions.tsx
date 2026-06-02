@@ -13,6 +13,12 @@ const PAGES: { key: string; label: string; desc: string }[] = [
   { key: 'guests',        label: 'Guest Passes',        desc: 'Log guest visits and view personal guest pass history (/guests)' },
   { key: 'dues',          label: 'My Dues',             desc: 'View personal dues balance and payment history (/dues)' },
   { key: 'club_info',       label: 'About / Club Info',    desc: 'Club hours, contact details, and general information (/club-info)' },
+  { key: 'bylaws',        label: 'Bylaws',              desc: 'View the club bylaws document (/bylaws)' },
+  { key: 'pro_shop',      label: 'Pro Shop',            desc: 'Browse pro shop items and prices (/pro-shop)' },
+  { key: 'friends',       label: 'Friends',             desc: 'Manage friends and frequent playing partners (/friends)' },
+  { key: 'messages',      label: 'Messages',            desc: 'Send and receive member-to-member messages (/messages)' },
+  { key: 'fantasy',       label: 'Fantasy Pool',        desc: 'Join the fantasy tennis pool and make picks (/fantasy)' },
+  { key: 'ladder',        label: 'Tennis Ladder',       desc: 'Join ladders, issue challenges, view leaderboards (/ladder)' },
   { key: 'broadcast_email',       label: 'Broadcast Email',       desc: 'Send mass emails to all members or filtered groups (/admin/broadcast)' },
   { key: 'teaching_pro_booking',  label: 'Teaching Pro Booking',  desc: 'Allow this role to book Teaching Pro court sessions (/bookings)' },
 ]
