@@ -308,6 +308,63 @@ func (h *FinancialHandler) MemberStatement(c echo.Context) error {
 	return c.JSON(http.StatusOK, entries)
 }
 
+// MyStatement returns the authenticated member's full transaction history.
+func (h *FinancialHandler) MyStatement(c echo.Context) error {
+	userID := c.Get("user_id").(string)
+
+	type Entry struct {
+		Date        string  `json:"date"`
+		Category    string  `json:"category"`
+		Description string  `json:"description"`
+		Amount      float64 `json:"amount"`
+		Status      string  `json:"status"`
+		ID          string  `json:"id"`
+	}
+
+	rows, err := h.DB.Query(c.Request().Context(), `
+		SELECT date, category, description, amount, status, id FROM (
+			SELECT due_date::text AS date, 'dues' AS category,
+			       'Annual Dues' AS description,
+			       amount::float8, status, id::text
+			FROM dues WHERE user_id = $1
+
+			UNION ALL
+
+			SELECT created_at::date::text, 'kiosk',
+			       item_name || CASE WHEN quantity > 1 THEN ' x' || quantity ELSE '' END,
+			       total::float8, 'charged', id::text
+			FROM pro_shop_purchases WHERE user_id = $1
+
+			UNION ALL
+
+			SELECT created_at::date::text, 'kiosk_payment',
+			       'Kiosk Tab Payment' || COALESCE(': ' || notes, ''),
+			       amount::float8, 'paid', id::text
+			FROM kiosk_payments WHERE user_id = $1
+
+			UNION ALL
+
+			SELECT charge_date::text, 'charge',
+			       description, amount::float8, status, id::text
+			FROM member_charges WHERE user_id = $1
+		) t
+		ORDER BY date DESC, category`, userID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch statement")
+	}
+	defer rows.Close()
+
+	entries := []Entry{}
+	for rows.Next() {
+		var e Entry
+		if err := rows.Scan(&e.Date, &e.Category, &e.Description, &e.Amount, &e.Status, &e.ID); err != nil {
+			continue
+		}
+		entries = append(entries, e)
+	}
+	return c.JSON(http.StatusOK, entries)
+}
+
 // MyBalance returns the current member's outstanding balance for the dashboard warning.
 func (h *FinancialHandler) MyBalance(c echo.Context) error {
 	userID := c.Get("user_id").(string)

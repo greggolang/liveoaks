@@ -83,6 +83,8 @@ export default function Dashboard() {
   const [cameraDown, setCameraDown] = useState(false)
   const [adminAlerts, setAdminAlerts] = useState<{ id: string; message: string; type: string }[]>([])
   const [myBalance, setMyBalance] = useState<{ dues_owed: number; kiosk_tab: number; charges_owed: number; total: number } | null>(null)
+  const [showStatement, setShowStatement] = useState(false)
+  const [statement, setStatement] = useState<import('../api/client').StatementEntry[] | null>(null)
   const [mailAccount, setMailAccount] = useState<{ address: string; role_label: string; webmail_url: string } | null>(null)
   const [friends, setFriends] = useState<{id: string; friend_user_id?: string; friend_name: string; friend_email?: string; is_guest: boolean}[]>([])
   const [directory, setDirectory] = useState<{id: string; first_name: string; last_name: string; email: string}[]>([])
@@ -294,18 +296,73 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Outstanding balance warning */}
+      {/* Account balance — click to view full statement */}
       {myBalance && myBalance.total > 0 && (
-        <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 flex items-start gap-3">
-          <span className="text-amber-500 text-xl shrink-0">⚠</span>
-          <div className="flex-1">
-            <p className="font-semibold text-amber-800">Outstanding Balance: ${myBalance.total.toFixed(2)}</p>
-            <p className="text-sm text-amber-700 mt-0.5">
-              {myBalance.dues_owed > 0 && `Dues: $${myBalance.dues_owed.toFixed(2)}  `}
-              {myBalance.kiosk_tab > 0 && `Kiosk tab: $${myBalance.kiosk_tab.toFixed(2)}  `}
+        <button
+          onClick={() => {
+            setShowStatement(true)
+            if (!statement) api.finance.myStatement().then(d => setStatement(d)).catch(() => setStatement([]))
+          }}
+          className="w-full flex items-center gap-3 bg-white border border-gray-200 rounded-xl px-4 py-3 hover:bg-gray-50 transition text-left"
+        >
+          <span className="text-2xl shrink-0">💳</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-gray-800">Account Balance</p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {myBalance.dues_owed > 0 && `Dues: $${myBalance.dues_owed.toFixed(2)}`}
+              {myBalance.dues_owed > 0 && myBalance.kiosk_tab > 0 && '  ·  '}
+              {myBalance.kiosk_tab > 0 && `Kiosk tab: $${myBalance.kiosk_tab.toFixed(2)}`}
+              {(myBalance.dues_owed > 0 || myBalance.kiosk_tab > 0) && myBalance.charges_owed > 0 && '  ·  '}
               {myBalance.charges_owed > 0 && `Other charges: $${myBalance.charges_owed.toFixed(2)}`}
             </p>
-            <p className="text-xs text-amber-600 mt-1">Please contact the club office to settle your account. Members with overdue balances may be restricted from court bookings.</p>
+          </div>
+          <p className="shrink-0 text-sm font-semibold text-gray-800">${myBalance.total.toFixed(2)}</p>
+        </button>
+      )}
+
+      {/* Statement modal */}
+      {showStatement && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowStatement(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <h2 className="font-semibold text-gray-800">My Account</h2>
+              <button onClick={() => setShowStatement(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+            </div>
+            <div className="overflow-y-auto flex-1 divide-y divide-gray-100">
+              {statement === null ? (
+                <p className="text-sm text-gray-400 text-center py-8">Loading…</p>
+              ) : statement.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-8">No transactions found.</p>
+              ) : statement.map(e => {
+                const isCredit = e.category === 'kiosk_payment'
+                const categoryLabel: Record<string, string> = {
+                  dues: 'Dues', kiosk: 'Pro Shop', kiosk_payment: 'Payment', charge: 'Charge',
+                }
+                const statusColor: Record<string, string> = {
+                  unpaid: 'text-red-500', paid: 'text-green-600', charged: 'text-gray-500', waived: 'text-gray-400',
+                }
+                return (
+                  <div key={e.id} className="flex items-center gap-3 px-5 py-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-gray-800 truncate">{e.description}</p>
+                      <p className="text-xs text-gray-400">{categoryLabel[e.category] ?? e.category} · {e.date}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className={`text-sm font-medium ${isCredit ? 'text-green-600' : 'text-gray-800'}`}>
+                        {isCredit ? '−' : ''}${e.amount.toFixed(2)}
+                      </p>
+                      <p className={`text-xs ${statusColor[e.status] ?? 'text-gray-400'}`}>{e.status}</p>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            {myBalance && (
+              <div className="flex items-center justify-between px-5 py-4 border-t border-gray-100">
+                <p className="text-sm font-semibold text-gray-700">Total Outstanding</p>
+                <p className="text-sm font-semibold text-gray-800">${myBalance.total.toFixed(2)}</p>
+              </div>
+            )}
           </div>
         </div>
       )}

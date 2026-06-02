@@ -18,6 +18,7 @@ var valid = map[string]bool{
 	"ladder_challenge":     true,
 	"liveball_invitation":  true,
 	"member_message":       true,
+	"court_waitlist":       true,
 }
 
 // UserWantsEmail returns true if the user has the given notification type enabled.

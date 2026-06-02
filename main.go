@@ -119,9 +119,11 @@ func main() {
 	kiosk := &handlers.KioskHandler{DB: pool}
 	mail := &handlers.MailHandler{DB: pool}
 	imapH := &handlers.IMAPHandler{DB: pool}
+	courtWaitlist := &handlers.CourtWaitlistHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	notifPrefs := &handlers.NotifPrefsHandler{DB: pool}
 	yolinkH := &handlers.YoLinkHandler{DB: pool, Service: yolinkSvc}
 	courtBlocks := &handlers.CourtBlocksHandler{DB: pool}
+	boardComms := &handlers.BoardCommsHandler{DB: pool}
 
 	api := e.Group("/api")
 
@@ -276,6 +278,7 @@ func main() {
 	adminOnly.GET("/finance/pl", finance.PLReport)
 	adminOnly.POST("/finance/send-reminders", finance.SendReminders)
 	authed.GET("/finance/my-balance", finance.MyBalance)
+	authed.GET("/finance/my-statement", finance.MyStatement)
 	adminOnly.GET("/waitlist", waitlist.List)
 	adminOnly.PUT("/waitlist/:id/status", waitlist.UpdateStatus)
 	adminOnly.PUT("/waitlist/:id/contact", waitlist.UpdateContact)
@@ -284,6 +287,8 @@ func main() {
 	adminOnly.GET("/events/:id/signups", signups.List)
 	adminOnly.GET("/events/:id/signups/summary", signups.Summary)
 	adminOnly.DELETE("/events/:id/signups/:signupId", signups.Delete)
+	adminOnly.GET("/board-communications", boardComms.List)
+	adminOnly.GET("/board-members", boardComms.BoardMembers)
 	adminOnly.POST("/test-email", admin.TestEmail)
 	adminOnly.GET("/smtp-ping", admin.SMTPPing)
 	adminOnly.GET("/permissions", perms.GetAll)
@@ -345,6 +350,12 @@ func main() {
 
 	// Mail — current user's assigned account (authenticated, not admin-only)
 	authed.GET("/my-mail-account", mail.MyAccount)
+
+	// Court waitlist
+	authed.GET("/court-waitlist", courtWaitlist.ListForDate)
+	authed.GET("/court-waitlist/mine", courtWaitlist.MyEntries)
+	authed.POST("/court-waitlist", courtWaitlist.Join)
+	authed.DELETE("/court-waitlist/:id", courtWaitlist.Leave)
 
 	// In-app IMAP inbox (any authenticated user with an assigned mail account)
 	authed.GET("/imap/messages", imapH.ListMessages)

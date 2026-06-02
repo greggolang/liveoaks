@@ -51,6 +51,7 @@ import TennisLadder from './pages/TennisLadder'
 import AdminLiveball from './pages/admin/AdminLiveball'
 import AdminBroadcast from './pages/admin/AdminBroadcast'
 import AdminBoardMeetings from './pages/admin/AdminBoardMeetings'
+import AdminBoardCommunications from './pages/admin/AdminBoardCommunications'
 import AdminMail from './pages/admin/AdminMail'
 import AdminProShop from './pages/admin/AdminProShop'
 import AdminYoLink from './pages/admin/AdminYoLink'
@@ -153,6 +154,7 @@ function AppRoutes() {
         <Route path="liveball" element={<AdminLiveball />} />
         <Route path="broadcast" element={<AdminBroadcast />} />
         <Route path="board-meetings" element={<AdminBoardMeetings />} />
+        <Route path="board-communications" element={<AdminBoardCommunications />} />
         <Route path="mail" element={<AdminMail />} />
         <Route path="yolink" element={<AdminYoLink />} />
       </Route>

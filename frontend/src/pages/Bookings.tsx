@@ -153,6 +153,11 @@ export default function Bookings() {
   const [cancelCustom, setCancelCustom] = useState('')
   const [cancelling, setCancelling] = useState(false)
 
+  // Court waitlist
+  const [waitlistSlots, setWaitlistSlots] = useState<{ court_id: number; start_time: string; end_time: string; count: number; is_mine: boolean; my_entry_id?: string }[]>([])
+  const [myWaitlist, setMyWaitlist] = useState<{ id: string; court_id: number; court_name: string; start_time: string; end_time: string; position: number; notified_at?: string }[]>([])
+  const [waitlistLoading, setWaitlistLoading] = useState<string | null>(null)
+
   // Teaching pro lesson form
   const [lessonType, setLessonType] = useState<'member' | 'guest' | 'group_adult' | 'group_junior' | ''>('')
   const [lessonMember, setLessonMember] = useState<{id: string; first_name: string; last_name: string; email: string} | null>(null)
@@ -174,14 +179,55 @@ export default function Bookings() {
   const [transferring, setTransferring] = useState(false)
   const [transferError, setTransferError] = useState('')
 
+  const handleJoinWaitlist = async (courtId: number, startTime: string, endTime: string) => {
+    const key = `${courtId}-${startTime}`
+    setWaitlistLoading(key)
+    try {
+      const res = await api.courtWaitlist.join({ court_id: courtId, start_time: startTime, end_time: endTime })
+      setWaitlistSlots(prev => {
+        const existing = prev.find(w => w.court_id === courtId && w.start_time === startTime)
+        if (existing) {
+          return prev.map(w => w.court_id === courtId && w.start_time === startTime
+            ? { ...w, count: w.count + 1, is_mine: true, my_entry_id: res.id }
+            : w)
+        }
+        return [...prev, { court_id: courtId, start_time: startTime, end_time: endTime, count: 1, is_mine: true, my_entry_id: res.id }]
+      })
+      api.courtWaitlist.mine().then(d => setMyWaitlist(d)).catch(() => {})
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setWaitlistLoading(null)
+    }
+  }
+
+  const handleLeaveWaitlist = async (entryId: string, courtId: number, startTime: string) => {
+    setWaitlistLoading(`${courtId}-${startTime}`)
+    try {
+      await api.courtWaitlist.leave(entryId)
+      setWaitlistSlots(prev => prev.map(w =>
+        w.court_id === courtId && w.start_time === startTime
+          ? { ...w, count: Math.max(0, w.count - 1), is_mine: false, my_entry_id: undefined }
+          : w
+      ).filter(w => w.count > 0))
+      setMyWaitlist(prev => prev.filter(w => w.id !== entryId))
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setWaitlistLoading(null)
+    }
+  }
+
   const load = useCallback(() => {
     api.bookings.list(date).then(d => setBookings(d as Booking[]))
     api.courtBlocks.listForDate(date).then(d => setCourtBlocks(d as any[])).catch(() => {})
+    api.courtWaitlist.listForDate(date).then(d => setWaitlistSlots(d)).catch(() => {})
   }, [date])
 
   const loadMine = async () => {
     const mine = await api.bookings.mine() as Booking[]
     setMyBookings(mine)
+    api.courtWaitlist.mine().then(d => setMyWaitlist(d)).catch(() => {})
     const map: Record<string, { players: MatchPlayer[]; invitations: Invitation[] }> = {}
     await Promise.all(mine.map(async b => {
       try {
@@ -1830,6 +1876,10 @@ export default function Bookings() {
                           : isOnRoster ? 'bg-green-100'
                           : 'bg-slate-200'
 
+                        const wl = waitlistSlots.find(w => w.court_id === c.id && w.start_time === booking.start_time)
+                        const wlKey = `${c.id}-${booking.start_time}`
+                        const wlLoading = waitlistLoading === wlKey
+
                         return (
                           <td key={c.id} className="px-2 py-1 align-top">
                             {showDetails ? (
@@ -1876,6 +1926,26 @@ export default function Bookings() {
                               </div>
                             ) : (
                               <div className={`rounded h-7 ${compactBg}`} />
+                            )}
+                            {/* Waitlist button — only for future slots the current user isn't part of */}
+                            {showDetails && !isInvolved && !past && (
+                              <div className="mt-1" onClick={e => e.stopPropagation()}>
+                                {wl?.is_mine && wl.my_entry_id ? (
+                                  <button
+                                    disabled={wlLoading}
+                                    onClick={() => handleLeaveWaitlist(wl.my_entry_id!, c.id, booking.start_time)}
+                                    className="w-full text-xs py-0.5 rounded bg-yellow-100 text-yellow-800 hover:bg-yellow-200 font-medium transition disabled:opacity-50">
+                                    {wlLoading ? '…' : `On waitlist (#${(wl.count)})`}
+                                  </button>
+                                ) : (
+                                  <button
+                                    disabled={wlLoading}
+                                    onClick={() => handleJoinWaitlist(c.id, booking.start_time, booking.end_time)}
+                                    className="w-full text-xs py-0.5 rounded bg-slate-200 text-slate-600 hover:bg-yellow-100 hover:text-yellow-800 font-medium transition disabled:opacity-50">
+                                    {wlLoading ? '…' : wl ? `Waitlist (${wl.count})` : 'Waitlist'}
+                                  </button>
+                                )}
+                              </div>
                             )}
                           </td>
                         )
@@ -1987,7 +2057,47 @@ export default function Bookings() {
                 })}
               </div>
             )
-          ) : myBookings.length === 0 ? (
+          ) : (
+            <>
+            {myWaitlist.length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">My Waitlist</h3>
+                <div className="space-y-2">
+                  {myWaitlist.map(w => {
+                    const start = new Date(w.start_time)
+                    const end = new Date(w.end_time)
+                    const wlKey = `${w.court_id}-${w.start_time}`
+                    return (
+                      <div key={w.id} className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-yellow-200 text-yellow-800 font-bold text-sm flex items-center justify-center shrink-0">
+                            #{w.position}
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-gray-800">{w.court_name}</p>
+                            <p className="text-xs text-gray-500">
+                              {start.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}
+                              {' · '}
+                              {start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} – {end.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                            </p>
+                            {w.notified_at && (
+                              <p className="text-xs text-yellow-700 font-medium mt-0.5">Court opened — book now!</p>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          disabled={waitlistLoading === wlKey}
+                          onClick={() => handleLeaveWaitlist(w.id, w.court_id, w.start_time)}
+                          className="text-xs text-gray-400 hover:text-red-500 transition shrink-0 disabled:opacity-50">
+                          Remove
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+            {myBookings.length === 0 ? (
             <div className="bg-white border border-gray-200 rounded-xl p-8 text-center shadow-sm">
               <p className="text-gray-400 text-sm mb-3">You have no upcoming bookings.</p>
               <button onClick={() => setTab('grid')}
@@ -1995,7 +2105,7 @@ export default function Bookings() {
                 Book a Court
               </button>
             </div>
-          ) : (
+            ) : (
             <div className="space-y-4">
               {myBookings.map(b => {
                 const start = new Date(b.start_time)
@@ -2296,6 +2406,8 @@ export default function Bookings() {
                 )
               })}
             </div>
+            )}
+            </>
           )}
         </div>
       )}

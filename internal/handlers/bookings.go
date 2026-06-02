@@ -759,8 +759,19 @@ func (h *BookingsHandler) Delete(c echo.Context) error {
 		 VALUES ($1, $2, $3, $4, $5, $6, NULLIF($7, ''), $8, $9)`,
 		id, courtName, matchType, startTime, endTime, ownerName, req.Reason, userID, cancelledByName)
 
+	var courtID int
+	h.DB.QueryRow(c.Request().Context(), `SELECT court_id FROM bookings WHERE id = $1`, id).Scan(&courtID)
+
 	h.DB.Exec(c.Request().Context(), `DELETE FROM bookings WHERE id = $1`, id)
 	h.Logger.Log(c.Request().Context(), "booking_cancelled", id, userID, c.RealIP())
+
+	// Notify anyone on the waitlist for this court+time slot.
+	if courtID != 0 && courtName != "" {
+		loc := loadTimezone(c.Request().Context(), h.DB)
+		go NotifyCourtWaitlist(context.Background(), h.DB, h.Mailer, h.SiteURL,
+			courtID, courtName, startTime, endTime, loc)
+	}
+
 	return c.NoContent(http.StatusNoContent)
 }
 

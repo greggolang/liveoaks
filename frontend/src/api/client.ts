@@ -135,6 +135,19 @@ export const api = {
       request('/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, password }) }),
   },
   courts: { list: () => request('/courts') },
+  courtWaitlist: {
+    listForDate: (date: string) =>
+      request<{ court_id: number; start_time: string; end_time: string; count: number; is_mine: boolean; my_entry_id?: string }[]>(
+        `/court-waitlist?date=${date}`
+      ),
+    mine: () =>
+      request<{ id: string; court_id: number; court_name: string; start_time: string; end_time: string; position: number; notified_at?: string; created_at: string }[]>(
+        '/court-waitlist/mine'
+      ),
+    join: (data: { court_id: number; start_time: string; end_time: string }) =>
+      request<{ id: string; position: number }>('/court-waitlist', { method: 'POST', body: JSON.stringify(data) }),
+    leave: (id: string) => request(`/court-waitlist/${id}`, { method: 'DELETE' }),
+  },
   courtBlocks: {
     listForDate: (date: string) => request(`/court-blocks?date=${date}`),
     listAdmin: () => request('/admin/court-blocks'),
@@ -406,6 +419,7 @@ export const api = {
     balances: () => request<MemberBalance[]>('/admin/finance/balances'),
     statement: (userId: string) => request<StatementEntry[]>(`/admin/finance/statement/${userId}`),
     myBalance: () => request<MyBalance>('/finance/my-balance'),
+    myStatement: () => request<StatementEntry[]>('/finance/my-statement'),
     // Charges
     createCharge: (data: object) => request('/admin/finance/charges', { method: 'POST', body: JSON.stringify(data) }),
     updateChargeStatus: (id: string, status: string) => request(`/admin/finance/charges/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),
@@ -667,5 +681,18 @@ export const api = {
     confirm: (token: string) => request(`/booking-reminder/${token}/ok`, { method: 'POST' }),
     reportIssue: (token: string, note: string) =>
       request(`/booking-reminder/${token}/issue`, { method: 'POST', body: JSON.stringify({ note }) }),
+  },
+  boardCommunications: {
+    list: (params?: { q?: string; type?: string; user_id?: string; from?: string; to?: string }) => {
+      const qs = new URLSearchParams()
+      if (params?.q) qs.set('q', params.q)
+      if (params?.type) qs.set('type', params.type)
+      if (params?.user_id) qs.set('user_id', params.user_id)
+      if (params?.from) qs.set('from', params.from)
+      if (params?.to) qs.set('to', params.to)
+      const q = qs.toString()
+      return request(`/admin/board-communications${q ? '?' + q : ''}`)
+    },
+    boardMembers: () => request('/admin/board-members'),
   },
 }
