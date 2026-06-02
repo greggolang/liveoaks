@@ -134,7 +134,7 @@ function AppRoutes() {
         <Route path="settings" element={<AdminSettings />} />
         <Route path="resets" element={<AdminResets />} />
         <Route path="events/:id/signups" element={<AdminEventSignups />} />
-        <Route path="test-email" element={<AdminTestEmail />} />
+        <Route path="communication-test" element={<AdminTestEmail />} />
         <Route path="log" element={<AdminLog />} />
         <Route path="permissions" element={<AdminPermissions />} />
         <Route path="feedback" element={<AdminFeedback />} />
