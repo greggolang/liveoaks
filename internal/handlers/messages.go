@@ -189,6 +189,11 @@ func (h *MessagesHandler) Send(c echo.Context) error {
 	msg.SenderName = senderFirst + " " + senderLast
 	msg.RecipientName = recipientFirst + " " + recipientLast
 
+	// Permanently log if either party is a board member.
+	LogBoardComm(h.DB, "message", msg.ID, msg.Subject, req.Body,
+		senderID, msg.SenderName, "",
+		req.RecipientID, msg.RecipientName, recipientEmail)
+
 	// Email notification — async so the API returns fast.
 	if h.Mailer != nil {
 		senderName := senderFirst + " " + senderLast

@@ -7,6 +7,22 @@ export interface MemberBalance {
   dues_owed: number; kiosk_tab: number; charges_owed: number; total: number
   oldest_due?: string
 }
+export interface ApplianceItem {
+  id: string; name: string; location?: string; brand?: string
+  model_number?: string; serial_number?: string; installed_date?: string
+  notes?: string; manual_filename?: string; manual_original_name?: string
+  created_at: string; updated_at: string
+}
+export interface ApplianceServiceRecord {
+  id: string; appliance_id: string; service_date: string; service_type: string
+  description?: string; technician?: string; cost?: number
+  created_by?: string; created_by_name: string; created_at: string
+}
+export interface ApplianceReminder {
+  id: string; appliance_id: string; title: string; due_date: string
+  recurrence_days?: number; notes?: string; last_sent_at?: string; created_at: string
+}
+
 export interface StatementEntry {
   id: string; date: string; category: string; description: string
   amount: number; status: string
@@ -431,6 +447,26 @@ export const api = {
     pl: (year?: number) => request<PLReport>(`/admin/finance/pl${year ? `?year=${year}` : ''}`),
     // Reminders
     sendReminders: () => request('/admin/finance/send-reminders', { method: 'POST' }),
+  },
+  appliances: {
+    list: () => request<ApplianceItem[]>('/admin/appliances'),
+    create: (data: object) => request<ApplianceItem>('/admin/appliances', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: object) => request<ApplianceItem>(`/admin/appliances/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    delete: (id: string) => request(`/admin/appliances/${id}`, { method: 'DELETE' }),
+    uploadManual: (id: string, form: FormData) => upload<ApplianceItem>(`/admin/appliances/${id}/manual`, form),
+    deleteManual: (id: string) => request(`/admin/appliances/${id}/manual`, { method: 'DELETE' }),
+    serviceRecords: {
+      list: (id: string) => request<ApplianceServiceRecord[]>(`/admin/appliances/${id}/service-records`),
+      create: (id: string, data: object) => request<ApplianceServiceRecord>(`/admin/appliances/${id}/service-records`, { method: 'POST', body: JSON.stringify(data) }),
+      delete: (applianceId: string, recordId: string) => request(`/admin/appliances/${applianceId}/service-records/${recordId}`, { method: 'DELETE' }),
+    },
+    reminders: {
+      list: (id: string) => request<ApplianceReminder[]>(`/admin/appliances/${id}/reminders`),
+      create: (id: string, data: object) => request<ApplianceReminder>(`/admin/appliances/${id}/reminders`, { method: 'POST', body: JSON.stringify(data) }),
+      update: (applianceId: string, reminderId: string, data: object) => request<ApplianceReminder>(`/admin/appliances/${applianceId}/reminders/${reminderId}`, { method: 'PUT', body: JSON.stringify(data) }),
+      delete: (applianceId: string, reminderId: string) => request(`/admin/appliances/${applianceId}/reminders/${reminderId}`, { method: 'DELETE' }),
+      send: (applianceId: string, reminderId: string) => request<{ sent: number }>(`/admin/appliances/${applianceId}/reminders/${reminderId}/send`, { method: 'POST' }),
+    },
   },
   teachingPro: {
     list: (from?: string, to?: string) => {

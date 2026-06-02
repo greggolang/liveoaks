@@ -179,6 +179,11 @@ func (h *BoardMeetingsHandler) Create(c echo.Context) error {
 			continue
 		}
 
+		// Permanently log this invitation so the record survives future role changes.
+		LogBoardComm(h.DB, "meeting", invID, req.Title, req.Description,
+			"", "Club Secretary", "",
+			m.id, m.name, m.email)
+
 		if h.Mailer != nil && m.email != "" && notifprefs.UserWantsEmail(c.Request().Context(), h.DB, m.id, "board_meeting") {
 			acceptURL := fmt.Sprintf("%s/board-meeting/%s/accept", h.SiteURL, token)
 			declineURL := fmt.Sprintf("%s/board-meeting/%s/decline", h.SiteURL, token)

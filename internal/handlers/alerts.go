@@ -131,6 +131,13 @@ func (h *AlertsHandler) AdminCreate(c echo.Context) error {
 		req.Type = "info"
 	}
 	var a MemberAlert
+	var adminName, targetName, targetEmail string
+	h.DB.QueryRow(c.Request().Context(),
+		`SELECT first_name || ' ' || last_name FROM users WHERE id = $1`, adminID).Scan(&adminName)
+	h.DB.QueryRow(c.Request().Context(),
+		`SELECT first_name || ' ' || last_name, email FROM users WHERE id = $1`, req.UserID).
+		Scan(&targetName, &targetEmail)
+
 	err := h.DB.QueryRow(c.Request().Context(), `
 		INSERT INTO member_alerts (user_id, message, type, created_by)
 		VALUES ($1, $2, $3, $4)
@@ -140,6 +147,12 @@ func (h *AlertsHandler) AdminCreate(c echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not create alert")
 	}
+
+	// Permanently log if the recipient is a board member.
+	LogBoardComm(h.DB, "alert", a.ID, "Member Alert", req.Message,
+		adminID, adminName, "",
+		req.UserID, targetName, targetEmail)
+
 	return c.JSON(http.StatusCreated, a)
 }
 

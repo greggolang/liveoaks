@@ -17,7 +17,8 @@ interface BoardComm {
 
 interface BoardMember {
   id: string
-  name: string
+  first_name: string
+  last_name: string
   role: string
 }
 
@@ -143,7 +144,7 @@ export default function AdminBoardCommunications() {
             <option value="">All board members</option>
             {boardMembers.map(m => (
               <option key={m.id} value={m.id}>
-                {m.name} ({ROLE_LABELS[m.role] ?? m.role})
+                {m.first_name} {m.last_name} ({ROLE_LABELS[m.role] ?? m.role})
               </option>
             ))}
           </select>

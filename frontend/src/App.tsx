@@ -12,7 +12,7 @@ import Bookings from './pages/Bookings'
 import CourtGrid from './pages/CourtGrid'
 import Announcements from './pages/Announcements'
 import Events from './pages/Events'
-import Documents from './pages/Documents'
+import Files from './pages/Documents'
 import PhotoGallery from './pages/PhotoGallery'
 import USTATeams from './pages/USTATeams'
 import MemberDirectory from './pages/MemberDirectory'
@@ -62,6 +62,8 @@ import AdminCancellations from './pages/admin/AdminCancellations'
 import AdminCourtBlocks from './pages/admin/AdminCourtBlocks'
 import AdminAccounting from './pages/admin/AdminAccounting'
 import AdminFinancialRules from './pages/admin/AdminFinancialRules'
+import AdminAppliances from './pages/admin/AdminAppliances'
+import AdminGuests from './pages/admin/AdminGuests'
 import BoardMeetingResponse from './pages/BoardMeetingResponse'
 import LiveballResponse from './pages/LiveballResponse'
 import BookingReminderResponse from './pages/BookingReminderResponse'
@@ -106,7 +108,7 @@ function AppRoutes() {
       <Route path="/court-grid" element={<Navigate to="/dashboard" replace />} />
       <Route path="/announcements" element={<ProtectedRoute><Announcements /></ProtectedRoute>} />
       <Route path="/events" element={<ProtectedRoute><Events /></ProtectedRoute>} />
-      <Route path="/documents" element={<ProtectedRoute><Documents /></ProtectedRoute>} />
+      <Route path="/documents" element={<ProtectedRoute><Files /></ProtectedRoute>} />
       <Route path="/photos" element={<ProtectedRoute><PhotoGallery /></ProtectedRoute>} />
       <Route path="/usta-teams" element={<ProtectedRoute><USTATeams /></ProtectedRoute>} />
       <Route path="/directory" element={<ProtectedRoute><MemberDirectory /></ProtectedRoute>} />
@@ -157,6 +159,8 @@ function AppRoutes() {
         <Route path="board-communications" element={<AdminBoardCommunications />} />
         <Route path="mail" element={<AdminMail />} />
         <Route path="yolink" element={<AdminYoLink />} />
+        <Route path="appliances" element={<AdminAppliances />} />
+        <Route path="guests" element={<AdminGuests />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

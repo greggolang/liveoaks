@@ -124,6 +124,7 @@ func main() {
 	yolinkH := &handlers.YoLinkHandler{DB: pool, Service: yolinkSvc}
 	courtBlocks := &handlers.CourtBlocksHandler{DB: pool}
 	boardComms := &handlers.BoardCommsHandler{DB: pool}
+	appliances := &handlers.AppliancesHandler{DB: pool, UploadDir: uploadDir, Mailer: mailer, SiteURL: cfg.SiteURL}
 
 	api := e.Group("/api")
 
@@ -495,6 +496,23 @@ func main() {
 	boardPlus.GET("/admin/booking-cancellations", bookings.CancellationReport)
 	boardPlus.POST("/admin/member-alerts", alerts.AdminCreate)
 	boardPlus.DELETE("/admin/member-alerts/:id", alerts.AdminDelete)
+
+	// Appliances & maintenance (board+)
+	boardPlus.GET("/admin/appliances", appliances.List)
+	boardPlus.POST("/admin/appliances", appliances.Create)
+	boardPlus.PUT("/admin/appliances/:id", appliances.Update)
+	boardPlus.DELETE("/admin/appliances/:id", appliances.Delete)
+	boardPlus.POST("/admin/appliances/:id/manual", appliances.UploadManual)
+	boardPlus.DELETE("/admin/appliances/:id/manual", appliances.DeleteManual)
+	boardPlus.GET("/admin/appliances/:id/service-records", appliances.ListServiceRecords)
+	boardPlus.POST("/admin/appliances/:id/service-records", appliances.CreateServiceRecord)
+	boardPlus.DELETE("/admin/appliances/:id/service-records/:recordId", appliances.DeleteServiceRecord)
+	boardPlus.GET("/admin/appliances/:id/reminders", appliances.ListReminders)
+	boardPlus.POST("/admin/appliances/:id/reminders", appliances.CreateReminder)
+	boardPlus.PUT("/admin/appliances/:id/reminders/:reminderId", appliances.UpdateReminder)
+	boardPlus.DELETE("/admin/appliances/:id/reminders/:reminderId", appliances.DeleteReminder)
+	boardPlus.POST("/admin/appliances/:id/reminders/:reminderId/send", appliances.SendReminder)
+	e.GET("/uploads/appliance-manuals/:filename", appliances.ServeManual)
 
 	// Serve uploaded files
 	e.GET("/uploads/documents/:filename", uploads.ServeDocument)

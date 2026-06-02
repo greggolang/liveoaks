@@ -22,6 +22,7 @@ const sections: Section[] = [
     links: [
       { to: '/admin/users', label: 'Members' },
       { to: '/admin/waitlist', label: 'Waitlist' },
+      { to: '/admin/guests', label: 'Guest Passes' },
     ],
   },
   {
@@ -38,6 +39,7 @@ const sections: Section[] = [
     heading: 'Bookings',
     links: [
       { to: '/admin/bookings', label: 'All Bookings' },
+      { to: '/admin/court-blocks', label: 'Court Blocks' },
       { to: '/admin/cancellations', label: 'Cancellations' },
       { to: '/admin/ball-tracking', label: 'Ball Tracking' },
       { to: '/admin/teaching-pro', label: 'Teaching Pro' },
@@ -69,6 +71,7 @@ const sections: Section[] = [
   {
     heading: 'Clubhouse',
     links: [
+      { to: '/admin/appliances', label: 'Appliances' },
       { to: '/admin/yolink', label: 'YoLink Sensors' },
     ],
   },
