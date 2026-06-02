@@ -265,3 +265,12 @@ func (h *YoLinkHandler) DeleteRule(c echo.Context) error {
 	h.DB.Exec(c.Request().Context(), `DELETE FROM yolink_alert_rules WHERE id = $1`, c.Param("id"))
 	return c.NoContent(http.StatusNoContent)
 }
+
+// TestRule fires a rule on demand and reports how many recipients were notified.
+func (h *YoLinkHandler) TestRule(c echo.Context) error {
+	n, err := h.Service.TestRule(c.Request().Context(), c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+	return c.JSON(http.StatusOK, map[string]interface{}{"recipients": n})
+}

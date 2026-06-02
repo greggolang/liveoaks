@@ -69,6 +69,8 @@ export default function AdminYoLink() {
   const [rules, setRules] = useState<YoLinkRule[]>([])
   const [ruleForm, setRuleForm] = useState<Partial<YoLinkRule> | null>(null)
   const [ruleSaving, setRuleSaving] = useState(false)
+  const [testingId, setTestingId] = useState<string | null>(null)
+  const [members, setMembers] = useState<{ id: string; first_name: string; last_name: string }[]>([])
 
   const loadDevices = () => api.yolink.listDevices().then(d => setDevices(d as Device[]))
   const loadAlerts = () => api.yolink.listAlerts().then(a => setAlerts(a as Alert[]))
@@ -78,8 +80,14 @@ export default function AdminYoLink() {
     loadDevices()
     loadAlerts()
     loadRules()
+    api.members.directory().then((m: any) => setMembers(m as any[])).catch(() => {})
     api.yolink.getConfig().then((c: any) => setConfigClientId(c.client_id ?? ''))
   }, [])
+
+  const memberName = (id: string | null) => {
+    const m = members.find(x => x.id === id)
+    return m ? `${m.first_name} ${m.last_name}` : 'user'
+  }
 
   const deviceTypes = [...new Set(devices.map(d => d.type).filter(Boolean))].sort()
 
@@ -110,6 +118,18 @@ export default function AdminYoLink() {
     if (!confirm(`Delete rule "${r.name}"?`)) return
     await api.yolink.deleteRule(r.id)
     loadRules()
+  }
+
+  const testRule = async (r: YoLinkRule) => {
+    setTestingId(r.id)
+    try {
+      const res = await api.yolink.testRule(r.id)
+      alert(`Test alert for "${r.name}" sent to ${res.recipients} recipient(s) via ${[r.notify_dashboard && 'dashboard', r.notify_email && 'email', r.notify_sms && 'SMS'].filter(Boolean).join(', ') || 'no channels'}.`)
+    } catch (err: any) {
+      alert(err.message ?? 'Test failed')
+    } finally {
+      setTestingId(null)
+    }
   }
 
   const handleSync = async () => {
@@ -334,6 +354,7 @@ export default function AdminYoLink() {
                       <option value="all_members">All members</option>
                       <option value="board">Board members</option>
                       <option value="role">Specific role</option>
+                      <option value="user">Specific user</option>
                     </select>
                   </div>
                   {ruleForm.recipient_scope === 'role' && (
@@ -343,6 +364,16 @@ export default function AdminYoLink() {
                         className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500">
                         <option value="">Choose a role…</option>
                         {ROLE_OPTIONS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                      </select>
+                    </div>
+                  )}
+                  {ruleForm.recipient_scope === 'user' && (
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Member</label>
+                      <select value={ruleForm.recipient_user_id ?? ''} onChange={e => setRF({ recipient_user_id: e.target.value || null })}
+                        className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500">
+                        <option value="">Choose a member…</option>
+                        {members.map(m => <option key={m.id} value={m.id}>{m.first_name} {m.last_name}</option>)}
                       </select>
                     </div>
                   )}
@@ -410,7 +441,7 @@ export default function AdminYoLink() {
                             r.device_type ? `type ${r.device_type}` : null,
                             r.event_contains ? `event ~ "${r.event_contains}"` : null,
                             r.state_equals ? `state = "${r.state_equals}"` : null,
-                          ].filter(Boolean).join(' · ') || 'any event'} → {SCOPE_LABEL[r.recipient_scope]}{r.recipient_role ? ` (${r.recipient_role})` : ''}
+                          ].filter(Boolean).join(' · ') || 'any event'} → {SCOPE_LABEL[r.recipient_scope]}{r.recipient_role ? ` (${r.recipient_role})` : ''}{r.recipient_scope === 'user' ? ` (${memberName(r.recipient_user_id)})` : ''}
                         </p>
                         <p className="text-xs text-gray-400 mt-0.5">
                           {[r.notify_dashboard && 'Dashboard', r.notify_email && 'Email', r.notify_sms && 'SMS'].filter(Boolean).join(' · ') || 'No channels'}
@@ -418,6 +449,7 @@ export default function AdminYoLink() {
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <button onClick={() => toggleRule(r)} className={`text-xs font-medium px-2 py-0.5 rounded-full ${r.enabled ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>{r.enabled ? 'On' : 'Off'}</button>
+                        <button onClick={() => testRule(r)} disabled={testingId === r.id} className="text-xs text-gray-500 hover:text-gray-800 font-medium disabled:opacity-50">{testingId === r.id ? 'Testing…' : 'Test'}</button>
                         <button onClick={() => setRuleForm({ ...r })} className="text-xs text-indigo-600 hover:text-indigo-800 font-medium">Edit</button>
                         <button onClick={() => deleteRule(r)} className="text-xs text-red-500 hover:text-red-700 font-medium">Delete</button>
                       </div>

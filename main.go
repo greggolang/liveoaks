@@ -514,6 +514,7 @@ func main() {
 	boardPlus.POST("/admin/yolink/rules", yolinkH.CreateRule)
 	boardPlus.PUT("/admin/yolink/rules/:id", yolinkH.UpdateRule)
 	boardPlus.DELETE("/admin/yolink/rules/:id", yolinkH.DeleteRule)
+	boardPlus.POST("/admin/yolink/rules/:id/test", yolinkH.TestRule)
 
 	// Member alerts (admin → member dashboard)
 	authed.GET("/member-alerts", alerts.GetMyAlerts)

@@ -530,6 +530,8 @@ export const api = {
       request(`/admin/yolink/rules/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     deleteRule: (id: string) =>
       request(`/admin/yolink/rules/${id}`, { method: 'DELETE' }),
+    testRule: (id: string) =>
+      request<{ recipients: number }>(`/admin/yolink/rules/${id}/test`, { method: 'POST' }),
   },
   camera: {
     embedURL: () => request<{ url: string }>('/camera/embed'),

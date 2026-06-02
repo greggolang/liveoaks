@@ -436,6 +436,57 @@ func (s *Service) evaluateRules(ctx context.Context, e ruleEvent) {
 	}
 }
 
+// TestRule fires a single rule on demand with a synthetic "[TEST]" event so an
+// admin can confirm recipients and channels are wired correctly. It bypasses
+// the match conditions (the point is to test delivery) and returns how many
+// recipients were notified.
+func (s *Service) TestRule(ctx context.Context, id string) (int, error) {
+	var r alertRule
+	err := s.DB.QueryRow(ctx, `
+		SELECT id, name, device_id, device_type, event_contains, state_equals,
+		       recipient_scope, recipient_role, recipient_user_id,
+		       notify_dashboard, notify_email, notify_sms, alert_type, message_template
+		FROM yolink_alert_rules WHERE id = $1`, id).
+		Scan(&r.ID, &r.Name, &r.DeviceID, &r.DeviceType, &r.EventContains, &r.StateEquals,
+			&r.RecipientScope, &r.RecipientRole, &r.RecipientUserID,
+			&r.NotifyDashboard, &r.NotifyEmail, &r.NotifySMS, &r.AlertType, &r.MessageTemplate)
+	if err != nil {
+		return 0, fmt.Errorf("rule not found")
+	}
+
+	deviceName := "Test Device"
+	if nonEmpty(r.DeviceID) {
+		var n string
+		if e := s.DB.QueryRow(ctx, `SELECT name FROM yolink_devices WHERE id = $1`, *r.DeviceID).Scan(&n); e == nil && n != "" {
+			deviceName = n
+		}
+	}
+	text := "[TEST] " + r.message(ruleEvent{DeviceName: deviceName, EventLabel: "Test Alert"})
+
+	recips := s.resolveRecipients(ctx, r)
+	for _, m := range recips {
+		if r.NotifyDashboard {
+			s.DB.Exec(ctx,
+				`INSERT INTO member_alerts (user_id, message, type) VALUES ($1, $2, $3)`,
+				m.ID, text, r.AlertType)
+		}
+		if r.NotifyEmail && m.Email != "" {
+			body := fmt.Sprintf(
+				"Hi %s,\n\nThis is a TEST of the Live Oaks sensor alert rule %q:\n\n%s\n\nNo action is needed.",
+				m.FirstName, r.Name, text)
+			if err := s.Mailer.Send(m.Email, "YoLink Alert (TEST) — "+r.Name, body); err != nil {
+				log.Printf("yolink: test email to %s failed: %v", m.Email, err)
+			}
+		}
+		if r.NotifySMS && m.Phone != "" && s.SMS != nil {
+			if err := s.SMS.Send(m.Phone, "Live Oaks (TEST) — "+text); err != nil {
+				log.Printf("yolink: test sms to %s failed: %v", m.Phone, err)
+			}
+		}
+	}
+	return len(recips), nil
+}
+
 // resolveRecipients returns the users targeted by a rule's recipient scope.
 func (s *Service) resolveRecipients(ctx context.Context, r alertRule) []recipient {
 	const cols = `SELECT id, email, first_name, COALESCE(phone, '') FROM users `
