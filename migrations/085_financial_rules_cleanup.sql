@@ -8,6 +8,3 @@ WHERE id IN (
     ) t
     WHERE rn > 1
 );
-
--- Prevent future duplicates.
-CREATE UNIQUE INDEX IF NOT EXISTS financial_rules_name_key ON financial_rules(name);
