@@ -172,6 +172,10 @@ func (h *AppliancesHandler) Delete(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
+var allowedManualExts = map[string]bool{".pdf": true, ".doc": true, ".docx": true, ".txt": true}
+
+const maxManualBytes = 20 << 20 // 20 MB
+
 func (h *AppliancesHandler) UploadManual(c echo.Context) error {
 	id := c.Param("id")
 	file, header, err := c.Request().FormFile("manual")
@@ -181,6 +185,10 @@ func (h *AppliancesHandler) UploadManual(c echo.Context) error {
 	defer file.Close()
 
 	ext := strings.ToLower(filepath.Ext(header.Filename))
+	if !allowedManualExts[ext] {
+		return echo.NewHTTPError(http.StatusBadRequest, "only PDF, DOC, DOCX, or TXT files are allowed")
+	}
+
 	filename := fmt.Sprintf("%d%s", time.Now().UnixNano(), ext)
 	dir := filepath.Join(h.UploadDir, "appliance-manuals")
 	os.MkdirAll(dir, 0755)
@@ -190,8 +198,14 @@ func (h *AppliancesHandler) UploadManual(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not save file")
 	}
 	defer dst.Close()
-	if _, err = io.Copy(dst, file); err != nil {
+	n, err := io.Copy(dst, io.LimitReader(file, maxManualBytes+1))
+	if err != nil {
+		os.Remove(filepath.Join(dir, filename))
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not save file")
+	}
+	if n > maxManualBytes {
+		os.Remove(filepath.Join(dir, filename))
+		return echo.NewHTTPError(http.StatusRequestEntityTooLarge, "file too large (max 20 MB)")
 	}
 
 	var old *string
@@ -419,7 +433,8 @@ func (h *AppliancesHandler) SendReminder(c echo.Context) error {
 	}
 
 	rows, err := h.DB.Query(ctx,
-		`SELECT email FROM users WHERE role IN ('admin','president','vice_president','board') AND status='active' AND email != ''`)
+		`SELECT email FROM users WHERE (role = ANY($1) OR extra_roles && $1) AND status='active' AND email != ''`,
+		commBoardRoles)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch board members")
 	}
@@ -437,6 +452,10 @@ func (h *AppliancesHandler) SendReminder(c echo.Context) error {
   <p><a href="%s/admin/appliances" style="color:#15803d;font-weight:600">View Appliances →</a></p>
 </div>`, applianceName, title, dueDate, h.SiteURL)
 
+	if h.Mailer == nil {
+		return echo.NewHTTPError(http.StatusServiceUnavailable, "email not configured")
+	}
+
 	var sent int
 	for rows.Next() {
 		var email string
@@ -446,7 +465,9 @@ func (h *AppliancesHandler) SendReminder(c echo.Context) error {
 		sent++
 	}
 
-	h.DB.Exec(ctx, `UPDATE appliance_reminders SET last_sent_at=NOW() WHERE id=$1`, c.Param("reminderId"))
+	if sent > 0 {
+		h.DB.Exec(ctx, `UPDATE appliance_reminders SET last_sent_at=NOW() WHERE id=$1`, c.Param("reminderId"))
+	}
 	return c.JSON(http.StatusOK, map[string]interface{}{"sent": sent})
 }
 
@@ -477,9 +498,13 @@ func (h *AppliancesHandler) SendDueReminders(ctx context.Context) {
 	if len(items) == 0 {
 		return
 	}
+	if h.Mailer == nil {
+		return
+	}
 
 	boardRows, err := h.DB.Query(ctx,
-		`SELECT email FROM users WHERE role IN ('admin','president','vice_president','board') AND status='active' AND email != ''`)
+		`SELECT email FROM users WHERE (role = ANY($1) OR extra_roles && $1) AND status='active' AND email != ''`,
+		commBoardRoles)
 	if err != nil {
 		return
 	}
@@ -490,6 +515,10 @@ func (h *AppliancesHandler) SendDueReminders(ctx context.Context) {
 		emails = append(emails, e)
 	}
 	boardRows.Close()
+
+	if len(emails) == 0 {
+		return
+	}
 
 	for _, item := range items {
 		subject := fmt.Sprintf("Appliance Reminder Due: %s — %s", item.appliance, item.title)

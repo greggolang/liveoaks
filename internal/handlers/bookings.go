@@ -648,14 +648,19 @@ func (h *BookingsHandler) Update(c echo.Context) error {
 	if h.Mailer != nil && (newCourtID != currentCourtID || !newStart.Equal(currentStart) || !newEnd.Equal(currentEnd)) {
 		var courtName string
 		h.DB.QueryRow(c.Request().Context(), `SELECT name FROM courts WHERE id = $1`, newCourtID).Scan(&courtName)
+		var updatedByName string
+		h.DB.QueryRow(c.Request().Context(),
+			`SELECT first_name || ' ' || last_name FROM users WHERE id = $1`, userID).Scan(&updatedByName)
 		card := bookingCard(courtName, newStart, newEnd, loc)
 		body := fmt.Sprintf(`
 <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
   <h2 style="color:#15803d">📋 Booking Updated</h2>
   <p>A court booking you are on has been updated:</p>
-  <div style="background:#fefce8;border-radius:8px;padding:16px;margin:16px 0">%s</div>
+  <div style="background:#fefce8;border-radius:8px;padding:16px;margin:16px 0">%s
+    <div style="margin:4px 0">✏️ <strong>Updated by:</strong> %s</div>
+  </div>
   <a href="%s/bookings" style="color:#15803d">View bookings →</a>
-</div>`, card, h.SiteURL)
+</div>`, card, updatedByName, h.SiteURL)
 		go h.emailRoster(id, "Booking updated – "+courtName, body)
 	}
 
@@ -711,6 +716,11 @@ func (h *BookingsHandler) Delete(c echo.Context) error {
 		}
 	}
 
+	// Fetch who is cancelling — needed in both the email and the log.
+	var cancelledByName string
+	h.DB.QueryRow(c.Request().Context(),
+		`SELECT first_name || ' ' || last_name FROM users WHERE id = $1`, userID).Scan(&cancelledByName)
+
 	// Email all roster players before the booking is deleted
 	if h.Mailer != nil {
 		if courtName != "" {
@@ -741,18 +751,15 @@ func (h *BookingsHandler) Delete(c echo.Context) error {
     <div style="margin:4px 0">🎾 <strong>%s</strong></div>
     <div style="margin:4px 0">⏰ <strong>%s – %s</strong></div>
     <div style="margin:4px 0">📋 <strong>%s</strong></div>
+    <div style="margin:4px 0">👤 <strong>Booked by:</strong> %s</div>
+    <div style="margin:4px 0">✖ <strong>Cancelled by:</strong> %s</div>
   </div>
   %s
   <a href="%s/bookings" style="color:#15803d">View your bookings →</a>
-</div>`, courtName, startStr, endStr, matchLabel, reasonHTML, h.SiteURL)
+</div>`, courtName, startStr, endStr, matchLabel, ownerName, cancelledByName, reasonHTML, h.SiteURL)
 			go h.emailRoster(id, "Booking cancelled – "+courtName, body)
 		}
 	}
-
-	// Record the cancellation in the persistent log before deleting the booking.
-	var cancelledByName string
-	h.DB.QueryRow(c.Request().Context(),
-		`SELECT first_name || ' ' || last_name FROM users WHERE id = $1`, userID).Scan(&cancelledByName)
 	h.DB.Exec(c.Request().Context(),
 		`INSERT INTO booking_cancellations
 		    (booking_id, court_name, match_type, start_time, end_time, owner_name, reason, cancelled_by, cancelled_by_name)

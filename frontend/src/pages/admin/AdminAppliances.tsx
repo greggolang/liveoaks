@@ -257,9 +257,7 @@ export default function AdminAppliances() {
             <p className="text-sm text-gray-400 text-center mt-8">No appliances yet.</p>
           )}
           {appliances.map(a => {
-            const next = reminders.filter(r => r.appliance_id === a.id)[0]
-            const allReminders = reminders.filter(r => r.appliance_id === a.id)
-            const overdueCount = allReminders.filter(r => isOverdue(r.due_date)).length
+            const overdueCount = reminders.filter(r => r.appliance_id === a.id && isOverdue(r.due_date)).length
             const isActive = selected?.id === a.id
             return (
               <button key={a.id} onClick={() => selectAppliance(a)}

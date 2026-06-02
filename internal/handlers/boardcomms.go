@@ -180,7 +180,8 @@ func (h *BoardCommsHandler) List(c echo.Context) error {
 func (h *BoardCommsHandler) BoardMembers(c echo.Context) error {
 	rows, err := h.DB.Query(c.Request().Context(),
 		`SELECT id, first_name, last_name, email, role FROM users
-		 WHERE role NOT IN ('member','inactive') ORDER BY last_name, first_name`)
+		 WHERE (role = ANY($1) OR extra_roles && $1) AND status != 'inactive'
+		 ORDER BY last_name, first_name`, commBoardRoles)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}

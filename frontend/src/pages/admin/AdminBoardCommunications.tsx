@@ -230,8 +230,8 @@ export default function AdminBoardCommunications() {
                       <pre className="whitespace-pre-wrap text-sm text-gray-700 font-sans leading-relaxed">
                         {c.preview}
                       </pre>
-                      {c.preview.length >= 300 && (
-                        <p className="text-xs text-gray-400 mt-2 italic">Preview truncated at 300 characters.</p>
+                      {c.preview.length >= 400 && (
+                        <p className="text-xs text-gray-400 mt-2 italic">Preview truncated at 400 characters.</p>
                       )}
                     </div>
                   )}
