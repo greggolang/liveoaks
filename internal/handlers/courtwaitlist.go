@@ -178,6 +178,23 @@ func (h *CourtWaitlistHandler) Join(c echo.Context) error {
 		position = 1
 	}
 
+	// Dashboard alert confirming the waitlist join
+	var courtName string
+	h.DB.QueryRow(ctx, `SELECT name FROM courts WHERE id = $1`, req.CourtID).Scan(&courtName)
+	loc, _ := time.LoadLocation("America/Los_Angeles")
+	if loc == nil {
+		loc = time.UTC
+	}
+	alertMsg := fmt.Sprintf(
+		"You joined the waitlist for %s on %s at %s – %s. You are #%d in the queue.",
+		courtName,
+		start.In(loc).Format("Mon, Jan 2"),
+		start.In(loc).Format("3:04 PM"),
+		end.In(loc).Format("3:04 PM"),
+		position,
+	)
+	h.DB.Exec(ctx, `INSERT INTO member_alerts (user_id, message, type) VALUES ($1, $2, 'info')`, userID, alertMsg)
+
 	return c.JSON(http.StatusOK, map[string]interface{}{"id": id, "position": position})
 }
 
@@ -255,9 +272,21 @@ func NotifyCourtWaitlist(
 	timeStr := startTime.In(loc).Format("3:04 PM") + " – " + endTime.In(loc).Format("3:04 PM MST")
 	bookURL := fmt.Sprintf("%s/bookings?date=%s", siteURL, startTime.Format("2006-01-02"))
 
-	// Mark all as notified and send emails concurrently
+	// Mark all as notified, create dashboard alerts, and send emails concurrently
 	for _, w := range waiters {
 		db.Exec(ctx, `UPDATE court_waitlist SET notified_at = NOW() WHERE id = $1`, w.entryID)
+
+		// In-app alert
+		var positionText string
+		if w.position == 1 {
+			positionText = "You are first in the queue — book now!"
+		} else {
+			positionText = fmt.Sprintf("You are #%d in the queue.", w.position)
+		}
+		db.Exec(ctx, `INSERT INTO member_alerts (user_id, message, type) VALUES ($1, $2, 'info')`,
+			w.userID,
+			fmt.Sprintf("Court available: %s on %s, %s. %s", courtName, dateStr, timeStr, positionText),
+		)
 
 		w := w // capture
 		positionNote := ""
