@@ -67,6 +67,11 @@ export default function MailInbox() {
   const [contactError, setContactError]       = useState('')
   const [deleteContactId, setDeleteContactId] = useState<string | null>(null)
 
+  // ── Templates state ──
+  type EmailTemplate = { id: string; name: string; subject: string; body: string }
+  const [templates, setTemplates]           = useState<EmailTemplate[]>([])
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false)
+
   // ── Load mail ──
   async function loadFolder(f: string) {
     setLoading(true); setError(''); setSelected(null)
@@ -98,6 +103,10 @@ export default function MailInbox() {
   }
 
   useEffect(() => { loadContacts() }, [])
+
+  useEffect(() => {
+    api.emailTemplates.list().then(setTemplates).catch(() => {})
+  }, [])
 
   // ── Open message ──
   async function openMessage(msg: IMAPMessage) {
@@ -143,7 +152,7 @@ export default function MailInbox() {
 
   function openCompose() {
     setComposing(true); setComposeData({ to: '', subject: '', body: '' })
-    setContactSearch(''); setContactPickerOpen(false)
+    setContactSearch(''); setContactPickerOpen(false); setTemplatePickerOpen(false)
   }
 
   // ── Save sender as contact ──
