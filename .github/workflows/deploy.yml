@@ -53,7 +53,7 @@ jobs:
           host: 172.236.228.11
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: JWT_SECRET,SMTP_PASS
+          envs: JWT_SECRET,SMTP_PASS,TWILIO_ACCOUNT_SID,TWILIO_AUTH_TOKEN,TWILIO_FROM
           script: |
             chmod +x /opt/liveoaks/liveoaks
 
@@ -72,6 +72,9 @@ jobs:
 
             # Add Stripe env vars to service file if not already present
             grep -q 'STRIPE_SECRET_KEY' /etc/systemd/system/liveoaks.service || sed -i '/Environment=SMTP_PASS/a Environment=STRIPE_SECRET_KEY=placeholder\nEnvironment=STRIPE_WEBHOOK_SECRET=placeholder\nEnvironment=STRIPE_PUBLISHABLE_KEY=placeholder' /etc/systemd/system/liveoaks.service
+
+            # Add Twilio (SMS) env vars to service file if not already present
+            grep -q 'TWILIO_ACCOUNT_SID' /etc/systemd/system/liveoaks.service || sed -i '/Environment=STRIPE_PUBLISHABLE_KEY/a Environment=TWILIO_ACCOUNT_SID=placeholder\nEnvironment=TWILIO_AUTH_TOKEN=placeholder\nEnvironment=TWILIO_FROM=placeholder' /etc/systemd/system/liveoaks.service
 
             # Harden SSH: disable password auth, only allow key-based login
             sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
@@ -95,6 +98,9 @@ jobs:
             sed -i "s|Environment=STRIPE_SECRET_KEY=.*|Environment=STRIPE_SECRET_KEY=$STRIPE_SECRET_KEY|" /etc/systemd/system/liveoaks.service
             sed -i "s|Environment=STRIPE_WEBHOOK_SECRET=.*|Environment=STRIPE_WEBHOOK_SECRET=$STRIPE_WEBHOOK_SECRET|" /etc/systemd/system/liveoaks.service
             sed -i "s|Environment=STRIPE_PUBLISHABLE_KEY=.*|Environment=STRIPE_PUBLISHABLE_KEY=$STRIPE_PUBLISHABLE_KEY|" /etc/systemd/system/liveoaks.service
+            sed -i "s|Environment=TWILIO_ACCOUNT_SID=.*|Environment=TWILIO_ACCOUNT_SID=$TWILIO_ACCOUNT_SID|" /etc/systemd/system/liveoaks.service
+            sed -i "s|Environment=TWILIO_AUTH_TOKEN=.*|Environment=TWILIO_AUTH_TOKEN=$TWILIO_AUTH_TOKEN|" /etc/systemd/system/liveoaks.service
+            sed -i "s|Environment=TWILIO_FROM=.*|Environment=TWILIO_FROM=$TWILIO_FROM|" /etc/systemd/system/liveoaks.service
             systemctl daemon-reload
             systemctl restart liveoaks
         env:
@@ -103,3 +109,6 @@ jobs:
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
           STRIPE_PUBLISHABLE_KEY: ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
+          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
+          TWILIO_FROM: ${{ secrets.TWILIO_FROM }}
