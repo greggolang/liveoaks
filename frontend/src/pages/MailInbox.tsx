@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { api, IMAPMessage, IMAPMessageDetail, MailContact } from '../api/client'
+import { formatPhone } from '../utils/phone'
 
 const FOLDERS = [
   { key: 'INBOX', label: 'Inbox' },
@@ -228,7 +229,7 @@ export default function MailInbox() {
       </div>
 
       {/* ── Section tabs (Mail / Contacts) ── */}
-      <div className="flex gap-1 mb-4 border-b border-gray-200">
+      <div className="flex gap-1 border-b border-gray-200">
         <button
           onClick={() => setSection('mail')}
           className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition ${
@@ -250,28 +251,6 @@ export default function MailInbox() {
           )}
         </button>
 
-        {/* Folder tabs — only when on mail section */}
-        {section === 'mail' && (
-          <>
-            <span className="w-px bg-gray-200 mx-1 self-stretch -mb-px" />
-            {FOLDERS.map(f => (
-              <button key={f.key} onClick={() => setFolder(f.key)}
-                className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition ${
-                  folder === f.key ? 'border-green-700 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}>
-                {f.label}
-              </button>
-            ))}
-            <button onClick={() => loadFolder(folder)}
-              className="ml-auto px-3 py-2 text-gray-400 hover:text-gray-600" title="Refresh">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-            </button>
-          </>
-        )}
-
         {/* Add contact button — only when on contacts section */}
         {section === 'contacts' && (
           <button
@@ -284,6 +263,29 @@ export default function MailInbox() {
           </button>
         )}
       </div>
+
+      {/* ── Folder tabs — only when on mail section ── */}
+      {section === 'mail' && (
+        <div className="flex gap-1 mb-4 border-b border-gray-200">
+          {FOLDERS.map(f => (
+            <button key={f.key} onClick={() => setFolder(f.key)}
+              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition ${
+                folder === f.key ? 'border-green-700 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}>
+              {f.label}
+            </button>
+          ))}
+          <button onClick={() => loadFolder(folder)}
+            className="ml-auto px-3 py-2 text-gray-400 hover:text-gray-600" title="Refresh">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </button>
+        </div>
+      )}
+
+      {section === 'contacts' && <div className="mb-4" />}
 
       {error && (
         <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{error}</div>
@@ -436,7 +438,7 @@ export default function MailInbox() {
                   </div>
                   {(c.phone || c.notes) && (
                     <div className="text-xs text-gray-500 space-y-0.5 mb-3 pl-1">
-                      {c.phone && <p>📞 {c.phone}</p>}
+                      {c.phone && <p>📞 {formatPhone(c.phone)}</p>}
                       {c.notes && <p className="text-gray-400 truncate">"{c.notes}"</p>}
                     </div>
                   )}
