@@ -15,7 +15,6 @@ type Config struct {
 	SMTPUser             string
 	SMTPPass             string
 	SMTPFrom             string
-	GoogleSAJSON         string // service account JSON for Gmail/Drive integration
 	CameraToken          string // optional token to protect the camera page
 	CameraHLSDir         string // directory where camera-hls systemd service writes HLS files
 	StripeSecretKey      string
@@ -53,7 +52,6 @@ func Load() Config {
 		SMTPUser:     os.Getenv("SMTP_USER"),
 		SMTPPass:     os.Getenv("SMTP_PASS"),
 		SMTPFrom:     os.Getenv("SMTP_FROM"),
-		GoogleSAJSON:         os.Getenv("GOOGLE_SA_JSON"),
 		CameraToken:          os.Getenv("CAMERA_TOKEN"),
 		CameraHLSDir:         cameraHLSDir,
 		StripeSecretKey:      os.Getenv("STRIPE_SECRET_KEY"),

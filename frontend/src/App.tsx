@@ -22,7 +22,6 @@ import ClubInfo from './pages/ClubInfo'
 import Bylaws from './pages/Bylaws'
 import ProShop from './pages/ProShop'
 import MailInbox from './pages/MailInbox'
-import RoleDrive from './pages/RoleDrive'
 import Profile from './pages/Profile'
 import Friends from './pages/Friends'
 import Messages from './pages/Messages'
@@ -120,7 +119,6 @@ function AppRoutes() {
       <Route path="/bylaws" element={<ProtectedRoute><Bylaws /></ProtectedRoute>} />
       <Route path="/pro-shop" element={<ProtectedRoute><ProShop /></ProtectedRoute>} />
       <Route path="/email" element={<ProtectedRoute><MailInbox /></ProtectedRoute>} />
-      <Route path="/drive" element={<ProtectedRoute><RoleDrive /></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
       <Route path="/friends" element={<ProtectedRoute><Friends /></ProtectedRoute>} />
       <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />

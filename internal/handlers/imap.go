@@ -363,8 +363,32 @@ func (h *IMAPHandler) SendMessage(c echo.Context) error {
 
 	ctx := c.Request().Context()
 
+	// Look up the sender's personal name and their board role label so the
+	// recipient sees a friendly From like "Greg Howard, Treasurer <treasurer@…>"
+	// instead of a bare mailbox address.
+	userID := c.Get("user_id").(string)
+	var senderName, roleLabel string
+	h.DB.QueryRow(ctx, `
+		SELECT COALESCE(NULLIF(TRIM(u.first_name || ' ' || u.last_name), ''), ''),
+		       COALESCE(ma.role_label, '')
+		FROM mail_accounts ma
+		LEFT JOIN users u ON u.id = ma.assigned_user_id
+		WHERE ma.assigned_user_id = $1 AND ma.active = true
+		ORDER BY ma.created_at LIMIT 1`, userID).Scan(&senderName, &roleLabel)
+
+	fromName := senderName
+	if roleLabel != "" {
+		if fromName != "" {
+			fromName = senderName + ", " + roleLabel
+		} else {
+			fromName = roleLabel
+		}
+	}
+
 	msg := gomail.NewMessage()
-	msg.SetHeader("From", address)
+	// SetAddressHeader encodes the display name correctly; an empty fromName
+	// falls back to just the address.
+	msg.SetAddressHeader("From", address, fromName)
 	msg.SetHeader("To", to)
 	msg.SetHeader("Subject", subject)
 	if cc != "" {

@@ -67,25 +67,7 @@ const HIDDEN_KEYS = new Set([
   'kiosk_enabled',           // rendered in its own section below
   'weather_lat', 'weather_lon', 'weather_zip',
   'smtp_host','smtp_port','smtp_user','smtp_pass','smtp_from',
-  'google_email_president','google_email_vice_president','google_email_secretary',
-  'google_email_treasurer','google_email_billing','google_email_entertainment','google_email_house_grounds',
-  'google_email_usta','google_email_admin',
-  'google_pass_president','google_pass_vice_president','google_pass_secretary',
-  'google_pass_treasurer','google_pass_billing','google_pass_entertainment','google_pass_house_grounds',
-  'google_pass_usta','google_pass_admin',
 ])
-
-const GOOGLE_ROLE_KEYS: { emailKey: string; passKey: string; label: string }[] = [
-  { emailKey: 'google_email_president',     passKey: 'google_pass_president',     label: 'President' },
-  { emailKey: 'google_email_vice_president', passKey: 'google_pass_vice_president', label: 'Vice President' },
-  { emailKey: 'google_email_secretary',      passKey: 'google_pass_secretary',      label: 'Secretary' },
-  { emailKey: 'google_email_treasurer',      passKey: 'google_pass_treasurer',      label: 'Treasurer' },
-  { emailKey: 'google_email_billing',        passKey: 'google_pass_billing',        label: 'Billing' },
-  { emailKey: 'google_email_entertainment',  passKey: 'google_pass_entertainment',  label: 'Entertainment' },
-  { emailKey: 'google_email_house_grounds',  passKey: 'google_pass_house_grounds',  label: 'House & Grounds' },
-  { emailKey: 'google_email_usta',           passKey: 'google_pass_usta',           label: 'USTA' },
-  { emailKey: 'google_email_admin',          passKey: 'google_pass_admin',          label: 'Administrator' },
-]
 
 interface Photo { id: string; title: string; filename: string }
 
@@ -500,59 +482,6 @@ export default function AdminSettings() {
               </button>
             </div>
             {hint && <p className="text-xs text-gray-400 mt-1 ml-[calc(224px+1rem)]">{hint}</p>}
-          </div>
-        ))}
-      </div>
-
-      {/* Google Workspace role email mapping */}
-      <h2 className="text-xl font-bold text-gray-800 mt-8 mb-2">Google Workspace — Role Mailboxes</h2>
-      <p className="text-sm text-gray-500 mb-4">
-        Map each board role to its Google Workspace email address. Board members with that role will be able
-        to read, compose, and send email from the matching mailbox — and browse its Drive — without needing
-        the Gmail password. Requires <span className="font-medium">GOOGLE_SA_JSON</span> set on the server.
-      </p>
-      <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 space-y-6">
-        {GOOGLE_ROLE_KEYS.map(({ emailKey, passKey, label }) => (
-          <div key={emailKey} className="space-y-2">
-            <p className="text-sm font-semibold text-gray-700">{label}</p>
-            {/* Email */}
-            <div className="flex items-center gap-3">
-              <label className="w-24 text-xs text-gray-500 shrink-0">Email</label>
-              <input
-                value={settings[emailKey] ?? ''}
-                onChange={e => setSettings(s => ({ ...s, [emailKey]: e.target.value }))}
-                placeholder="role@yourclub.org"
-                type="email"
-                className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-              <button onClick={() => save(emailKey)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition shrink-0 ${saved[emailKey] ? 'bg-green-100 text-green-700' : 'bg-green-700 text-white hover:bg-green-800'}`}>
-                {saved[emailKey] ? 'Saved!' : 'Save'}
-              </button>
-            </div>
-            {/* Password */}
-            <div className="flex items-center gap-3">
-              <label className="w-24 text-xs text-gray-500 shrink-0">Password</label>
-              <div className="flex-1 flex items-center gap-2">
-                <input
-                  value={settings[passKey] ?? ''}
-                  onChange={e => setSettings(s => ({ ...s, [passKey]: e.target.value }))}
-                  placeholder="mailbox password"
-                  type={showPass[passKey] ? 'text' : 'password'}
-                  className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPass(s => ({ ...s, [passKey]: !s[passKey] }))}
-                  className="text-xs text-gray-400 hover:text-gray-600 transition shrink-0 px-2">
-                  {showPass[passKey] ? 'Hide' : 'Show'}
-                </button>
-              </div>
-              <button onClick={() => save(passKey)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition shrink-0 ${saved[passKey] ? 'bg-green-100 text-green-700' : 'bg-green-700 text-white hover:bg-green-800'}`}>
-                {saved[passKey] ? 'Saved!' : 'Save'}
-              </button>
-            </div>
           </div>
         ))}
       </div>

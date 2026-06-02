@@ -85,7 +85,7 @@ const sections: Section[] = [
       { to: '/admin/permissions', label: 'Permissions' },
       { to: '/admin/resets', label: 'Password Resets' },
       { to: '/admin/passwords', label: 'Password Vault' },
-      { to: '/admin/test-email', label: 'Test Email' },
+      { to: '/admin/test-email', label: 'Test Communications' },
       { to: '/admin/log', label: 'Activity Log' },
     ],
   },

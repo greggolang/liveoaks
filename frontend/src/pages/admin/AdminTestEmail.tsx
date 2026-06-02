@@ -27,6 +27,12 @@ export default function AdminTestEmail() {
   const [pinging, setPinging] = useState(false)
   const [pingResult, setPingResult] = useState<{ ok: boolean; message: string } | null>(null)
 
+  // Test SMS
+  const [smsTo, setSmsTo] = useState('')
+  const [smsToError, setSmsToError] = useState('')
+  const [smsSending, setSmsSending] = useState(false)
+  const [smsResult, setSmsResult] = useState<{ success: boolean; error?: string } | null>(null)
+
   const runPing = async () => {
     setPinging(true)
     setPingResult(null)
@@ -93,54 +99,27 @@ export default function AdminTestEmail() {
     }
   }
 
+  const sendTestSms = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!smsTo.trim()) { setSmsToError('Enter a phone number to send the test to.'); return }
+    setSmsToError('')
+    setSmsSending(true)
+    setSmsResult(null)
+    try {
+      const res = await api.admin.testSms(smsTo.trim()) as { success: boolean; error?: string }
+      setSmsResult(res)
+    } catch (err: any) {
+      setSmsResult({ success: false, error: err.message })
+    } finally {
+      setSmsSending(false)
+    }
+  }
+
   return (
     <div className="max-w-2xl space-y-8">
       <div>
         <h2 className="text-xl font-bold text-gray-800 mb-1">Email Settings</h2>
         <p className="text-sm text-gray-500">Configure SMTP credentials for outgoing email.</p>
-      </div>
-
-      {/* Google Workspace SMTP Relay setup guide */}
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 text-sm space-y-4">
-        <p className="font-semibold text-blue-800">Google Workspace — SMTP Relay Setup</p>
-
-        {/* Option A — App Password */}
-        <div className="bg-white rounded-lg border border-blue-100 p-4 space-y-3">
-          <p className="font-semibold text-blue-800">Option A — App Password (recommended)</p>
-          <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs font-mono text-gray-700">
-            <span className="text-gray-500 font-sans">Host</span><span className="font-bold text-green-700">smtp.gmail.com</span>
-            <span className="text-gray-500 font-sans">Port</span><span>587</span>
-            <span className="text-gray-500 font-sans">Username</span><span>your Google account email</span>
-            <span className="text-gray-500 font-sans">Password</span><span>16-char App Password</span>
-            <span className="text-gray-500 font-sans">From</span><span>your Google account email</span>
-          </div>
-          <ol className="list-decimal list-inside space-y-1.5 text-blue-700 text-sm">
-            <li>Sign in at <strong>myaccount.google.com</strong></li>
-            <li>Go to <strong>Security → 2-Step Verification</strong> and confirm it is on</li>
-            <li>Scroll to the bottom and click <strong>App passwords</strong></li>
-            <li>App: <strong>Mail</strong> · Device: <strong>Other</strong> → type "Liveoaks Server" → Generate</li>
-            <li>Copy the 16-character password (no spaces) into the Password field below</li>
-          </ol>
-          <p className="text-xs text-orange-600 font-medium">⚠️ Use <code className="bg-orange-50 px-1 rounded">smtp.gmail.com</code> — App Passwords do NOT work with <code className="bg-orange-50 px-1 rounded">smtp-relay.gmail.com</code>.</p>
-        </div>
-
-        {/* Option B — IP Allowlist */}
-        <div className="bg-white rounded-lg border border-blue-100 p-4 space-y-3">
-          <p className="font-semibold text-blue-800">Option B — SMTP Relay via IP Allowlist (no password)</p>
-          <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs font-mono text-gray-700">
-            <span className="text-gray-500 font-sans">Host</span><span>smtp-relay.gmail.com</span>
-            <span className="text-gray-500 font-sans">Port</span><span>587</span>
-            <span className="text-gray-500 font-sans">Username</span><span className="italic text-gray-400">leave blank</span>
-            <span className="text-gray-500 font-sans">Password</span><span className="italic text-gray-400">leave blank</span>
-            <span className="text-gray-500 font-sans">From</span><span>your Google Workspace email</span>
-          </div>
-          <ol className="list-decimal list-inside space-y-1.5 text-blue-700 text-sm">
-            <li>Sign in to <strong>admin.google.com</strong> (Google Workspace Admin Console)</li>
-            <li>Go to <strong>Apps → Google Workspace → Gmail → Routing</strong></li>
-            <li>Under <strong>SMTP relay service</strong>, click Configure</li>
-            <li>Add <strong>172.236.228.11</strong> as an allowed sender IP and save</li>
-          </ol>
-        </div>
       </div>
 
       {/* SMTP settings form */}
@@ -244,6 +223,62 @@ export default function AdminTestEmail() {
           className="w-full sm:w-auto bg-green-700 hover:bg-green-800 text-white font-semibold px-6 py-2.5 rounded-lg text-sm transition disabled:opacity-50"
         >
           {sending ? 'Sending…' : 'Send Test Email'}
+        </button>
+      </form>
+
+      {/* ---- Text Messaging (SMS) ---- */}
+      <div className="pt-4">
+        <h2 className="text-xl font-bold text-gray-800 mb-1">Text Messaging (SMS)</h2>
+        <p className="text-sm text-gray-500">
+          Outgoing texts are sent through Twilio. Credentials (Account SID, Auth Token, and From number)
+          are configured on the server via environment variables.
+        </p>
+      </div>
+
+      <form onSubmit={sendTestSms} className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm space-y-4">
+        <p className="text-sm font-semibold text-gray-700">Send Test SMS</p>
+        <p className="text-xs text-gray-500">
+          Sends a short test text using the Twilio settings currently configured on the server.
+          On a Twilio trial account you can only text numbers you have verified.
+        </p>
+
+        {/* Result shown first so it's always visible without scrolling */}
+        {smsResult && (
+          <div className={`rounded-lg p-4 text-sm font-medium ${smsResult.success ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-red-50 border border-red-200 text-red-800'}`}>
+            {smsResult.success ? (
+              <>✅ Test text sent successfully to <strong>{smsTo}</strong>. Check the phone.</>
+            ) : (
+              <>
+                ❌ Failed to send.
+                <span className="font-normal text-xs mt-1 block opacity-80">{smsResult.error}</span>
+              </>
+            )}
+          </div>
+        )}
+
+        <div className="space-y-1">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+            <label className="sm:w-44 sm:shrink-0 text-sm font-medium text-gray-600">Send to</label>
+            <input
+              type="tel"
+              value={smsTo}
+              onChange={e => { setSmsTo(e.target.value); setSmsToError('') }}
+              placeholder="+15125551234"
+              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+            />
+          </div>
+          {smsToError && <p className="text-red-500 text-xs sm:ml-[calc(176px+0.5rem)]">{smsToError}</p>}
+          <p className="text-xs text-gray-400 sm:ml-[calc(176px+0.5rem)]">
+            US numbers can be entered with or without the country code; international numbers need a leading <code className="bg-gray-100 px-1 rounded">+</code>.
+          </p>
+        </div>
+
+        <button
+          type="submit"
+          disabled={smsSending}
+          className="w-full sm:w-auto bg-green-700 hover:bg-green-800 text-white font-semibold px-6 py-2.5 rounded-lg text-sm transition disabled:opacity-50"
+        >
+          {smsSending ? 'Sending…' : 'Send Test SMS'}
         </button>
       </form>
     </div>

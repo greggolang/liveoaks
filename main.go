@@ -103,7 +103,6 @@ func main() {
 	guests := &handlers.GuestsHandler{DB: pool}
 	usta := &handlers.USTAHandler{DB: pool}
 	uploads := &handlers.UploadsHandler{DB: pool, UploadDir: uploadDir}
-	google := &handlers.GoogleHandler{DB: pool, ServiceAccount: []byte(cfg.GoogleSAJSON)}
 	camera := &handlers.CameraHandler{DB: pool, CameraToken: cfg.CameraToken, HLSDir: cfg.CameraHLSDir, SiteURL: cfg.SiteURL, Mailer: mailer}
 	camera.Init()
 	alerts := &handlers.AlertsHandler{DB: pool}
@@ -470,15 +469,6 @@ func main() {
 	authed.GET("/bylaws", uploads.ServeBylaws)
 	adminOnly.GET("/bylaws/meta", uploads.BylawsMeta)
 	adminOnly.POST("/bylaws", uploads.UploadBylaws)
-
-	// Google Workspace — credentials + Gmail + Drive (board members and above)
-	boardPlus.GET("/google/credentials", google.GetCredentials)
-	boardPlus.GET("/google/email/threads", google.ListThreads)
-	boardPlus.GET("/google/email/threads/:threadId", google.GetThread)
-	boardPlus.POST("/google/email/send", google.SendEmail)
-	boardPlus.PUT("/google/email/threads/:threadId/read", google.MarkRead)
-	boardPlus.DELETE("/google/email/threads/:threadId", google.TrashThread)
-	boardPlus.GET("/google/drive/files", google.ListDriveFiles)
 
 	// Camera viewer (HLS proxy + status)
 	e.GET("/camera", camera.Page)
