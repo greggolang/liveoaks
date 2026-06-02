@@ -19,6 +19,18 @@ interface CourtBlock {
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
+const REASON_PRESETS = [
+  'Court Washing',
+  'Line Painting',
+  'Resurfacing',
+  'Net Repair',
+  'Fence Repair',
+  'Equipment Inspection',
+  'Private Event',
+  'Tournament',
+  'Other',
+]
+
 const TIME_OPTS: { value: string; label: string }[] = []
 for (let h = 6; h <= 20; h++) {
   for (const m of ['00', '30']) {
@@ -65,6 +77,7 @@ export default function AdminCourtBlocks() {
   const [form, setForm] = useState({
     court_id: '',
     reason: 'Court Washing',
+    customReason: '',
     block_type: 'recurring_weekly' as 'recurring_weekly' | 'one_time',
     day_of_week: '2',   // Tuesday default
     start_time: '07:00',
@@ -84,7 +97,7 @@ export default function AdminCourtBlocks() {
 
   const resetForm = () => {
     setForm({
-      court_id: '', reason: 'Court Washing', block_type: 'recurring_weekly',
+      court_id: '', reason: 'Court Washing', customReason: '', block_type: 'recurring_weekly',
       day_of_week: '2', start_time: '07:00', end_time: '09:00',
       one_time_date: todayLocalStr(), one_time_start_time: '07:00', one_time_end_time: '09:00',
     })
@@ -96,9 +109,12 @@ export default function AdminCourtBlocks() {
     setError('')
     setSaving(true)
     try {
+      const reason = form.reason === 'Other'
+        ? (form.customReason.trim() || 'Other')
+        : form.reason
       const payload: Record<string, unknown> = {
         court_id: form.court_id ? parseInt(form.court_id) : null,
-        reason: form.reason.trim() || 'Court Washing',
+        reason,
         block_type: form.block_type,
       }
       if (form.block_type === 'recurring_weekly') {
@@ -151,9 +167,16 @@ export default function AdminCourtBlocks() {
             {/* Reason */}
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Reason</label>
-              <input value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))}
-                placeholder="e.g. Court Washing"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+              <select value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value, customReason: '' }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500">
+                {REASON_PRESETS.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+              {form.reason === 'Other' && (
+                <input value={form.customReason}
+                  onChange={e => setForm(f => ({ ...f, customReason: e.target.value }))}
+                  placeholder="Describe the reason…"
+                  className="mt-2 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+              )}
             </div>
 
             {/* Court */}

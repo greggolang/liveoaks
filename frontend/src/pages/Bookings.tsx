@@ -1843,7 +1843,7 @@ export default function Bookings() {
                           <td key={c.id} className="px-2 py-0.5 align-top">
                             <div title={block.reason}
                               className="w-full h-8 rounded border bg-amber-50 border-amber-200 flex items-center justify-center">
-                              <span className="text-xs text-amber-500 font-medium truncate px-1">Maintenance</span>
+                              <span className="text-xs text-amber-500 font-medium truncate px-1">{block.reason}</span>
                             </div>
                           </td>
                         )

@@ -88,8 +88,8 @@ export default function CourtGrid() {
                         </div>
                       ) : blk ? (
                         <div title={blk.reason}
-                          className="bg-amber-50 border border-amber-200 rounded px-2 py-1 text-xs text-amber-500 font-medium">
-                          Maintenance
+                          className="bg-amber-50 border border-amber-200 rounded px-2 py-1 text-xs text-amber-500 font-medium truncate">
+                          {blk.reason}
                         </div>
                       ) : (
                         <div className="text-gray-200 text-xs">—</div>
@@ -108,7 +108,7 @@ export default function CourtGrid() {
           <span className="inline-block w-3 h-3 bg-green-100 border border-green-300 rounded"></span> Booked
         </span>
         <span className="flex items-center gap-1">
-          <span className="inline-block w-3 h-3 bg-amber-50 border border-amber-200 rounded"></span> Maintenance
+          <span className="inline-block w-3 h-3 bg-amber-50 border border-amber-200 rounded"></span> Blocked
         </span>
         <span className="flex items-center gap-1">
           <span className="inline-block w-3 h-3 bg-white border border-gray-200 rounded"></span> Available
