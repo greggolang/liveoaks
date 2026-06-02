@@ -1,10 +1,12 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"time"
 
+	"github.com/greggolang/liveoaks/internal/notifprefs"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
 )
@@ -190,7 +192,12 @@ func (h *MessagesHandler) Send(c echo.Context) error {
 	// Email notification — async so the API returns fast.
 	if h.Mailer != nil {
 		senderName := senderFirst + " " + senderLast
-		go h.sendEmailNotification(recipientEmail, recipientFirst, senderName, subject, req.Body)
+		recipID := req.RecipientID
+		go func() {
+			if notifprefs.UserWantsEmail(context.Background(), h.DB, recipID, "member_message") {
+				h.sendEmailNotification(recipientEmail, recipientFirst, senderName, subject, req.Body)
+			}
+		}()
 	}
 
 	return c.JSON(http.StatusCreated, msg)

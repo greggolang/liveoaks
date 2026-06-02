@@ -107,6 +107,7 @@ export default function AdminUsers() {
   const [alertMsg, setAlertMsg] = useState('')
   const [alertType, setAlertType] = useState('info')
   const [sendingAlert, setSendingAlert] = useState(false)
+  const [forceResetNotice, setForceResetNotice] = useState<{ name: string; emailSent: boolean; url: string; error?: string } | null>(null)
 
   const load = () => api.admin.users().then(d => setUsers(d as User[]))
   const loadWaitlist = () => api.waitlist.list().then(d => setWaitlist(d as WaitlistEntry[]))
@@ -222,6 +223,16 @@ export default function AdminUsers() {
     load()
   }
 
+  const forcePasswordReset = async (u: User) => {
+    if (!confirm(`Send a password reset email to ${u.first_name} ${u.last_name} (${u.email})?`)) return
+    try {
+      const res = await api.admin.forceReset(u.id)
+      setForceResetNotice({ name: `${u.first_name} ${u.last_name}`, emailSent: res.email_sent, url: res.reset_url, error: res.email_error || undefined })
+    } catch (err: any) {
+      setForceResetNotice({ name: `${u.first_name} ${u.last_name}`, emailSent: false, url: '', error: err.message })
+    }
+  }
+
   const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault()
     setAddError('')
@@ -311,6 +322,26 @@ export default function AdminUsers() {
           </button>
         </div>
       </div>
+
+      {/* Force reset notification */}
+      {forceResetNotice && (
+        <div className={`mb-4 rounded-xl border px-4 py-3 text-sm flex items-start gap-3 ${forceResetNotice.emailSent ? 'bg-green-50 border-green-200 text-green-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+          <div className="flex-1">
+            {forceResetNotice.emailSent
+              ? <><span className="font-medium">Reset email sent</span> to {forceResetNotice.name}. The link expires in 24 hours.</>
+              : <><span className="font-medium">Email failed</span> for {forceResetNotice.name}{forceResetNotice.error ? ` — ${forceResetNotice.error}` : ''}. Copy the link below to share manually:</>
+            }
+            {!forceResetNotice.emailSent && forceResetNotice.url && (
+              <div className="mt-1.5 flex items-center gap-2">
+                <code className="text-xs bg-white border border-amber-200 rounded px-2 py-1 break-all">{forceResetNotice.url}</code>
+                <button onClick={() => navigator.clipboard.writeText(forceResetNotice.url)}
+                  className="shrink-0 text-xs bg-amber-700 text-white px-2 py-1 rounded hover:bg-amber-800 transition">Copy</button>
+              </div>
+            )}
+          </div>
+          <button onClick={() => setForceResetNotice(null)} className="opacity-50 hover:opacity-80 transition text-lg leading-none">✕</button>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-4 md:grid-cols-8 gap-2 mb-5">
@@ -572,6 +603,8 @@ export default function AdminUsers() {
                 <td className="px-4 py-3 flex gap-3">
                   <button onClick={() => openEdit(u)}
                     className="text-blue-500 hover:text-blue-700 text-xs font-medium">Edit</button>
+                  <button onClick={() => forcePasswordReset(u)}
+                    className="text-orange-500 hover:text-orange-700 text-xs font-medium">Reset PW</button>
                   <button onClick={() => deleteUser(u.id, `${u.first_name} ${u.last_name}`)}
                     className="text-red-400 hover:text-red-600 text-xs">Delete</button>
                 </td>

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/greggolang/liveoaks/internal/notifprefs"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
 )
@@ -175,10 +176,13 @@ func (h *InvitationsHandler) Send(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not create invitation")
 	}
 
-	// Send email async
+	// Send email async — skip if registered member opted out of match invitations
 	acceptURL := fmt.Sprintf("%s/invite/%s/accept", h.SiteURL, token)
 	declineURL := fmt.Sprintf("%s/invite/%s/decline", h.SiteURL, token)
-	go h.sendInvitationEmail(req.InviteeEmail, req.InviteeName, inviterName, courtName, matchTypeLabel, startStr, endStr, acceptURL, declineURL)
+	wantsEmail := req.InviteeUserID == nil || notifprefs.UserWantsEmail(context.Background(), h.DB, *req.InviteeUserID, "match_invitation")
+	if wantsEmail {
+		go h.sendInvitationEmail(req.InviteeEmail, req.InviteeName, inviterName, courtName, matchTypeLabel, startStr, endStr, acceptURL, declineURL)
+	}
 
 	return c.JSON(http.StatusCreated, inv)
 }

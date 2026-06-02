@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/greggolang/liveoaks/internal/notifprefs"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -63,7 +64,7 @@ func (s *Service) sendReminders(ctx context.Context) {
 	loc := s.loadTimezone(ctx)
 	// Find bookings starting in 2 hours that haven't been reminded yet
 	rows, err := s.DB.Query(ctx,
-		`SELECT b.id, b.start_time, b.end_time, ct.name, u.first_name, u.email
+		`SELECT b.id, b.start_time, b.end_time, ct.name, u.id, u.first_name, u.email
 		 FROM bookings b
 		 JOIN users u ON u.id = b.user_id
 		 JOIN courts ct ON ct.id = b.court_id
@@ -79,9 +80,12 @@ func (s *Service) sendReminders(ctx context.Context) {
 	defer rows.Close()
 
 	for rows.Next() {
-		var bookingID, courtName, firstName, email string
+		var bookingID, courtName, userID, firstName, email string
 		var startTime, endTime time.Time
-		if err := rows.Scan(&bookingID, &startTime, &endTime, &courtName, &firstName, &email); err != nil {
+		if err := rows.Scan(&bookingID, &startTime, &endTime, &courtName, &userID, &firstName, &email); err != nil {
+			continue
+		}
+		if !notifprefs.UserWantsEmail(ctx, s.DB, userID, "booking_reminder") {
 			continue
 		}
 
@@ -165,6 +169,7 @@ func (s *Service) sendDayOfReminders(ctx context.Context) {
 			ustaRanking   string
 			isHost        bool
 			isGuest       bool
+			userID        *string
 			needsReminder bool
 		}
 
@@ -175,6 +180,7 @@ func (s *Service) sendDayOfReminders(ctx context.Context) {
 			       COALESCE(u.usta_ranking, ''),
 			       mp.is_host,
 			       mp.is_guest,
+			       u.id,
 			       NOT EXISTS (
 			           SELECT 1 FROM booking_day_reminder_tokens bdr
 			           WHERE bdr.match_player_id = mp.id
@@ -192,7 +198,7 @@ func (s *Service) sendDayOfReminders(ctx context.Context) {
 		for pRows.Next() {
 			var p playerInfo
 			var emailPtr *string
-			if err := pRows.Scan(&p.matchPlayerID, &p.name, &emailPtr, &p.phone, &p.ustaRanking, &p.isHost, &p.isGuest, &p.needsReminder); err != nil {
+			if err := pRows.Scan(&p.matchPlayerID, &p.name, &emailPtr, &p.phone, &p.ustaRanking, &p.isHost, &p.isGuest, &p.userID, &p.needsReminder); err != nil {
 				continue
 			}
 			if emailPtr == nil {
@@ -314,6 +320,9 @@ func (s *Service) sendDayOfReminders(ctx context.Context) {
   </p>
 </div>`, p.name, bi.courtName, startStr, endStr, matchLabel, playerListHTML, okURL, issueURL)
 
+			if p.userID != nil && !notifprefs.UserWantsEmail(ctx, s.DB, *p.userID, "booking_reminder") {
+				continue
+			}
 			if err := s.Mailer.Send(p.email, "Today's Booking Reminder – Live Oaks Tennis Club", body); err != nil {
 				log.Printf("day-of reminder email error for %s: %v", p.email, err)
 			} else {

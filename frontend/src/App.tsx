@@ -53,10 +53,14 @@ import AdminBroadcast from './pages/admin/AdminBroadcast'
 import AdminBoardMeetings from './pages/admin/AdminBoardMeetings'
 import AdminMail from './pages/admin/AdminMail'
 import AdminProShop from './pages/admin/AdminProShop'
+import AdminYoLink from './pages/admin/AdminYoLink'
 import AdminBallTracking from './pages/admin/AdminBallTracking'
 import AdminKioskPurchases from './pages/admin/AdminKioskPurchases'
 import AdminTeachingPro from './pages/admin/AdminTeachingPro'
 import AdminCancellations from './pages/admin/AdminCancellations'
+import AdminCourtBlocks from './pages/admin/AdminCourtBlocks'
+import AdminAccounting from './pages/admin/AdminAccounting'
+import AdminFinancialRules from './pages/admin/AdminFinancialRules'
 import BoardMeetingResponse from './pages/BoardMeetingResponse'
 import LiveballResponse from './pages/LiveballResponse'
 import BookingReminderResponse from './pages/BookingReminderResponse'
@@ -142,11 +146,15 @@ function AppRoutes() {
         <Route path="kiosk-purchases" element={<AdminKioskPurchases />} />
         <Route path="teaching-pro" element={<AdminTeachingPro />} />
         <Route path="cancellations" element={<AdminCancellations />} />
+        <Route path="court-blocks" element={<AdminCourtBlocks />} />
+        <Route path="accounting" element={<AdminAccounting />} />
+        <Route path="financial-rules" element={<AdminFinancialRules />} />
         <Route path="ladder" element={<AdminLadder />} />
         <Route path="liveball" element={<AdminLiveball />} />
         <Route path="broadcast" element={<AdminBroadcast />} />
         <Route path="board-meetings" element={<AdminBoardMeetings />} />
         <Route path="mail" element={<AdminMail />} />
+        <Route path="yolink" element={<AdminYoLink />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

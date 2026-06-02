@@ -16,6 +16,7 @@ import (
 	"github.com/greggolang/liveoaks/internal/logger"
 	mw "github.com/greggolang/liveoaks/internal/middleware"
 	"github.com/greggolang/liveoaks/internal/reminder"
+	"github.com/greggolang/liveoaks/internal/yolink"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 )
@@ -53,6 +54,10 @@ func main() {
 	reminderSvc := &reminder.Service{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	reminderSvc.Start(context.Background())
 
+	// Start YoLink sensor service (connects to MQTT if credentials are configured)
+	yolinkSvc := &yolink.Service{DB: pool, Mailer: mailer}
+	yolinkSvc.Start(context.Background())
+
 	e := echo.New()
 	e.HideBanner = true
 	e.Use(middleware.Logger())
@@ -68,6 +73,7 @@ func main() {
 
 	auth := &handlers.AuthHandler{DB: pool, JWTSecret: cfg.JWTSecret, SiteURL: cfg.SiteURL, Mailer: mailer, Logger: actlog}
 	users := &handlers.UsersHandler{DB: pool, SiteURL: cfg.SiteURL, Mailer: mailer, Logger: actlog}
+	finance := &handlers.FinancialHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL, Logger: actlog}
 	courts := &handlers.CourtsHandler{DB: pool}
 	bookings := &handlers.BookingsHandler{DB: pool, Logger: actlog, Mailer: mailer, SiteURL: cfg.SiteURL}
 	announcements := &handlers.AnnouncementsHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
@@ -105,6 +111,9 @@ func main() {
 	messages := &handlers.MessagesHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	kiosk := &handlers.KioskHandler{DB: pool}
 	mail := &handlers.MailHandler{DB: pool}
+	notifPrefs := &handlers.NotifPrefsHandler{DB: pool}
+	yolinkH := &handlers.YoLinkHandler{DB: pool, Service: yolinkSvc}
+	courtBlocks := &handlers.CourtBlocksHandler{DB: pool}
 
 	api := e.Group("/api")
 
@@ -125,8 +134,11 @@ func main() {
 	authed.GET("/auth/me", auth.Me)
 	authed.PUT("/auth/profile", auth.UpdateProfile)
 	authed.PUT("/auth/password", auth.ChangePassword)
+	authed.GET("/notification-prefs", notifPrefs.Get)
+	authed.PUT("/notification-prefs", notifPrefs.Update)
 
 	authed.GET("/courts", courts.List)
+	authed.GET("/court-blocks", courtBlocks.ListForDate)
 
 	authed.GET("/bookings", bookings.List)
 	authed.GET("/bookings/mine", bookings.Mine)
@@ -194,6 +206,9 @@ func main() {
 	boardPlus.POST("/admin/bookings", bookings.AdminCreate)
 	boardPlus.POST("/admin/booking-cancel-reasons", bookings.CreateCancelReason)
 	boardPlus.DELETE("/admin/booking-cancel-reasons/:id", bookings.DeleteCancelReason)
+	boardPlus.GET("/admin/court-blocks", courtBlocks.ListAdmin)
+	boardPlus.POST("/admin/court-blocks", courtBlocks.Create)
+	boardPlus.DELETE("/admin/court-blocks/:id", courtBlocks.Delete)
 	boardPlus.POST("/announcements", announcements.Create)
 	boardPlus.PUT("/announcements/:id", announcements.Update)
 	boardPlus.DELETE("/announcements/:id", announcements.Delete)
@@ -230,6 +245,7 @@ func main() {
 	adminOnly.PUT("/users/:id/extra-roles", users.UpdateExtraRoles)
 	adminOnly.PUT("/users/:id/status", users.UpdateStatus)
 	adminOnly.DELETE("/users/:id", users.Delete)
+	adminOnly.POST("/users/:id/force-reset", users.ForcePasswordReset)
 	adminOnly.GET("/settings", admin.GetSettings)
 	adminOnly.PUT("/settings/:key", admin.UpdateSetting)
 	adminOnly.GET("/password-resets", admin.PendingResets)
@@ -237,6 +253,21 @@ func main() {
 	adminOnly.GET("/dues", dues.AdminList)
 	adminOnly.PUT("/dues/:id/status", dues.UpdateStatus)
 	adminOnly.POST("/dues/generate", dues.Generate)
+	// Financial rules, balances, charges, P&L
+	adminOnly.GET("/finance/rules", finance.ListRules)
+	adminOnly.POST("/finance/rules", finance.CreateRule)
+	adminOnly.PUT("/finance/rules/:id", finance.UpdateRule)
+	adminOnly.DELETE("/finance/rules/:id", finance.DeleteRule)
+	adminOnly.GET("/finance/balances", finance.MemberBalances)
+	adminOnly.GET("/finance/statement/:id", finance.MemberStatement)
+	adminOnly.POST("/finance/charges", finance.CreateCharge)
+	adminOnly.PUT("/finance/charges/:id/status", finance.UpdateChargeStatus)
+	adminOnly.DELETE("/finance/charges/:id", finance.DeleteCharge)
+	adminOnly.POST("/finance/kiosk-payments", finance.RecordKioskPayment)
+	adminOnly.DELETE("/finance/kiosk-payments/:id", finance.DeleteKioskPayment)
+	adminOnly.GET("/finance/pl", finance.PLReport)
+	adminOnly.POST("/finance/send-reminders", finance.SendReminders)
+	authed.GET("/finance/my-balance", finance.MyBalance)
 	adminOnly.GET("/waitlist", waitlist.List)
 	adminOnly.PUT("/waitlist/:id/status", waitlist.UpdateStatus)
 	adminOnly.PUT("/waitlist/:id/contact", waitlist.UpdateContact)
@@ -420,6 +451,14 @@ func main() {
 	boardPlus.GET("/admin/kiosk/purchases", kiosk.AdminPurchaseList)
 	boardPlus.PUT("/admin/kiosk/purchases/:id", kiosk.UpdatePurchase)
 	boardPlus.DELETE("/admin/kiosk/purchases/:id", kiosk.DeletePurchase)
+
+	// YoLink sensors (board+ only)
+	boardPlus.GET("/admin/yolink/config", yolinkH.GetConfig)
+	boardPlus.PUT("/admin/yolink/config", yolinkH.UpdateConfig)
+	boardPlus.POST("/admin/yolink/sync", yolinkH.SyncDevices)
+	boardPlus.GET("/admin/yolink/devices", yolinkH.ListDevices)
+	boardPlus.PUT("/admin/yolink/devices/:id", yolinkH.UpdateDevice)
+	boardPlus.GET("/admin/yolink/alerts", yolinkH.ListAlerts)
 
 	// Member alerts (admin → member dashboard)
 	authed.GET("/member-alerts", alerts.GetMyAlerts)

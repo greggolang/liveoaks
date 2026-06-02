@@ -27,6 +27,8 @@ const sections: Section[] = [
   {
     heading: 'Billing',
     links: [
+      { to: '/admin/accounting', label: 'Accounting / P&L' },
+      { to: '/admin/financial-rules', label: 'Enforcement Rules' },
       { to: '/admin/dues', label: 'Dues' },
       { to: '/admin/receipts', label: 'Receipts' },
       { to: '/admin/kiosk-purchases', label: 'Kiosk Purchases' },
@@ -61,6 +63,12 @@ const sections: Section[] = [
     links: [
       { to: '/admin/board-meetings', label: 'Board Meetings' },
       { to: '/admin/notes', label: 'Notes' },
+    ],
+  },
+  {
+    heading: 'Clubhouse',
+    links: [
+      { to: '/admin/yolink', label: 'YoLink Sensors' },
     ],
   },
   {

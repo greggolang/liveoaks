@@ -82,6 +82,7 @@ export default function Dashboard() {
   const [cameraURL, setCameraURL] = useState<string | null>(null)
   const [cameraDown, setCameraDown] = useState(false)
   const [adminAlerts, setAdminAlerts] = useState<{ id: string; message: string; type: string }[]>([])
+  const [myBalance, setMyBalance] = useState<{ dues_owed: number; kiosk_tab: number; charges_owed: number; total: number } | null>(null)
   const [mailAccount, setMailAccount] = useState<{ address: string; role_label: string; webmail_url: string } | null>(null)
   const [friends, setFriends] = useState<{id: string; friend_user_id?: string; friend_name: string; friend_email?: string; is_guest: boolean}[]>([])
   const [directory, setDirectory] = useState<{id: string; first_name: string; last_name: string; email: string}[]>([])
@@ -165,6 +166,7 @@ export default function Dashboard() {
     api.announcements.list().then(d => setAnnouncements(d as Announcement[]))
     api.messages.inbox().then(d => setInbox(d)).catch(() => {})
     api.memberAlerts.getMyAlerts().then(d => setAdminAlerts(d)).catch(() => {})
+    api.finance.myBalance().then(d => setMyBalance(d)).catch(() => {})
     api.mail.myAccount().then(d => setMailAccount(d)).catch(() => {})
     api.camera.embedURL().then(d => setCameraURL(d.url)).catch(() => setCameraURL('/camera'))
     api.weather.get().then(d => setWeather(d as WeatherData)).catch(() => {})
@@ -289,6 +291,22 @@ export default function Dashboard() {
             className="shrink-0 text-xs font-semibold bg-indigo-700 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-800 transition">
             Open Webmail →
           </a>
+        </div>
+      )}
+
+      {/* Outstanding balance warning */}
+      {myBalance && myBalance.total > 0 && (
+        <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 flex items-start gap-3">
+          <span className="text-amber-500 text-xl shrink-0">⚠</span>
+          <div className="flex-1">
+            <p className="font-semibold text-amber-800">Outstanding Balance: ${myBalance.total.toFixed(2)}</p>
+            <p className="text-sm text-amber-700 mt-0.5">
+              {myBalance.dues_owed > 0 && `Dues: $${myBalance.dues_owed.toFixed(2)}  `}
+              {myBalance.kiosk_tab > 0 && `Kiosk tab: $${myBalance.kiosk_tab.toFixed(2)}  `}
+              {myBalance.charges_owed > 0 && `Other charges: $${myBalance.charges_owed.toFixed(2)}`}
+            </p>
+            <p className="text-xs text-amber-600 mt-1">Please contact the club office to settle your account. Members with overdue balances may be restricted from court bookings.</p>
+          </div>
         </div>
       )}
 

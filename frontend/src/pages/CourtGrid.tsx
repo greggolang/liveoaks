@@ -7,6 +7,11 @@ interface Booking {
   court: { name: string; number: number }
 }
 interface Court { id: number; name: string; number: number; has_ball_machine?: boolean }
+interface CourtBlock {
+  id: string; court_id: number | null; reason: string; block_type: string
+  day_of_week?: number; start_time?: string; end_time?: string
+  one_time_start?: string; one_time_end?: string
+}
 
 const HOURS = Array.from({ length: 14 }, (_, i) => i + 7) // 7am–8pm
 
@@ -14,10 +19,12 @@ export default function CourtGrid() {
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [bookings, setBookings] = useState<Booking[]>([])
   const [courts, setCourts] = useState<Court[]>([])
+  const [blocks, setBlocks] = useState<CourtBlock[]>([])
 
   useEffect(() => {
     api.courts.list().then(d => setCourts(d as Court[]))
     api.bookings.list(date).then(d => setBookings(d as Booking[]))
+    api.courtBlocks.listForDate(date).then(d => setBlocks(d as CourtBlock[])).catch(() => {})
   }, [date])
 
   const getBooking = (courtId: number, hour: number) =>
@@ -25,6 +32,22 @@ export default function CourtGrid() {
       const start = new Date(b.start_time).getHours()
       const end = new Date(b.end_time).getHours()
       return b.court_id === courtId && hour >= start && hour < end
+    })
+
+  const getBlock = (courtId: number, hour: number) =>
+    blocks.find(b => {
+      if (b.court_id !== null && b.court_id !== courtId) return false
+      if (b.block_type === 'recurring_weekly' && b.start_time && b.end_time) {
+        const bSH = parseInt(b.start_time.split(':')[0])
+        const bEH = parseInt(b.end_time.split(':')[0])
+        return hour >= bSH && hour < bEH
+      }
+      if (b.block_type === 'one_time' && b.one_time_start && b.one_time_end) {
+        const start = new Date(b.one_time_start).getHours()
+        const end = new Date(b.one_time_end).getHours()
+        return hour >= start && hour < end
+      }
+      return false
     })
 
   return (
@@ -56,11 +79,17 @@ export default function CourtGrid() {
                 </td>
                 {courts.map(c => {
                   const b = getBooking(c.id, hour)
+                  const blk = !b ? getBlock(c.id, hour) : null
                   return (
                     <td key={c.id} className="px-2 py-1 text-center">
                       {b ? (
                         <div className="bg-green-100 border border-green-300 rounded px-2 py-1 text-xs text-green-800 font-medium">
                           {b.user.first_name} {b.user.last_name[0]}.
+                        </div>
+                      ) : blk ? (
+                        <div title={blk.reason}
+                          className="bg-amber-50 border border-amber-200 rounded px-2 py-1 text-xs text-amber-500 font-medium">
+                          Maintenance
                         </div>
                       ) : (
                         <div className="text-gray-200 text-xs">—</div>
@@ -77,6 +106,9 @@ export default function CourtGrid() {
       <div className="mt-4 flex gap-4 text-xs text-gray-500">
         <span className="flex items-center gap-1">
           <span className="inline-block w-3 h-3 bg-green-100 border border-green-300 rounded"></span> Booked
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="inline-block w-3 h-3 bg-amber-50 border border-amber-200 rounded"></span> Maintenance
         </span>
         <span className="flex items-center gap-1">
           <span className="inline-block w-3 h-3 bg-white border border-gray-200 rounded"></span> Available

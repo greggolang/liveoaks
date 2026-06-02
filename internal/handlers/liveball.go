@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/greggolang/liveoaks/internal/notifprefs"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
 )
@@ -243,7 +244,9 @@ func (h *LiveballHandler) AdminSendInvites(c echo.Context) error {
 
 		acceptURL := fmt.Sprintf("%s/liveball/%s/accept", h.SiteURL, token)
 		declineURL := fmt.Sprintf("%s/liveball/%s/decline", h.SiteURL, token)
-		go h.sendInviteEmail(m.email, m.name, title, startStr, maxPlayers, acceptURL, declineURL)
+		if notifprefs.UserWantsEmail(ctx, h.DB, m.id, "liveball_invitation") {
+			go h.sendInviteEmail(m.email, m.name, title, startStr, maxPlayers, acceptURL, declineURL)
+		}
 		sent++
 	}
 

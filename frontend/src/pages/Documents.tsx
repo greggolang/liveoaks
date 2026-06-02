@@ -58,20 +58,20 @@ interface FolderNodeProps {
   showUploadFor: string | null
   uploadFolderId: string
   uploadTitle: string
-  uploadFile: File | null
+  uploadFiles: File[]
   uploading: boolean
   uploadError: string
   onUploadOpen: (folderId: string) => void
   onUploadCancel: () => void
   onUploadTitleChange: (v: string) => void
-  onUploadFileChange: (f: File | null) => void
+  onUploadFileChange: (files: File[]) => void
   onUploadSubmit: (e: React.FormEvent) => void
   onDelete: (docId: string) => void
 }
 
 function FolderNode({
   folder, depth, isBoard,
-  showUploadFor, uploadFolderId, uploadTitle, uploadFile, uploading, uploadError,
+  showUploadFor, uploadFolderId, uploadTitle, uploadFiles, uploading, uploadError,
   onUploadOpen, onUploadCancel, onUploadTitleChange, onUploadFileChange, onUploadSubmit, onDelete,
 }: FolderNodeProps) {
   const [open, setOpen] = useState(true)
@@ -107,23 +107,54 @@ function FolderNode({
           {isBoard && showUploadFor === folder.id && (
             <form onSubmit={onUploadSubmit}
               className="bg-green-50 border border-green-200 rounded-xl p-4 mb-3 space-y-3">
-              <div className="grid sm:grid-cols-2 gap-3">
+              {/* File / folder pickers */}
+              <div className="flex flex-wrap gap-2">
+                <label className="cursor-pointer inline-flex items-center text-xs text-green-700 hover:text-green-900 font-medium border border-green-300 rounded px-3 py-1.5 bg-white transition">
+                  Select Files
+                  <input type="file" multiple className="sr-only"
+                    onChange={e => onUploadFileChange(Array.from(e.target.files ?? []))} />
+                </label>
+                <label className="cursor-pointer inline-flex items-center text-xs text-green-700 hover:text-green-900 font-medium border border-green-300 rounded px-3 py-1.5 bg-white transition">
+                  Upload Folder
+                  <input
+                    ref={ref => ref && ref.setAttribute('webkitdirectory', '')}
+                    type="file" multiple className="sr-only"
+                    onChange={e => onUploadFileChange(Array.from(e.target.files ?? []))} />
+                </label>
+              </div>
+
+              {/* Single file: editable title */}
+              {uploadFiles.length === 1 && (
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Title *</label>
                   <input value={uploadTitle} onChange={e => onUploadTitleChange(e.target.value)} required autoFocus
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">File *</label>
-                  <input type="file" required onChange={e => onUploadFileChange(e.target.files?.[0] ?? null)}
-                    className="w-full text-sm text-gray-500 file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-medium file:bg-green-100 file:text-green-700 hover:file:bg-green-200" />
+              )}
+
+              {/* Multiple files: scrollable file list */}
+              {uploadFiles.length > 1 && (
+                <div className="bg-white border border-gray-200 rounded-lg px-3 py-2 max-h-36 overflow-y-auto space-y-0.5">
+                  <p className="text-xs font-medium text-gray-700 mb-1">{uploadFiles.length} files selected — filenames used as titles</p>
+                  {uploadFiles.map((f, i) => (
+                    <p key={i} className="text-xs text-gray-500 truncate">{f.webkitRelativePath || f.name}</p>
+                  ))}
                 </div>
-              </div>
+              )}
+
+              {uploadFiles.length === 0 && (
+                <p className="text-xs text-gray-400 italic">No files selected yet.</p>
+              )}
+
               {uploadError && <p className="text-red-500 text-xs">{uploadError}</p>}
               <div className="flex gap-2">
-                <button type="submit" disabled={uploading}
+                <button type="submit" disabled={uploading || uploadFiles.length === 0}
                   className="bg-green-700 hover:bg-green-800 text-white text-sm font-medium px-4 py-1.5 rounded-lg transition disabled:opacity-50">
-                  {uploading ? 'Uploading…' : 'Upload'}
+                  {uploading
+                    ? 'Uploading…'
+                    : uploadFiles.length > 1
+                      ? `Upload ${uploadFiles.length} files`
+                      : 'Upload'}
                 </button>
                 <button type="button" onClick={onUploadCancel}
                   className="text-sm text-gray-400 hover:text-gray-600 px-3 transition">
@@ -164,7 +195,7 @@ function FolderNode({
             <FolderNode key={child.id} folder={child} depth={depth + 1}
               isBoard={isBoard}
               showUploadFor={showUploadFor} uploadFolderId={uploadFolderId}
-              uploadTitle={uploadTitle} uploadFile={uploadFile}
+              uploadTitle={uploadTitle} uploadFiles={uploadFiles}
               uploading={uploading} uploadError={uploadError}
               onUploadOpen={onUploadOpen} onUploadCancel={onUploadCancel}
               onUploadTitleChange={onUploadTitleChange} onUploadFileChange={onUploadFileChange}
@@ -226,7 +257,7 @@ export default function Documents() {
   const [showUploadFor, setShowUploadFor] = useState<string | null>(null)
   const [uploadFolderId, setUploadFolderId] = useState('')
   const [uploadTitle, setUploadTitle] = useState('')
-  const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [uploadFiles, setUploadFiles] = useState<File[]>([])
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
 
@@ -294,13 +325,30 @@ export default function Documents() {
     }))
 
   // ── Document upload ──────────────────────────────────────────────────────────
+  const handleUploadFileChange = (files: File[]) => {
+    setUploadFiles(files)
+    if (files.length === 1) {
+      setUploadTitle(files[0].name.replace(/\.[^.]+$/, ''))
+    } else {
+      setUploadTitle('')
+    }
+  }
+
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!uploadFile || !uploadTitle.trim() || !uploadFolderId) return
+    if (uploadFiles.length === 0 || !uploadFolderId) return
+    if (uploadFiles.length === 1 && !uploadTitle.trim()) { setUploadError('Title is required'); return }
     setUploading(true); setUploadError('')
     try {
-      await api.documents.upload(uploadTitle.trim(), uploadFolderId, uploadFile)
-      setUploadTitle(''); setUploadFile(null); setShowUploadFor(null); setUploadFolderId('')
+      if (uploadFiles.length === 1) {
+        await api.documents.upload(uploadTitle.trim(), uploadFolderId, uploadFiles[0])
+      } else {
+        for (const file of uploadFiles) {
+          const title = file.name.replace(/\.[^.]+$/, '') || file.name
+          await api.documents.upload(title, uploadFolderId, file)
+        }
+      }
+      setUploadTitle(''); setUploadFiles([]); setShowUploadFor(null); setUploadFolderId('')
       await loadFolders()
     } catch (e: any) { setUploadError(e.message || 'Upload failed') }
     finally { setUploading(false) }
@@ -316,7 +364,7 @@ export default function Documents() {
     setUploadFolderId(folderId)
     setShowUploadFor(folderId)
     setUploadTitle('')
-    setUploadFile(null)
+    setUploadFiles([])
     setUploadError('')
   }
 
@@ -420,12 +468,12 @@ export default function Documents() {
             <FolderNode key={folder.id} folder={folder} depth={0}
               isBoard={isBoard}
               showUploadFor={showUploadFor} uploadFolderId={uploadFolderId}
-              uploadTitle={uploadTitle} uploadFile={uploadFile}
+              uploadTitle={uploadTitle} uploadFiles={uploadFiles}
               uploading={uploading} uploadError={uploadError}
               onUploadOpen={openUpload}
               onUploadCancel={() => setShowUploadFor(null)}
               onUploadTitleChange={setUploadTitle}
-              onUploadFileChange={setUploadFile}
+              onUploadFileChange={handleUploadFileChange}
               onUploadSubmit={handleUpload}
               onDelete={handleDelete}
             />

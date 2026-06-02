@@ -97,6 +97,7 @@ export default function Bookings() {
   const [date, setDate] = useState(today)
   const [courts, setCourts] = useState<Court[]>([])
   const [bookings, setBookings] = useState<Booking[]>([])
+  const [courtBlocks, setCourtBlocks] = useState<any[]>([])
   const [selected, setSelected] = useState<Selected | null>(null)
   const [duration, setDuration] = useState(1.5)
   const [matchType, setMatchType] = useState('singles')
@@ -175,6 +176,7 @@ export default function Bookings() {
 
   const load = useCallback(() => {
     api.bookings.list(date).then(d => setBookings(d as Booking[]))
+    api.courtBlocks.listForDate(date).then(d => setCourtBlocks(d as any[])).catch(() => {})
   }, [date])
 
   const loadMine = async () => {
@@ -406,6 +408,7 @@ export default function Bookings() {
   const handleSlotClick = (courtId: number, hour: number, courtName: string) => {
     const booking = getBooking(courtId, hour)
     if (booking) return
+    if (getBlock(courtId, hour)) return
     setBookingDetail(null)
     setSelected({ courtId, hour, courtName })
     setSelectedFriends([])
@@ -651,6 +654,25 @@ export default function Bookings() {
   )
 
   const isPast = (slot: number) => slotToDate(date, slot) < new Date()
+
+  const getBlock = (courtId: number, slot: number) => {
+    const slotMin = Math.floor(slot) * 60 + (slot % 1 === 0.5 ? 30 : 0)
+    const slotEndMin = slotMin + 30
+    return courtBlocks.find(b => {
+      if (b.court_id !== null && b.court_id !== courtId) return false
+      if (b.block_type === 'recurring_weekly' && b.start_time && b.end_time) {
+        const [bSH, bSM] = b.start_time.split(':').map(Number)
+        const [bEH, bEM] = b.end_time.split(':').map(Number)
+        return (bSH * 60 + bSM) < slotEndMin && (bEH * 60 + bEM) > slotMin
+      }
+      if (b.block_type === 'one_time' && b.one_time_start && b.one_time_end) {
+        const slotDate = slotToDate(date, slot)
+        const slotEnd = new Date(slotDate.getTime() + 30 * 60 * 1000)
+        return new Date(b.one_time_start) < slotEnd && new Date(b.one_time_end) > slotDate
+      }
+      return false
+    }) ?? null
+  }
 
   return (
     <div>
@@ -1750,6 +1772,18 @@ export default function Bookings() {
                       const isMe = booking?.user_id === user?.id
                       const past = isPast(slot)
                       const isSelectedSlot = selected?.courtId === c.id && selected?.hour === slot
+                      const block = !booking ? getBlock(c.id, slot) : null
+
+                      if (block) {
+                        return (
+                          <td key={c.id} className="px-2 py-0.5 align-top">
+                            <div title={block.reason}
+                              className="w-full h-8 rounded border bg-amber-50 border-amber-200 flex items-center justify-center">
+                              <span className="text-xs text-amber-500 font-medium truncate px-1">Maintenance</span>
+                            </div>
+                          </td>
+                        )
+                      }
 
                       if (booking) {
                         // Determine if the current user is involved in this booking:

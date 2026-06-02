@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/greggolang/liveoaks/internal/notifprefs"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
 )
@@ -198,44 +199,48 @@ func (h *EventsHandler) SendEmail(c echo.Context) error {
 	subject = replacer.Replace(subject)
 	body = replacer.Replace(body)
 
-	// Resolve recipient emails
-	var emails []string
+	// Resolve recipient (id, email) pairs
+	type recip struct{ id, email string }
+	var recipients []recip
 	if len(req.UserIDs) > 0 {
 		rows, err := h.DB.Query(c.Request().Context(),
-			`SELECT email FROM users WHERE id = ANY($1) AND email IS NOT NULL ORDER BY last_name, first_name`,
+			`SELECT id, email FROM users WHERE id = ANY($1) AND email IS NOT NULL ORDER BY last_name, first_name`,
 			req.UserIDs)
 		if err == nil {
 			defer rows.Close()
 			for rows.Next() {
-				var email string
-				if rows.Scan(&email) == nil {
-					emails = append(emails, email)
+				var r recip
+				if rows.Scan(&r.id, &r.email) == nil {
+					recipients = append(recipients, r)
 				}
 			}
 		}
 	} else {
 		rows, err := h.DB.Query(c.Request().Context(),
-			`SELECT email FROM users WHERE status = 'active' AND email IS NOT NULL ORDER BY last_name, first_name`)
+			`SELECT id, email FROM users WHERE status = 'active' AND email IS NOT NULL ORDER BY last_name, first_name`)
 		if err == nil {
 			defer rows.Close()
 			for rows.Next() {
-				var email string
-				if rows.Scan(&email) == nil {
-					emails = append(emails, email)
+				var r recip
+				if rows.Scan(&r.id, &r.email) == nil {
+					recipients = append(recipients, r)
 				}
 			}
 		}
 	}
 
-	total := len(emails)
+	total := len(recipients)
 
 	// Send in background, 1 per second, so the SMTP relay is not overwhelmed
-	go func(subj, bod string, recipients []string) {
-		for _, email := range recipients {
-			h.Mailer.Send(email, subj, bod)
+	go func(subj, bod string, rs []recip) {
+		for _, r := range rs {
+			if !notifprefs.UserWantsEmail(context.Background(), h.DB, r.id, "event_notification") {
+				continue
+			}
+			h.Mailer.Send(r.email, subj, bod)
 			time.Sleep(time.Second)
 		}
-	}(subject, body, emails)
+	}(subject, body, recipients)
 
 	return c.JSON(http.StatusOK, map[string]interface{}{"sent": total, "subject": subject})
 }

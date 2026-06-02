@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/greggolang/liveoaks/internal/notifprefs"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
 )
@@ -823,6 +824,9 @@ func (h *LadderHandler) notifyChallengeReceived(ctx context.Context, challengedI
 	if h.Mailer == nil {
 		return
 	}
+	if !notifprefs.UserWantsEmail(ctx, h.DB, challengedID, "ladder_challenge") {
+		return
+	}
 	var email, challengerName string
 	h.DB.QueryRow(ctx, `SELECT email FROM users WHERE id=$1`, challengedID).Scan(&email)
 	h.DB.QueryRow(ctx, `SELECT first_name||' '||last_name FROM users WHERE id=$1`, challengerID).Scan(&challengerName)
@@ -842,6 +846,9 @@ func (h *LadderHandler) notifyChallengeReceived(ctx context.Context, challengedI
 
 func (h *LadderHandler) notifyChallengeResponse(ctx context.Context, challengerID, responderID, action, challengeID string) {
 	if h.Mailer == nil {
+		return
+	}
+	if !notifprefs.UserWantsEmail(ctx, h.DB, challengerID, "ladder_challenge") {
 		return
 	}
 	var email, responderName string

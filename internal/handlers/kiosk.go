@@ -65,6 +65,11 @@ func (h *KioskHandler) Purchase(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusNotFound, "member not found")
 	}
 
+	// Check financial enforcement rules before allowing kiosk purchase.
+	if err := CheckFinancialBlock(c.Request().Context(), h.DB, req.UserID, "block_kiosk"); err != nil {
+		return err
+	}
+
 	type PurchaseRecord struct {
 		ID        string    `json:"id"`
 		ItemName  string    `json:"item_name"`

@@ -1,10 +1,12 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"time"
 
+	"github.com/greggolang/liveoaks/internal/notifprefs"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
 )
@@ -13,6 +15,7 @@ type BroadcastHandler struct {
 	DB     *pgxpool.Pool
 	Mailer interface{ Send(to, subject, body string) error }
 }
+
 
 type broadcastRecipient struct {
 	ID   string `json:"id"`
@@ -100,13 +103,13 @@ func (h *BroadcastHandler) Send(c echo.Context) error {
 	}
 	defer rows.Close()
 
-	type recipient struct{ name, email string }
+	type recipient struct{ id, name, email string }
 	recipients := []recipient{}
 	for rows.Next() {
 		var id, name, email string
 		rows.Scan(&id, &name, &email)
 		if email != "" {
-			recipients = append(recipients, recipient{name, email})
+			recipients = append(recipients, recipient{id, name, email})
 		}
 	}
 
@@ -117,6 +120,9 @@ func (h *BroadcastHandler) Send(c echo.Context) error {
 	// Send in background, throttled 1/second to avoid SMTP relay limits
 	go func() {
 		for _, r := range recipients {
+			if !notifprefs.UserWantsEmail(context.Background(), h.DB, r.id, "broadcast") {
+				continue
+			}
 			body := fmt.Sprintf(`
 <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:32px">
 %s

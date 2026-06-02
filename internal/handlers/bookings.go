@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/greggolang/liveoaks/internal/models"
+	"github.com/greggolang/liveoaks/internal/notifprefs"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
 )
@@ -25,13 +26,14 @@ type BookingsHandler struct {
 	}
 }
 
-// emailRoster sends an email to every player on the roster who has a user account.
+// emailRoster sends an email to every player on the roster who has a user account,
+// skipping those who have opted out of booking confirmation emails.
 func (h *BookingsHandler) emailRoster(bookingID, subject, body string) {
 	if h.Mailer == nil {
 		return
 	}
 	rows, err := h.DB.Query(context.Background(),
-		`SELECT u.email FROM match_players mp
+		`SELECT u.id, u.email FROM match_players mp
 		 JOIN users u ON u.id = mp.user_id
 		 WHERE mp.booking_id = $1 AND mp.user_id IS NOT NULL AND mp.withdrew_at IS NULL`, bookingID)
 	if err != nil {
@@ -39,10 +41,14 @@ func (h *BookingsHandler) emailRoster(bookingID, subject, body string) {
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var email string
-		if rows.Scan(&email) == nil {
-			e := email
-			go h.Mailer.Send(e, subject, body)
+		var uid, email string
+		if rows.Scan(&uid, &email) == nil {
+			u, e := uid, email
+			go func() {
+				if notifprefs.UserWantsEmail(context.Background(), h.DB, u, "booking_confirmation") {
+					h.Mailer.Send(e, subject, body)
+				}
+			}()
 		}
 	}
 }
@@ -238,6 +244,11 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 		}
 	}
 
+	// Check financial enforcement rules before allowing the booking.
+	if err := CheckFinancialBlock(c.Request().Context(), h.DB, userID, "block_bookings"); err != nil {
+		return err
+	}
+
 	// Authorized teaching pros get unlimited bookings: any user whose role has
 	// the teaching_pro_booking permission (the 'pro' role, admins, or any role
 	// granted it) is exempt from the per-member daily/weekly/minutes/gap limits,
@@ -361,6 +372,11 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 
 	if req.MatchType == "" {
 		req.MatchType = "casual"
+	}
+
+	// ── Court maintenance block check ─────────────────────────────────────
+	if err := checkCourtBlocks(c.Request().Context(), h.DB, req.CourtID, req.StartTime, req.EndTime, loc); err != nil {
+		return err
 	}
 
 	// Teaching Pro sessions are restricted to Courts 3 and 4.

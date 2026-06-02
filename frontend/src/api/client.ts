@@ -1,3 +1,27 @@
+export interface FinancialRule {
+  id: string; name: string; enabled: boolean; condition: string
+  grace_days: number; actions: string[]; created_at: string; updated_at: string
+}
+export interface MemberBalance {
+  user_id: string; first_name: string; last_name: string; email: string
+  dues_owed: number; kiosk_tab: number; charges_owed: number; total: number
+  oldest_due?: string
+}
+export interface StatementEntry {
+  id: string; date: string; category: string; description: string
+  amount: number; status: string
+}
+export interface MyBalance {
+  dues_owed: number; kiosk_tab: number; charges_owed: number; total: number
+}
+export interface PLMonth {
+  month: string; label: string; dues: number; kiosk_sales: number
+  charges: number; guest_fees: number; income: number; expenses: number; net: number
+}
+export interface PLReport {
+  year: number; months: PLMonth[]; totals: PLMonth
+}
+
 export interface DocFile {
   id: string; title: string; filename: string; original_name: string; created_at: string
 }
@@ -82,6 +106,12 @@ export const api = {
       request('/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, password }) }),
   },
   courts: { list: () => request('/courts') },
+  courtBlocks: {
+    listForDate: (date: string) => request(`/court-blocks?date=${date}`),
+    listAdmin: () => request('/admin/court-blocks'),
+    create: (data: object) => request('/admin/court-blocks', { method: 'POST', body: JSON.stringify(data) }),
+    delete: (id: string) => request(`/admin/court-blocks/${id}`, { method: 'DELETE' }),
+  },
   bookings: {
     list: (date?: string) => request(`/bookings${date ? `?date=${date}` : ''}`),
     mine: () => request('/bookings/mine'),
@@ -327,6 +357,7 @@ export const api = {
     updateStatus: (id: string, status: string) =>
       request(`/admin/users/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),
     deleteUser: (id: string) => request(`/admin/users/${id}`, { method: 'DELETE' }),
+    forceReset: (id: string) => request<{ reset_url: string; email_sent: boolean; email_error: string }>(`/admin/users/${id}/force-reset`, { method: 'POST' }),
     settings: () => request('/admin/settings'),
     updateSetting: (key: string, value: string) =>
       request(`/admin/settings/${key}`, { method: 'PUT', body: JSON.stringify({ value }) }),
@@ -335,6 +366,28 @@ export const api = {
     testEmail: (to: string) =>
       request('/admin/test-email', { method: 'POST', body: JSON.stringify({ to }) }),
     smtpPing: () => request('/admin/smtp-ping'),
+  },
+  finance: {
+    // Rules
+    rules: () => request<FinancialRule[]>('/admin/finance/rules'),
+    createRule: (data: object) => request('/admin/finance/rules', { method: 'POST', body: JSON.stringify(data) }),
+    updateRule: (id: string, data: object) => request(`/admin/finance/rules/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    deleteRule: (id: string) => request(`/admin/finance/rules/${id}`, { method: 'DELETE' }),
+    // Balances & statements
+    balances: () => request<MemberBalance[]>('/admin/finance/balances'),
+    statement: (userId: string) => request<StatementEntry[]>(`/admin/finance/statement/${userId}`),
+    myBalance: () => request<MyBalance>('/finance/my-balance'),
+    // Charges
+    createCharge: (data: object) => request('/admin/finance/charges', { method: 'POST', body: JSON.stringify(data) }),
+    updateChargeStatus: (id: string, status: string) => request(`/admin/finance/charges/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),
+    deleteCharge: (id: string) => request(`/admin/finance/charges/${id}`, { method: 'DELETE' }),
+    // Kiosk payments
+    recordKioskPayment: (data: object) => request('/admin/finance/kiosk-payments', { method: 'POST', body: JSON.stringify(data) }),
+    deleteKioskPayment: (id: string) => request(`/admin/finance/kiosk-payments/${id}`, { method: 'DELETE' }),
+    // P&L
+    pl: (year?: number) => request<PLReport>(`/admin/finance/pl${year ? `?year=${year}` : ''}`),
+    // Reminders
+    sendReminders: () => request('/admin/finance/send-reminders', { method: 'POST' }),
   },
   teachingPro: {
     list: (from?: string, to?: string) => {
@@ -394,6 +447,16 @@ export const api = {
     adminCreate: (userId: string, message: string, type: string) =>
       request('/admin/member-alerts', { method: 'POST', body: JSON.stringify({ user_id: userId, message, type }) }),
     adminDelete: (id: string) => request(`/admin/member-alerts/${id}`, { method: 'DELETE' }),
+  },
+  yolink: {
+    getConfig: () => request<{ client_id: string }>('/admin/yolink/config'),
+    updateConfig: (clientId: string, secretKey: string) =>
+      request('/admin/yolink/config', { method: 'PUT', body: JSON.stringify({ client_id: clientId, secret_key: secretKey }) }),
+    syncDevices: () => request('/admin/yolink/sync', { method: 'POST' }),
+    listDevices: () => request('/admin/yolink/devices'),
+    updateDevice: (id: string, data: { name: string; alerts_enabled: boolean }) =>
+      request(`/admin/yolink/devices/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    listAlerts: () => request('/admin/yolink/alerts'),
   },
   camera: {
     embedURL: () => request<{ url: string }>('/camera/embed'),
@@ -539,6 +602,20 @@ export const api = {
     assign: (id: string, userId: string | null) =>
       request(`/admin/mail/accounts/${id}/assign`, { method: 'POST', body: JSON.stringify({ user_id: userId }) }),
     delete: (id: string) => request(`/admin/mail/accounts/${id}`, { method: 'DELETE' }),
+  },
+  notificationPrefs: {
+    get: () => request<{
+      booking_confirmation: boolean; match_invitation: boolean; booking_reminder: boolean
+      announcement: boolean; broadcast: boolean; event_notification: boolean
+      board_meeting: boolean; ladder_challenge: boolean; liveball_invitation: boolean
+      member_message: boolean
+    }>('/notification-prefs'),
+    update: (prefs: {
+      booking_confirmation: boolean; match_invitation: boolean; booking_reminder: boolean
+      announcement: boolean; broadcast: boolean; event_notification: boolean
+      board_meeting: boolean; ladder_challenge: boolean; liveball_invitation: boolean
+      member_message: boolean
+    }) => request('/notification-prefs', { method: 'PUT', body: JSON.stringify(prefs) }),
   },
   bookingReminder: {
     getInfo: (token: string) => request(`/booking-reminder/${token}`),

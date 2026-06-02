@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"net/http"
 
@@ -14,6 +16,7 @@ import (
 
 type UserMailer interface {
 	SendWelcome(to, firstName, siteURL string) error
+	SendPasswordReset(to, firstName, resetURL string) error
 }
 
 // protectedAdminEmail is permanently locked — its role, status, and email
@@ -261,4 +264,45 @@ func (h *UsersHandler) Delete(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not delete user")
 	}
 	return c.NoContent(http.StatusNoContent)
+}
+
+func (h *UsersHandler) ForcePasswordReset(c echo.Context) error {
+	userID := c.Param("id")
+
+	var firstName, email string
+	err := h.DB.QueryRow(c.Request().Context(),
+		`SELECT first_name, email FROM users WHERE id = $1 AND status = 'active'`, userID,
+	).Scan(&firstName, &email)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, "user not found or not active")
+	}
+
+	h.DB.Exec(c.Request().Context(), `DELETE FROM password_resets WHERE user_id = $1`, userID)
+
+	b := make([]byte, 24)
+	rand.Read(b)
+	token := hex.EncodeToString(b)
+
+	if _, err = h.DB.Exec(c.Request().Context(),
+		`INSERT INTO password_resets (token, user_id) VALUES ($1, $2)`, token, userID); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not create reset token")
+	}
+
+	resetURL := h.SiteURL + "/reset-password?token=" + token
+	adminID := c.Get("user_id").(string)
+	h.Logger.Log(c.Request().Context(), "force_password_reset", email, adminID, c.RealIP())
+
+	emailSent := true
+	emailError := ""
+	if err := h.Mailer.SendPasswordReset(email, firstName, resetURL); err != nil {
+		emailSent = false
+		emailError = err.Error()
+		h.Logger.Log(c.Request().Context(), "email_error", "force reset to "+email+": "+err.Error(), adminID, c.RealIP())
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"reset_url":   resetURL,
+		"email_sent":  emailSent,
+		"email_error": emailError,
+	})
 }

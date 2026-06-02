@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/greggolang/liveoaks/internal/notifprefs"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
 )
@@ -221,7 +222,7 @@ func (h *AnnouncementsHandler) Delete(c echo.Context) error {
 
 func (h *AnnouncementsHandler) emailMembers(title, body, authorName string) {
 	rows, err := h.DB.Query(context.Background(),
-		`SELECT email, first_name FROM users WHERE status = 'active'`)
+		`SELECT id, email, first_name FROM users WHERE status = 'active'`)
 	if err != nil {
 		return
 	}
@@ -239,8 +240,11 @@ func (h *AnnouncementsHandler) emailMembers(title, body, authorName string) {
 </div>`, title, body, authorName, h.SiteURL)
 
 	for rows.Next() {
-		var email, firstName string
-		if err := rows.Scan(&email, &firstName); err != nil {
+		var id, email, firstName string
+		if err := rows.Scan(&id, &email, &firstName); err != nil {
+			continue
+		}
+		if !notifprefs.UserWantsEmail(context.Background(), h.DB, id, "announcement") {
 			continue
 		}
 		h.Mailer.Send(email, "📢 "+title+" — Liveoaks Tennis Club", emailBody)

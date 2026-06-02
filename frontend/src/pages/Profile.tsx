@@ -3,6 +3,33 @@ import { api } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 import { formatPhone } from '../utils/phone'
 
+type NotifPrefs = {
+  booking_confirmation: boolean; match_invitation: boolean; booking_reminder: boolean
+  announcement: boolean; broadcast: boolean; event_notification: boolean
+  board_meeting: boolean; ladder_challenge: boolean; liveball_invitation: boolean
+  member_message: boolean
+}
+
+const NOTIF_LABELS: { key: keyof NotifPrefs; label: string; desc: string }[] = [
+  { key: 'booking_confirmation',  label: 'Booking confirmations',    desc: 'When a court booking is confirmed' },
+  { key: 'match_invitation',      label: 'Match invitations',        desc: 'When someone invites you to a match' },
+  { key: 'booking_reminder',      label: 'Booking reminders',        desc: '2-hour and day-of reminders for your bookings' },
+  { key: 'announcement',          label: 'Announcements',            desc: 'Board announcements sent to all members' },
+  { key: 'broadcast',             label: 'Broadcast emails',         desc: 'General emails sent by admin to all members' },
+  { key: 'event_notification',    label: 'Event notifications',      desc: 'Emails about upcoming club events' },
+  { key: 'board_meeting',         label: 'Board meeting invitations',desc: 'Invitations to board meetings (board members)' },
+  { key: 'ladder_challenge',      label: 'Ladder challenges',        desc: 'When you receive or get a response to a ladder challenge' },
+  { key: 'liveball_invitation',   label: 'LiveBall invitations',     desc: 'Invitations to LiveBall sessions' },
+  { key: 'member_message',        label: 'Member messages',          desc: 'When another member sends you a direct message' },
+]
+
+const defaultPrefs = (): NotifPrefs => ({
+  booking_confirmation: true, match_invitation: true, booking_reminder: true,
+  announcement: true, broadcast: true, event_notification: true,
+  board_meeting: true, ladder_challenge: true, liveball_invitation: true,
+  member_message: true,
+})
+
 const USTA_RATINGS = ['2.5', '3.0', '3.5', '4.0', '4.5', '5.0']
 const RELATIONSHIPS = ['spouse', 'child']
 const emptyFamilyForm = { first_name: '', last_name: '', relationship: 'spouse', birthday: '', email: '', phone: '' }
@@ -47,6 +74,10 @@ export default function Profile() {
   const [familyPwError, setFamilyPwError] = useState('')
   const [familyPwDone, setFamilyPwDone] = useState(false)
 
+  const [notifPrefs, setNotifPrefs] = useState<NotifPrefs>(defaultPrefs())
+  const [notifSaving, setNotifSaving] = useState(false)
+  const [notifMsg, setNotifMsg] = useState('')
+
   const loadFamily = () => api.family.list().then(d => setFamilyMembers(d as FamilyMember[]))
 
   useEffect(() => {
@@ -55,8 +86,26 @@ export default function Profile() {
       setProfile(p)
       setForm({ first_name: p.first_name, last_name: p.last_name, phone: formatPhone(p.phone), address: p.address ?? '', usta_ranking: p.usta_ranking ?? '' })
     })
+    api.notificationPrefs.get().then(p => setNotifPrefs(p as NotifPrefs)).catch(() => {})
     loadFamily()
   }, [])
+
+  const togglePref = async (key: keyof NotifPrefs) => {
+    const updated = { ...notifPrefs, [key]: !notifPrefs[key] }
+    setNotifPrefs(updated)
+    setNotifSaving(true)
+    setNotifMsg('')
+    try {
+      await api.notificationPrefs.update(updated)
+      setNotifMsg('Preferences saved.')
+    } catch {
+      setNotifMsg('Could not save preferences.')
+      setNotifPrefs(notifPrefs) // revert
+    } finally {
+      setNotifSaving(false)
+      setTimeout(() => setNotifMsg(''), 2500)
+    }
+  }
 
   const addFamilyMember = async () => {
     setFamilyError('')
@@ -452,6 +501,36 @@ export default function Profile() {
       </div>
 
       </>}
+
+      {/* Email notification preferences */}
+      <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="font-semibold text-gray-800">Email Notifications</h2>
+            <p className="text-xs text-gray-400 mt-0.5">Choose which emails you'd like to receive.</p>
+          </div>
+          {notifMsg && <p className={`text-xs ${notifMsg.startsWith('Could') ? 'text-red-600' : 'text-green-700'}`}>{notifMsg}</p>}
+        </div>
+        <div className="divide-y divide-gray-100">
+          {NOTIF_LABELS.map(({ key, label, desc }) => (
+            <div key={key} className="flex items-center justify-between py-3">
+              <div>
+                <p className="text-sm font-medium text-gray-700">{label}</p>
+                <p className="text-xs text-gray-400">{desc}</p>
+              </div>
+              <button
+                onClick={() => togglePref(key)}
+                disabled={notifSaving}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none disabled:opacity-50 ${notifPrefs[key] ? 'bg-green-600' : 'bg-gray-200'}`}
+                role="switch"
+                aria-checked={notifPrefs[key]}
+              >
+                <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ${notifPrefs[key] ? 'translate-x-5' : 'translate-x-0'}`} />
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* Membership info */}
       <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 flex gap-6 text-sm">

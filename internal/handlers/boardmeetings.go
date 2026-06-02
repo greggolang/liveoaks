@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/greggolang/liveoaks/internal/notifprefs"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
 )
@@ -178,7 +179,7 @@ func (h *BoardMeetingsHandler) Create(c echo.Context) error {
 			continue
 		}
 
-		if h.Mailer != nil && m.email != "" {
+		if h.Mailer != nil && m.email != "" && notifprefs.UserWantsEmail(c.Request().Context(), h.DB, m.id, "board_meeting") {
 			acceptURL := fmt.Sprintf("%s/board-meeting/%s/accept", h.SiteURL, token)
 			declineURL := fmt.Sprintf("%s/board-meeting/%s/decline", h.SiteURL, token)
 			go h.sendInviteEmail(m.email, m.name, req.Title, dateStr, req.Location, req.Description, acceptURL, declineURL)
