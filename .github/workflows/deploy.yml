@@ -79,9 +79,6 @@ jobs:
             printf '[DEFAULT]\nbantime = 120\nfindtime = 300\nmaxretry = 10\n\n[sshd]\nenabled = true\n' > /etc/fail2ban/jail.local
             systemctl restart fail2ban
 
-            for f in /opt/liveoaks/migrations/*.sql; do
-              sudo -u postgres psql -d liveoaks -f "$f" 2>/dev/null || true
-            done
             mkdir -p /opt/liveoaks/uploads/documents /opt/liveoaks/uploads/photos
             # NOTE: resetpw is a manual recovery tool only. It runs
             # `UPDATE users SET password_hash=...` with NO WHERE clause, so it
