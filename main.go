@@ -411,11 +411,11 @@ func main() {
 	boardPlus.PUT("/admin/notes/:id", notes.Update)
 	boardPlus.DELETE("/admin/notes/:id", notes.Delete)
 
-	// Password vault (admin only)
-	adminOnly.GET("/admin/passwords", passwords.List)
-	adminOnly.POST("/admin/passwords", passwords.Create)
-	adminOnly.PUT("/admin/passwords/:id", passwords.Update)
-	adminOnly.DELETE("/admin/passwords/:id", passwords.Delete)
+	// Password vault (admin only) — adminOnly already prefixes /admin
+	adminOnly.GET("/passwords", passwords.List)
+	adminOnly.POST("/passwords", passwords.Create)
+	adminOnly.PUT("/passwords/:id", passwords.Update)
+	adminOnly.DELETE("/passwords/:id", passwords.Delete)
 
 	adminOnly.GET("/receipts", uploads.ListReceipts)
 	adminOnly.POST("/receipts", uploads.UploadReceipt)
