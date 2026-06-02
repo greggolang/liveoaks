@@ -68,7 +68,7 @@ jobs:
             # --- end temporary block ---
 
             # Add SMTP env vars to service file if not already present
-            grep -q 'SMTP_HOST' /etc/systemd/system/liveoaks.service || sed -i '/Environment=PORT/a Environment=SMTP_HOST=smtp.gmail.com\nEnvironment=SMTP_PORT=587\nEnvironment=SMTP_USER=admin@liveoakstennis.com\nEnvironment=SMTP_FROM=admin@liveoakstennis.com\nEnvironment=SMTP_PASS=placeholder\nEnvironment=SITE_URL=http://liveoaks.webgoserver.com' /etc/systemd/system/liveoaks.service
+            grep -q 'SMTP_HOST' /etc/systemd/system/liveoaks.service || sed -i '/Environment=PORT/a Environment=SMTP_HOST=mail.webgoserver.com\nEnvironment=SMTP_PORT=587\nEnvironment=SMTP_USER=admin@webgoserver.com\nEnvironment=SMTP_FROM=admin@webgoserver.com\nEnvironment=SMTP_PASS=placeholder\nEnvironment=SITE_URL=http://liveoaks.webgoserver.com' /etc/systemd/system/liveoaks.service
 
             # Add Stripe env vars to service file if not already present
             grep -q 'STRIPE_SECRET_KEY' /etc/systemd/system/liveoaks.service || sed -i '/Environment=SMTP_PASS/a Environment=STRIPE_SECRET_KEY=placeholder\nEnvironment=STRIPE_WEBHOOK_SECRET=placeholder\nEnvironment=STRIPE_PUBLISHABLE_KEY=placeholder' /etc/systemd/system/liveoaks.service

@@ -97,12 +97,18 @@ directory = "sql"
 [sieve.trusted]
 directory = "sql"
 
-# Route all outbound mail through Gmail so it leaves via Google's IPs
-# (which are trusted by Hotmail/Outlook) instead of directly from 172.236.228.11.
-# Uses an App Password — generate one at https://myaccount.google.com/apppasswords
-# (requires 2-Step Verification to be enabled on the Google account).
-[queue.outbound]
-next-hop = [{match = "any", protocol = "smtp", host = "smtp.gmail.com", port = 587, tls = "starttls", auth-user = "admin@liveoakstennis.com", auth-secret = "GMAIL_APP_PASSWORD_HERE"}]
+# Outbound mail is delivered DIRECTLY by Stalwart — no smarthost relay. For each
+# recipient it looks up the destination MX and connects on port 25.
+#
+# For reliable delivery from this server make sure:
+#   • Outbound TCP port 25 is open. Linode blocks it by default — open a support
+#     ticket and ask them to lift the SMTP restriction for this Linode.
+#   • Reverse DNS (PTR) for 172.236.228.11 is set to mail.webgoserver.com.
+#   • SPF is published (already done: v=spf1 ip4:172.236.228.11 ~all).
+#   • DKIM signing is configured (generate a key + selector in the Stalwart admin
+#     console, then publish the TXT record it provides) so Gmail/Outlook accept it.
+#
+# With no [queue.outbound] next-hop defined, Stalwart performs direct delivery.
 
 [resolver]
 type = "system"
