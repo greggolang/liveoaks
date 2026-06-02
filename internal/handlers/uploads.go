@@ -32,12 +32,40 @@ type Document struct {
 }
 
 type DocumentFolder struct {
-	ID        string   `json:"id"`
-	Name      string   `json:"name"`
-	SortOrder int      `json:"sort_order"`
-	Roles     []string `json:"roles"`
-	DocCount  int      `json:"doc_count"`
-	Docs      []Document `json:"docs,omitempty"`
+	ID        string           `json:"id"`
+	Name      string           `json:"name"`
+	SortOrder int              `json:"sort_order"`
+	ParentID  *string          `json:"parent_id,omitempty"`
+	Roles     []string         `json:"roles"`
+	DocCount  int              `json:"doc_count,omitempty"`
+	Docs      []Document       `json:"docs,omitempty"`
+	Children  []DocumentFolder `json:"children,omitempty"`
+}
+
+// buildDocumentTree converts a flat folder slice into a parent→children tree.
+func buildDocumentTree(folders []DocumentFolder) []DocumentFolder {
+	childrenOf := make(map[string][]int, len(folders))
+	var rootIdxs []int
+	for i, f := range folders {
+		if f.ParentID == nil {
+			rootIdxs = append(rootIdxs, i)
+		} else {
+			childrenOf[*f.ParentID] = append(childrenOf[*f.ParentID], i)
+		}
+	}
+	var build func(idx int) DocumentFolder
+	build = func(idx int) DocumentFolder {
+		node := folders[idx]
+		for _, ci := range childrenOf[node.ID] {
+			node.Children = append(node.Children, build(ci))
+		}
+		return node
+	}
+	result := make([]DocumentFolder, 0, len(rootIdxs))
+	for _, idx := range rootIdxs {
+		result = append(result, build(idx))
+	}
+	return result
 }
 
 type PhotoFolder struct {
@@ -98,9 +126,9 @@ func (h *UploadsHandler) ListDocuments(c echo.Context) error {
 	var folderQuery string
 	var folderArgs []interface{}
 	if isAdmin {
-		folderQuery = `SELECT id, name, sort_order FROM document_folders ORDER BY sort_order, name`
+		folderQuery = `SELECT id, name, sort_order, parent_id FROM document_folders ORDER BY sort_order, name`
 	} else {
-		folderQuery = `SELECT id, name, sort_order FROM document_folders
+		folderQuery = `SELECT id, name, sort_order, parent_id FROM document_folders
 		               WHERE NOT EXISTS (SELECT 1 FROM document_folder_roles WHERE folder_id = document_folders.id)
 		                  OR EXISTS (SELECT 1 FROM document_folder_roles WHERE folder_id = document_folders.id AND role = ANY($1))
 		               ORDER BY sort_order, name`
@@ -115,7 +143,7 @@ func (h *UploadsHandler) ListDocuments(c echo.Context) error {
 	folders := []DocumentFolder{}
 	for fRows.Next() {
 		var f DocumentFolder
-		if err := fRows.Scan(&f.ID, &f.Name, &f.SortOrder); err != nil { continue }
+		if err := fRows.Scan(&f.ID, &f.Name, &f.SortOrder, &f.ParentID); err != nil { continue }
 		f.Roles = []string{}
 		f.Docs = []Document{}
 		folders = append(folders, f)
@@ -136,14 +164,14 @@ func (h *UploadsHandler) ListDocuments(c echo.Context) error {
 		dRows.Close()
 	}
 
-	return c.JSON(http.StatusOK, folders)
+	return c.JSON(http.StatusOK, buildDocumentTree(folders))
 }
 
 // AdminListFolders returns all folders with their role permissions and doc counts (board+).
 func (h *UploadsHandler) AdminListFolders(c echo.Context) error {
 	ctx := c.Request().Context()
 	rows, err := h.DB.Query(ctx,
-		`SELECT df.id, df.name, df.sort_order,
+		`SELECT df.id, df.name, df.sort_order, df.parent_id,
 		        (SELECT COUNT(*) FROM documents WHERE folder_id = df.id) AS doc_count
 		 FROM document_folders df
 		 ORDER BY df.sort_order, df.name`)
@@ -154,7 +182,7 @@ func (h *UploadsHandler) AdminListFolders(c echo.Context) error {
 	folders := []DocumentFolder{}
 	for rows.Next() {
 		var f DocumentFolder
-		if err := rows.Scan(&f.ID, &f.Name, &f.SortOrder, &f.DocCount); err != nil { continue }
+		if err := rows.Scan(&f.ID, &f.Name, &f.SortOrder, &f.ParentID, &f.DocCount); err != nil { continue }
 		f.Roles = []string{}
 		folders = append(folders, f)
 	}
@@ -170,7 +198,7 @@ func (h *UploadsHandler) AdminListFolders(c echo.Context) error {
 			rRows.Close()
 		}
 	}
-	return c.JSON(http.StatusOK, folders)
+	return c.JSON(http.StatusOK, buildDocumentTree(folders))
 }
 
 // CreateFolder creates a new document folder with optional role restrictions.
@@ -179,14 +207,15 @@ func (h *UploadsHandler) CreateFolder(c echo.Context) error {
 		Name      string   `json:"name"`
 		SortOrder int      `json:"sort_order"`
 		Roles     []string `json:"roles"`
+		ParentID  *string  `json:"parent_id"`
 	}
 	if err := c.Bind(&req); err != nil || req.Name == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "name required")
 	}
 	var id string
 	if err := h.DB.QueryRow(c.Request().Context(),
-		`INSERT INTO document_folders (name, sort_order) VALUES ($1, $2) RETURNING id`,
-		req.Name, req.SortOrder).Scan(&id); err != nil {
+		`INSERT INTO document_folders (name, sort_order, parent_id) VALUES ($1, $2, $3) RETURNING id`,
+		req.Name, req.SortOrder, req.ParentID).Scan(&id); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not create folder")
 	}
 	for _, role := range req.Roles {
@@ -203,12 +232,13 @@ func (h *UploadsHandler) UpdateFolder(c echo.Context) error {
 		Name      string   `json:"name"`
 		SortOrder int      `json:"sort_order"`
 		Roles     []string `json:"roles"`
+		ParentID  *string  `json:"parent_id"`
 	}
 	if err := c.Bind(&req); err != nil || req.Name == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "name required")
 	}
 	h.DB.Exec(c.Request().Context(),
-		`UPDATE document_folders SET name=$1, sort_order=$2 WHERE id=$3`, req.Name, req.SortOrder, id)
+		`UPDATE document_folders SET name=$1, sort_order=$2, parent_id=$3 WHERE id=$4`, req.Name, req.SortOrder, req.ParentID, id)
 	h.DB.Exec(c.Request().Context(), `DELETE FROM document_folder_roles WHERE folder_id=$1`, id)
 	for _, role := range req.Roles {
 		h.DB.Exec(c.Request().Context(),

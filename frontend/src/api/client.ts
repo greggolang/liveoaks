@@ -3,7 +3,9 @@ export interface DocFile {
 }
 export interface DocFolder {
   id: string; name: string; sort_order: number; roles: string[]
+  parent_id?: string | null
   doc_count?: number; docs?: DocFile[]
+  children?: DocFolder[]
 }
 export interface PhotoFile {
   id: string; title: string; filename: string; description?: string; created_at: string
@@ -221,9 +223,9 @@ export const api = {
     delete: (id: string) => request(`/admin/documents/${id}`, { method: 'DELETE' }),
     folders: {
       adminList: () => request<DocFolder[]>('/admin/document-folders'),
-      create: (data: { name: string; sort_order: number; roles: string[] }) =>
+      create: (data: { name: string; sort_order: number; roles: string[]; parent_id?: string | null }) =>
         request('/admin/document-folders', { method: 'POST', body: JSON.stringify(data) }),
-      update: (id: string, data: { name: string; sort_order: number; roles: string[] }) =>
+      update: (id: string, data: { name: string; sort_order: number; roles: string[]; parent_id?: string | null }) =>
         request(`/admin/document-folders/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
       delete: (id: string) => request(`/admin/document-folders/${id}`, { method: 'DELETE' }),
     },
