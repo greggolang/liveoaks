@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react'
+import { QRCodeSVG } from 'qrcode.react'
 import { api } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 
 const ZELLE_EMAIL = 'billing@liveoakstennis.com'
+const ZELLE_NAME = 'Live Oaks Tennis'
+const ZELLE_QR_URL = `https://enroll.zellepay.com/qr-codes?data=${btoa(JSON.stringify({ name: ZELLE_NAME, token: ZELLE_EMAIL, type: 'EMAIL' }))}`
 
 interface Due { id: string; amount: number; due_date: string; paid_at?: string; status: string }
 
@@ -125,6 +128,13 @@ export default function MyDues() {
                 >
                   {copied === 'memo' ? 'Copied!' : 'Copy'}
                 </button>
+              </div>
+            </div>
+
+            <div className="flex flex-col items-center gap-2 my-2">
+              <p className="text-xs text-gray-500 font-medium">Scan with Zelle</p>
+              <div className="p-3 bg-white border border-gray-200 rounded-xl shadow-sm">
+                <QRCodeSVG value={ZELLE_QR_URL} size={160} level="M" />
               </div>
             </div>
 

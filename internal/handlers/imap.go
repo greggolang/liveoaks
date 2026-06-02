@@ -6,6 +6,7 @@ import (
 	"html"
 	"io"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -340,27 +341,62 @@ func (h *IMAPHandler) GetMessage(c echo.Context) error {
 	return c.JSON(http.StatusOK, detail)
 }
 
-// SendMessage sends a new message or reply from the user's role mailbox.
+// SendMessage sends a new message from the user's role mailbox.
+// Accepts multipart/form-data: to, subject, body, cc (text fields),
+// attachments[] (uploaded files), doc_ids[] (system document IDs to attach).
 func (h *IMAPHandler) SendMessage(c echo.Context) error {
 	address, password, host, err := h.creds(c)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
-	var req struct {
-		To      string `json:"to"`
-		Subject string `json:"subject"`
-		Body    string `json:"body"`
-	}
-	if err := c.Bind(&req); err != nil || req.To == "" || req.Subject == "" {
+	to := c.FormValue("to")
+	subject := c.FormValue("subject")
+	body := c.FormValue("body")
+	cc := c.FormValue("cc")
+
+	if to == "" || subject == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "to and subject are required")
 	}
 
+	ctx := c.Request().Context()
+
 	msg := gomail.NewMessage()
 	msg.SetHeader("From", address)
-	msg.SetHeader("To", req.To)
-	msg.SetHeader("Subject", req.Subject)
-	msg.SetBody("text/plain", req.Body)
+	msg.SetHeader("To", to)
+	msg.SetHeader("Subject", subject)
+	if cc != "" {
+		msg.SetHeader("Cc", cc)
+	}
+	msg.SetBody("text/plain", body)
+
+	// Attach uploaded local files
+	form, _ := c.MultipartForm()
+	if form != nil {
+		for _, fh := range form.File["attachments"] {
+			fh := fh
+			msg.Attach(fh.Filename, gomail.SetCopyFunc(func(w io.Writer) error {
+				f, err := fh.Open()
+				if err != nil {
+					return err
+				}
+				defer f.Close()
+				_, err = io.Copy(w, f)
+				return err
+			}))
+		}
+		// Attach system documents by ID
+		for _, docID := range form.Value["doc_ids[]"] {
+			var filename, origName string
+			if err := h.DB.QueryRow(ctx,
+				`SELECT filename, original_name FROM documents WHERE id = $1`, docID,
+			).Scan(&filename, &origName); err != nil {
+				continue
+			}
+			path := filepath.Join("uploads", "documents", filename)
+			msg.Attach(path, gomail.Rename(origName))
+		}
+	}
 
 	d := gomail.NewDialer(host, 587, address, password)
 	d.TLSConfig = &tls.Config{ServerName: host}
@@ -379,6 +415,41 @@ func (h *IMAPHandler) SendMessage(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, map[string]string{"status": "sent"})
+}
+
+// MarkUnread removes the \Seen flag from a message by UID.
+func (h *IMAPHandler) MarkUnread(c echo.Context) error {
+	address, password, host, err := h.creds(c)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
+	var uid uint32
+	if _, err := fmt.Sscan(c.Param("uid"), &uid); err != nil || uid == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid uid")
+	}
+
+	folder := c.QueryParam("folder")
+	if folder == "" {
+		folder = "INBOX"
+	}
+
+	ic, err := imapConnect(host, address, password)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusServiceUnavailable, err.Error())
+	}
+	defer ic.Logout()
+
+	folder = resolveFolder(ic, folder)
+	if _, err = ic.Select(folder, false); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "folder not found: "+folder)
+	}
+
+	seqset := new(imap.SeqSet)
+	seqset.AddNum(uid)
+	ic.UidStore(seqset, imap.FormatFlagsOp(imap.RemoveFlags, true), []interface{}{imap.SeenFlag}, nil)
+
+	return c.NoContent(http.StatusNoContent)
 }
 
 // MarkRead adds the \Seen flag to a message by UID.

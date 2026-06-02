@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { api, IMAPMessage, IMAPMessageDetail, MailContact } from '../api/client'
+import { api, IMAPMessage, IMAPMessageDetail, MailContact, DocFile } from '../api/client'
 import { formatPhone } from '../utils/phone'
 
 const FOLDERS = [
@@ -46,16 +46,28 @@ export default function MailInbox() {
   const [error, setError]       = useState('')
   const [selected, setSelected] = useState<IMAPMessageDetail | null>(null)
   const [msgLoading, setMsgLoading] = useState(false)
-  const viewerRef = useRef<HTMLDivElement>(null)
+  const viewerRef   = useRef<HTMLDivElement>(null)
+  const toInputRef  = useRef<HTMLInputElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // ── Compose state ──
-  const [composing, setComposing]   = useState(false)
+  const [composing, setComposing]     = useState(false)
   const [composeData, setComposeData] = useState({ to: '', subject: '', body: '' })
-  const [sending, setSending]       = useState(false)
-  const [sendError, setSendError]   = useState('')
-  const [sendOk, setSendOk]         = useState(false)
+  const [ccField, setCcField]         = useState('')
+  const [showCc, setShowCc]           = useState(false)
+  const [attachments, setAttachments] = useState<File[]>([])
+  const [docAttachments, setDocAttachments] = useState<{id: string, name: string}[]>([])
+  const [docPickerOpen, setDocPickerOpen]   = useState(false)
+  const [allDocs, setAllDocs]         = useState<{id: string, name: string}[]>([])
+  const [sending, setSending]         = useState(false)
+  const [sendError, setSendError]     = useState('')
+  const [sendOk, setSendOk]           = useState(false)
   const [contactPickerOpen, setContactPickerOpen] = useState(false)
   const [contactSearch, setContactSearch] = useState('')
+  const [toChips, setToChips]         = useState<string[]>([])
+
+  // ── Inbox search ──
+  const [search, setSearch] = useState('')
 
   // ── Contacts state ──
   const [contacts, setContacts]         = useState<MailContact[]>([])
@@ -109,6 +121,18 @@ export default function MailInbox() {
     api.emailTemplates.list().then(setTemplates).catch(() => {})
   }, [])
 
+  useEffect(() => {
+    api.documents.list().then(folders => {
+      const flat: {id: string, name: string}[] = []
+      function walk(f: any) {
+        f.docs?.forEach((d: DocFile) => flat.push({ id: d.id, name: d.title || d.original_name }))
+        f.children?.forEach(walk)
+      }
+      folders.forEach(walk)
+      setAllDocs(flat)
+    }).catch(() => {})
+  }, [])
+
   // ── Open message ──
   async function openMessage(msg: IMAPMessage) {
     setMsgLoading(true); setSelected(null)
@@ -131,29 +155,64 @@ export default function MailInbox() {
   }
 
   // ── Compose ──
+  function resetCompose() {
+    setComposeData({ to: '', subject: '', body: '' })
+    setToChips([]); setContactSearch('')
+    setCcField(''); setShowCc(false)
+    setAttachments([]); setDocAttachments([]); setDocPickerOpen(false)
+    setContactPickerOpen(false); setTemplatePickerOpen(false)
+  }
+
   async function handleSend(e: React.FormEvent) {
     e.preventDefault(); setSending(true); setSendError('')
+    const extra = contactSearch.trim()
+    const recipients = extra ? [...toChips, extra] : toChips
+    if (recipients.length === 0) { setSendError('Please add at least one recipient'); setSending(false); return }
     try {
-      await api.imap.send(composeData)
+      await api.imap.send({
+        to: recipients.join(', '),
+        cc: ccField || undefined,
+        subject: composeData.subject,
+        body: composeData.body,
+        attachments,
+        docIds: docAttachments.map(d => d.id),
+      })
       setSendOk(true)
-      setTimeout(() => { setComposing(false); setSendOk(false); setComposeData({ to: '', subject: '', body: '' }) }, 1500)
+      setTimeout(() => { setComposing(false); setSendOk(false); resetCompose() }, 1500)
     } catch (e: any) { setSendError(e.message) }
     finally { setSending(false) }
   }
 
   function startReply() {
     if (!selected) return
+    resetCompose()
+    setToChips([selected.from])
+    setComposeData({ to: '', subject: selected.subject.startsWith('Re:') ? selected.subject : 'Re: ' + selected.subject, body: '' })
+    setComposing(true)
+  }
+
+  function startForward() {
+    if (!selected) return
+    resetCompose()
     setComposeData({
-      to: selected.from,
-      subject: selected.subject.startsWith('Re:') ? selected.subject : 'Re: ' + selected.subject,
-      body: '',
+      to: '',
+      subject: selected.subject.startsWith('Fwd:') ? selected.subject : 'Fwd: ' + selected.subject,
+      body: `\n\n---------- Forwarded message ----------\nFrom: ${selected.from}\nDate: ${new Date(selected.date).toLocaleString()}\nSubject: ${selected.subject}\n\n`,
     })
     setComposing(true)
   }
 
+  async function handleMarkUnread() {
+    if (!selected) return
+    try {
+      await api.imap.markUnread(selected.uid, folder)
+      setMessages(prev => prev.map(m => m.uid === selected.uid ? { ...m, unread: true } : m))
+      setSelected(null)
+    } catch {}
+  }
+
   function openCompose() {
-    setComposing(true); setComposeData({ to: '', subject: '', body: '' })
-    setContactSearch(''); setContactPickerOpen(false); setTemplatePickerOpen(false)
+    resetCompose(); setComposing(true)
   }
 
   // ── Save sender as contact ──
@@ -199,6 +258,11 @@ export default function MailInbox() {
   }
 
   const unreadCount = messages.filter(m => m.unread).length
+  const filteredMessages = search
+    ? messages.filter(m =>
+        m.subject?.toLowerCase().includes(search.toLowerCase()) ||
+        m.from?.toLowerCase().includes(search.toLowerCase()))
+    : messages
   const filteredContacts = contacts.filter(c =>
     !contactSearch2 ||
     c.name.toLowerCase().includes(contactSearch2.toLowerCase()) ||
@@ -297,21 +361,29 @@ export default function MailInbox() {
           {/* Message list */}
           <div className={`flex flex-col border border-gray-200 rounded-xl overflow-hidden bg-white
             ${selected ? 'hidden lg:flex lg:w-80 xl:w-96 shrink-0' : 'flex-1'}`}>
+            <div className="px-3 py-2 border-b border-gray-100">
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search messages…"
+                className="w-full text-sm px-3 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-green-500 bg-gray-50"
+              />
+            </div>
             {loading ? (
               <div className="flex-1 flex items-center justify-center">
                 <div className="w-5 h-5 border-2 border-green-700 border-t-transparent rounded-full animate-spin" />
               </div>
-            ) : messages.length === 0 ? (
+            ) : filteredMessages.length === 0 ? (
               <div className="flex-1 flex flex-col items-center justify-center text-gray-400 text-sm gap-2">
                 <svg className="w-8 h-8 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                     d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
-                No messages
+                {search ? 'No matches' : 'No messages'}
               </div>
             ) : (
               <div className="flex-1 overflow-y-auto divide-y divide-gray-100">
-                {messages.map(msg => (
+                {filteredMessages.map(msg => (
                   <button key={msg.uid} onClick={() => openMessage(msg)}
                     className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition ${selected?.uid === msg.uid ? 'bg-green-50' : ''}`}>
                     <div className="flex items-start justify-between gap-2">
@@ -358,6 +430,15 @@ export default function MailInbox() {
                         <button onClick={startReply}
                           className="px-3 py-1.5 text-xs font-semibold bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition">
                           Reply
+                        </button>
+                        <button onClick={startForward}
+                          className="px-3 py-1.5 text-xs font-semibold bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 transition">
+                          Forward
+                        </button>
+                        <button onClick={handleMarkUnread}
+                          title="Mark as unread"
+                          className="px-3 py-1.5 text-xs font-semibold bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-100 transition">
+                          Mark Unread
                         </button>
                         {!contacts.find(c => c.email.toLowerCase() === fromEmail(selected.from).toLowerCase()) && (
                           <button onClick={saveSenderAsContact}
@@ -489,18 +570,43 @@ export default function MailInbox() {
             </div>
 
             <form onSubmit={handleSend} className="p-5 space-y-3">
-              {/* To field with contact picker */}
+              {/* To field — chip multi-recipient */}
               <div className="relative">
                 <label className="block text-xs font-medium text-gray-600 mb-1">To</label>
                 <div className="flex gap-2">
-                  <input
-                    className="flex-1 border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                    placeholder="recipient@example.com"
-                    value={composeData.to}
-                    onChange={e => { setComposeData(d => ({ ...d, to: e.target.value })); setContactSearch(e.target.value); setContactPickerOpen(true) }}
-                    onFocus={() => setContactPickerOpen(true)}
-                    required
-                  />
+                  <div
+                    className="flex-1 flex flex-wrap gap-1.5 border border-gray-300 rounded-xl px-3 py-2 focus-within:ring-2 focus-within:ring-green-500 bg-white cursor-text min-h-[42px]"
+                    onClick={() => toInputRef.current?.focus()}>
+                    {toChips.map((email, i) => (
+                      <span key={i} className="flex items-center gap-1 bg-green-100 text-green-800 text-xs font-medium px-2 py-1 rounded-lg shrink-0">
+                        {email}
+                        <button type="button"
+                          onClick={ev => { ev.stopPropagation(); setToChips(c => c.filter((_, j) => j !== i)) }}
+                          className="hover:text-red-600 transition leading-none">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </span>
+                    ))}
+                    <input
+                      ref={toInputRef}
+                      className="flex-1 min-w-[120px] outline-none text-sm py-0.5 bg-transparent"
+                      placeholder={toChips.length === 0 ? 'recipient@example.com' : 'Add another…'}
+                      value={contactSearch}
+                      onChange={e => { setContactSearch(e.target.value); setContactPickerOpen(true) }}
+                      onFocus={() => setContactPickerOpen(true)}
+                      onKeyDown={e => {
+                        if ((e.key === 'Enter' || e.key === ',' || e.key === 'Tab') && contactSearch.trim()) {
+                          e.preventDefault()
+                          setToChips(c => [...c, contactSearch.trim()])
+                          setContactSearch(''); setContactPickerOpen(false)
+                        } else if (e.key === 'Backspace' && !contactSearch && toChips.length > 0) {
+                          setToChips(c => c.slice(0, -1))
+                        }
+                      }}
+                    />
+                  </div>
                   {contacts.length > 0 && (
                     <button type="button"
                       onClick={() => setContactPickerOpen(o => !o)}
@@ -518,7 +624,11 @@ export default function MailInbox() {
                   <div className="absolute left-0 right-0 top-full mt-1 z-10 bg-white border border-gray-200 rounded-xl shadow-lg max-h-40 overflow-y-auto">
                     {(contactSearch === '' ? contacts : composeContactSuggestions).map(c => (
                       <button key={c.id} type="button"
-                        onClick={() => { setComposeData(d => ({ ...d, to: c.email })); setContactPickerOpen(false); setContactSearch('') }}
+                        onClick={() => {
+                          if (!toChips.includes(c.email)) setToChips(ch => [...ch, c.email])
+                          setContactPickerOpen(false); setContactSearch('')
+                          toInputRef.current?.focus()
+                        }}
                         className="w-full text-left flex items-center gap-3 px-3 py-2 hover:bg-gray-50 transition">
                         <div className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold shrink-0">
                           {contactInitials(c.name)}
@@ -532,6 +642,24 @@ export default function MailInbox() {
                   </div>
                 )}
               </div>
+
+              {/* CC field */}
+              {showCc ? (
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Cc</label>
+                  <input
+                    className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    placeholder="cc@example.com, ..."
+                    value={ccField}
+                    onChange={e => setCcField(e.target.value)}
+                  />
+                </div>
+              ) : (
+                <button type="button" onClick={() => setShowCc(true)}
+                  className="text-xs text-gray-400 hover:text-green-700 transition self-start">
+                  + Cc
+                </button>
+              )}
 
               {/* Template picker */}
               {templates.length > 0 && (
@@ -588,9 +716,94 @@ export default function MailInbox() {
                 <textarea rows={8}
                   className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
                   placeholder="Write your message…"
+                  spellCheck={true}
                   value={composeData.body}
                   onChange={e => setComposeData(d => ({ ...d, body: e.target.value }))}
                 />
+              </div>
+
+              {/* ── Attachments ── */}
+              <div className="space-y-2">
+                {/* Attached file chips */}
+                {(attachments.length > 0 || docAttachments.length > 0) && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {attachments.map((f, i) => (
+                      <span key={i} className="flex items-center gap-1 bg-gray-100 text-gray-700 text-xs font-medium px-2 py-1 rounded-lg">
+                        <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                            d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                        </svg>
+                        {f.name}
+                        <button type="button" onClick={() => setAttachments(a => a.filter((_, j) => j !== i))}
+                          className="hover:text-red-600 transition leading-none">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </span>
+                    ))}
+                    {docAttachments.map((d, i) => (
+                      <span key={d.id} className="flex items-center gap-1 bg-blue-50 text-blue-700 text-xs font-medium px-2 py-1 rounded-lg">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        {d.name}
+                        <button type="button" onClick={() => setDocAttachments(a => a.filter((_, j) => j !== i))}
+                          className="hover:text-red-600 transition leading-none">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {/* Attach buttons */}
+                <div className="flex items-center gap-2">
+                  <input ref={fileInputRef} type="file" multiple className="hidden"
+                    onChange={e => { if (e.target.files) setAttachments(a => [...a, ...Array.from(e.target.files!)]) }} />
+                  <button type="button" onClick={() => fileInputRef.current?.click()}
+                    className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-green-700 transition">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                    </svg>
+                    Attach file
+                  </button>
+                  {allDocs.length > 0 && (
+                    <button type="button" onClick={() => setDocPickerOpen(o => !o)}
+                      className={`flex items-center gap-1.5 text-xs transition ${docPickerOpen ? 'text-green-700' : 'text-gray-500 hover:text-green-700'}`}>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                          d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                      </svg>
+                      From Files
+                    </button>
+                  )}
+                </div>
+                {/* Doc picker dropdown */}
+                {docPickerOpen && allDocs.length > 0 && (
+                  <div className="border border-gray-200 rounded-xl bg-white shadow-sm max-h-40 overflow-y-auto">
+                    {allDocs.map(d => {
+                      const already = docAttachments.some(a => a.id === d.id)
+                      return (
+                        <button key={d.id} type="button"
+                          onClick={() => {
+                            if (!already) setDocAttachments(a => [...a, d])
+                            setDocPickerOpen(false)
+                          }}
+                          className={`w-full text-left flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 transition ${already ? 'opacity-40 cursor-default' : ''}`}>
+                          <svg className="w-4 h-4 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          <span className="truncate">{d.name}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
 
               {sendError && <p className="text-red-600 text-xs bg-red-50 px-3 py-2 rounded-lg">{sendError}</p>}

@@ -699,10 +699,20 @@ export const api = {
       request<IMAPMessageDetail>(
         `/imap/messages/${uid}?folder=${encodeURIComponent(folder)}`
       ),
-    send: (data: { to: string; subject: string; body: string }) =>
-      request<{ status: string }>('/imap/send', { method: 'POST', body: JSON.stringify(data) }),
+    send: (data: { to: string; cc?: string; subject: string; body: string; attachments?: File[]; docIds?: string[] }) => {
+      const f = new FormData()
+      f.append('to', data.to)
+      f.append('subject', data.subject)
+      f.append('body', data.body || '')
+      if (data.cc) f.append('cc', data.cc)
+      data.attachments?.forEach(file => f.append('attachments', file))
+      data.docIds?.forEach(id => f.append('doc_ids[]', id))
+      return upload<{ status: string }>('/imap/send', f)
+    },
     markRead: (uid: number, folder = 'INBOX') =>
       request(`/imap/messages/${uid}/read?folder=${encodeURIComponent(folder)}`, { method: 'PUT' }),
+    markUnread: (uid: number, folder = 'INBOX') =>
+      request(`/imap/messages/${uid}/unread?folder=${encodeURIComponent(folder)}`, { method: 'PUT' }),
     delete: (uid: number, folder = 'INBOX') =>
       request(`/imap/messages/${uid}?folder=${encodeURIComponent(folder)}`, { method: 'DELETE' }),
     contacts: {

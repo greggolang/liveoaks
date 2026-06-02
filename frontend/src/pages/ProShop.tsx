@@ -2,8 +2,6 @@ import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 
-const ZELLE_EMAIL = 'billing@liveoakstennis.com'
-
 interface Product {
   id: string
   name: string
@@ -19,14 +17,10 @@ export default function ProShop() {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [cart, setCart] = useState<Record<string, number>>({})
-  const [copied, setCopied] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [ordered, setOrdered] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const { user } = useAuth()
-
-  const copy = (text: string, key: string) => {
-    navigator.clipboard.writeText(text)
-    setCopied(key)
-    setTimeout(() => setCopied(null), 2000)
-  }
 
   useEffect(() => {
     api.proShop.list()
@@ -40,6 +34,29 @@ export default function ProShop() {
   const cartItems = products.filter(p => (cart[p.id] ?? 0) > 0)
   const total = cartItems.reduce((sum, p) => sum + p.price * cart[p.id], 0)
   const itemCount = Object.values(cart).reduce((a, b) => a + b, 0)
+
+  const placeOrder = async () => {
+    if (!user || cartItems.length === 0) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      await api.kiosk.purchase({
+        user_id: user.id,
+        items: cartItems.map(p => ({
+          item_id: p.id,
+          item_name: p.name,
+          price: p.price,
+          quantity: cart[p.id],
+        })),
+      })
+      setCart({})
+      setOrdered(true)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to place order')
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   const categories = [...new Set(products.map(p => p.category))]
 
@@ -80,7 +97,20 @@ export default function ProShop() {
         </div>
       )}
 
-      {cartItems.length > 0 && (
+      {ordered && (
+        <div className="mt-8 bg-green-50 border border-green-200 rounded-xl p-6 text-center">
+          <p className="text-green-800 font-semibold text-base mb-1">Order recorded!</p>
+          <p className="text-green-700 text-sm">Your purchase will be added to your quarterly due invoice.</p>
+          <button
+            onClick={() => setOrdered(false)}
+            className="mt-4 text-xs text-green-700 underline"
+          >
+            Place another order
+          </button>
+        </div>
+      )}
+
+      {!ordered && cartItems.length > 0 && (
         <div className="mt-8 bg-white border border-gray-200 rounded-xl shadow-sm p-6">
           <h2 className="text-base font-semibold text-gray-800 mb-4">Order Summary</h2>
           <div className="space-y-2 mb-4">
@@ -98,52 +128,19 @@ export default function ProShop() {
             <span className="font-semibold text-gray-800">Total</span>
             <span className="text-lg font-bold text-gray-900">${total.toFixed(2)}</span>
           </div>
-          <div className="border-t border-gray-100 pt-4 space-y-3">
-            <p className="text-sm font-semibold text-gray-700">Pay with Zelle</p>
-            <div className="bg-gray-50 rounded-xl p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-gray-500 mb-0.5">Send to</p>
-                  <p className="text-sm font-semibold text-gray-800">{ZELLE_EMAIL}</p>
-                </div>
-                <button
-                  onClick={() => copy(ZELLE_EMAIL, 'email')}
-                  className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
-                >
-                  {copied === 'email' ? 'Copied!' : 'Copy'}
-                </button>
-              </div>
-              <div className="border-t border-gray-200" />
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-gray-500 mb-0.5">Amount</p>
-                  <p className="text-sm font-semibold text-gray-800">${total.toFixed(2)}</p>
-                </div>
-                <button
-                  onClick={() => copy(total.toFixed(2), 'amount')}
-                  className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
-                >
-                  {copied === 'amount' ? 'Copied!' : 'Copy'}
-                </button>
-              </div>
-              <div className="border-t border-gray-200" />
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-gray-500 mb-0.5">Memo</p>
-                  <p className="text-sm font-semibold text-gray-800">Pro Shop – {user ? `${user.first_name} ${user.last_name}` : ''}</p>
-                </div>
-                <button
-                  onClick={() => copy(`Pro Shop – ${user?.first_name} ${user?.last_name}`, 'memo')}
-                  className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
-                >
-                  {copied === 'memo' ? 'Copied!' : 'Copy'}
-                </button>
-              </div>
-            </div>
-            <p className="text-xs text-gray-400 text-center">
-              An admin will mark your order as complete after receiving payment.
-            </p>
-          </div>
+          {error && (
+            <p className="text-sm text-red-600 mb-3">{error}</p>
+          )}
+          <button
+            onClick={placeOrder}
+            disabled={submitting}
+            className="w-full py-3 bg-green-700 hover:bg-green-800 disabled:opacity-50 text-white font-semibold rounded-xl transition"
+          >
+            {submitting ? 'Placing order…' : 'Place Order'}
+          </button>
+          <p className="text-xs text-gray-400 text-center mt-3">
+            This will be added to your quarterly due invoice — no payment is collected now.
+          </p>
         </div>
       )}
     </div>
