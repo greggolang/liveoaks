@@ -9,8 +9,8 @@ const ALL_ACTIONS = [
 ]
 
 const CONDITION_LABELS: Record<string, string> = {
-  unpaid_dues: 'Member has unpaid dues',
-  any_outstanding_balance: 'Member has any outstanding balance (dues + kiosk tab + charges)',
+  unpaid_dues: 'Member has unpaid dues past the grace period',
+  any_outstanding_balance: 'Member has any outstanding balance past the grace period (dues, kiosk tab, or charges)',
 }
 
 const emptyForm = { name: '', condition: 'unpaid_dues', grace_days: 30, actions: ['block_bookings', 'dashboard_warning'] }

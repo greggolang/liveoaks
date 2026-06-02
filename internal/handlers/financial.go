@@ -2,11 +2,13 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
 )
@@ -63,7 +65,7 @@ func CheckFinancialBlock(ctx context.Context, db *pgxpool.Pool, userID, action s
 			var balance float64
 			db.QueryRow(ctx, `
 				SELECT COALESCE(d.owed,0)
-				     + GREATEST(COALESCE(k.charges,0) - COALESCE(kp.paid,0), 0)
+				     + COALESCE(k.tab,0)
 				     + COALESCE(mc.owed,0)
 				FROM (SELECT 1) _
 				LEFT JOIN (
@@ -71,8 +73,13 @@ func CheckFinancialBlock(ctx context.Context, db *pgxpool.Pool, userID, action s
 					WHERE user_id = $1 AND status = 'unpaid'
 					AND due_date <= CURRENT_DATE - ($2 * INTERVAL '1 day')
 				) d ON true
-				LEFT JOIN (SELECT SUM(total) AS charges FROM pro_shop_purchases WHERE user_id = $1) k ON true
-				LEFT JOIN (SELECT SUM(amount) AS paid FROM kiosk_payments WHERE user_id = $1) kp ON true
+				LEFT JOIN (
+					SELECT GREATEST(
+						SUM(CASE WHEN created_at <= NOW() - ($2 * INTERVAL '1 day') THEN total ELSE 0 END)
+						- COALESCE((SELECT SUM(amount) FROM kiosk_payments WHERE user_id = $1), 0),
+					0) AS tab
+					FROM pro_shop_purchases WHERE user_id = $1
+				) k ON true
 				LEFT JOIN (
 					SELECT SUM(amount) AS owed FROM member_charges
 					WHERE user_id = $1 AND status = 'unpaid'
@@ -145,6 +152,10 @@ func (h *FinancialHandler) CreateRule(c echo.Context) error {
 		 VALUES ($1,$2,$3,$4) RETURNING id`,
 		req.Name, req.Condition, req.GraceDays, req.Actions).Scan(&id)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return echo.NewHTTPError(http.StatusConflict, "a rule with that name already exists")
+		}
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not create rule")
 	}
 	adminID := c.Get("user_id").(string)
@@ -607,18 +618,23 @@ func (h *FinancialHandler) PLReport(c echo.Context) error {
 // ── Email Reminders ────────────────────────────────────────────────────────
 
 func (h *FinancialHandler) SendReminders(c echo.Context) error {
-	// Find all active members with unpaid dues overdue per any email_reminder rule
+	// Find all active members with unpaid dues overdue per any email_reminder rule.
+	// Use EXISTS to avoid row multiplication when multiple rules match the same due record.
 	rows, err := h.DB.Query(c.Request().Context(), `
-		SELECT DISTINCT u.id, u.first_name, u.email,
-		       SUM(d.amount) OVER (PARTITION BY u.id)::float8 AS dues_owed
+		SELECT u.id, u.first_name, u.email,
+		       SUM(d.amount)::float8 AS dues_owed
 		FROM users u
 		JOIN dues d ON d.user_id = u.id
-		JOIN financial_rules fr ON fr.enabled = true
-		    AND 'email_reminder' = ANY(fr.actions)
-		    AND fr.condition = 'unpaid_dues'
-		    AND d.due_date <= CURRENT_DATE - (fr.grace_days * INTERVAL '1 day')
 		WHERE u.status = 'active'
-		  AND d.status = 'unpaid'`)
+		  AND d.status = 'unpaid'
+		  AND EXISTS (
+		      SELECT 1 FROM financial_rules fr
+		      WHERE fr.enabled = true
+		        AND 'email_reminder' = ANY(fr.actions)
+		        AND fr.condition = 'unpaid_dues'
+		        AND d.due_date <= CURRENT_DATE - (fr.grace_days * INTERVAL '1 day')
+		  )
+		GROUP BY u.id, u.first_name, u.email`)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch overdue members")
 	}
