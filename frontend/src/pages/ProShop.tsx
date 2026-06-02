@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
+import { useAuth } from '../contexts/AuthContext'
+
+const ZELLE_EMAIL = 'billing@liveoakstennis.com'
 
 interface Product {
   id: string
@@ -16,6 +19,14 @@ export default function ProShop() {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [cart, setCart] = useState<Record<string, number>>({})
+  const [copied, setCopied] = useState<string | null>(null)
+  const { user } = useAuth()
+
+  const copy = (text: string, key: string) => {
+    navigator.clipboard.writeText(text)
+    setCopied(key)
+    setTimeout(() => setCopied(null), 2000)
+  }
 
   useEffect(() => {
     api.proShop.list()
@@ -87,15 +98,52 @@ export default function ProShop() {
             <span className="font-semibold text-gray-800">Total</span>
             <span className="text-lg font-bold text-gray-900">${total.toFixed(2)}</span>
           </div>
-          <button
-            disabled
-            className="w-full bg-gray-100 text-gray-400 font-semibold py-3 rounded-lg text-sm cursor-not-allowed"
-          >
-            Checkout — Coming Soon
-          </button>
-          <p className="text-xs text-gray-400 text-center mt-2">
-            Online purchasing will be available soon. Items can be purchased at the clubhouse.
-          </p>
+          <div className="border-t border-gray-100 pt-4 space-y-3">
+            <p className="text-sm font-semibold text-gray-700">Pay with Zelle</p>
+            <div className="bg-gray-50 rounded-xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-gray-500 mb-0.5">Send to</p>
+                  <p className="text-sm font-semibold text-gray-800">{ZELLE_EMAIL}</p>
+                </div>
+                <button
+                  onClick={() => copy(ZELLE_EMAIL, 'email')}
+                  className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                >
+                  {copied === 'email' ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+              <div className="border-t border-gray-200" />
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-gray-500 mb-0.5">Amount</p>
+                  <p className="text-sm font-semibold text-gray-800">${total.toFixed(2)}</p>
+                </div>
+                <button
+                  onClick={() => copy(total.toFixed(2), 'amount')}
+                  className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                >
+                  {copied === 'amount' ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+              <div className="border-t border-gray-200" />
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-gray-500 mb-0.5">Memo</p>
+                  <p className="text-sm font-semibold text-gray-800">Pro Shop – {user ? `${user.first_name} ${user.last_name}` : ''}</p>
+                </div>
+                <button
+                  onClick={() => copy(`Pro Shop – ${user?.first_name} ${user?.last_name}`, 'memo')}
+                  className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                >
+                  {copied === 'memo' ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+            </div>
+            <p className="text-xs text-gray-400 text-center">
+              An admin will mark your order as complete after receiving payment.
+            </p>
+          </div>
         </div>
       )}
     </div>
