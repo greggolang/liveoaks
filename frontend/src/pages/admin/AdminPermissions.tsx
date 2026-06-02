@@ -110,22 +110,16 @@ export default function AdminPermissions() {
                   </th>
                 )
               })}
-              <th className="text-center text-xs font-semibold text-gray-400 uppercase tracking-wider px-1 pb-1 border-b border-gray-100">
-                Admin
-              </th>
             </tr>
             <tr className="bg-gray-50">
               <th className="text-left text-xs font-semibold text-gray-500 px-3 py-2 rounded-tl-lg w-72">
                 Page / Description
               </th>
-              {ROLES.map(r => (
-                <th key={r.key} className="text-center text-xs font-medium text-gray-600 px-2 py-2 min-w-[72px]">
+              {ROLES.map((r, i) => (
+                <th key={r.key} className={`text-center text-xs font-medium text-gray-600 px-2 py-2 min-w-[72px] ${i === ROLES.length - 1 ? 'rounded-tr-lg' : ''}`}>
                   {r.label}
                 </th>
               ))}
-              <th className="text-center text-xs font-medium text-gray-400 px-2 py-2 min-w-[60px] rounded-tr-lg">
-                Admin
-              </th>
             </tr>
           </thead>
           <tbody>
@@ -151,15 +145,6 @@ export default function AdminPermissions() {
                     </td>
                   )
                 })}
-                {/* Admin — always on, locked */}
-                <td className="text-center px-2 py-2.5">
-                  <input
-                    type="checkbox"
-                    checked
-                    disabled
-                    className="w-4 h-4 rounded accent-green-600 opacity-40 cursor-not-allowed"
-                  />
-                </td>
               </tr>
             ))}
           </tbody>
