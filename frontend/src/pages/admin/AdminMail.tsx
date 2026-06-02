@@ -37,7 +37,7 @@ function initials(name: string) {
   return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
 }
 
-function Modal({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
+function Modal({ onClose, children }: { onClose?: () => void; children: React.ReactNode }) {
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
       onClick={onClose}>
@@ -432,7 +432,7 @@ query = SELECT address FROM mail_accounts WHERE address='%s' AND active = true`,
 
       {/* ── Add Modal ── */}
       {showAdd && (
-        <Modal onClose={() => setShowAdd(false)}>
+        <Modal>
           <ModalHeader title="Add Mail Account" onClose={() => setShowAdd(false)} />
           <form onSubmit={handleAdd} className="px-6 py-5 space-y-4">
             <div>
@@ -481,7 +481,7 @@ query = SELECT address FROM mail_accounts WHERE address='%s' AND active = true`,
 
       {/* ── Edit Modal ── */}
       {editTarget && (
-        <Modal onClose={() => setEditTarget(null)}>
+        <Modal>
           <ModalHeader title="Edit Account" sub={editTarget.address} onClose={() => setEditTarget(null)} />
           <form onSubmit={handleEdit} className="px-6 py-5 space-y-4">
             <div>
@@ -521,7 +521,7 @@ query = SELECT address FROM mail_accounts WHERE address='%s' AND active = true`,
 
       {/* ── Assign Modal ── */}
       {assignTarget && (
-        <Modal onClose={() => setAssignTarget(null)}>
+        <Modal>
           <ModalHeader title="Assign Account" sub={assignTarget.address} onClose={() => setAssignTarget(null)} />
           <form onSubmit={handleAssign} className="px-6 py-5 space-y-4">
             <div>

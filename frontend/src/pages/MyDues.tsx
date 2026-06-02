@@ -144,7 +144,6 @@ export default function MyDues() {
       {payFor && (
         <div
           className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4"
-          onClick={closeModal}
         >
           <div
             className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6"

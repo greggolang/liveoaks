@@ -626,8 +626,7 @@ export default function MailInbox() {
 
       {/* ══════════════ COMPOSE MODAL ══════════════ */}
       {composing && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4"
-          onClick={() => setComposing(false)}>
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-4 bg-gray-50 rounded-t-2xl border-b border-gray-200">
               <div className="flex items-center gap-2.5">
@@ -900,8 +899,7 @@ export default function MailInbox() {
 
       {/* ══════════════ ADD / EDIT CONTACT MODAL ══════════════ */}
       {showAddContact && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-          onClick={() => { setShowAddContact(false); setEditingContact(null) }}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
             onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
