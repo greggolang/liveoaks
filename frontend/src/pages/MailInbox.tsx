@@ -85,7 +85,7 @@ export default function MailInbox() {
         const res = await api.imap.listMessages(folder)
         setMessages(res.messages)
       } catch {}
-    }, 60_000)
+    }, 30_000)
     return () => clearInterval(id)
   }, [folder])
 

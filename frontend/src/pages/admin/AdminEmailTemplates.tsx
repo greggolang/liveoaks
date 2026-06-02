@@ -18,7 +18,7 @@ export default function AdminEmailTemplates() {
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
 
-  const load = () => api.emailTemplates.list().then(d => setTemplates(d as Template[]))
+  const load = () => api.emailTemplates.adminList().then(d => setTemplates(d as Template[]))
   useEffect(() => { load() }, [])
 
   const openEdit = (t: Template) => {

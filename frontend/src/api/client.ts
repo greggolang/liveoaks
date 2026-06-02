@@ -258,7 +258,8 @@ export const api = {
     delete: (id: string) => request(`/admin/receipts/${id}`, { method: 'DELETE' }),
   },
   emailTemplates: {
-    list: () => request('/admin/email-templates'),
+    list: () => request<{ id: string; name: string; subject: string; body: string }[]>('/email-templates'),
+    adminList: () => request('/admin/email-templates'),
     create: (data: object) => request('/admin/email-templates', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: object) => request(`/admin/email-templates/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => request(`/admin/email-templates/${id}`, { method: 'DELETE' }),

@@ -299,6 +299,7 @@ func main() {
 	adminOnly.GET("/permissions", perms.GetAll)
 	adminOnly.PUT("/permissions/:page/:role", perms.Toggle)
 	authed.GET("/my-permissions", perms.MyPages)
+	authed.GET("/email-templates", emailTemplates.List) // read-only for all authenticated users
 	authed.POST("/feedback", feedback.Submit)
 	boardPlus.GET("/feedback/new", feedback.NewFeedback)
 	adminOnly.GET("/feedback", feedback.AdminList)
