@@ -69,6 +69,25 @@ export interface MemberMessage {
 export interface IMAPMessage {
   uid: number; subject: string; from: string; date: string; unread: boolean
 }
+
+export interface YoLinkRule {
+  id: string
+  name: string
+  enabled: boolean
+  device_id: string | null
+  device_type: string | null
+  event_contains: string | null
+  state_equals: string | null
+  recipient_scope: 'all_members' | 'board' | 'role' | 'user'
+  recipient_role: string | null
+  recipient_user_id: string | null
+  notify_dashboard: boolean
+  notify_email: boolean
+  notify_sms: boolean
+  alert_type: 'info' | 'warning' | 'danger'
+  message_template: string | null
+  created_at: string
+}
 export interface IMAPMessageDetail extends IMAPMessage {
   to: string; cc?: string; body: string
 }
@@ -504,6 +523,13 @@ export const api = {
     updateDevice: (id: string, data: { name: string; alerts_enabled: boolean }) =>
       request(`/admin/yolink/devices/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     listAlerts: () => request('/admin/yolink/alerts'),
+    listRules: () => request<YoLinkRule[]>('/admin/yolink/rules'),
+    createRule: (data: Partial<YoLinkRule>) =>
+      request<YoLinkRule>('/admin/yolink/rules', { method: 'POST', body: JSON.stringify(data) }),
+    updateRule: (id: string, data: Partial<YoLinkRule>) =>
+      request(`/admin/yolink/rules/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    deleteRule: (id: string) =>
+      request(`/admin/yolink/rules/${id}`, { method: 'DELETE' }),
   },
   camera: {
     embedURL: () => request<{ url: string }>('/camera/embed'),

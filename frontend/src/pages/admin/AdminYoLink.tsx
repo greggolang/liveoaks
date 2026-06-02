@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api } from '../../api/client'
+import { api, YoLinkRule } from '../../api/client'
 
 interface Device {
   id: string
@@ -21,7 +21,26 @@ interface Alert {
   created_at: string
 }
 
-type Tab = 'devices' | 'alerts' | 'settings'
+type Tab = 'devices' | 'rules' | 'alerts' | 'settings'
+
+const ROLE_OPTIONS: [string, string][] = [
+  ['member', 'Member'], ['president', 'President'], ['vice_president', 'Vice President'],
+  ['secretary', 'Secretary'], ['treasurer', 'Treasurer'], ['billing', 'Billing'],
+  ['membership', 'Membership'], ['usta', 'USTA'], ['entertainment', 'Entertainment'],
+  ['house_grounds', 'House & Grounds'], ['games', 'Games'], ['pro', 'Pro'],
+]
+
+const emptyRule = (): Partial<YoLinkRule> => ({
+  name: '', enabled: true,
+  device_id: null, device_type: null, event_contains: null, state_equals: null,
+  recipient_scope: 'board', recipient_role: null, recipient_user_id: null,
+  notify_dashboard: true, notify_email: false, notify_sms: false,
+  alert_type: 'warning', message_template: null,
+})
+
+const SCOPE_LABEL: Record<string, string> = {
+  all_members: 'All members', board: 'Board', role: 'Role', user: 'Specific user',
+}
 
 const deviceIcon: Record<string, string> = {
   DoorSensor: '🚪',
@@ -46,14 +65,52 @@ export default function AdminYoLink() {
   const [editId, setEditId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
 
+  // Alert rules
+  const [rules, setRules] = useState<YoLinkRule[]>([])
+  const [ruleForm, setRuleForm] = useState<Partial<YoLinkRule> | null>(null)
+  const [ruleSaving, setRuleSaving] = useState(false)
+
   const loadDevices = () => api.yolink.listDevices().then(d => setDevices(d as Device[]))
   const loadAlerts = () => api.yolink.listAlerts().then(a => setAlerts(a as Alert[]))
+  const loadRules = () => api.yolink.listRules().then(setRules)
 
   useEffect(() => {
     loadDevices()
     loadAlerts()
+    loadRules()
     api.yolink.getConfig().then((c: any) => setConfigClientId(c.client_id ?? ''))
   }, [])
+
+  const deviceTypes = [...new Set(devices.map(d => d.type).filter(Boolean))].sort()
+
+  const setRF = (patch: Partial<YoLinkRule>) => setRuleForm(f => ({ ...f, ...patch }))
+
+  const saveRule = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!ruleForm?.name?.trim()) return
+    setRuleSaving(true)
+    try {
+      if (ruleForm.id) await api.yolink.updateRule(ruleForm.id, ruleForm)
+      else await api.yolink.createRule(ruleForm)
+      setRuleForm(null)
+      await loadRules()
+    } catch (err: any) {
+      alert(err.message ?? 'Save failed')
+    } finally {
+      setRuleSaving(false)
+    }
+  }
+
+  const toggleRule = async (r: YoLinkRule) => {
+    await api.yolink.updateRule(r.id, { ...r, enabled: !r.enabled })
+    loadRules()
+  }
+
+  const deleteRule = async (r: YoLinkRule) => {
+    if (!confirm(`Delete rule "${r.name}"?`)) return
+    await api.yolink.deleteRule(r.id)
+    loadRules()
+  }
 
   const handleSync = async () => {
     setSyncing(true)
@@ -99,6 +156,7 @@ export default function AdminYoLink() {
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'devices', label: 'Devices' },
+    { key: 'rules', label: 'Alert Rules' },
     { key: 'alerts', label: 'Alert History' },
     { key: 'settings', label: 'Credentials' },
   ]
@@ -215,6 +273,163 @@ export default function AdminYoLink() {
         </>
       )}
 
+      {tab === 'rules' && (
+        <>
+          {ruleForm ? (
+            <form onSubmit={saveRule} className="bg-white border border-gray-200 rounded-xl shadow-sm p-5 space-y-4 max-w-2xl">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-gray-800">{ruleForm.id ? 'Edit Rule' : 'New Rule'}</h3>
+                <label className="flex items-center gap-2 text-sm text-gray-600">
+                  <input type="checkbox" checked={ruleForm.enabled ?? true} onChange={e => setRF({ enabled: e.target.checked })} className="accent-green-600" />
+                  Enabled
+                </label>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Rule name</label>
+                <input value={ruleForm.name ?? ''} onChange={e => setRF({ name: e.target.value })} required
+                  placeholder="e.g. Water leak → text the board"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+              </div>
+
+              <div className="border-t border-gray-100 pt-3">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">When… (blank = any)</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Device</label>
+                    <select value={ruleForm.device_id ?? ''} onChange={e => setRF({ device_id: e.target.value || null })}
+                      className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500">
+                      <option value="">Any device</option>
+                      {devices.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Device type</label>
+                    <select value={ruleForm.device_type ?? ''} onChange={e => setRF({ device_type: e.target.value || null })}
+                      className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500">
+                      <option value="">Any type</option>
+                      {deviceTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Event contains</label>
+                    <input value={ruleForm.event_contains ?? ''} onChange={e => setRF({ event_contains: e.target.value || null })}
+                      placeholder="e.g. Alert, Open" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">State equals</label>
+                    <input value={ruleForm.state_equals ?? ''} onChange={e => setRF({ state_equals: e.target.value || null })}
+                      placeholder="e.g. alert, open, normal" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t border-gray-100 pt-3">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Notify…</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Recipients</label>
+                    <select value={ruleForm.recipient_scope ?? 'board'} onChange={e => setRF({ recipient_scope: e.target.value as YoLinkRule['recipient_scope'] })}
+                      className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500">
+                      <option value="all_members">All members</option>
+                      <option value="board">Board members</option>
+                      <option value="role">Specific role</option>
+                    </select>
+                  </div>
+                  {ruleForm.recipient_scope === 'role' && (
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Role</label>
+                      <select value={ruleForm.recipient_role ?? ''} onChange={e => setRF({ recipient_role: e.target.value || null })}
+                        className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500">
+                        <option value="">Choose a role…</option>
+                        {ROLE_OPTIONS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                      </select>
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-4 mt-3">
+                  <label className="flex items-center gap-2 text-sm text-gray-700">
+                    <input type="checkbox" checked={ruleForm.notify_dashboard ?? false} onChange={e => setRF({ notify_dashboard: e.target.checked })} className="accent-green-600" />
+                    Dashboard alert
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-gray-700">
+                    <input type="checkbox" checked={ruleForm.notify_email ?? false} onChange={e => setRF({ notify_email: e.target.checked })} className="accent-green-600" />
+                    Email
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-gray-700">
+                    <input type="checkbox" checked={ruleForm.notify_sms ?? false} onChange={e => setRF({ notify_sms: e.target.checked })} className="accent-green-600" />
+                    SMS
+                  </label>
+                </div>
+              </div>
+
+              <div className="border-t border-gray-100 pt-3 grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Severity</label>
+                  <select value={ruleForm.alert_type ?? 'warning'} onChange={e => setRF({ alert_type: e.target.value as YoLinkRule['alert_type'] })}
+                    className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500">
+                    <option value="info">Info</option>
+                    <option value="warning">Warning</option>
+                    <option value="danger">Danger</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Message (optional)</label>
+                  <input value={ruleForm.message_template ?? ''} onChange={e => setRF({ message_template: e.target.value || null })}
+                    placeholder="{device}: {event}" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-1">
+                <button type="button" onClick={() => setRuleForm(null)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
+                <button type="submit" disabled={ruleSaving} className="px-5 py-2 bg-green-700 text-white text-sm font-semibold rounded-lg hover:bg-green-800 disabled:opacity-50">
+                  {ruleSaving ? 'Saving…' : ruleForm.id ? 'Save Rule' : 'Create Rule'}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <>
+              <div className="flex justify-between items-center mb-4">
+                <p className="text-sm text-gray-500">Rules decide who gets notified — and how — when a sensor event arrives.</p>
+                <button onClick={() => setRuleForm(emptyRule())} className="bg-green-700 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-green-800 transition shrink-0">+ Add Rule</button>
+              </div>
+              {rules.length === 0 ? (
+                <p className="text-gray-400 text-sm text-center py-12">No rules yet. Add one to start sending alerts.</p>
+              ) : (
+                <div className="space-y-2">
+                  {rules.map(r => (
+                    <div key={r.id} className={`bg-white border rounded-xl p-4 flex items-start justify-between gap-3 ${r.enabled ? 'border-gray-200' : 'border-gray-200 opacity-60'}`}>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-gray-800">{r.name}</span>
+                          <span className={`text-[11px] px-1.5 py-0.5 rounded-full ${r.alert_type === 'danger' ? 'bg-red-100 text-red-700' : r.alert_type === 'warning' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>{r.alert_type}</span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          When {[
+                            r.device_id ? (devices.find(d => d.id === r.device_id)?.name ?? 'device') : null,
+                            r.device_type ? `type ${r.device_type}` : null,
+                            r.event_contains ? `event ~ "${r.event_contains}"` : null,
+                            r.state_equals ? `state = "${r.state_equals}"` : null,
+                          ].filter(Boolean).join(' · ') || 'any event'} → {SCOPE_LABEL[r.recipient_scope]}{r.recipient_role ? ` (${r.recipient_role})` : ''}
+                        </p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {[r.notify_dashboard && 'Dashboard', r.notify_email && 'Email', r.notify_sms && 'SMS'].filter(Boolean).join(' · ') || 'No channels'}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button onClick={() => toggleRule(r)} className={`text-xs font-medium px-2 py-0.5 rounded-full ${r.enabled ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>{r.enabled ? 'On' : 'Off'}</button>
+                        <button onClick={() => setRuleForm({ ...r })} className="text-xs text-indigo-600 hover:text-indigo-800 font-medium">Edit</button>
+                        <button onClick={() => deleteRule(r)} className="text-xs text-red-500 hover:text-red-700 font-medium">Delete</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </>
+      )}
+
       {tab === 'alerts' && (
         <>
           {alerts.length === 0 ? (
@@ -297,7 +512,7 @@ export default function AdminYoLink() {
           <div className="mt-5 p-4 bg-yellow-50 border border-yellow-200 rounded-xl text-xs text-yellow-800">
             <strong>After saving:</strong> The server will reconnect to YoLink automatically.
             Use Sync Devices on the Devices tab to pull your device list.
-            Alerts will be sent to all board members via email and in-app notification.
+            Who gets alerted — and whether by dashboard, email, or SMS — is controlled on the Alert Rules tab.
           </div>
         </div>
       )}

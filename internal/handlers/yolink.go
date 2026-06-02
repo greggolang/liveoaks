@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/greggolang/liveoaks/internal/yolink"
@@ -127,4 +128,140 @@ func (h *YoLinkHandler) ListAlerts(c echo.Context) error {
 		alerts = append(alerts, a)
 	}
 	return c.JSON(http.StatusOK, alerts)
+}
+
+// ─── Alert rules ──────────────────────────────────────────────────────────────
+
+type yoRule struct {
+	ID              string    `json:"id"`
+	Name            string    `json:"name"`
+	Enabled         bool      `json:"enabled"`
+	DeviceID        *string   `json:"device_id"`
+	DeviceType      *string   `json:"device_type"`
+	EventContains   *string   `json:"event_contains"`
+	StateEquals     *string   `json:"state_equals"`
+	RecipientScope  string    `json:"recipient_scope"`
+	RecipientRole   *string   `json:"recipient_role"`
+	RecipientUserID *string   `json:"recipient_user_id"`
+	NotifyDashboard bool      `json:"notify_dashboard"`
+	NotifyEmail     bool      `json:"notify_email"`
+	NotifySMS       bool      `json:"notify_sms"`
+	AlertType       string    `json:"alert_type"`
+	MessageTemplate *string   `json:"message_template"`
+	CreatedAt       time.Time `json:"created_at"`
+}
+
+func nilIfEmpty(p *string) *string {
+	if p == nil || strings.TrimSpace(*p) == "" {
+		return nil
+	}
+	v := strings.TrimSpace(*p)
+	return &v
+}
+
+// normalizeRule applies defaults and converts empty match/recipient fields to NULL.
+func normalizeRule(r *yoRule) {
+	switch r.RecipientScope {
+	case "all_members", "board", "role", "user":
+	default:
+		r.RecipientScope = "board"
+	}
+	switch r.AlertType {
+	case "info", "warning", "danger":
+	default:
+		r.AlertType = "warning"
+	}
+	r.DeviceID = nilIfEmpty(r.DeviceID)
+	r.DeviceType = nilIfEmpty(r.DeviceType)
+	r.EventContains = nilIfEmpty(r.EventContains)
+	r.StateEquals = nilIfEmpty(r.StateEquals)
+	r.MessageTemplate = nilIfEmpty(r.MessageTemplate)
+	if r.RecipientScope == "role" {
+		r.RecipientRole = nilIfEmpty(r.RecipientRole)
+	} else {
+		r.RecipientRole = nil
+	}
+	if r.RecipientScope == "user" {
+		r.RecipientUserID = nilIfEmpty(r.RecipientUserID)
+	} else {
+		r.RecipientUserID = nil
+	}
+}
+
+func (h *YoLinkHandler) ListRules(c echo.Context) error {
+	rows, err := h.DB.Query(c.Request().Context(), `
+		SELECT id, name, enabled, device_id, device_type, event_contains, state_equals,
+		       recipient_scope, recipient_role, recipient_user_id,
+		       notify_dashboard, notify_email, notify_sms, alert_type, message_template, created_at
+		FROM yolink_alert_rules ORDER BY created_at`)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch rules")
+	}
+	defer rows.Close()
+	rules := []yoRule{}
+	for rows.Next() {
+		var r yoRule
+		if err := rows.Scan(&r.ID, &r.Name, &r.Enabled, &r.DeviceID, &r.DeviceType, &r.EventContains, &r.StateEquals,
+			&r.RecipientScope, &r.RecipientRole, &r.RecipientUserID,
+			&r.NotifyDashboard, &r.NotifyEmail, &r.NotifySMS, &r.AlertType, &r.MessageTemplate, &r.CreatedAt); err != nil {
+			continue
+		}
+		rules = append(rules, r)
+	}
+	return c.JSON(http.StatusOK, rules)
+}
+
+func (h *YoLinkHandler) CreateRule(c echo.Context) error {
+	var r yoRule
+	if err := c.Bind(&r); err != nil || strings.TrimSpace(r.Name) == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "name is required")
+	}
+	normalizeRule(&r)
+	err := h.DB.QueryRow(c.Request().Context(), `
+		INSERT INTO yolink_alert_rules
+		    (name, enabled, device_id, device_type, event_contains, state_equals,
+		     recipient_scope, recipient_role, recipient_user_id,
+		     notify_dashboard, notify_email, notify_sms, alert_type, message_template)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+		RETURNING id, created_at`,
+		r.Name, r.Enabled, r.DeviceID, r.DeviceType, r.EventContains, r.StateEquals,
+		r.RecipientScope, r.RecipientRole, r.RecipientUserID,
+		r.NotifyDashboard, r.NotifyEmail, r.NotifySMS, r.AlertType, r.MessageTemplate,
+	).Scan(&r.ID, &r.CreatedAt)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not create rule")
+	}
+	return c.JSON(http.StatusCreated, r)
+}
+
+func (h *YoLinkHandler) UpdateRule(c echo.Context) error {
+	id := c.Param("id")
+	var r yoRule
+	if err := c.Bind(&r); err != nil || strings.TrimSpace(r.Name) == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "name is required")
+	}
+	normalizeRule(&r)
+	ct, err := h.DB.Exec(c.Request().Context(), `
+		UPDATE yolink_alert_rules SET
+		    name = $1, enabled = $2, device_id = $3, device_type = $4,
+		    event_contains = $5, state_equals = $6, recipient_scope = $7,
+		    recipient_role = $8, recipient_user_id = $9, notify_dashboard = $10,
+		    notify_email = $11, notify_sms = $12, alert_type = $13,
+		    message_template = $14, updated_at = NOW()
+		WHERE id = $15`,
+		r.Name, r.Enabled, r.DeviceID, r.DeviceType, r.EventContains, r.StateEquals,
+		r.RecipientScope, r.RecipientRole, r.RecipientUserID,
+		r.NotifyDashboard, r.NotifyEmail, r.NotifySMS, r.AlertType, r.MessageTemplate, id)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not update rule")
+	}
+	if ct.RowsAffected() == 0 {
+		return echo.NewHTTPError(http.StatusNotFound, "rule not found")
+	}
+	return c.JSON(http.StatusOK, map[string]string{"message": "updated"})
+}
+
+func (h *YoLinkHandler) DeleteRule(c echo.Context) error {
+	h.DB.Exec(c.Request().Context(), `DELETE FROM yolink_alert_rules WHERE id = $1`, c.Param("id"))
+	return c.NoContent(http.StatusNoContent)
 }

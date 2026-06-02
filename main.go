@@ -72,7 +72,7 @@ func main() {
 	reminderSvc.Start(context.Background())
 
 	// Start YoLink sensor service (connects to MQTT if credentials are configured)
-	yolinkSvc := &yolink.Service{DB: pool, Mailer: mailer}
+	yolinkSvc := &yolink.Service{DB: pool, Mailer: mailer, SMS: smsSender}
 	yolinkSvc.Start(context.Background())
 
 	e := echo.New()
@@ -510,6 +510,10 @@ func main() {
 	boardPlus.GET("/admin/yolink/devices", yolinkH.ListDevices)
 	boardPlus.PUT("/admin/yolink/devices/:id", yolinkH.UpdateDevice)
 	boardPlus.GET("/admin/yolink/alerts", yolinkH.ListAlerts)
+	boardPlus.GET("/admin/yolink/rules", yolinkH.ListRules)
+	boardPlus.POST("/admin/yolink/rules", yolinkH.CreateRule)
+	boardPlus.PUT("/admin/yolink/rules/:id", yolinkH.UpdateRule)
+	boardPlus.DELETE("/admin/yolink/rules/:id", yolinkH.DeleteRule)
 
 	// Member alerts (admin → member dashboard)
 	authed.GET("/member-alerts", alerts.GetMyAlerts)
