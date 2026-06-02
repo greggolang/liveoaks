@@ -360,7 +360,7 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 	// ── Max duration limit ────────────────────────────────────────────────
 	var maxDurStr string
 	if scanErr := h.DB.QueryRow(c.Request().Context(),
-		`SELECT value FROM settings WHERE key = 'booking_max_duration_hours'`).Scan(&maxDurStr); scanErr == nil {
+		`SELECT value FROM settings WHERE key = 'booking_max_duration_hours'`).Scan(&maxDurStr); !proExempt && scanErr == nil {
 		if maxDurF, convErr := strconv.ParseFloat(maxDurStr, 64); convErr == nil && maxDurF > 0 {
 			durationHours := req.EndTime.Sub(req.StartTime).Hours()
 			if durationHours > maxDurF {

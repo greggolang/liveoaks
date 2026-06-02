@@ -24,6 +24,9 @@ import (
 //go:embed frontend/dist
 var frontendFS embed.FS
 
+//go:embed migrations
+var migrationsFS embed.FS
+
 // Version is injected at build time via -ldflags
 var Version = "dev"
 
@@ -35,6 +38,10 @@ func main() {
 		log.Fatalf("could not connect to database: %v", err)
 	}
 	defer pool.Close()
+
+	if err := db.RunMigrations(context.Background(), pool, migrationsFS); err != nil {
+		log.Fatalf("migrations failed: %v", err)
+	}
 
 	mailer := &email.DBMailer{
 		DB: pool,
@@ -111,6 +118,7 @@ func main() {
 	messages := &handlers.MessagesHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	kiosk := &handlers.KioskHandler{DB: pool}
 	mail := &handlers.MailHandler{DB: pool}
+	imapH := &handlers.IMAPHandler{DB: pool}
 	notifPrefs := &handlers.NotifPrefsHandler{DB: pool}
 	yolinkH := &handlers.YoLinkHandler{DB: pool, Service: yolinkSvc}
 	courtBlocks := &handlers.CourtBlocksHandler{DB: pool}
@@ -337,6 +345,13 @@ func main() {
 
 	// Mail — current user's assigned account (authenticated, not admin-only)
 	authed.GET("/my-mail-account", mail.MyAccount)
+
+	// In-app IMAP inbox (any authenticated user with an assigned mail account)
+	authed.GET("/imap/messages", imapH.ListMessages)
+	authed.GET("/imap/messages/:uid", imapH.GetMessage)
+	authed.POST("/imap/send", imapH.SendMessage)
+	authed.PUT("/imap/messages/:uid/read", imapH.MarkRead)
+	authed.DELETE("/imap/messages/:uid", imapH.DeleteMessage)
 
 	// Mail account management (admin only)
 	adminOnly.GET("/mail/accounts", mail.List)

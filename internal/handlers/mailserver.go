@@ -120,8 +120,8 @@ func (h *MailHandler) ResetPassword(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"message": "could not generate password"})
 	}
 	_, err = h.DB.Exec(c.Request().Context(), `
-		UPDATE mail_accounts SET password_hash=$1, updated_at=NOW() WHERE id=$2
-	`, hashed, id)
+		UPDATE mail_accounts SET password_hash=$1, imap_password=$2, updated_at=NOW() WHERE id=$3
+	`, hashed, plain, id)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"message": err.Error()})
 	}

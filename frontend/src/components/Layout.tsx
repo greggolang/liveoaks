@@ -26,6 +26,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [bugState, setBugState] = useState<BugState>('idle')
   const [showFantasy, setShowFantasy] = useState(false)
   const [showLadder, setShowLadder] = useState(false)
+  const [showDocuments, setShowDocuments] = useState(false)
   const [unreadMessages, setUnreadMessages] = useState(0)
 
   useEffect(() => {
@@ -34,6 +35,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       .catch(() => {})
     api.ladder.list()
       .then((d: any) => setShowLadder((d as any[]).some((l: any) => l.status === 'open')))
+      .catch(() => {})
+    api.documents.list()
+      .then((d: any[]) => setShowDocuments(d.length > 0))
       .catch(() => {})
 
     // Poll unread message count every 60 seconds
@@ -100,6 +104,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   </span>
                 )}
               </NavLink>
+              {showDocuments && <NavLink to="/documents" className={navLink}>Files</NavLink>}
               {showFantasy && <NavLink to="/fantasy" className={navLink}>Fantasy Pool</NavLink>}
               {showLadder && <NavLink to="/ladder" className={navLink}>Ladder</NavLink>}
               {isBoard && <NavLink to="/admin" className={navLink}>Admin</NavLink>}
@@ -143,6 +148,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 ['/directory', 'Directory'],
                 ['/friends', 'Friends'],
                 ['/messages', unreadMessages > 0 ? `Messages (${unreadMessages})` : 'Messages'],
+                ...(showDocuments ? [['/documents', 'Files']] : []),
                 ...(showFantasy ? [['/fantasy', 'Fantasy Pool']] : []),
                 ...(showLadder ? [['/ladder', 'Ladder']] : []),
                 ...(isBoard ? [['/admin', 'Admin']] : []),

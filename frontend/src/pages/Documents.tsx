@@ -61,6 +61,9 @@ interface FolderNodeProps {
   uploadFiles: File[]
   uploading: boolean
   uploadError: string
+  uploadProgress: number
+  uploadCurrent: number
+  uploadTotal: number
   onUploadOpen: (folderId: string) => void
   onUploadCancel: () => void
   onUploadTitleChange: (v: string) => void
@@ -72,30 +75,31 @@ interface FolderNodeProps {
 function FolderNode({
   folder, depth, isBoard,
   showUploadFor, uploadFolderId, uploadTitle, uploadFiles, uploading, uploadError,
+  uploadProgress, uploadCurrent, uploadTotal,
   onUploadOpen, onUploadCancel, onUploadTitleChange, onUploadFileChange, onUploadSubmit, onDelete,
 }: FolderNodeProps) {
-  const [open, setOpen] = useState(true)
-  const hasChildren = (folder.children ?? []).length > 0
+  const [open, setOpen] = useState(false)
   const indent = depth * 20
 
   return (
     <div style={{ marginLeft: indent }}>
       {/* Folder header */}
       <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <button onClick={() => setOpen(o => !o)} className="text-gray-400 hover:text-gray-600 transition w-4 shrink-0">
-            {hasChildren ? (open ? '▾' : '▸') : <span className="invisible">▸</span>}
-          </button>
-          <svg className="w-4 h-4 text-yellow-500 shrink-0" fill="currentColor" viewBox="0 0 24 24">
+        <button
+          onClick={() => setOpen(o => !o)}
+          className="flex items-center gap-2 flex-1 min-w-0 text-left hover:opacity-80 transition"
+        >
+          <span className="text-gray-400 w-4 shrink-0 text-xs">{open ? '▾' : '▸'}</span>
+          <svg className={`w-4 h-4 shrink-0 transition-colors ${open ? 'text-yellow-400' : 'text-yellow-500'}`} fill="currentColor" viewBox="0 0 24 24">
             <path d="M10 4H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V8a2 2 0 00-2-2h-8l-2-2z" />
           </svg>
           <h2 className={`font-semibold text-gray-700 ${depth === 0 ? 'text-sm' : 'text-xs'}`}>{folder.name}</h2>
           {isBoard && <FolderPermissionBadges roles={folder.roles} />}
-        </div>
+        </button>
         {isBoard && open && (
           <button
             onClick={() => onUploadOpen(folder.id)}
-            className="text-xs text-green-700 hover:text-green-900 font-medium transition">
+            className="text-xs text-green-700 hover:text-green-900 font-medium transition shrink-0 ml-2">
             + Upload
           </button>
         )}
@@ -161,6 +165,18 @@ function FolderNode({
                   Cancel
                 </button>
               </div>
+              {uploading && (
+                <div className="space-y-1">
+                  {uploadTotal > 1 && (
+                    <p className="text-xs text-gray-500">File {uploadCurrent} of {uploadTotal}</p>
+                  )}
+                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div className="h-full bg-green-600 rounded-full transition-all duration-150"
+                      style={{ width: `${uploadProgress}%` }} />
+                  </div>
+                  <p className="text-xs text-gray-400 text-right">{uploadProgress}%</p>
+                </div>
+              )}
             </form>
           )}
 
@@ -197,6 +213,7 @@ function FolderNode({
               showUploadFor={showUploadFor} uploadFolderId={uploadFolderId}
               uploadTitle={uploadTitle} uploadFiles={uploadFiles}
               uploading={uploading} uploadError={uploadError}
+              uploadProgress={uploadProgress} uploadCurrent={uploadCurrent} uploadTotal={uploadTotal}
               onUploadOpen={onUploadOpen} onUploadCancel={onUploadCancel}
               onUploadTitleChange={onUploadTitleChange} onUploadFileChange={onUploadFileChange}
               onUploadSubmit={onUploadSubmit} onDelete={onDelete}
@@ -260,6 +277,9 @@ export default function Documents() {
   const [uploadFiles, setUploadFiles] = useState<File[]>([])
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [uploadCurrent, setUploadCurrent] = useState(0)
+  const [uploadTotal, setUploadTotal] = useState(0)
 
   const loadFolders = () => api.documents.list().then(d => setFolders(d))
   const loadAdminFolders = () => api.documents.folders.adminList().then(d => setAdminFolders(d))
@@ -338,17 +358,24 @@ export default function Documents() {
     e.preventDefault()
     if (uploadFiles.length === 0 || !uploadFolderId) return
     if (uploadFiles.length === 1 && !uploadTitle.trim()) { setUploadError('Title is required'); return }
-    setUploading(true); setUploadError('')
+    setUploading(true); setUploadError(''); setUploadProgress(0)
+    setUploadCurrent(0); setUploadTotal(uploadFiles.length)
     try {
       if (uploadFiles.length === 1) {
-        await api.documents.upload(uploadTitle.trim(), uploadFolderId, uploadFiles[0])
+        setUploadCurrent(1)
+        await api.documents.upload(uploadTitle.trim(), uploadFolderId, uploadFiles[0], (pct) => setUploadProgress(pct))
       } else {
-        for (const file of uploadFiles) {
+        for (let i = 0; i < uploadFiles.length; i++) {
+          setUploadCurrent(i + 1)
+          const file = uploadFiles[i]
           const title = file.name.replace(/\.[^.]+$/, '') || file.name
-          await api.documents.upload(title, uploadFolderId, file)
+          await api.documents.upload(title, uploadFolderId, file, (pct) => {
+            setUploadProgress(Math.round(((i + pct / 100) / uploadFiles.length) * 100))
+          })
         }
       }
       setUploadTitle(''); setUploadFiles([]); setShowUploadFor(null); setUploadFolderId('')
+      setUploadProgress(0); setUploadCurrent(0); setUploadTotal(0)
       await loadFolders()
     } catch (e: any) { setUploadError(e.message || 'Upload failed') }
     finally { setUploading(false) }
@@ -470,6 +497,7 @@ export default function Documents() {
               showUploadFor={showUploadFor} uploadFolderId={uploadFolderId}
               uploadTitle={uploadTitle} uploadFiles={uploadFiles}
               uploading={uploading} uploadError={uploadError}
+              uploadProgress={uploadProgress} uploadCurrent={uploadCurrent} uploadTotal={uploadTotal}
               onUploadOpen={openUpload}
               onUploadCancel={() => setShowUploadFor(null)}
               onUploadTitleChange={setUploadTitle}

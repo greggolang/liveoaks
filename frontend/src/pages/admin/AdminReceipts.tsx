@@ -7,9 +7,30 @@ interface Receipt {
   notes?: string; created_at: string
 }
 
-const CATEGORIES = ['general', 'dues', 'maintenance', 'equipment', 'utilities', 'insurance', 'events', 'other']
+const CATEGORIES: { value: string; label: string }[] = [
+  { value: 'grounds', label: 'Grounds & Maintenance' },
+  { value: 'insurance', label: 'Insurance' },
+  { value: 'tennis_pro', label: 'Tennis Pro' },
+  { value: 'bookkeeping', label: 'Bookkeeping & Accounting' },
+  { value: 'tax', label: 'Tax & Licenses' },
+  { value: 'balls', label: 'Balls' },
+  { value: 'utilities', label: 'Utilities' },
+  { value: 'drinks', label: 'Drinks' },
+  { value: 'digital', label: 'Digital Services' },
+  { value: 'party', label: 'Party & Events' },
+  { value: 'court_system', label: 'Court Reservation System' },
+  { value: 'office', label: 'Office Supplies' },
+  { value: 'repairs', label: 'General Repairs' },
+  { value: 'clubhouse', label: 'Clubhouse Supplies' },
+  { value: 'banking', label: 'Banking & Admin' },
+  { value: 'other', label: 'Other' },
+]
 
-const emptyForm = { title: '', amount: '', receipt_date: '', category: 'general', notes: '' }
+const catLabel = (value: string) =>
+  CATEGORIES.find(c => c.value === value)?.label ??
+  value.charAt(0).toUpperCase() + value.slice(1).replace(/_/g, ' ')
+
+const emptyForm = { title: '', amount: '', receipt_date: '', category: 'grounds', notes: '' }
 
 export default function AdminReceipts() {
   const [receipts, setReceipts] = useState<Receipt[]>([])
@@ -91,7 +112,7 @@ export default function AdminReceipts() {
               <select value={form.category} onChange={sf('category')}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
                 {CATEGORIES.map(c => (
-                  <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>
+                  <option key={c.value} value={c.value}>{c.label}</option>
                 ))}
               </select>
             </div>
@@ -122,7 +143,7 @@ export default function AdminReceipts() {
         <div className="flex flex-wrap gap-3 mb-5">
           {Object.entries(totalByCategory).map(([cat, total]) => (
             <div key={cat} className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-xs shadow-sm">
-              <span className="text-gray-400 capitalize">{cat}</span>
+              <span className="text-gray-400">{catLabel(cat)}</span>
               <span className="ml-2 font-semibold text-gray-800">${total.toFixed(2)}</span>
             </div>
           ))}
@@ -154,7 +175,7 @@ export default function AdminReceipts() {
                     <div className="font-medium text-gray-800">{r.title}</div>
                     {r.notes && <div className="text-xs text-gray-400 mt-0.5">{r.notes}</div>}
                   </td>
-                  <td className="px-4 py-3 capitalize text-gray-600 text-xs">{r.category}</td>
+                  <td className="px-4 py-3 text-gray-600 text-xs">{catLabel(r.category)}</td>
                   <td className="px-4 py-3 text-gray-500 text-xs">
                     {r.receipt_date
                       ? new Date(r.receipt_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })

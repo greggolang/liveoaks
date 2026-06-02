@@ -520,10 +520,30 @@ func (h *FinancialHandler) PLReport(c echo.Context) error {
 		totals.Net += row.Net
 	}
 
+	// Expense breakdown by category for the year
+	expenseBreakdown := map[string]float64{}
+	catRows, catErr := h.DB.Query(c.Request().Context(),
+		`SELECT category, SUM(amount)::float8
+		 FROM billing_receipts
+		 WHERE amount IS NOT NULL AND EXTRACT(YEAR FROM receipt_date) = $1
+		 GROUP BY category
+		 ORDER BY SUM(amount) DESC`, year)
+	if catErr == nil {
+		defer catRows.Close()
+		for catRows.Next() {
+			var cat string
+			var amt float64
+			if catRows.Scan(&cat, &amt) == nil {
+				expenseBreakdown[cat] = amt
+			}
+		}
+	}
+
 	return c.JSON(http.StatusOK, map[string]interface{}{
-		"year":   year,
-		"months": result,
-		"totals": totals,
+		"year":              year,
+		"months":            result,
+		"totals":            totals,
+		"expense_breakdown": expenseBreakdown,
 	})
 }
 

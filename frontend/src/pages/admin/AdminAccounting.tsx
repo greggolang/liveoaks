@@ -2,6 +2,32 @@ import { useEffect, useState } from 'react'
 import { api, MemberBalance, PLReport, PLMonth, StatementEntry } from '../../api/client'
 
 const fmt = (n: number) => n === 0 ? '—' : `$${n.toFixed(2)}`
+
+const CAT_LABELS: Record<string, string> = {
+  grounds: 'Grounds & Maintenance',
+  insurance: 'Insurance',
+  tennis_pro: 'Tennis Pro',
+  bookkeeping: 'Bookkeeping & Accounting',
+  tax: 'Tax & Licenses',
+  balls: 'Balls',
+  utilities: 'Utilities',
+  drinks: 'Drinks',
+  digital: 'Digital Services',
+  party: 'Party & Events',
+  court_system: 'Court Reservation System',
+  office: 'Office Supplies',
+  repairs: 'General Repairs',
+  clubhouse: 'Clubhouse Supplies',
+  banking: 'Banking & Admin',
+  // legacy category names
+  maintenance: 'Maintenance',
+  equipment: 'Equipment',
+  events: 'Events',
+  general: 'General',
+  dues: 'Dues',
+  other: 'Other',
+}
+const catLabel = (v: string) => CAT_LABELS[v] ?? v.charAt(0).toUpperCase() + v.slice(1).replace(/_/g, ' ')
 const fmtPos = (n: number) => n === 0 ? '—' : <span className={n < 0 ? 'text-red-600' : 'text-green-700'}>${Math.abs(n).toFixed(2)}{n < 0 ? ' loss' : ''}</span>
 const badge = (status: string) => {
   if (status === 'paid') return 'bg-green-100 text-green-700'
@@ -267,6 +293,46 @@ export default function AdminAccounting() {
                   </div>
                 ))}
               </div>
+
+              {/* Expense breakdown by category */}
+              {pl.expense_breakdown && Object.keys(pl.expense_breakdown).length > 0 && (
+                <div className="mb-5">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Expense Breakdown by Category</h3>
+                  <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
+                          <tr>
+                            <th className="px-4 py-3 text-left">Category</th>
+                            <th className="px-4 py-3 text-right">YTD Amount</th>
+                            <th className="px-4 py-3 text-right">% of Expenses</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {Object.entries(pl.expense_breakdown)
+                            .sort((a, b) => b[1] - a[1])
+                            .map(([cat, amt]) => (
+                              <tr key={cat} className="hover:bg-gray-50">
+                                <td className="px-4 py-2.5 text-gray-700">{catLabel(cat)}</td>
+                                <td className="px-4 py-2.5 text-right font-mono tabular-nums text-red-600">${amt.toFixed(2)}</td>
+                                <td className="px-4 py-2.5 text-right text-gray-400 tabular-nums">
+                                  {pl.totals.expenses > 0 ? ((amt / pl.totals.expenses) * 100).toFixed(1) + '%' : '—'}
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                        <tfoot className="bg-gray-50 border-t-2 border-gray-200 font-semibold">
+                          <tr>
+                            <td className="px-4 py-3 text-gray-700">Total Expenses</td>
+                            <td className="px-4 py-3 text-right text-red-600 tabular-nums">${pl.totals.expenses.toFixed(2)}</td>
+                            <td className="px-4 py-3 text-right text-gray-400">100%</td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Monthly table */}
               <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">

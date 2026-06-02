@@ -20,6 +20,7 @@ export interface PLMonth {
 }
 export interface PLReport {
   year: number; months: PLMonth[]; totals: PLMonth
+  expense_breakdown?: Record<string, number>
 }
 
 export interface DocFile {
@@ -64,6 +65,13 @@ export interface DriveFile {
   size?: number; web_view_link?: string; icon_link?: string; is_folder: boolean
 }
 
+export interface IMAPMessage {
+  uid: number; subject: string; from: string; date: string; unread: boolean
+}
+export interface IMAPMessageDetail extends IMAPMessage {
+  to: string; cc?: string; body: string
+}
+
 const BASE = '/api'
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -87,6 +95,27 @@ async function upload<T>(path: string, form: FormData): Promise<T> {
     throw new Error(err.message || 'Upload failed')
   }
   return res.json()
+}
+
+function uploadWithProgress<T>(path: string, form: FormData, onProgress?: (pct: number) => void): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.withCredentials = true
+    xhr.open('POST', `${BASE}${path}`)
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100))
+    }
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try { resolve(JSON.parse(xhr.responseText)) } catch { reject(new Error('Upload failed')) }
+      } else {
+        try { const err = JSON.parse(xhr.responseText); reject(new Error(err.message || 'Upload failed')) }
+        catch { reject(new Error(xhr.statusText || 'Upload failed')) }
+      }
+    }
+    xhr.onerror = () => reject(new Error('Upload failed'))
+    xhr.send(form)
+  })
 }
 
 export const api = {
@@ -246,9 +275,9 @@ export const api = {
   },
   documents: {
     list: () => request<DocFolder[]>('/documents'),
-    upload: (title: string, folderId: string, file: File) => {
+    upload: (title: string, folderId: string, file: File, onProgress?: (pct: number) => void) => {
       const f = new FormData(); f.append('title', title); f.append('folder_id', folderId); f.append('file', file)
-      return upload('/admin/documents', f)
+      return uploadWithProgress('/admin/documents', f, onProgress)
     },
     delete: (id: string) => request(`/admin/documents/${id}`, { method: 'DELETE' }),
     folders: {
@@ -602,6 +631,22 @@ export const api = {
     assign: (id: string, userId: string | null) =>
       request(`/admin/mail/accounts/${id}/assign`, { method: 'POST', body: JSON.stringify({ user_id: userId }) }),
     delete: (id: string) => request(`/admin/mail/accounts/${id}`, { method: 'DELETE' }),
+  },
+  imap: {
+    listMessages: (folder = 'INBOX') =>
+      request<{ messages: IMAPMessage[]; mailbox: string; total: number }>(
+        `/imap/messages?folder=${encodeURIComponent(folder)}`
+      ),
+    getMessage: (uid: number, folder = 'INBOX') =>
+      request<IMAPMessageDetail>(
+        `/imap/messages/${uid}?folder=${encodeURIComponent(folder)}`
+      ),
+    send: (data: { to: string; subject: string; body: string }) =>
+      request<{ status: string }>('/imap/send', { method: 'POST', body: JSON.stringify(data) }),
+    markRead: (uid: number, folder = 'INBOX') =>
+      request(`/imap/messages/${uid}/read?folder=${encodeURIComponent(folder)}`, { method: 'PUT' }),
+    delete: (uid: number, folder = 'INBOX') =>
+      request(`/imap/messages/${uid}?folder=${encodeURIComponent(folder)}`, { method: 'DELETE' }),
   },
   notificationPrefs: {
     get: () => request<{

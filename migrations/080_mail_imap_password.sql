@@ -1,0 +1,1 @@
+ALTER TABLE mail_accounts ADD COLUMN IF NOT EXISTS imap_password TEXT NOT NULL DEFAULT '';
