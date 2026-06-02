@@ -272,9 +272,23 @@ func NotifyCourtWaitlist(
 	timeStr := startTime.In(loc).Format("3:04 PM") + " – " + endTime.In(loc).Format("3:04 PM MST")
 	bookURL := fmt.Sprintf("%s/bookings?date=%s", siteURL, startTime.Format("2006-01-02"))
 
+	// Prefix used when the user originally joined — dismiss that alert now.
+	joinAlertPrefix := fmt.Sprintf("You joined the waitlist for %s on %s at %s",
+		courtName,
+		startTime.In(loc).Format("Mon, Jan 2"),
+		startTime.In(loc).Format("3:04 PM"),
+	)
+
 	// Mark all as notified, create dashboard alerts, and send emails concurrently
 	for _, w := range waiters {
 		db.Exec(ctx, `UPDATE court_waitlist SET notified_at = NOW() WHERE id = $1`, w.entryID)
+
+		// Dismiss the original "You joined the waitlist" alert for this user+slot.
+		db.Exec(ctx, `
+			UPDATE member_alerts SET dismissed_at = NOW()
+			WHERE user_id = $1 AND dismissed_at IS NULL AND message LIKE $2`,
+			w.userID, joinAlertPrefix+"%",
+		)
 
 		// In-app alert
 		var positionText string

@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { api, MemberMessage } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
+import MailInbox from './MailInbox'
 
 const USTA_RATINGS = ['2.5', '3.0', '3.5', '4.0', '4.5', '5.0']
 
@@ -28,6 +29,7 @@ interface Member { id: string; first_name: string; last_name: string; email: str
 
 export default function Messages() {
   const { user } = useAuth()
+  const [mainTab, setMainTab] = useState<'messages' | 'email'>('messages')
   const [tab, setTab] = useState<'inbox' | 'sent'>('inbox')
   const [inbox, setInbox] = useState<MemberMessage[]>([])
   const [sent, setSent] = useState<MemberMessage[]>([])
@@ -151,11 +153,38 @@ export default function Messages() {
 
   return (
     <div className="max-w-5xl">
+      {/* Page header */}
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-bold text-gray-800">Mail</h1>
+      </div>
+
+      {/* Section tabs */}
+      <div className="flex gap-1 mb-5 border-b border-gray-200">
+        <button
+          onClick={() => setMainTab('messages')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition ${
+            mainTab === 'messages' ? 'border-green-700 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}>
+          Member Messages
+          {unreadCount > 0 && mainTab !== 'messages' && (
+            <span className="ml-1.5 px-1.5 py-0.5 bg-green-700 text-white text-xs rounded-full">{unreadCount}</span>
+          )}
+        </button>
+        <button
+          onClick={() => setMainTab('email')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition ${
+            mainTab === 'email' ? 'border-green-700 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}>
+          Email
+        </button>
+      </div>
+
+      {mainTab === 'email' ? <MailInbox /> : (
+      <>
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Messages</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Direct messages with other members</p>
+          <p className="text-sm text-gray-500">Direct messages with other members</p>
         </div>
         <button onClick={() => startCompose()}
           className="bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-4 py-2 rounded-xl transition flex items-center gap-2">
@@ -349,7 +378,7 @@ export default function Messages() {
       </div>
 
       {/* ── Compose modal ── */}
-      {composing && (
+      {composing && mainTab === 'messages' && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
             {/* Modal header */}
@@ -464,6 +493,8 @@ export default function Messages() {
             </div>
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   )

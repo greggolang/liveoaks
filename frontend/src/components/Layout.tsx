@@ -103,7 +103,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <NavLink to="/directory" className={navLink}>Directory</NavLink>
               <span className="w-px h-4 bg-green-600" />
               <NavLink to="/friends" className={navLink}>Friends</NavLink>
-              <NavLink to="/messages" title="Messages" className={({ isActive }) =>
+              <NavLink to="/messages" title="Mail" className={({ isActive }) =>
                 `relative hover:text-green-200 transition ${isActive ? 'text-white' : 'text-green-100'}`}>
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -158,7 +158,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 ['/pro-shop', 'Pro Shop'],
                 ['/directory', 'Directory'],
                 ['/friends', 'Friends'],
-                ['/messages', unreadMessages > 0 ? `Messages (${unreadMessages})` : 'Messages'],
+                ['/messages', unreadMessages > 0 ? `Mail (${unreadMessages})` : 'Mail'],
                 ...(showDocuments ? [['/documents', 'Files']] : []),
                 ...(showFantasy ? [['/fantasy', 'Fantasy Pool']] : []),
                 ...(showLadder ? [['/ladder', 'Ladder']] : []),

@@ -58,6 +58,18 @@ function saveRead(userId: string, ids: Set<string>) {
   localStorage.setItem(readKey(userId), JSON.stringify([...ids]))
 }
 
+// Parses "Court available: Court 1 on Tuesday, June 2, 8:00 AM …" into a bookings URL.
+function courtAlertBookUrl(message: string): string | null {
+  if (!message.startsWith('Court available:')) return null
+  const m = message.match(/\bon \w+, (\w+ \d+),/)
+  if (!m) return null
+  const now = new Date()
+  let d = new Date(`${m[1]} ${now.getFullYear()}`)
+  if (isNaN(d.getTime())) return null
+  if (d < now) d = new Date(`${m[1]} ${now.getFullYear() + 1}`)
+  return `/bookings?tab=grid&date=${d.toISOString().slice(0, 10)}`
+}
+
 export default function Dashboard() {
   const { user, isBoard } = useAuth()
   const navigate = useNavigate()
@@ -85,7 +97,6 @@ export default function Dashboard() {
   const [myBalance, setMyBalance] = useState<{ dues_owed: number; kiosk_tab: number; charges_owed: number; total: number } | null>(null)
   const [showStatement, setShowStatement] = useState(false)
   const [statement, setStatement] = useState<import('../api/client').StatementEntry[] | null>(null)
-  const [mailAccount, setMailAccount] = useState<{ address: string; role_label: string; webmail_url: string } | null>(null)
   const [friends, setFriends] = useState<{id: string; friend_user_id?: string; friend_name: string; friend_email?: string; is_guest: boolean}[]>([])
   const [directory, setDirectory] = useState<{id: string; first_name: string; last_name: string; email: string}[]>([])
   const [invitingFor, setInvitingFor] = useState<{bookingId: string; alertId: string} | null>(null)
@@ -140,12 +151,13 @@ export default function Dashboard() {
     api.invitations.responses().then(d =>
       setResponseAlerts((d as InviteResponseAlert[]).filter(r => !dismissedAlertIds.current.has(r.id)))
     ).catch(() => {})
+    api.memberAlerts.getMyAlerts().then(d => setAdminAlerts(d)).catch(() => {})
   }, [])
 
   useEffect(() => {
     checkResponses()
     const responseInterval = setInterval(checkResponses, 60000)
-    const alertInterval = setInterval(refreshAlerts, 60000)
+    const alertInterval = setInterval(refreshAlerts, 10000)
     return () => { clearInterval(responseInterval); clearInterval(alertInterval) }
   }, [checkResponses, refreshAlerts])
 
@@ -169,7 +181,6 @@ export default function Dashboard() {
     api.messages.inbox().then(d => setInbox(d)).catch(() => {})
     api.memberAlerts.getMyAlerts().then(d => setAdminAlerts(d)).catch(() => {})
     api.finance.myBalance().then(d => setMyBalance(d)).catch(() => {})
-    api.mail.myAccount().then(d => setMailAccount(d)).catch(() => {})
     api.camera.embedURL().then(d => setCameraURL(d.url)).catch(() => setCameraURL('/camera'))
     api.weather.get().then(d => setWeather(d as WeatherData)).catch(() => {})
     api.weather.airQuality().then(d => setAirQuality(d as AirQualityData)).catch(() => {})
@@ -281,20 +292,6 @@ export default function Dashboard() {
         <p className="text-gray-500 text-sm mt-0.5">Here's what's happening at the club.</p>
       </div>
 
-      {/* Club email account (board members with an assigned mailbox) */}
-      {mailAccount && (
-        <div className="flex items-center gap-3 bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-3">
-          <span className="text-2xl shrink-0">📧</span>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-indigo-800">{mailAccount.role_label} — Club Email</p>
-            <p className="text-xs text-indigo-600 font-mono mt-0.5">{mailAccount.address}</p>
-          </div>
-          <a href={mailAccount.webmail_url} target="_blank" rel="noreferrer"
-            className="shrink-0 text-xs font-semibold bg-indigo-700 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-800 transition">
-            Open Webmail →
-          </a>
-        </div>
-      )}
 
       {/* Account balance — click to view full statement */}
       {myBalance && myBalance.total > 0 && (
@@ -377,15 +374,29 @@ export default function Dashboard() {
               danger:  'bg-red-50 border-red-200 text-red-800',
             }
             const icons: Record<string, string> = { info: 'ℹ️', warning: '⚠️', danger: '🚨' }
+            const bookUrl = courtAlertBookUrl(a.message)
+            const dismiss = () => {
+              api.memberAlerts.dismiss(a.id).catch(() => {})
+              setAdminAlerts(prev => prev.filter(x => x.id !== a.id))
+            }
             return (
               <div key={a.id} className={`flex items-start gap-3 border rounded-xl px-4 py-3 ${styles[a.type] ?? styles.info}`}>
                 <span className="text-base shrink-0">{icons[a.type] ?? icons.info}</span>
-                <p className="flex-1 text-sm">{a.message}</p>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm">{a.message}</p>
+                  {bookUrl && (
+                    <button
+                      onClick={() => { dismiss(); navigate(bookUrl) }}
+                      className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-700 hover:bg-green-800 text-white text-xs font-semibold rounded-lg transition">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      Book Now
+                    </button>
+                  )}
+                </div>
                 <button
-                  onClick={() => {
-                    api.memberAlerts.dismiss(a.id).catch(() => {})
-                    setAdminAlerts(prev => prev.filter(x => x.id !== a.id))
-                  }}
+                  onClick={dismiss}
                   className="shrink-0 opacity-40 hover:opacity-70 transition text-lg leading-none"
                   title="Dismiss"
                 >✕</button>
