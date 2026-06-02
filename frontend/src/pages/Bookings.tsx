@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
@@ -94,7 +94,7 @@ export default function Bookings() {
   const { user, isBoard, bookingMaxDaysAhead, hasPermission } = useAuth()
   const [searchParams] = useSearchParams()
   const today = localDateStr(new Date())
-  const [date, setDate] = useState(today)
+  const [date, setDate] = useState(() => searchParams.get('date') || today)
   const [courts, setCourts] = useState<Court[]>([])
   const [bookings, setBookings] = useState<Booking[]>([])
   const [courtBlocks, setCourtBlocks] = useState<any[]>([])
@@ -237,6 +237,24 @@ export default function Bookings() {
     }))
     setRosterMap(map)
   }
+
+  // Auto-select a court slot when navigating from a "Court available" alert.
+  const autoSelected = useRef(false)
+  useEffect(() => {
+    if (autoSelected.current || courts.length === 0) return
+    const courtParam = searchParams.get('court')
+    const startParam = searchParams.get('start')
+    if (!courtParam || !startParam) return
+    const court = courts.find(c => c.name === courtParam)
+    if (!court) return
+    const [hStr, mStr] = startParam.split(':')
+    const h = parseInt(hStr), m = parseInt(mStr)
+    if (isNaN(h) || isNaN(m)) return
+    autoSelected.current = true
+    setTab('grid')
+    handleSlotClick(court.id, h + m / 60, court.name)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [courts, bookings])
 
   useEffect(() => {
     api.courts.list().then(d => setCourts(d as Court[]))

@@ -58,16 +58,31 @@ function saveRead(userId: string, ids: Set<string>) {
   localStorage.setItem(readKey(userId), JSON.stringify([...ids]))
 }
 
-// Parses "Court available: Court 1 on Tuesday, June 2, 8:00 AM …" into a bookings URL.
+// Parses "Court available: Court 1 on Tuesday, June 2, 8:00 AM – …" into a bookings URL.
 function courtAlertBookUrl(message: string): string | null {
   if (!message.startsWith('Court available:')) return null
-  const m = message.match(/\bon \w+, (\w+ \d+),/)
-  if (!m) return null
+  const courtMatch = message.match(/^Court available: (.+?) on /)
+  const dateMatch  = message.match(/\bon \w+, (\w+ \d+),/)
+  const timeMatch  = message.match(/, (\d+:\d+ (?:AM|PM)) –/)
+  if (!dateMatch) return null
+
   const now = new Date()
-  let d = new Date(`${m[1]} ${now.getFullYear()}`)
+  let d = new Date(`${dateMatch[1]} ${now.getFullYear()}`)
   if (isNaN(d.getTime())) return null
-  if (d < now) d = new Date(`${m[1]} ${now.getFullYear() + 1}`)
-  return `/bookings?tab=grid&date=${d.toISOString().slice(0, 10)}`
+  if (d < now) d = new Date(`${dateMatch[1]} ${now.getFullYear() + 1}`)
+
+  const params = new URLSearchParams({ tab: 'grid', date: d.toISOString().slice(0, 10) })
+  if (courtMatch) params.set('court', courtMatch[1])
+  if (timeMatch) {
+    const t = timeMatch[1].match(/^(\d+):(\d+) (AM|PM)$/)
+    if (t) {
+      let h = parseInt(t[1])
+      if (t[3] === 'PM' && h !== 12) h += 12
+      if (t[3] === 'AM' && h === 12) h = 0
+      params.set('start', `${String(h).padStart(2, '0')}:${t[2]}`)
+    }
+  }
+  return `/bookings?${params}`
 }
 
 export default function Dashboard() {
