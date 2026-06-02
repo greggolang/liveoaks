@@ -10,4 +10,4 @@ WHERE id IN (
 );
 
 -- Prevent future duplicates.
-ALTER TABLE financial_rules ADD CONSTRAINT IF NOT EXISTS financial_rules_name_key UNIQUE (name);
+CREATE UNIQUE INDEX IF NOT EXISTS financial_rules_name_key ON financial_rules(name);
