@@ -29,6 +29,7 @@ interface Member { id: string; first_name: string; last_name: string; email: str
 
 export default function Messages() {
   const { user } = useAuth()
+  const [mailAccount, setMailAccount] = useState<{ address: string } | null | undefined>(undefined)
   const [mainTab, setMainTab] = useState<'messages' | 'email'>('messages')
   const [tab, setTab] = useState<'inbox' | 'sent'>('inbox')
   const [inbox, setInbox] = useState<MemberMessage[]>([])
@@ -67,6 +68,10 @@ export default function Messages() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    api.mail.myAccount().then(d => setMailAccount(d ?? null)).catch(() => setMailAccount(null))
+  }, [])
 
   // Debounced member search
   useEffect(() => {
@@ -170,16 +175,19 @@ export default function Messages() {
             <span className="ml-1.5 px-1.5 py-0.5 bg-green-700 text-white text-xs rounded-full">{unreadCount}</span>
           )}
         </button>
-        <button
-          onClick={() => setMainTab('email')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition ${
-            mainTab === 'email' ? 'border-green-700 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}>
-          Email
-        </button>
+        {mailAccount && (
+          <button
+            onClick={() => setMainTab('email')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition ${
+              mainTab === 'email' ? 'border-green-700 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}>
+            Email
+            <span className="ml-1.5 text-[10px] text-gray-400 font-mono">{mailAccount.address}</span>
+          </button>
+        )}
       </div>
 
-      {mainTab === 'email' ? <MailInbox /> : (
+      {mainTab === 'email' && mailAccount ? <MailInbox /> : (
       <>
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
