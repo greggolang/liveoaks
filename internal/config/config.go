@@ -21,6 +21,9 @@ type Config struct {
 	StripeSecretKey      string
 	StripeWebhookSecret  string
 	StripePublishableKey string
+	TwilioAccountSID     string
+	TwilioAuthToken      string
+	TwilioFrom           string // E.164 sending number, e.g. +14155551234
 }
 
 func Load() Config {
@@ -56,5 +59,8 @@ func Load() Config {
 		StripeSecretKey:      os.Getenv("STRIPE_SECRET_KEY"),
 		StripeWebhookSecret:  os.Getenv("STRIPE_WEBHOOK_SECRET"),
 		StripePublishableKey: os.Getenv("STRIPE_PUBLISHABLE_KEY"),
+		TwilioAccountSID:     os.Getenv("TWILIO_ACCOUNT_SID"),
+		TwilioAuthToken:      os.Getenv("TWILIO_AUTH_TOKEN"),
+		TwilioFrom:           os.Getenv("TWILIO_FROM"),
 	}
 }

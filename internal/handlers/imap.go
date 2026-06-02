@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bytes"
 	"crypto/tls"
 	"fmt"
 	"html"
@@ -19,7 +20,8 @@ import (
 )
 
 type IMAPHandler struct {
-	DB *pgxpool.Pool
+	DB        *pgxpool.Pool
+	UploadDir string // base dir for system document attachments (e.g. /opt/liveoaks/uploads)
 }
 
 type MailSummary struct {
@@ -393,7 +395,7 @@ func (h *IMAPHandler) SendMessage(c echo.Context) error {
 			).Scan(&filename, &origName); err != nil {
 				continue
 			}
-			path := filepath.Join("uploads", "documents", filename)
+			path := filepath.Join(h.UploadDir, "documents", filename)
 			msg.Attach(path, gomail.Rename(origName))
 		}
 	}
@@ -414,7 +416,29 @@ func (h *IMAPHandler) SendMessage(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusGatewayTimeout, "SMTP timed out")
 	}
 
+	// Save a copy to the Sent folder via IMAP so it appears in the Sent tab.
+	// Best-effort: the message has already been delivered, so an append failure
+	// must not turn a successful send into an error.
+	h.saveToSent(host, address, password, msg)
+
 	return c.JSON(http.StatusOK, map[string]string{"status": "sent"})
+}
+
+// saveToSent appends a copy of a just-sent message to the user's Sent folder.
+// Without this, SMTP delivers the mail but nothing ever lands in the IMAP Sent
+// mailbox, so the Sent tab always looks empty.
+func (h *IMAPHandler) saveToSent(host, address, password string, msg *gomail.Message) {
+	var buf bytes.Buffer
+	if _, err := msg.WriteTo(&buf); err != nil {
+		return
+	}
+	ic, err := imapConnect(host, address, password)
+	if err != nil {
+		return
+	}
+	defer ic.Logout()
+	sent := resolveFolder(ic, "Sent")
+	_ = ic.Append(sent, []string{imap.SeenFlag}, time.Now(), &buf)
 }
 
 // MarkUnread removes the \Seen flag from a message by UID.
@@ -518,9 +542,12 @@ func (h *IMAPHandler) DeleteMessage(c echo.Context) error {
 	seqset := new(imap.SeqSet)
 	seqset.AddNum(uid)
 
-	// Try to copy to Trash first; if Trash doesn't exist, just delete in place
-	if err = ic.UidCopy(seqset, "Trash"); err != nil {
-		ic.UidCopy(seqset, "INBOX.Trash") // some servers use this name
+	// Copy to Trash before deleting — unless we're already in Trash, in which
+	// case deleting means permanent removal. UidCopy is best-effort: if the
+	// Trash mailbox doesn't exist we still expunge in place.
+	trash := resolveFolder(ic, "Trash")
+	if folder != trash {
+		ic.UidCopy(seqset, trash)
 	}
 
 	ic.UidStore(seqset, imap.FormatFlagsOp(imap.AddFlags, true), []interface{}{imap.DeletedFlag}, nil)

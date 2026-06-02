@@ -16,6 +16,7 @@ import (
 	"github.com/greggolang/liveoaks/internal/logger"
 	mw "github.com/greggolang/liveoaks/internal/middleware"
 	"github.com/greggolang/liveoaks/internal/reminder"
+	"github.com/greggolang/liveoaks/internal/sms"
 	"github.com/greggolang/liveoaks/internal/yolink"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -55,6 +56,15 @@ func main() {
 		},
 	}
 
+	smsSender := &sms.DBSender{
+		DB: pool,
+		Fallback: &sms.Sender{
+			AccountSID: cfg.TwilioAccountSID,
+			AuthToken:  cfg.TwilioAuthToken,
+			From:       cfg.TwilioFrom,
+		},
+	}
+
 	actlog := &logger.Logger{DB: pool}
 
 	// Start booking reminder service
@@ -84,7 +94,7 @@ func main() {
 	courts := &handlers.CourtsHandler{DB: pool}
 	bookings := &handlers.BookingsHandler{DB: pool, Logger: actlog, Mailer: mailer, SiteURL: cfg.SiteURL}
 	announcements := &handlers.AnnouncementsHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
-	admin := &handlers.AdminHandler{DB: pool, Mailer: mailer}
+	admin := &handlers.AdminHandler{DB: pool, Mailer: mailer, SMS: smsSender}
 	members := &handlers.MembersHandler{DB: pool}
 	events := &handlers.EventsHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	emailTemplates := &handlers.EmailTemplatesHandler{DB: pool}
@@ -118,7 +128,7 @@ func main() {
 	messages := &handlers.MessagesHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	kiosk := &handlers.KioskHandler{DB: pool}
 	mail := &handlers.MailHandler{DB: pool}
-	imapH := &handlers.IMAPHandler{DB: pool}
+	imapH := &handlers.IMAPHandler{DB: pool, UploadDir: uploadDir}
 	mailContacts := &handlers.MailContactsHandler{DB: pool}
 	courtWaitlist := &handlers.CourtWaitlistHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	notifPrefs := &handlers.NotifPrefsHandler{DB: pool}
@@ -301,6 +311,7 @@ func main() {
 	adminOnly.GET("/board-members", boardComms.BoardMembers)
 	adminOnly.POST("/test-email", admin.TestEmail)
 	adminOnly.GET("/smtp-ping", admin.SMTPPing)
+	adminOnly.POST("/test-sms", admin.TestSMS)
 	adminOnly.GET("/permissions", perms.GetAll)
 	adminOnly.PUT("/permissions/:page/:role", perms.Toggle)
 	authed.GET("/my-permissions", perms.MyPages)

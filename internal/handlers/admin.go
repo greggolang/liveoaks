@@ -13,6 +13,7 @@ import (
 type AdminHandler struct {
 	DB     *pgxpool.Pool
 	Mailer EmailTester
+	SMS    SMSTester
 }
 
 func (h *AdminHandler) ActivityLog(c echo.Context) error {
@@ -128,6 +129,10 @@ type EmailTester interface {
 	Send(to, subject, body string) error
 }
 
+type SMSTester interface {
+	Send(to, body string) error
+}
+
 func (h *AdminHandler) TestEmail(c echo.Context) error {
 	var req struct {
 		To string `json:"to"`
@@ -146,6 +151,23 @@ func (h *AdminHandler) TestEmail(c echo.Context) error {
 		  <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0"/>
 		  <p style="color:#9ca3af;font-size:12px">Sent from Liveoaks Tennis Club admin panel.</p>
 		</div>`)
+	if err != nil {
+		return c.JSON(http.StatusOK, map[string]interface{}{"success": false, "error": err.Error()})
+	}
+	return c.JSON(http.StatusOK, map[string]interface{}{"success": true})
+}
+
+func (h *AdminHandler) TestSMS(c echo.Context) error {
+	var req struct {
+		To string `json:"to"`
+	}
+	if err := c.Bind(&req); err != nil || req.To == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "phone number required")
+	}
+	if h.SMS == nil {
+		return echo.NewHTTPError(http.StatusServiceUnavailable, "SMS not configured")
+	}
+	err := h.SMS.Send(req.To, "Liveoaks Tennis Club: this is a test message. SMS delivery is working.")
 	if err != nil {
 		return c.JSON(http.StatusOK, map[string]interface{}{"success": false, "error": err.Error()})
 	}
