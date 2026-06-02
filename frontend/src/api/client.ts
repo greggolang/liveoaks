@@ -87,6 +87,10 @@ export interface IMAPMessage {
 export interface IMAPMessageDetail extends IMAPMessage {
   to: string; cc?: string; body: string
 }
+export interface MailContact {
+  id: string; user_id: string; name: string; email: string
+  phone?: string; notes?: string; created_at: string; updated_at: string
+}
 
 const BASE = '/api'
 
@@ -700,6 +704,14 @@ export const api = {
       request(`/imap/messages/${uid}/read?folder=${encodeURIComponent(folder)}`, { method: 'PUT' }),
     delete: (uid: number, folder = 'INBOX') =>
       request(`/imap/messages/${uid}?folder=${encodeURIComponent(folder)}`, { method: 'DELETE' }),
+    contacts: {
+      list: () => request<MailContact[]>('/imap/contacts'),
+      create: (data: { name: string; email: string; phone?: string; notes?: string }) =>
+        request<MailContact>('/imap/contacts', { method: 'POST', body: JSON.stringify(data) }),
+      update: (id: string, data: { name: string; email: string; phone?: string; notes?: string }) =>
+        request(`/imap/contacts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+      delete: (id: string) => request(`/imap/contacts/${id}`, { method: 'DELETE' }),
+    },
   },
   notificationPrefs: {
     get: () => request<{

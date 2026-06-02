@@ -119,6 +119,7 @@ func main() {
 	kiosk := &handlers.KioskHandler{DB: pool}
 	mail := &handlers.MailHandler{DB: pool}
 	imapH := &handlers.IMAPHandler{DB: pool}
+	mailContacts := &handlers.MailContactsHandler{DB: pool}
 	courtWaitlist := &handlers.CourtWaitlistHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	notifPrefs := &handlers.NotifPrefsHandler{DB: pool}
 	yolinkH := &handlers.YoLinkHandler{DB: pool, Service: yolinkSvc}
@@ -367,6 +368,12 @@ func main() {
 	authed.POST("/imap/send", imapH.SendMessage)
 	authed.PUT("/imap/messages/:uid/read", imapH.MarkRead)
 	authed.DELETE("/imap/messages/:uid", imapH.DeleteMessage)
+
+	// Mail contacts (personal address book per user)
+	authed.GET("/imap/contacts", mailContacts.List)
+	authed.POST("/imap/contacts", mailContacts.Create)
+	authed.PUT("/imap/contacts/:id", mailContacts.Update)
+	authed.DELETE("/imap/contacts/:id", mailContacts.Delete)
 
 	// Mail account management (admin only)
 	adminOnly.GET("/mail/accounts", mail.List)

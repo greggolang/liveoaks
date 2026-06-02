@@ -90,9 +90,16 @@ const sections: Section[] = [
   },
 ]
 
+const ADMIN_ONLY_LINKS = new Set(['/admin/mail'])
+
 export default function Admin() {
-  const { isBoard } = useAuth()
+  const { isBoard, isAdmin } = useAuth()
   if (!isBoard) return <Navigate to="/" replace />
+
+  const visibleSections = sections.map(s => ({
+    ...s,
+    links: s.links.filter(l => !ADMIN_ONLY_LINKS.has(l.to) || isAdmin),
+  })).filter(s => s.links.length > 0)
 
   return (
     <div>
@@ -100,7 +107,7 @@ export default function Admin() {
       <div className="flex flex-col md:flex-row gap-4 md:gap-8">
         {/* Mobile: horizontal scrolling pill strip */}
         <nav className="md:hidden flex overflow-x-auto gap-1 pb-2 -mx-1 px-1">
-          {sections.flatMap(s => s.links).map(l => (
+          {visibleSections.flatMap(s => s.links).map(l => (
             <NavLink key={l.to} to={l.to}
               className={({ isActive }) =>
                 `whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-medium transition shrink-0
@@ -111,7 +118,7 @@ export default function Admin() {
         </nav>
         {/* Desktop: sidebar */}
         <nav className="hidden md:block w-44 shrink-0 space-y-4">
-          {sections.map(section => (
+          {visibleSections.map(section => (
             <div key={section.heading}>
               <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">
                 {section.heading}

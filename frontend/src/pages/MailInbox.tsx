@@ -56,6 +56,16 @@ export default function MailInbox() {
 
   useEffect(() => { loadFolder(folder) }, [folder])
 
+  useEffect(() => {
+    const id = setInterval(async () => {
+      try {
+        const res = await api.imap.listMessages(folder)
+        setMessages(res.messages)
+      } catch {}
+    }, 60_000)
+    return () => clearInterval(id)
+  }, [folder])
+
   async function openMessage(msg: IMAPMessage) {
     setMsgLoading(true)
     setSelected(null)
