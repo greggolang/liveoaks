@@ -701,8 +701,11 @@ export default function MailInbox() {
                       <button key={c.id} type="button"
                         onClick={() => {
                           if (!toChips.includes(c.email)) setToChips(ch => [...ch, c.email])
-                          setContactPickerOpen(false); setContactSearch('')
+                          // Refocus the input first: focus() synchronously fires the
+                          // input's onFocus (which reopens the picker), so we must queue
+                          // the close *after* it or the popup stays open.
                           toInputRef.current?.focus()
+                          setContactPickerOpen(false); setContactSearch('')
                         }}
                         className="w-full text-left flex items-center gap-3 px-3 py-2 hover:bg-gray-50 transition">
                         <div className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold shrink-0">

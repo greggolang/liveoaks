@@ -43,6 +43,8 @@ export default function AdminPasswords() {
   const [dirty, setDirty] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [addingNewCategory, setAddingNewCategory] = useState(false)
+  const [error, setError] = useState('')
   const labelRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -60,6 +62,8 @@ export default function AdminPasswords() {
     setNotes(entry.notes)
     setDirty(false)
     setShowPassword(false)
+    setAddingNewCategory(false)
+    setError('')
   }
 
   const startNew = () => {
@@ -73,14 +77,17 @@ export default function AdminPasswords() {
     setNotes('')
     setDirty(false)
     setShowPassword(false)
+    setAddingNewCategory(false)
+    setError('')
     setTimeout(() => labelRef.current?.focus(), 50)
   }
 
   const handleSave = async () => {
     if (!label.trim()) return
     setSaving(true)
+    setError('')
     try {
-      const data = { label: label.trim(), username, password, url, category, notes }
+      const data = { label: label.trim(), username, password, url, category: category.trim(), notes }
       if (isNew) {
         const created = await api.passwords.create(data) as PasswordEntry
         setEntries(es => [...es, created].sort((a, b) =>
@@ -94,6 +101,9 @@ export default function AdminPasswords() {
         setSelected(updated)
       }
       setDirty(false)
+      setAddingNewCategory(false)
+    } catch (e: any) {
+      setError(e?.message || 'Could not save entry')
     } finally { setSaving(false) }
   }
 
@@ -130,6 +140,8 @@ export default function AdminPasswords() {
     ;(acc[key] ??= []).push(e)
     return acc
   }, {})
+
+  const categories = Array.from(new Set(entries.map(e => e.category).filter(Boolean))).sort()
 
   const showEditor = isNew || selected !== null
 
@@ -202,12 +214,39 @@ export default function AdminPasswords() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">Category</label>
-                  <input
-                    value={category}
-                    onChange={e => { setCategory(e.target.value); mark() }}
-                    placeholder="e.g. Network, Vendor…"
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                  />
+                  {addingNewCategory ? (
+                    <div className="flex gap-1.5">
+                      <input
+                        autoFocus
+                        value={category}
+                        onChange={e => { setCategory(e.target.value); mark() }}
+                        placeholder="New category name"
+                        className="flex-1 min-w-0 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                      />
+                      <button
+                        type="button"
+                        title="Choose an existing category"
+                        onClick={() => { setAddingNewCategory(false); setCategory(''); mark() }}
+                        className="px-2.5 text-xs text-gray-400 hover:text-gray-600 border border-gray-200 rounded-lg shrink-0">
+                        ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <select
+                      value={category}
+                      onChange={e => {
+                        if (e.target.value === '__new__') {
+                          setAddingNewCategory(true); setCategory(''); mark()
+                        } else {
+                          setCategory(e.target.value); mark()
+                        }
+                      }}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500">
+                      <option value="">Uncategorized</option>
+                      {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                      <option value="__new__">➕ Add new category…</option>
+                    </select>
+                  )}
                 </div>
               </div>
 
@@ -272,10 +311,12 @@ export default function AdminPasswords() {
               </div>
 
               <div className="flex items-center justify-between">
-                <div className="text-xs text-gray-400">
-                  {selected && !isNew && (
-                    <>Updated {timeAgo(selected.updated_at)}{selected.updated_by_name ? ` by ${selected.updated_by_name}` : ''}</>
-                  )}
+                <div className="text-xs">
+                  {error ? (
+                    <span className="text-red-600">{error}</span>
+                  ) : selected && !isNew ? (
+                    <span className="text-gray-400">Updated {timeAgo(selected.updated_at)}{selected.updated_by_name ? ` by ${selected.updated_by_name}` : ''}</span>
+                  ) : null}
                 </div>
                 <div className="flex items-center gap-2">
                   {selected && !isNew && (
