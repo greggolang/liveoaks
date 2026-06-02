@@ -6,7 +6,7 @@ const PAGES: { key: string; label: string; desc: string }[] = [
   { key: 'court_grid',    label: 'Court Availability',  desc: 'Read-only grid showing who has each court booked (/court-grid)' },
   { key: 'events',        label: 'Events',              desc: 'Browse upcoming club events and sign up (/events)' },
   { key: 'announcements', label: 'News & Announcements',desc: 'View board announcements and club news (/announcements)' },
-  { key: 'documents',     label: 'Documents',           desc: 'Download club documents and forms (/documents)' },
+  { key: 'documents',     label: 'Documents',           desc: 'Download club documents and forms (/files)' },
   { key: 'photos',        label: 'Photo Gallery',       desc: 'Browse club photo albums (/photos)' },
   { key: 'usta_teams',    label: 'USTA Teams',          desc: 'View USTA league teams and rosters (/usta-teams)' },
   { key: 'directory',     label: 'Member Directory',    desc: 'Search and view member contact info (/directory)' },

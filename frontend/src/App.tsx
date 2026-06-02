@@ -109,7 +109,8 @@ function AppRoutes() {
       <Route path="/court-grid" element={<Navigate to="/dashboard" replace />} />
       <Route path="/announcements" element={<ProtectedRoute><Announcements /></ProtectedRoute>} />
       <Route path="/events" element={<ProtectedRoute><Events /></ProtectedRoute>} />
-      <Route path="/documents" element={<ProtectedRoute><Files /></ProtectedRoute>} />
+      <Route path="/files" element={<ProtectedRoute><Files /></ProtectedRoute>} />
+      <Route path="/documents" element={<Navigate to="/files" replace />} />
       <Route path="/photos" element={<ProtectedRoute><PhotoGallery /></ProtectedRoute>} />
       <Route path="/usta-teams" element={<ProtectedRoute><USTATeams /></ProtectedRoute>} />
       <Route path="/directory" element={<ProtectedRoute><MemberDirectory /></ProtectedRoute>} />

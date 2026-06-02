@@ -11,7 +11,7 @@ const sections: Section[] = [
       { to: '/events', label: 'Events' },
       { to: '/announcements', label: 'Announcements' },
       { to: '/admin/pro-shop', label: 'Pro Shop' },
-      { to: '/documents', label: 'Files' },
+      { to: '/files', label: 'Files' },
       { to: '/photos', label: 'Photos' },
       { to: '/usta-teams', label: 'USTA Teams' },
       { to: '/club-info', label: 'About' },

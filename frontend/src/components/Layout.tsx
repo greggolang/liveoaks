@@ -103,7 +103,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <NavLink to="/directory" className={navLink}>Directory</NavLink>
               <span className="w-px h-4 bg-green-600" />
               <NavLink to="/friends" className={navLink}>Friends</NavLink>
-              {showDocuments && <NavLink to="/documents" className={navLink}>Files</NavLink>}
+              {showDocuments && <NavLink to="/files" className={navLink}>Files</NavLink>}
               {showFantasy && <NavLink to="/fantasy" className={navLink}>Fantasy Pool</NavLink>}
               {showLadder && <NavLink to="/ladder" className={navLink}>Ladder</NavLink>}
               {isBoard && <NavLink to="/admin" className={navLink}>Admin</NavLink>}
@@ -159,7 +159,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 ['/directory', 'Directory'],
                 ['/friends', 'Friends'],
                 ['/messages', unreadMessages > 0 ? `Messages (${unreadMessages})` : 'Messages'],
-                ...(showDocuments ? [['/documents', 'Files']] : []),
+                ...(showDocuments ? [['/files', 'Files']] : []),
                 ...(showFantasy ? [['/fantasy', 'Fantasy Pool']] : []),
                 ...(showLadder ? [['/ladder', 'Ladder']] : []),
                 ...(isBoard ? [['/admin', 'Admin']] : []),
