@@ -21,18 +21,6 @@ func RunMigrations(ctx context.Context, pool *pgxpool.Pool, migrations fs.FS) er
 		return err
 	}
 
-	rows, err := pool.Query(ctx, `SELECT name FROM schema_migrations`)
-	if err != nil {
-		return err
-	}
-	applied := map[string]bool{}
-	for rows.Next() {
-		var name string
-		rows.Scan(&name)
-		applied[name] = true
-	}
-	rows.Close()
-
 	entries, err := fs.ReadDir(migrations, "migrations")
 	if err != nil {
 		return err
@@ -44,6 +32,38 @@ func RunMigrations(ctx context.Context, pool *pgxpool.Pool, migrations fs.FS) er
 		}
 	}
 	sort.Strings(names)
+
+	// If schema_migrations is empty but the database already has tables,
+	// this is an existing installation that predates the migration tracker.
+	// Mark every migration file as applied without re-running them.
+	var count int
+	pool.QueryRow(ctx, `SELECT COUNT(*) FROM schema_migrations`).Scan(&count)
+	if count == 0 {
+		var existing bool
+		pool.QueryRow(ctx, `SELECT EXISTS(
+			SELECT 1 FROM information_schema.tables
+			WHERE table_schema='public' AND table_name='users'
+		)`).Scan(&existing)
+		if existing {
+			for _, name := range names {
+				pool.Exec(ctx, `INSERT INTO schema_migrations (name) VALUES ($1) ON CONFLICT DO NOTHING`, name)
+			}
+			log.Printf("existing database detected — %d migrations marked as applied", len(names))
+			return nil
+		}
+	}
+
+	rows, err := pool.Query(ctx, `SELECT name FROM schema_migrations`)
+	if err != nil {
+		return err
+	}
+	applied := map[string]bool{}
+	for rows.Next() {
+		var name string
+		rows.Scan(&name)
+		applied[name] = true
+	}
+	rows.Close()
 
 	for _, name := range names {
 		if applied[name] {
