@@ -46,6 +46,7 @@ import AdminBookingDocs from './pages/admin/AdminBookingDocs'
 import AdminBookings from './pages/admin/AdminBookings'
 import AdminFantasy from './pages/admin/AdminFantasy'
 import AdminNotes from './pages/admin/AdminNotes'
+import AdminPasswords from './pages/admin/AdminPasswords'
 import AdminLadder from './pages/admin/AdminLadder'
 import TennisLadder from './pages/TennisLadder'
 import AdminLiveball from './pages/admin/AdminLiveball'
@@ -144,6 +145,7 @@ function AppRoutes() {
         <Route path="booking-docs" element={<AdminBookingDocs />} />
         <Route path="fantasy" element={<AdminFantasy />} />
         <Route path="notes" element={<AdminNotes />} />
+        <Route path="passwords" element={<AdminPasswords />} />
         <Route path="pro-shop" element={<AdminProShop />} />
         <Route path="ball-tracking" element={<AdminBallTracking />} />
         <Route path="kiosk-purchases" element={<AdminKioskPurchases />} />

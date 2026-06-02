@@ -84,13 +84,14 @@ const sections: Section[] = [
       { to: '/admin/email-templates', label: 'Email Templates' },
       { to: '/admin/permissions', label: 'Permissions' },
       { to: '/admin/resets', label: 'Password Resets' },
+      { to: '/admin/passwords', label: 'Password Vault' },
       { to: '/admin/test-email', label: 'Test Email' },
       { to: '/admin/log', label: 'Activity Log' },
     ],
   },
 ]
 
-const ADMIN_ONLY_LINKS = new Set(['/admin/mail'])
+const ADMIN_ONLY_LINKS = new Set(['/admin/mail', '/admin/passwords'])
 
 export default function Admin() {
   const { isBoard, isAdmin } = useAuth()
