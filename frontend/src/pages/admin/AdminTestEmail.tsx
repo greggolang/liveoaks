@@ -118,8 +118,8 @@ export default function AdminTestEmail() {
   return (
     <div className="max-w-2xl space-y-8">
       <div>
-        <h2 className="text-xl font-bold text-gray-800 mb-1">Email Settings</h2>
-        <p className="text-sm text-gray-500">Configure SMTP credentials for outgoing email.</p>
+        <h2 className="text-xl font-bold text-gray-800 mb-1">Test Communications</h2>
+        <p className="text-sm text-gray-500">Configure and test outgoing email (SMTP) and text messages (SMS).</p>
       </div>
 
       {/* SMTP settings form */}
