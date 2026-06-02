@@ -127,6 +127,7 @@ func main() {
 	boardComms := &handlers.BoardCommsHandler{DB: pool}
 	stripeH := &handlers.StripeHandler{DB: pool, SecretKey: cfg.StripeSecretKey, WebhookSecret: cfg.StripeWebhookSecret, PublishableKey: cfg.StripePublishableKey}
 	appliances := &handlers.AppliancesHandler{DB: pool, UploadDir: uploadDir, Mailer: mailer, SiteURL: cfg.SiteURL}
+	passwords := &handlers.PasswordsHandler{DB: pool, Secret: cfg.JWTSecret}
 
 	api := e.Group("/api")
 
@@ -398,6 +399,12 @@ func main() {
 	boardPlus.POST("/admin/notes", notes.Create)
 	boardPlus.PUT("/admin/notes/:id", notes.Update)
 	boardPlus.DELETE("/admin/notes/:id", notes.Delete)
+
+	// Password vault (admin only)
+	adminOnly.GET("/admin/passwords", passwords.List)
+	adminOnly.POST("/admin/passwords", passwords.Create)
+	adminOnly.PUT("/admin/passwords/:id", passwords.Update)
+	adminOnly.DELETE("/admin/passwords/:id", passwords.Delete)
 
 	adminOnly.GET("/receipts", uploads.ListReceipts)
 	adminOnly.POST("/receipts", uploads.UploadReceipt)

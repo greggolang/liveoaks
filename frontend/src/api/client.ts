@@ -624,6 +624,14 @@ export const api = {
     update: (id: string, title: string, body: string) => request(`/admin/notes/${id}`, { method: 'PUT', body: JSON.stringify({ title, body }) }),
     delete: (id: string) => request(`/admin/notes/${id}`, { method: 'DELETE' }),
   },
+  passwords: {
+    list: () => request('/admin/passwords'),
+    create: (data: { label: string; username: string; password: string; url: string; category: string; notes: string }) =>
+      request('/admin/passwords', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: { label: string; username: string; password: string; url: string; category: string; notes: string }) =>
+      request(`/admin/passwords/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    delete: (id: string) => request(`/admin/passwords/${id}`, { method: 'DELETE' }),
+  },
   fantasy: {
     // Member
     tournaments: () => request('/fantasy/tournaments'),
