@@ -129,6 +129,9 @@ func main() {
 	api := e.Group("/api")
 
 	// Public
+	api.GET("/version", func(c echo.Context) error {
+		return c.JSON(http.StatusOK, map[string]string{"version": Version})
+	})
 	api.GET("/session-config", admin.GetSessionConfig)
 	api.GET("/weather", weather.Get)
 	api.GET("/air-quality", weather.AirQuality)

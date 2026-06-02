@@ -135,6 +135,9 @@ function uploadWithProgress<T>(path: string, form: FormData, onProgress?: (pct: 
 }
 
 export const api = {
+  version: {
+    get: () => request<{ version: string }>('/version'),
+  },
   auth: {
     login: (email: string, password: string) =>
       request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),

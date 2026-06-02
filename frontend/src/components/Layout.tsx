@@ -20,6 +20,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('club-logo-changed', handler)
   }, [])
   const navigate = useNavigate()
+  const [updateAvailable, setUpdateAvailable] = useState(false)
+
+  useEffect(() => {
+    const check = () =>
+      api.version.get()
+        .then(d => { if (d.version !== 'dev' && d.version !== APP_VERSION) setUpdateAvailable(true) })
+        .catch(() => {})
+    const id = setInterval(check, 2 * 60 * 1000)
+    return () => clearInterval(id)
+  }, [])
+
   const [menuOpen, setMenuOpen] = useState(false)
   const [bugOpen, setBugOpen] = useState(false)
   const [bugText, setBugText] = useState('')
@@ -78,7 +89,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 : <>
                     <img src="/lota-logo.png" alt="Live Oaks Tennis Association crest"
                          className="h-9 w-9 rounded-full bg-white/95 p-0.5" />
-                    <span className="hidden sm:inline text-lg font-bold tracking-wide font-serif">Live Oaks Tennis Association Members Portal</span>
+                    <span className="hidden sm:inline text-lg font-bold tracking-wide font-serif">LOTA Portal</span>
                   </>
               }
               <span className="text-green-300 text-xs font-normal">v{APP_VERSION}</span>
@@ -165,6 +176,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           )}
         </div>
       </nav>
+
+      {updateAvailable && (
+        <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-2 flex items-center justify-between text-sm text-yellow-800">
+          <span>A new version is available.</span>
+          <button
+            onClick={() => window.location.reload()}
+            className="ml-4 px-3 py-1 bg-yellow-500 hover:bg-yellow-600 text-white rounded text-xs font-semibold transition">
+            Refresh
+          </button>
+        </div>
+      )}
 
       <main className="max-w-7xl mx-auto px-4 py-5 sm:py-8">{children}</main>
 
