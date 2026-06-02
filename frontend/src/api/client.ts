@@ -334,6 +334,11 @@ export const api = {
     generate: (amount: number, due_date: string) =>
       request('/admin/dues/generate', { method: 'POST', body: JSON.stringify({ amount, due_date }) }),
   },
+  stripe: {
+    getConfig: () => request<{ publishable_key: string }>('/stripe/config'),
+    createPaymentIntent: (dueId: string) =>
+      request<{ client_secret: string }>(`/dues/${dueId}/stripe-intent`, { method: 'POST' }),
+  },
   waitlist: {
     join: (data: object) => request('/waitlist', { method: 'POST', body: JSON.stringify(data) }),
     list: () => request('/admin/waitlist'),

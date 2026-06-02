@@ -6,18 +6,21 @@ import (
 )
 
 type Config struct {
-	DatabaseURL     string
-	JWTSecret       string
-	Port            string
-	SiteURL         string
-	SMTPHost        string
-	SMTPPort        int
-	SMTPUser        string
-	SMTPPass        string
-	SMTPFrom        string
-	GoogleSAJSON    string // service account JSON for Gmail/Drive integration
-	CameraToken     string // optional token to protect the camera page
-	CameraHLSDir    string // directory where camera-hls systemd service writes HLS files
+	DatabaseURL          string
+	JWTSecret            string
+	Port                 string
+	SiteURL              string
+	SMTPHost             string
+	SMTPPort             int
+	SMTPUser             string
+	SMTPPass             string
+	SMTPFrom             string
+	GoogleSAJSON         string // service account JSON for Gmail/Drive integration
+	CameraToken          string // optional token to protect the camera page
+	CameraHLSDir         string // directory where camera-hls systemd service writes HLS files
+	StripeSecretKey      string
+	StripeWebhookSecret  string
+	StripePublishableKey string
 }
 
 func Load() Config {
@@ -47,8 +50,11 @@ func Load() Config {
 		SMTPUser:     os.Getenv("SMTP_USER"),
 		SMTPPass:     os.Getenv("SMTP_PASS"),
 		SMTPFrom:     os.Getenv("SMTP_FROM"),
-		GoogleSAJSON: os.Getenv("GOOGLE_SA_JSON"),
-		CameraToken:  os.Getenv("CAMERA_TOKEN"),
-		CameraHLSDir: cameraHLSDir,
+		GoogleSAJSON:         os.Getenv("GOOGLE_SA_JSON"),
+		CameraToken:          os.Getenv("CAMERA_TOKEN"),
+		CameraHLSDir:         cameraHLSDir,
+		StripeSecretKey:      os.Getenv("STRIPE_SECRET_KEY"),
+		StripeWebhookSecret:  os.Getenv("STRIPE_WEBHOOK_SECRET"),
+		StripePublishableKey: os.Getenv("STRIPE_PUBLISHABLE_KEY"),
 	}
 }

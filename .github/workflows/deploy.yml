@@ -70,6 +70,9 @@ jobs:
             # Add SMTP env vars to service file if not already present
             grep -q 'SMTP_HOST' /etc/systemd/system/liveoaks.service || sed -i '/Environment=PORT/a Environment=SMTP_HOST=smtp.gmail.com\nEnvironment=SMTP_PORT=587\nEnvironment=SMTP_USER=admin@liveoakstennis.com\nEnvironment=SMTP_FROM=admin@liveoakstennis.com\nEnvironment=SMTP_PASS=placeholder\nEnvironment=SITE_URL=http://liveoaks.webgoserver.com' /etc/systemd/system/liveoaks.service
 
+            # Add Stripe env vars to service file if not already present
+            grep -q 'STRIPE_SECRET_KEY' /etc/systemd/system/liveoaks.service || sed -i '/Environment=SMTP_PASS/a Environment=STRIPE_SECRET_KEY=placeholder\nEnvironment=STRIPE_WEBHOOK_SECRET=placeholder\nEnvironment=STRIPE_PUBLISHABLE_KEY=placeholder' /etc/systemd/system/liveoaks.service
+
             # Harden SSH: disable password auth, only allow key-based login
             sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
             sed -i 's/^#*PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config
@@ -89,8 +92,14 @@ jobs:
             chmod +x /opt/liveoaks/resetpw
             sed -i "s|Environment=JWT_SECRET=.*|Environment=JWT_SECRET=$JWT_SECRET|" /etc/systemd/system/liveoaks.service
             sed -i "s|Environment=SMTP_PASS=.*|Environment=SMTP_PASS=$SMTP_PASS|" /etc/systemd/system/liveoaks.service
+            sed -i "s|Environment=STRIPE_SECRET_KEY=.*|Environment=STRIPE_SECRET_KEY=$STRIPE_SECRET_KEY|" /etc/systemd/system/liveoaks.service
+            sed -i "s|Environment=STRIPE_WEBHOOK_SECRET=.*|Environment=STRIPE_WEBHOOK_SECRET=$STRIPE_WEBHOOK_SECRET|" /etc/systemd/system/liveoaks.service
+            sed -i "s|Environment=STRIPE_PUBLISHABLE_KEY=.*|Environment=STRIPE_PUBLISHABLE_KEY=$STRIPE_PUBLISHABLE_KEY|" /etc/systemd/system/liveoaks.service
             systemctl daemon-reload
             systemctl restart liveoaks
         env:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          STRIPE_PUBLISHABLE_KEY: ${{ secrets.STRIPE_PUBLISHABLE_KEY }}

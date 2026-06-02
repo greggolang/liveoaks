@@ -125,6 +125,7 @@ func main() {
 	yolinkH := &handlers.YoLinkHandler{DB: pool, Service: yolinkSvc}
 	courtBlocks := &handlers.CourtBlocksHandler{DB: pool}
 	boardComms := &handlers.BoardCommsHandler{DB: pool}
+	stripeH := &handlers.StripeHandler{DB: pool, SecretKey: cfg.StripeSecretKey, WebhookSecret: cfg.StripeWebhookSecret, PublishableKey: cfg.StripePublishableKey}
 	appliances := &handlers.AppliancesHandler{DB: pool, UploadDir: uploadDir, Mailer: mailer, SiteURL: cfg.SiteURL}
 
 	api := e.Group("/api")
@@ -177,6 +178,9 @@ func main() {
 	authed.GET("/photos", uploads.ListPhotos)
 	authed.GET("/usta-teams", usta.List)
 	authed.GET("/dues/me", dues.MyDues)
+	authed.GET("/stripe/config", stripeH.Config)
+	authed.POST("/dues/:id/stripe-intent", stripeH.CreatePaymentIntent)
+	api.POST("/stripe/webhook", stripeH.Webhook)
 	authed.GET("/guests/me", guests.MyGuests)
 	authed.POST("/guests", guests.Log)
 

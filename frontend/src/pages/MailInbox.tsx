@@ -31,6 +31,26 @@ function contactInitials(name: string) {
   return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
 }
 
+const AVATAR_COLORS = [
+  'bg-violet-100 text-violet-700',
+  'bg-sky-100 text-sky-700',
+  'bg-emerald-100 text-emerald-700',
+  'bg-amber-100 text-amber-700',
+  'bg-rose-100 text-rose-700',
+  'bg-indigo-100 text-indigo-700',
+  'bg-teal-100 text-teal-700',
+  'bg-orange-100 text-orange-700',
+]
+function avatarColor(name: string) {
+  let h = 0
+  for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h)
+  return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length]
+}
+function nameInitials(name: string) {
+  const parts = name.trim().split(/\s+/)
+  return (parts[0]?.[0] ?? '?').toUpperCase() + (parts[1]?.[0] ?? '').toUpperCase()
+}
+
 type SectionTab = 'mail' | 'contacts'
 
 const emptyContactForm = { name: '', email: '', phone: '', notes: '' }
@@ -277,49 +297,74 @@ export default function MailInbox() {
   return (
     <div className="flex flex-col h-full max-h-[calc(100vh-120px)]">
 
-      {/* ── Top bar ── */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          {mailbox && <p className="text-xs text-gray-400 font-mono">{mailbox}</p>}
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900 leading-none">Messages</h1>
+          {mailbox && <p className="text-xs text-gray-400 mt-0.5 font-mono">{mailbox}</p>}
         </div>
         <button
           onClick={openCompose}
-          className="flex items-center gap-2 px-4 py-2 bg-green-700 text-white text-sm font-semibold rounded-xl hover:bg-green-800 transition">
+          className="flex items-center gap-2 px-4 py-2 bg-green-700 text-white text-sm font-semibold rounded-xl hover:bg-green-800 active:scale-95 transition shadow-sm shadow-green-900/20">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
           </svg>
           Compose
         </button>
       </div>
 
-      {/* ── Section tabs (Mail / Contacts) ── */}
-      <div className="flex gap-1 border-b border-gray-200">
-        <button
-          onClick={() => setSection('mail')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition ${
-            section === 'mail' ? 'border-green-700 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-700'
+      {/* ── Nav: section + folders in one row ── */}
+      <div className="flex items-center gap-0.5 mb-4 border-b border-gray-200 overflow-x-auto">
+        <button onClick={() => setSection('mail')}
+          className={`flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition ${
+            section === 'mail' ? 'border-green-700 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-800'
           }`}>
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+          </svg>
           Mail
           {unreadCount > 0 && (
-            <span className="ml-1.5 px-1.5 py-0.5 bg-green-700 text-white text-xs rounded-full">{unreadCount}</span>
+            <span className="px-1.5 py-0.5 bg-green-700 text-white text-[11px] font-bold rounded-full leading-none">{unreadCount}</span>
           )}
         </button>
-        <button
-          onClick={() => setSection('contacts')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition ${
-            section === 'contacts' ? 'border-green-700 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-700'
+        <button onClick={() => setSection('contacts')}
+          className={`flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition ${
+            section === 'contacts' ? 'border-green-700 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-800'
           }`}>
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
           Contacts
-          {contacts.length > 0 && (
-            <span className="ml-1.5 text-xs text-gray-400">{contacts.length}</span>
-          )}
+          {contacts.length > 0 && <span className="text-xs text-gray-400 font-normal">{contacts.length}</span>}
         </button>
 
-        {/* Add contact button — only when on contacts section */}
+        {section === 'mail' && (
+          <>
+            <span className="w-px h-4 bg-gray-200 mx-1 shrink-0" />
+            {FOLDERS.map(f => (
+              <button key={f.key} onClick={() => setFolder(f.key)}
+                className={`px-3 py-2.5 text-sm border-b-2 -mb-px whitespace-nowrap transition ${
+                  folder === f.key ? 'border-green-700 text-green-700 font-medium' : 'border-transparent text-gray-400 hover:text-gray-700'
+                }`}>
+                {f.label}
+              </button>
+            ))}
+            <button onClick={() => loadFolder(folder)} title="Refresh"
+              className="ml-auto p-2 text-gray-400 hover:text-green-700 hover:bg-green-50 rounded-lg transition shrink-0">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </button>
+          </>
+        )}
+
         {section === 'contacts' && (
           <button
             onClick={() => { setEditingContact(null); setContactForm(emptyContactForm); setContactError(''); setShowAddContact(true) }}
-            className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-green-700 hover:bg-green-50 rounded-lg transition">
+            className="ml-auto flex items-center gap-1.5 px-3 py-1.5 mr-0.5 text-xs font-semibold text-green-700 hover:bg-green-50 rounded-lg transition shrink-0">
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
@@ -328,139 +373,163 @@ export default function MailInbox() {
         )}
       </div>
 
-      {/* ── Folder tabs — only when on mail section ── */}
-      {section === 'mail' && (
-        <div className="flex gap-1 mb-4 border-b border-gray-200">
-          {FOLDERS.map(f => (
-            <button key={f.key} onClick={() => setFolder(f.key)}
-              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition ${
-                folder === f.key ? 'border-green-700 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}>
-              {f.label}
-            </button>
-          ))}
-          <button onClick={() => loadFolder(folder)}
-            className="ml-auto px-3 py-2 text-gray-400 hover:text-gray-600" title="Refresh">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-          </button>
-        </div>
-      )}
-
-      {section === 'contacts' && <div className="mb-4" />}
-
       {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{error}</div>
+        <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{error}</div>
       )}
 
       {/* ══════════════ MAIL SECTION ══════════════ */}
       {section === 'mail' && (
-        <div className="flex flex-1 gap-4 min-h-0">
-          {/* Message list */}
-          <div className={`flex flex-col border border-gray-200 rounded-xl overflow-hidden bg-white
-            ${selected ? 'hidden lg:flex lg:w-80 xl:w-96 shrink-0' : 'flex-1'}`}>
-            <div className="px-3 py-2 border-b border-gray-100">
-              <input
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Search messages…"
-                className="w-full text-sm px-3 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-green-500 bg-gray-50"
-              />
+        <div className="flex flex-1 gap-3 min-h-0">
+
+          {/* ── Message list ── */}
+          <div className={`flex flex-col rounded-2xl overflow-hidden bg-white border border-gray-200 shadow-sm
+            ${selected ? 'hidden lg:flex lg:w-72 xl:w-80 shrink-0' : 'flex-1'}`}>
+            {/* Search bar */}
+            <div className="px-3 pt-3 pb-2">
+              <div className="relative">
+                <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0" />
+                </svg>
+                <input
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="Search…"
+                  className="w-full pl-8 pr-3 py-1.5 text-sm rounded-lg bg-gray-100 border-0 focus:outline-none focus:ring-2 focus:ring-green-500 placeholder-gray-400"
+                />
+              </div>
             </div>
+
             {loading ? (
               <div className="flex-1 flex items-center justify-center">
-                <div className="w-5 h-5 border-2 border-green-700 border-t-transparent rounded-full animate-spin" />
+                <div className="w-5 h-5 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
               </div>
             ) : filteredMessages.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center text-gray-400 text-sm gap-2">
-                <svg className="w-8 h-8 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="flex-1 flex flex-col items-center justify-center text-gray-400 text-sm gap-2 pb-6">
+                <svg className="w-10 h-10 opacity-15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                     d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
-                {search ? 'No matches' : 'No messages'}
+                <p>{search ? 'No matches' : 'No messages'}</p>
               </div>
             ) : (
-              <div className="flex-1 overflow-y-auto divide-y divide-gray-100">
-                {filteredMessages.map(msg => (
-                  <button key={msg.uid} onClick={() => openMessage(msg)}
-                    className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition ${selected?.uid === msg.uid ? 'bg-green-50' : ''}`}>
-                    <div className="flex items-start justify-between gap-2">
-                      <span className={`text-sm truncate ${msg.unread ? 'font-semibold text-gray-900' : 'text-gray-600'}`}>
-                        {fromName(msg.from)}
-                      </span>
-                      <span className="text-xs text-gray-400 shrink-0">{formatDate(msg.date)}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      {msg.unread && <span className="w-1.5 h-1.5 rounded-full bg-green-600 shrink-0" />}
-                      <p className={`text-xs truncate ${msg.unread ? 'text-gray-700' : 'text-gray-400'}`}>
-                        {msg.subject || '(no subject)'}
-                      </p>
-                    </div>
-                  </button>
-                ))}
+              <div className="flex-1 overflow-y-auto">
+                {filteredMessages.map((msg, idx) => {
+                  const name = fromName(msg.from)
+                  const isSelected = selected?.uid === msg.uid
+                  return (
+                    <button key={msg.uid} onClick={() => openMessage(msg)}
+                      className={`w-full text-left px-3 py-3 transition group
+                        ${isSelected ? 'bg-green-50 border-l-2 border-green-600' : 'border-l-2 border-transparent hover:bg-gray-50'}
+                        ${idx > 0 ? 'border-t border-gray-100' : ''}`}>
+                      <div className="flex items-start gap-2.5">
+                        <div className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-xs font-bold ${avatarColor(name)}`}>
+                          {nameInitials(name)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-1 mb-0.5">
+                            <span className={`text-sm truncate ${msg.unread ? 'font-semibold text-gray-900' : 'text-gray-600'}`}>
+                              {name}
+                            </span>
+                            <span className="text-[11px] text-gray-400 shrink-0">{formatDate(msg.date)}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            {msg.unread && <span className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />}
+                            <p className={`text-xs truncate leading-snug ${msg.unread ? 'text-gray-700' : 'text-gray-400'}`}>
+                              {msg.subject || '(no subject)'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  )
+                })}
               </div>
             )}
           </div>
 
-          {/* Message viewer */}
+          {/* ── Message viewer ── */}
           {(selected || msgLoading) && (
-            <div ref={viewerRef} className="flex-1 flex flex-col border border-gray-200 rounded-xl overflow-hidden bg-white min-h-0">
+            <div ref={viewerRef} className="flex-1 flex flex-col rounded-2xl overflow-hidden bg-white border border-gray-200 shadow-sm min-h-0">
               {msgLoading ? (
                 <div className="flex-1 flex items-center justify-center">
-                  <div className="w-5 h-5 border-2 border-green-700 border-t-transparent rounded-full animate-spin" />
+                  <div className="w-5 h-5 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
                 </div>
               ) : selected ? (
                 <>
-                  <div className="px-5 py-4 border-b border-gray-100">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1 min-w-0">
-                        <h2 className="text-base font-semibold text-gray-900 leading-tight">
-                          {selected.subject || '(no subject)'}
-                        </h2>
-                        <div className="mt-1.5 space-y-0.5 text-xs text-gray-500">
-                          <p><span className="font-medium text-gray-600">From:</span> {selected.from}</p>
-                          <p><span className="font-medium text-gray-600">To:</span> {selected.to}</p>
-                          {selected.cc && <p><span className="font-medium text-gray-600">Cc:</span> {selected.cc}</p>}
-                          <p className="text-gray-400">{new Date(selected.date).toLocaleString()}</p>
-                        </div>
+                  {/* Viewer header */}
+                  <div className="px-5 py-4 border-b border-gray-100 bg-gray-50/60">
+                    {/* Subject + back */}
+                    <div className="flex items-start gap-3 mb-3">
+                      <button onClick={() => setSelected(null)}
+                        className="mt-0.5 p-1 -ml-1 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-200 transition lg:hidden shrink-0">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        </svg>
+                      </button>
+                      <h2 className="flex-1 text-base font-semibold text-gray-900 leading-snug">
+                        {selected.subject || '(no subject)'}
+                      </h2>
+                    </div>
+                    {/* Sender row */}
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className={`w-9 h-9 rounded-full shrink-0 flex items-center justify-center text-xs font-bold ${avatarColor(fromName(selected.from))}`}>
+                        {nameInitials(fromName(selected.from))}
                       </div>
-                      <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
-                        <button onClick={startReply}
-                          className="px-3 py-1.5 text-xs font-semibold bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition">
-                          Reply
-                        </button>
-                        <button onClick={startForward}
-                          className="px-3 py-1.5 text-xs font-semibold bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 transition">
-                          Forward
-                        </button>
-                        <button onClick={handleMarkUnread}
-                          title="Mark as unread"
-                          className="px-3 py-1.5 text-xs font-semibold bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-100 transition">
-                          Mark Unread
-                        </button>
-                        {!contacts.find(c => c.email.toLowerCase() === fromEmail(selected.from).toLowerCase()) && (
-                          <button onClick={saveSenderAsContact}
-                            title="Save sender as contact"
-                            className="px-3 py-1.5 text-xs font-semibold bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition">
-                            + Contact
-                          </button>
-                        )}
-                        <button onClick={() => deleteMessage(selected.uid)}
-                          className="px-3 py-1.5 text-xs font-semibold bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition">
-                          Delete
-                        </button>
-                        <button onClick={() => setSelected(null)}
-                          className="p-1.5 text-gray-400 hover:text-gray-600 lg:hidden">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-gray-900 truncate">{fromName(selected.from)}</p>
+                        <p className="text-xs text-gray-400 truncate">
+                          {selected.from} · {new Date(selected.date).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </p>
                       </div>
                     </div>
+                    {/* Meta */}
+                    <div className="text-xs text-gray-500 space-y-0.5 mb-3 pl-12">
+                      <p><span className="text-gray-400">To:</span> {selected.to}</p>
+                      {selected.cc && <p><span className="text-gray-400">Cc:</span> {selected.cc}</p>}
+                    </div>
+                    {/* Actions */}
+                    <div className="flex items-center gap-1.5 flex-wrap pl-12">
+                      <button onClick={startReply}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-green-700 text-white rounded-lg hover:bg-green-800 transition">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                        </svg>
+                        Reply
+                      </button>
+                      <button onClick={startForward}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10H11a8 8 0 00-8 8v2m18-10l-6-6m6 6l-6 6" />
+                        </svg>
+                        Forward
+                      </button>
+                      <button onClick={handleMarkUnread} title="Mark as unread"
+                        className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                            d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                      </button>
+                      {!contacts.find(c => c.email.toLowerCase() === fromEmail(selected.from).toLowerCase()) && (
+                        <button onClick={saveSenderAsContact} title="Save sender as contact"
+                          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                              d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                          </svg>
+                        </button>
+                      )}
+                      <button onClick={() => deleteMessage(selected.uid)} title="Delete"
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex-1 overflow-y-auto px-5 py-4">
+                  {/* Body */}
+                  <div className="flex-1 overflow-y-auto px-6 py-5">
                     {selected.body ? (
                       <div className="prose prose-sm max-w-none text-gray-800"
                         dangerouslySetInnerHTML={{ __html: selected.body }} />
@@ -478,13 +547,15 @@ export default function MailInbox() {
       {/* ══════════════ CONTACTS SECTION ══════════════ */}
       {section === 'contacts' && (
         <div className="flex-1 min-h-0 overflow-y-auto">
-          {/* Search */}
-          <div className="mb-4">
+          <div className="mb-4 relative">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0" />
+            </svg>
             <input
               value={contactSearch2}
               onChange={e => setContactSearch2(e.target.value)}
               placeholder="Search contacts…"
-              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
+              className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
             />
           </div>
 
@@ -494,23 +565,21 @@ export default function MailInbox() {
             </div>
           ) : filteredContacts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-gray-400 border-2 border-dashed border-gray-200 rounded-2xl">
-              <svg className="w-9 h-9 mb-3 opacity-25" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-10 h-10 mb-3 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                   d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
               <p className="font-medium text-sm">{contactSearch2 ? 'No contacts match' : 'No contacts yet'}</p>
-              {!contactSearch2 && (
-                <p className="text-xs mt-1">Click "Add Contact" or use "+ Contact" when reading an email.</p>
-              )}
+              {!contactSearch2 && <p className="text-xs mt-1 text-gray-400">Use "+ Contact" when reading an email to add senders.</p>}
             </div>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {filteredContacts.map(c => (
                 <div key={c.id}
-                  className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow">
+                  className="bg-white border border-gray-200 rounded-2xl p-4 hover:shadow-md transition-shadow">
                   <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-sm font-bold shrink-0">
-                      {contactInitials(c.name)}
+                    <div className={`w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${avatarColor(c.name)}`}>
+                      {nameInitials(c.name)}
                     </div>
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-gray-900 truncate">{c.name}</p>
@@ -518,14 +587,14 @@ export default function MailInbox() {
                     </div>
                   </div>
                   {(c.phone || c.notes) && (
-                    <div className="text-xs text-gray-500 space-y-0.5 mb-3 pl-1">
-                      {c.phone && <p>📞 {formatPhone(c.phone)}</p>}
-                      {c.notes && <p className="text-gray-400 truncate">"{c.notes}"</p>}
+                    <div className="text-xs text-gray-500 space-y-0.5 mb-3 border-t border-gray-100 pt-2.5">
+                      {c.phone && <p className="flex items-center gap-1.5"><svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>{formatPhone(c.phone)}</p>}
+                      {c.notes && <p className="text-gray-400 truncate italic">"{c.notes}"</p>}
                     </div>
                   )}
-                  <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
+                  <div className="flex items-center gap-2 pt-2.5 border-t border-gray-100">
                     <button
-                      onClick={() => { setComposeData({ to: c.email, subject: '', body: '' }); setComposing(true) }}
+                      onClick={() => { resetCompose(); setToChips([c.email]); setComposing(true) }}
                       className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg bg-green-50 hover:bg-green-100 text-green-700 text-xs font-semibold transition">
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -560,10 +629,17 @@ export default function MailInbox() {
         <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4"
           onClick={() => setComposing(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-              <h3 className="text-base font-semibold text-gray-800">New Message</h3>
-              <button onClick={() => setComposing(false)} className="text-gray-400 hover:text-gray-600">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="flex items-center justify-between px-5 py-4 bg-gray-50 rounded-t-2xl border-b border-gray-200">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full bg-green-700 flex items-center justify-center">
+                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                </div>
+                <h3 className="text-sm font-semibold text-gray-800">New Message</h3>
+              </div>
+              <button onClick={() => setComposing(false)} className="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-200 rounded-lg transition">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
