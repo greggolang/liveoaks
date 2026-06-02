@@ -142,6 +142,37 @@ func extractIMAPBody(r io.Reader) string {
 	return textBody
 }
 
+// resolveFolder maps a logical folder name to the actual IMAP folder name on
+// this server by listing all mailboxes and matching against common variants.
+// If no match is found it returns the original name unchanged (let Select fail).
+func resolveFolder(ic *imapclient.Client, want string) string {
+	aliases := map[string][]string{
+		"Sent":  {"Sent", "Sent Items", "INBOX.Sent", "Sent Messages"},
+		"Trash": {"Trash", "INBOX.Trash", "Deleted Items", "Deleted Messages", "Junk"},
+	}
+	variants, known := aliases[want]
+	if !known {
+		return want
+	}
+
+	ch := make(chan *imap.MailboxInfo, 32)
+	done := make(chan error, 1)
+	go func() { done <- ic.List("", "*", ch) }()
+
+	found := make(map[string]bool)
+	for mb := range ch {
+		found[mb.Name] = true
+	}
+	<-done
+
+	for _, v := range variants {
+		if found[v] {
+			return v
+		}
+	}
+	return want
+}
+
 // ─── endpoints ───────────────────────────────────────────────────────────────
 
 // ListMessages returns the most recent 50 messages in a folder (default INBOX).
@@ -162,6 +193,7 @@ func (h *IMAPHandler) ListMessages(c echo.Context) error {
 	}
 	defer ic.Logout()
 
+	folder = resolveFolder(ic, folder)
 	mbox, err := ic.Select(folder, true)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "folder not found: "+folder)
@@ -253,6 +285,7 @@ func (h *IMAPHandler) GetMessage(c echo.Context) error {
 	}
 	defer ic.Logout()
 
+	folder = resolveFolder(ic, folder)
 	if _, err = ic.Select(folder, false); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "folder not found: "+folder)
 	}
@@ -371,6 +404,7 @@ func (h *IMAPHandler) MarkRead(c echo.Context) error {
 	}
 	defer ic.Logout()
 
+	folder = resolveFolder(ic, folder)
 	if _, err = ic.Select(folder, false); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "folder not found: "+folder)
 	}
@@ -405,6 +439,7 @@ func (h *IMAPHandler) DeleteMessage(c echo.Context) error {
 	}
 	defer ic.Logout()
 
+	folder = resolveFolder(ic, folder)
 	if _, err = ic.Select(folder, false); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "folder not found: "+folder)
 	}
