@@ -32,6 +32,7 @@ interface AuthContextType {
   isFamilyMember: boolean
   bookingMaxDaysAhead: number
   hasPermission: (page: string) => boolean
+  canSeeAdmin: (section: string) => boolean
 }
 
 const AuthContext = createContext<AuthContextType>(null!)
@@ -42,6 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [sessionTimeoutDays, setSessionTimeoutDays] = useState(0)
   const [bookingMaxDaysAhead, setBookingMaxDaysAhead] = useState(5)
   const [myPages, setMyPages] = useState<Set<string>>(new Set())
+  const [myAdminSections, setMyAdminSections] = useState<Set<string>>(new Set())
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Load current user and session config on mount
@@ -49,6 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     Promise.all([
       api.auth.me().then((u) => setUser(u as User)).catch(() => setUser(null)),
       api.permissions.mine().then(pages => setMyPages(new Set(pages))).catch(() => {}),
+      api.adminPermissions.mine().then(sections => setMyAdminSections(new Set(sections))).catch(() => {}),
       fetch('/api/session-config')
         .then(r => r.json())
         .then(d => {
@@ -105,6 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isFamilyMember: user?.is_family_member ?? false,
       bookingMaxDaysAhead,
       hasPermission: (page: string) => (user ? allRoles(user).includes('admin') : false) || myPages.has(page),
+      canSeeAdmin: (section: string) => (user ? allRoles(user).includes('admin') : false) || myAdminSections.has(section),
     }}>
       {children}
     </AuthContext.Provider>

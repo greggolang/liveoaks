@@ -111,6 +111,7 @@ func main() {
 	contacts := &handlers.ContactsHandler{DB: pool}
 	friends := &handlers.FriendsHandler{DB: pool}
 	perms := &handlers.PermissionsHandler{DB: pool}
+	adminPerms := &handlers.AdminPermsHandler{DB: pool}
 	feedback := &handlers.FeedbackHandler{DB: pool}
 	family := &handlers.FamilyHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	groups := &handlers.GroupsHandler{DB: pool}
@@ -230,8 +231,9 @@ func main() {
 	api.POST("/booking-reminder/:token/ok", bookingReminder.Confirm)
 	api.POST("/booking-reminder/:token/issue", bookingReminder.ReportIssue)
 
-	// Board+
-	boardPlus := authed.Group("", mw.RequireRole(mw.BoardRoleList()...))
+	// Board+ — board-shared utility routes pass with the board-role fallback;
+	// routes that map to a grantable admin section are gated by section grant.
+	boardPlus := authed.Group("", mw.RequireAdminSection(pool, mw.BoardRoleList()...))
 	boardPlus.POST("/admin/bookings", bookings.AdminCreate)
 	boardPlus.POST("/admin/booking-cancel-reasons", bookings.CreateCancelReason)
 	boardPlus.DELETE("/admin/booking-cancel-reasons/:id", bookings.DeleteCancelReason)
@@ -263,10 +265,13 @@ func main() {
 	boardPlus.POST("/usta-teams", usta.Create)
 	boardPlus.DELETE("/usta-teams/:id", usta.Delete)
 
-	// Admin only
-	adminOnly := authed.Group("/admin", mw.RequireRole("admin"))
-	// Games admin (admin or games role can manage the fantasy pool)
-	gamesAdmin := authed.Group("/admin", mw.RequireRole("admin", "games"))
+	// Admin only — admin-prefixed routes that map to a grantable section are
+	// opened to roles granted that section (admins always pass); routes that map
+	// to no section (Mail, Password Vault, Permissions, Bylaws upload, camera
+	// config) stay admin-only via the empty fallback.
+	adminOnly := authed.Group("/admin", mw.RequireAdminSection(pool))
+	// Games admin (admin or the games role can manage the fantasy pool)
+	gamesAdmin := authed.Group("/admin", mw.RequireAdminSection(pool, "games"))
 	adminOnly.GET("/users", users.List)
 	adminOnly.POST("/users", users.Create)
 	adminOnly.PUT("/users/:id/profile", users.UpdateProfile)
@@ -314,6 +319,11 @@ func main() {
 	adminOnly.GET("/permissions", perms.GetAll)
 	adminOnly.PUT("/permissions/:page/:role", perms.Toggle)
 	authed.GET("/my-permissions", perms.MyPages)
+	// Admin-panel section access (Board Access page) — admin only
+	adminOnly.GET("/admin-permissions/sections", adminPerms.Sections)
+	adminOnly.GET("/admin-permissions", adminPerms.GetAll)
+	adminOnly.PUT("/admin-permissions/:section/:role", adminPerms.Toggle)
+	authed.GET("/my-admin-sections", adminPerms.Mine)
 	authed.GET("/email-templates", emailTemplates.List) // read-only for all authenticated users
 	authed.POST("/feedback", feedback.Submit)
 	boardPlus.GET("/feedback/new", feedback.NewFeedback)

@@ -388,6 +388,14 @@ export const api = {
       request(`/admin/permissions/${encodeURIComponent(page)}/${encodeURIComponent(role)}`,
         { method: 'PUT', body: JSON.stringify({ allowed }) }),
   },
+  adminPermissions: {
+    sections: () => request<{ key: string; label: string; group: string; desc: string }[]>('/admin/admin-permissions/sections'),
+    getAll: () => request<Record<string, string[]>>('/admin/admin-permissions'),
+    mine: () => request<string[]>('/my-admin-sections'),
+    toggle: (section: string, role: string, allowed: boolean) =>
+      request(`/admin/admin-permissions/${encodeURIComponent(section)}/${encodeURIComponent(role)}`,
+        { method: 'PUT', body: JSON.stringify({ allowed }) }),
+  },
   admin: {
     users: () => request('/admin/users'),
     createUser: (data: object) => request('/admin/users', { method: 'POST', body: JSON.stringify(data) }),

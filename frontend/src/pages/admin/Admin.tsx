@@ -2,100 +2,108 @@ import { useEffect } from 'react'
 import { NavLink, Outlet, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 
-type LinkItem = { to: string; label: string }
+// `section` ties a link to a grantable admin section (see backend adminperm
+// catalog). Links with a section are shown only to admins or to board members
+// granted that section. Links without one (and not in ADMIN_ONLY_LINKS) are
+// shown to every board member.
+type LinkItem = { to: string; label: string; section?: string }
 type Section = { heading: string; links: LinkItem[] }
 
 const sections: Section[] = [
   {
     heading: 'Content',
     links: [
-      { to: '/events', label: 'Events' },
-      { to: '/announcements', label: 'Announcements' },
-      { to: '/admin/pro-shop', label: 'Pro Shop' },
-      { to: '/files', label: 'Files' },
-      { to: '/photos', label: 'Photos' },
-      { to: '/usta-teams', label: 'USTA Teams' },
+      { to: '/events', label: 'Events', section: 'events_admin' },
+      { to: '/announcements', label: 'Announcements', section: 'announcements' },
+      { to: '/admin/pro-shop', label: 'Pro Shop', section: 'pro_shop' },
+      { to: '/files', label: 'Files', section: 'files' },
+      { to: '/photos', label: 'Photos', section: 'photos' },
+      { to: '/usta-teams', label: 'USTA Teams', section: 'usta_teams' },
       { to: '/club-info', label: 'About' },
     ],
   },
   {
     heading: 'Members',
     links: [
-      { to: '/admin/users', label: 'Members' },
-      { to: '/admin/waitlist', label: 'Waitlist' },
-      { to: '/admin/guests', label: 'Guest Passes' },
+      { to: '/admin/users', label: 'Members', section: 'members' },
+      { to: '/admin/waitlist', label: 'Waitlist', section: 'waitlist' },
+      { to: '/admin/guests', label: 'Guest Passes', section: 'guests' },
     ],
   },
   {
     heading: 'Billing',
     links: [
-      { to: '/admin/accounting', label: 'Accounting / P&L' },
-      { to: '/admin/financial-rules', label: 'Enforcement Rules' },
-      { to: '/admin/dues', label: 'Dues' },
-      { to: '/admin/receipts', label: 'Receipts' },
-      { to: '/admin/kiosk-purchases', label: 'Kiosk Purchases' },
+      { to: '/admin/accounting', label: 'Accounting / P&L', section: 'accounting' },
+      { to: '/admin/financial-rules', label: 'Enforcement Rules', section: 'financial_rules' },
+      { to: '/admin/dues', label: 'Dues', section: 'dues' },
+      { to: '/admin/receipts', label: 'Receipts', section: 'receipts' },
+      { to: '/admin/kiosk-purchases', label: 'Kiosk Purchases', section: 'kiosk_purchases' },
     ],
   },
   {
     heading: 'Bookings',
     links: [
-      { to: '/admin/bookings', label: 'All Bookings' },
-      { to: '/admin/court-blocks', label: 'Court Blocks' },
-      { to: '/admin/cancellations', label: 'Cancellations' },
-      { to: '/admin/ball-tracking', label: 'Ball Tracking' },
-      { to: '/admin/teaching-pro', label: 'Teaching Pro' },
+      { to: '/admin/bookings', label: 'All Bookings', section: 'bookings_admin' },
+      { to: '/admin/court-blocks', label: 'Court Blocks', section: 'court_blocks' },
+      { to: '/admin/cancellations', label: 'Cancellations', section: 'cancellations' },
+      { to: '/admin/ball-tracking', label: 'Ball Tracking', section: 'ball_tracking' },
+      { to: '/admin/teaching-pro', label: 'Teaching Pro', section: 'teaching_pro' },
       { to: '/admin/booking-docs', label: 'How Bookings Work' },
     ],
   },
   {
     heading: 'Games',
     links: [
-      { to: '/admin/fantasy', label: 'Fantasy Tennis Pool' },
-      { to: '/admin/ladder', label: 'Tennis Ladder' },
-      { to: '/admin/liveball', label: 'LiveBall Events' },
+      { to: '/admin/fantasy', label: 'Fantasy Tennis Pool', section: 'fantasy' },
+      { to: '/admin/ladder', label: 'Tennis Ladder', section: 'ladder_admin' },
+      { to: '/admin/liveball', label: 'LiveBall Events', section: 'liveball' },
     ],
   },
   {
     heading: 'Feedback',
     links: [
-      { to: '/admin/feedback', label: 'Site Ideas' },
+      { to: '/admin/feedback', label: 'Site Ideas', section: 'feedback' },
     ],
   },
   {
     heading: 'Board',
     links: [
-      { to: '/admin/board-meetings', label: 'Board Meetings' },
-      { to: '/admin/board-communications', label: 'Communications' },
-      { to: '/admin/notes', label: 'Notes' },
+      { to: '/admin/board-meetings', label: 'Board Meetings', section: 'board_meetings' },
+      { to: '/admin/board-communications', label: 'Communications', section: 'board_communications' },
+      { to: '/admin/notes', label: 'Notes', section: 'notes' },
     ],
   },
   {
     heading: 'Clubhouse',
     links: [
-      { to: '/admin/appliances', label: 'Appliances' },
-      { to: '/admin/yolink', label: 'YoLink Sensors' },
+      { to: '/admin/appliances', label: 'Appliances', section: 'appliances' },
+      { to: '/admin/yolink', label: 'YoLink Sensors', section: 'yolink' },
     ],
   },
   {
     heading: 'System',
     links: [
       { to: '/admin/mail', label: 'Mail Accounts' },
-      { to: '/admin/broadcast', label: 'Broadcast Email' },
-      { to: '/admin/settings', label: 'Settings' },
-      { to: '/admin/email-templates', label: 'Email Templates' },
-      { to: '/admin/permissions', label: 'Permissions' },
-      { to: '/admin/resets', label: 'Password Resets' },
+      { to: '/admin/broadcast', label: 'Broadcast Email', section: 'broadcast' },
+      { to: '/admin/settings', label: 'Settings', section: 'settings' },
+      { to: '/admin/email-templates', label: 'Email Templates', section: 'email_templates' },
+      { to: '/admin/permissions', label: 'Page Permissions' },
+      { to: '/admin/board-access', label: 'Board Access' },
+      { to: '/admin/resets', label: 'Password Resets', section: 'password_resets' },
       { to: '/admin/passwords', label: 'Password Vault' },
-      { to: '/admin/communication-test', label: 'Test Communications' },
-      { to: '/admin/log', label: 'Activity Log' },
+      { to: '/admin/communication-test', label: 'Test Communications', section: 'communication_test' },
+      { to: '/admin/log', label: 'Activity Log', section: 'activity_log' },
     ],
   },
 ]
 
-const ADMIN_ONLY_LINKS = new Set(['/admin/mail', '/admin/passwords'])
+// Links restricted to full admins regardless of section grants.
+const ADMIN_ONLY_LINKS = new Set([
+  '/admin/mail', '/admin/passwords', '/admin/permissions', '/admin/board-access',
+])
 
 export default function Admin() {
-  const { isBoard, isAdmin } = useAuth()
+  const { isBoard, isAdmin, canSeeAdmin } = useAuth()
   const { pathname } = useLocation()
 
   // Scroll back to the top whenever the admin sub-page changes — otherwise the
@@ -107,7 +115,11 @@ export default function Admin() {
 
   const visibleSections = sections.map(s => ({
     ...s,
-    links: s.links.filter(l => !ADMIN_ONLY_LINKS.has(l.to) || isAdmin),
+    links: s.links.filter(l => {
+      if (ADMIN_ONLY_LINKS.has(l.to)) return isAdmin
+      if (l.section) return canSeeAdmin(l.section)
+      return true // ungated link — visible to every board member
+    }),
   })).filter(s => s.links.length > 0)
 
   return (
