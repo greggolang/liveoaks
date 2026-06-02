@@ -1,4 +1,5 @@
-import { NavLink, Outlet, Navigate } from 'react-router-dom'
+import { useEffect } from 'react'
+import { NavLink, Outlet, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 
 type LinkItem = { to: string; label: string }
@@ -95,6 +96,13 @@ const ADMIN_ONLY_LINKS = new Set(['/admin/mail', '/admin/passwords'])
 
 export default function Admin() {
   const { isBoard, isAdmin } = useAuth()
+  const { pathname } = useLocation()
+
+  // Scroll back to the top whenever the admin sub-page changes — otherwise the
+  // layout stays mounted and keeps the previous scroll position, leaving the
+  // new page's content scrolled out of view.
+  useEffect(() => { window.scrollTo(0, 0) }, [pathname])
+
   if (!isBoard) return <Navigate to="/" replace />
 
   const visibleSections = sections.map(s => ({
