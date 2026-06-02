@@ -86,27 +86,30 @@ function FileTypeBadge({ filename }: { filename: string }) {
   )
 }
 
-function FileRow({ doc, isBoard, onDelete }: { doc: DocFile; isBoard: boolean; onDelete: (id: string) => void }) {
+function FileRow({ doc, isBoard, onDelete, subtitle }: { doc: DocFile; isBoard: boolean; onDelete: (id: string) => void; subtitle?: string }) {
   return (
     <div className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 transition group">
-      <FileTypeBadge filename={doc.filename} />
-      <div className="flex-1 min-w-0">
-        <a href={`/uploads/documents/${doc.filename}`} target="_blank" rel="noreferrer"
-          className="font-medium text-gray-800 hover:text-green-700 text-sm transition block truncate">
-          {doc.title}
-        </a>
-        <p className="text-xs text-gray-400 mt-0.5">{new Date(doc.created_at).toLocaleDateString()}</p>
-      </div>
+      {/* Entire row is the click target so files are easy to open on touch + desktop */}
       <a href={`/uploads/documents/${doc.filename}`} target="_blank" rel="noreferrer"
         title="Open file"
-        className="shrink-0 p-1 text-gray-300 hover:text-green-600 transition opacity-0 group-hover:opacity-100 rounded">
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        className="flex items-center gap-3 flex-1 min-w-0">
+        <FileTypeBadge filename={doc.filename} />
+        <div className="flex-1 min-w-0">
+          <span className="font-medium text-gray-800 group-hover:text-green-700 text-sm transition block truncate">
+            {doc.title}
+          </span>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {subtitle ? `${subtitle} · ` : ''}{new Date(doc.created_at).toLocaleDateString()}
+          </p>
+        </div>
+        {/* Open icon always visible (was hover-only, so invisible on mobile) */}
+        <svg className="w-4 h-4 shrink-0 text-gray-300 group-hover:text-green-600 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
         </svg>
       </a>
       {isBoard && (
         <button onClick={() => onDelete(doc.id)}
-          className="shrink-0 text-xs text-red-400 hover:text-red-600 transition opacity-0 group-hover:opacity-100 px-1">
+          className="shrink-0 text-xs text-red-400 hover:text-red-600 transition px-1">
           Delete
         </button>
       )}
@@ -168,14 +171,14 @@ function FolderNode({
       <div className="flex items-center justify-between mb-2">
         <button
           onClick={() => setOpen(o => !o)}
-          className="flex items-center gap-2 flex-1 min-w-0 text-left hover:opacity-80 transition">
+          className="flex items-center gap-2 flex-1 min-w-0 text-left rounded-lg -ml-2 px-2 py-1.5 hover:bg-gray-100 transition cursor-pointer">
           <span className="text-gray-400 w-4 shrink-0 text-xs">{open ? '▾' : '▸'}</span>
           <svg className={`w-4 h-4 shrink-0 transition-colors ${open ? 'text-yellow-400' : 'text-yellow-500'}`} fill="currentColor" viewBox="0 0 24 24">
             <path d="M10 4H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V8a2 2 0 00-2-2h-8l-2-2z" />
           </svg>
           <h2 className={`font-semibold text-gray-700 ${depth === 0 ? 'text-sm' : 'text-xs'}`}>{folder.name}</h2>
           {isBoard && <FolderPermissionBadges roles={folder.roles} />}
-          {!open && docs.length > 0 && (
+          {docs.length > 0 && (
             <span className="text-xs text-gray-400 ml-1">{docs.length} file{docs.length !== 1 ? 's' : ''}</span>
           )}
         </button>
@@ -519,29 +522,7 @@ export default function Files() {
               {searchResults.length} result{searchResults.length !== 1 ? 's' : ''}
             </p>
             {searchResults.map(({ doc, folderPath }) => (
-              <div key={doc.id} className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 transition group">
-                <FileTypeBadge filename={doc.filename} />
-                <div className="flex-1 min-w-0">
-                  <a href={`/uploads/documents/${doc.filename}`} target="_blank" rel="noreferrer"
-                    className="font-medium text-gray-800 hover:text-green-700 text-sm transition block truncate">
-                    {doc.title}
-                  </a>
-                  <p className="text-xs text-gray-400 mt-0.5">{folderPath} · {new Date(doc.created_at).toLocaleDateString()}</p>
-                </div>
-                <a href={`/uploads/documents/${doc.filename}`} target="_blank" rel="noreferrer"
-                  title="Open file"
-                  className="shrink-0 p-1 text-gray-300 hover:text-green-600 transition opacity-0 group-hover:opacity-100 rounded">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                  </svg>
-                </a>
-                {isBoard && (
-                  <button onClick={() => handleDelete(doc.id)}
-                    className="shrink-0 text-xs text-red-400 hover:text-red-600 transition opacity-0 group-hover:opacity-100 px-1">
-                    Delete
-                  </button>
-                )}
-              </div>
+              <FileRow key={doc.id} doc={doc} isBoard={isBoard} onDelete={handleDelete} subtitle={folderPath} />
             ))}
           </div>
         )
