@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { NavLink, Outlet, Navigate, useLocation } from 'react-router-dom'
+import { Link, NavLink, Outlet, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 
 // `section` ties a link to a grantable admin section (see backend adminperm
@@ -116,6 +116,7 @@ const ADMIN_ONLY_LINKS = new Set([
 export default function Admin() {
   const { isBoard, isAdmin, canSeeAdmin } = useAuth()
   const { pathname } = useLocation()
+  const isIndex = pathname === '/admin' || pathname === '/admin/'
 
   // Scroll back to the top whenever the admin sub-page changes — otherwise the
   // layout stays mounted and keeps the previous scroll position, leaving the
@@ -135,20 +136,20 @@ export default function Admin() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-800 mb-4">Admin Panel</h1>
+      <div className="flex items-center gap-2 mb-4">
+        {!isIndex && (
+          <Link to="/admin"
+            className="md:hidden inline-flex items-center gap-1 text-sm font-medium text-green-700 hover:text-green-900">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Menu
+          </Link>
+        )}
+        <h1 className="text-2xl font-bold text-gray-800">Admin Panel</h1>
+      </div>
       <div className="flex flex-col md:flex-row gap-4 md:gap-8">
-        {/* Mobile: horizontal scrolling pill strip */}
-        <nav className="md:hidden flex overflow-x-auto gap-1 pb-2 -mx-1 px-1">
-          {visibleSections.flatMap(s => s.links).map(l => (
-            <NavLink key={l.to} to={l.to}
-              className={({ isActive }) =>
-                `whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-medium transition shrink-0
-                 ${isActive ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-              {l.label}
-            </NavLink>
-          ))}
-        </nav>
-        {/* Desktop: sidebar */}
+        {/* Desktop: sidebar (always visible) */}
         <nav className="hidden md:block w-44 shrink-0 space-y-4">
           {visibleSections.map(section => (
             <div key={section.heading}>
@@ -167,7 +168,36 @@ export default function Admin() {
             </div>
           ))}
         </nav>
-        <div className="flex-1 min-w-0"><Outlet /></div>
+
+        <div className="flex-1 min-w-0">
+          {isIndex ? (
+            <>
+              {/* Mobile: the full menu is the landing screen */}
+              <nav className="md:hidden space-y-5">
+                {visibleSections.map(section => (
+                  <div key={section.heading}>
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">{section.heading}</p>
+                    <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
+                      {section.links.map(l => (
+                        <Link key={l.to} to={l.to}
+                          className="flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 active:bg-gray-100">
+                          {l.label}
+                          <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </nav>
+              {/* Desktop: the sidebar is alongside, so just prompt */}
+              <p className="hidden md:block text-gray-400 text-sm text-center py-16">Select a section from the menu.</p>
+            </>
+          ) : (
+            <Outlet />
+          )}
+        </div>
       </div>
     </div>
   )

@@ -152,7 +152,7 @@ function AppRoutes() {
 
       {/* Admin */}
       <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>}>
-        <Route index element={<Navigate to="/admin/users" replace />} />
+        <Route index element={<></>} />
         <Route path="users" element={<AdminUsers />} />
         <Route path="dues" element={<AdminDues />} />
         <Route path="member-requests" element={<AdminMemberRequests />} />
