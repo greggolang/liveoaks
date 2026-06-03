@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../../api/client'
+import { parseDate } from '../../utils/dates'
 
 type Purchase = {
   id: string; user_id: string; member_name: string
@@ -10,7 +11,7 @@ type Purchase = {
 type EditForm = { item_name: string; item_price: string; quantity: string; notes: string }
 
 function fmtDate(ts: string) {
-  return new Date(ts).toLocaleString('en-US', {
+  return parseDate(ts).toLocaleString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric',
     hour: 'numeric', minute: '2-digit',
   })

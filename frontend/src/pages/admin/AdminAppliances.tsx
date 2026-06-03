@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../../api/client'
 import type { ApplianceItem, ApplianceServiceRecord, ApplianceReminder } from '../../api/client'
+import { parseDate } from '../../utils/dates'
 
 type Tab = 'service' | 'reminders'
 
@@ -20,11 +21,11 @@ function fmt(date?: string) {
 }
 
 function isOverdue(due: string) {
-  return new Date(due) < new Date(new Date().toDateString())
+  return parseDate(due) < new Date(new Date().toDateString())
 }
 
 function isDueSoon(due: string) {
-  const d = new Date(due)
+  const d = parseDate(due)
   const today = new Date(new Date().toDateString())
   const diff = (d.getTime() - today.getTime()) / 86400000
   return diff >= 0 && diff <= 30
@@ -429,7 +430,7 @@ export default function AdminAppliances() {
                                 {r.notes && ` · ${r.notes}`}
                               </p>
                               {r.last_sent_at && (
-                                <p className="text-xs text-gray-400">Last sent {new Date(r.last_sent_at).toLocaleDateString()}</p>
+                                <p className="text-xs text-gray-400">Last sent {parseDate(r.last_sent_at).toLocaleDateString()}</p>
                               )}
                             </div>
                             <div className="flex gap-2 shrink-0">

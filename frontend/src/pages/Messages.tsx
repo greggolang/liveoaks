@@ -7,7 +7,7 @@ import MailInbox from './MailInbox'
 const USTA_RATINGS = ['2.5', '3.0', '3.5', '4.0', '4.5', '5.0']
 
 function timeAgo(ts: string) {
-  const diff = Date.now() - new Date(ts).getTime()
+  const diff = Date.now() - parseDate(ts).getTime()
   const m = Math.floor(diff / 60000)
   if (m < 1) return 'just now'
   if (m < 60) return `${m}m ago`
@@ -15,12 +15,12 @@ function timeAgo(ts: string) {
   if (h < 24) return `${h}h ago`
   const d = Math.floor(h / 24)
   if (d < 7) return `${d}d ago`
-  return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return parseDate(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
 function fmtReadAt(ts?: string) {
   if (!ts) return null
-  return new Date(ts).toLocaleString('en-US', {
+  return parseDate(ts).toLocaleString('en-US', {
     month: 'short', day: 'numeric',
     hour: 'numeric', minute: '2-digit',
   })

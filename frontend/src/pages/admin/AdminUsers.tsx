@@ -36,7 +36,7 @@ interface User {
 
 function fmtLastLogin(ts?: string): string {
   if (!ts) return 'Never'
-  const diff = Date.now() - new Date(ts).getTime()
+  const diff = Date.now() - parseDate(ts).getTime()
   const mins = Math.floor(diff / 60000)
   if (mins < 2) return 'Just now'
   if (mins < 60) return `${mins}m ago`
@@ -44,7 +44,7 @@ function fmtLastLogin(ts?: string): string {
   if (hrs < 24) return `${hrs}h ago`
   const days = Math.floor(hrs / 24)
   if (days < 30) return `${days}d ago`
-  return new Date(ts).toLocaleDateString()
+  return parseDate(ts).toLocaleDateString()
 }
 
 // All assignable roles (used for extra_roles checkboxes)
@@ -617,7 +617,7 @@ export default function AdminUsers() {
                   </select>
                 </td>
                 <td className="px-4 py-3 text-xs">
-                  <span className={u.last_login_at ? 'text-gray-600' : 'text-gray-300'} title={u.last_login_at ? new Date(u.last_login_at).toLocaleString() : 'Never logged in'}>
+                  <span className={u.last_login_at ? 'text-gray-600' : 'text-gray-300'} title={u.last_login_at ? parseDate(u.last_login_at).toLocaleString() : 'Never logged in'}>
                     {fmtLastLogin(u.last_login_at)}
                   </span>
                 </td>

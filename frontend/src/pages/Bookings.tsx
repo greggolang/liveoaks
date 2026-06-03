@@ -23,7 +23,7 @@ interface FamilyMember { id: string; first_name: string; last_name: string; rela
 
 function familyAge(birthday?: string): number | null {
   if (!birthday) return null
-  const dob = new Date(birthday)
+  const dob = parseDate(birthday)
   const today = new Date()
   let age = today.getFullYear() - dob.getFullYear()
   const m = today.getMonth() - dob.getMonth()
@@ -80,13 +80,13 @@ function localDateStr(d: Date) {
 }
 
 function addDays(dateStr: string, days: number) {
-  const d = new Date(dateStr + 'T12:00:00')
+  const d = parseDate(dateStr + 'T12:00:00')
   d.setDate(d.getDate() + days)
   return localDateStr(d)
 }
 
 function formatDate(dateStr: string) {
-  return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', {
+  return parseDate(dateStr + 'T12:00:00').toLocaleDateString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric'
   })
 }

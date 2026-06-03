@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
+import { parseDate } from '../utils/dates'
 
 interface Ladder { id: string; name: string; type: string; season_year: number; status: string; challenge_range: number; description: string }
 interface Entry { user_id: string; name: string; rank: number; wins: number; losses: number; season_points: number }
@@ -30,11 +31,11 @@ const CHALLENGE_COLORS: Record<string, string> = {
 
 function fmtDate(iso?: string) {
   if (!iso) return '—'
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  return parseDate(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 function fmtDue(iso?: string) {
   if (!iso) return ''
-  const d = new Date(iso)
+  const d = parseDate(iso)
   const diff = Math.ceil((d.getTime() - Date.now()) / 86400000)
   if (diff < 0) return 'overdue'
   if (diff === 0) return 'due today'

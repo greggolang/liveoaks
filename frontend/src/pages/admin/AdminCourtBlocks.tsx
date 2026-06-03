@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../../api/client'
+import { parseDate } from '../../utils/dates'
 
 interface Court { id: number; name: string; number: number }
 interface CourtBlock {
@@ -48,7 +49,7 @@ function fmtTime(t?: string) {
 
 function fmtDateTime(iso?: string) {
   if (!iso) return '—'
-  return new Date(iso).toLocaleString('en-US', {
+  return parseDate(iso).toLocaleString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric',
     hour: 'numeric', minute: '2-digit',
   })

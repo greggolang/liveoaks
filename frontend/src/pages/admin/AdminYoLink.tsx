@@ -279,7 +279,7 @@ export default function AdminYoLink() {
                         </td>
                         <td className="px-4 py-3 text-gray-400 text-xs">
                           {d.last_seen_at
-                            ? new Date(d.last_seen_at).toLocaleString()
+                            ? parseDate(d.last_seen_at).toLocaleString()
                             : '—'}
                         </td>
                         <td className="px-4 py-3">

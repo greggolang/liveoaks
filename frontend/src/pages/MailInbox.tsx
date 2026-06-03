@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { api, IMAPMessage, IMAPMessageDetail, MailContact, DocFile } from '../api/client'
 import { formatPhone } from '../utils/phone'
+import { parseDate } from '../utils/dates'
 
 const FOLDERS = [
   { key: 'INBOX', label: 'Inbox' },
@@ -10,7 +11,7 @@ const FOLDERS = [
 
 function formatDate(iso: string) {
   if (!iso) return ''
-  const d = new Date(iso)
+  const d = parseDate(iso)
   const now = new Date()
   if (d.toDateString() === now.toDateString())
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -217,7 +218,7 @@ export default function MailInbox() {
     setComposeData({
       to: '',
       subject: selected.subject.startsWith('Fwd:') ? selected.subject : 'Fwd: ' + selected.subject,
-      body: `\n\n---------- Forwarded message ----------\nFrom: ${selected.from}\nDate: ${new Date(selected.date).toLocaleString()}\nSubject: ${selected.subject}\n\n`,
+      body: `\n\n---------- Forwarded message ----------\nFrom: ${selected.from}\nDate: ${parseDate(selected.date).toLocaleString()}\nSubject: ${selected.subject}\n\n`,
     })
     setComposing(true)
   }
@@ -478,7 +479,7 @@ export default function MailInbox() {
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-gray-900 truncate">{fromName(selected.from)}</p>
                         <p className="text-xs text-gray-400 truncate">
-                          {selected.from} · {new Date(selected.date).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          {selected.from} · {parseDate(selected.date).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </p>
                       </div>
                     </div>

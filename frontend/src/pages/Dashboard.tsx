@@ -946,7 +946,7 @@ export default function Dashboard() {
         const feed: FeedItem[] = [
           ...unread.map(a => ({ kind: 'announcement' as const, data: a, date: a.created_at })),
           ...unreadMsgs.map(m => ({ kind: 'message' as const, data: m, date: m.created_at })),
-        ].sort((x, y) => new Date(y.date).getTime() - new Date(x.date).getTime())
+        ].sort((x, y) => parseDate(y.date).getTime() - parseDate(x.date).getTime())
 
         return (
           <div>

@@ -37,7 +37,7 @@ const STATUS_COLORS: Record<string, string> = {
 }
 
 function fmtDT(iso: string) {
-  return new Date(iso).toLocaleDateString('en-US', {
+  return parseDate(iso).toLocaleDateString('en-US', {
     weekday: 'short', month: 'short', day: 'numeric',
     hour: 'numeric', minute: '2-digit',
   })
@@ -90,7 +90,7 @@ export default function AdminLiveball() {
 
   const isSlotAvailable = (courtId: number, slot: number): boolean => {
     if (!pickDate) return false
-    const start = new Date(`${pickDate}T${slotToTime(slot)}`)
+    const start = parseDate(`${pickDate}T${slotToTime(slot)}`)
     const end   = new Date(start.getTime() + 90 * 60 * 1000)
     return !dayBookings.some(b =>
       b.court_id === courtId &&
@@ -101,7 +101,7 @@ export default function AdminLiveball() {
 
   const isPastSlot = (slot: number): boolean => {
     if (!pickDate) return false
-    return new Date(`${pickDate}T${slotToTime(slot)}`) < new Date()
+    return parseDate(`${pickDate}T${slotToTime(slot)}`) < new Date()
   }
 
   const loadEvent = async (ev: LBEvent) => {
@@ -126,7 +126,7 @@ export default function AdminLiveball() {
     if (!cForm.date || !cForm.time || !cForm.court_id) { setCErr('Pick a court and time slot first'); return }
     setCSaving(true); setCErr('')
     try {
-      const startDT = new Date(`${cForm.date}T${cForm.time}`)
+      const startDT = parseDate(`${cForm.date}T${cForm.time}`)
       const endDT   = new Date(startDT.getTime() + 90 * 60 * 1000)
 
       await api.liveball.admin.create({
@@ -237,12 +237,12 @@ export default function AdminLiveball() {
                 <p className="text-sm font-semibold text-green-800">
                   {courts.find(c => c.id === cForm.court_id)?.name}
                   {' · '}
-                  {new Date(`${cForm.date}T${cForm.time}`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                  {parseDate(`${cForm.date}T${cForm.time}`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                 </p>
                 <p className="text-xs text-green-600 mt-0.5">
-                  {new Date(`${cForm.date}T${cForm.time}`).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                  {parseDate(`${cForm.date}T${cForm.time}`).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
                   {' → '}
-                  {new Date(new Date(`${cForm.date}T${cForm.time}`).getTime() + 90 * 60 * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                  {new Date(parseDate(`${cForm.date}T${cForm.time}`).getTime() + 90 * 60 * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
                   {' '}(1½ hours)
                 </p>
               </div>
@@ -466,7 +466,7 @@ export default function AdminLiveball() {
                           </div>
                           <div className="flex items-center gap-3">
                             <span className="text-xs text-gray-400">
-                              {inv.responded_at ? new Date(inv.responded_at).toLocaleDateString() : ''}
+                              {inv.responded_at ? parseDate(inv.responded_at).toLocaleDateString() : ''}
                             </span>
                             <button onClick={() => removePlayer(inv.user_id)}
                               className="text-xs text-red-400 hover:text-red-600">Remove</button>
@@ -512,7 +512,7 @@ export default function AdminLiveball() {
                             {inv.usta_ranking && <span className="ml-2 text-xs text-gray-400">USTA {inv.usta_ranking}</span>}
                           </div>
                           <span className="text-xs text-gray-400">
-                            Invited {new Date(inv.invited_at).toLocaleDateString()}
+                            Invited {parseDate(inv.invited_at).toLocaleDateString()}
                           </span>
                         </div>
                       ))}

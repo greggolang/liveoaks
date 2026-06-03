@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { api, DocFolder, DocFile } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
+import { parseDate } from '../utils/dates'
 
 const SESSION_KEY = 'files_open_folders'
 
@@ -92,7 +93,7 @@ function searchFiles(folders: DocFolder[], query: string, path = ''): { doc: Doc
 }
 
 function relativeDate(dateStr: string): string {
-  const d = new Date(dateStr)
+  const d = parseDate(dateStr)
   const diffDays = Math.floor((Date.now() - d.getTime()) / 86400000)
   if (diffDays === 0) return 'Today'
   if (diffDays === 1) return 'Yesterday'

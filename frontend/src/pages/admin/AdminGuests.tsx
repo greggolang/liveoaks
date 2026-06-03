@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../../api/client'
+import { parseDate } from '../../utils/dates'
 
 interface Guest { id: string; guest_name: string; guest_email?: string; member_first_name: string; member_last_name: string; visit_date: string; notes?: string; fee: number; source: string }
 
@@ -48,7 +49,7 @@ export default function AdminGuests() {
                   {g.guest_email && <div className="text-xs text-gray-400">{g.guest_email}</div>}
                 </td>
                 <td className="px-4 py-3 text-gray-600">{g.member_first_name} {g.member_last_name}</td>
-                <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{new Date(g.visit_date).toLocaleDateString()}</td>
+                <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{parseDate(g.visit_date).toLocaleDateString()}</td>
                 <td className="px-4 py-3">
                   {g.fee > 0
                     ? <span className="text-xs font-semibold text-orange-700 bg-orange-50 px-2 py-0.5 rounded-full">${g.fee.toFixed(2)}</span>

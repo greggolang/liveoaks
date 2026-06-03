@@ -155,7 +155,7 @@ export default function AdminCancellations() {
                 {rows.length === 0 ? (
                   <tr><td colSpan={7} className="px-4 py-6 text-center text-gray-400">No cancellations in this period.</td></tr>
                 ) : rows.map(r => {
-                  const cancelledAt = new Date(r.cancelled_at)
+                  const cancelledAt = parseDate(r.cancelled_at)
                   const start = parseDate(r.start_time)
                   return (
                     <tr key={r.id} className="hover:bg-gray-50">

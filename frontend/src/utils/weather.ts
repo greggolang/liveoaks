@@ -1,3 +1,4 @@
+import { parseDate } from './dates'
 export interface WeatherCurrent {
   temperature_2m: number
   precipitation: number
@@ -93,7 +94,7 @@ export const conditionColors = {
 }
 
 export function dayLabel(dateStr: string): string {
-  const d = new Date(dateStr + 'T12:00:00')
+  const d = parseDate(dateStr + 'T12:00:00')
   const today = new Date()
   const tomorrow = new Date(today)
   tomorrow.setDate(today.getDate() + 1)

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../../api/client'
+import { parseDate } from '../../utils/dates'
 
 interface Ladder { id: string; name: string; type: string; season_year: number; status: string; challenge_range: number; challenge_expiry_days: number; response_window_hours: number; play_window_days: number; description: string }
 interface Entry { user_id: string; name: string; rank: number; wins: number; losses: number; season_points: number }
@@ -23,7 +24,7 @@ const CHAL_STATUS_COLORS: Record<string, string> = {
 
 function fmtDate(iso?: string) {
   if (!iso) return '—'
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return parseDate(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
 export default function AdminLadder() {

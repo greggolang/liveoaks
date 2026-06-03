@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../../api/client'
+import { parseDate } from '../../utils/dates'
 
 const GUEST_FEE_SETTINGS = [
   { key: 'guest_participation_enabled', label: 'Allow guest participation',       hint: 'Guests can be added to court bookings.', type: 'boolean' as const },
@@ -492,7 +493,7 @@ export default function AdminSettings() {
           <span className="text-sm text-gray-600">Current version:</span>
           {bylawsUploadedAt
             ? <span className="text-sm font-medium text-gray-800">
-                Uploaded {new Date(bylawsUploadedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
+                Uploaded {parseDate(bylawsUploadedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
               </span>
             : <span className="text-sm text-gray-400 italic">Using original (embedded in app)</span>
           }

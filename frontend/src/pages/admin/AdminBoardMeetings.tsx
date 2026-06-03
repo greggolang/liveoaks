@@ -80,7 +80,7 @@ export default function AdminBoardMeetings() {
     }
   }
 
-  const fmt = (iso: string) => new Date(iso).toLocaleString('en-US', {
+  const fmt = (iso: string) => parseDate(iso).toLocaleString('en-US', {
     weekday: 'short', month: 'short', day: 'numeric',
     year: 'numeric', hour: 'numeric', minute: '2-digit',
   })

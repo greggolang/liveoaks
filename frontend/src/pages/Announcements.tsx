@@ -297,7 +297,7 @@ export default function Announcements() {
         const feed: FeedItem[] = [
           ...announcements.map(a => ({ kind: 'announcement' as const, data: a, date: a.created_at })),
           ...inbox.map(m => ({ kind: 'message' as const, data: m, date: m.created_at })),
-        ].sort((x, y) => new Date(y.date).getTime() - new Date(x.date).getTime())
+        ].sort((x, y) => parseDate(y.date).getTime() - parseDate(x.date).getTime())
 
         return (
         <div className="space-y-4">
@@ -442,7 +442,7 @@ export default function Announcements() {
                                     <span className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />
                                     {u.first_name} {u.last_name}
                                     <span className="text-gray-400 ml-auto shrink-0">
-                                      {new Date(u.read_at).toLocaleDateString()}
+                                      {parseDate(u.read_at).toLocaleDateString()}
                                     </span>
                                   </div>
                                 ))}

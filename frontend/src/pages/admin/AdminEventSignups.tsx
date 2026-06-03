@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { api } from '../../api/client'
 import { formatPhone } from '../../utils/phone'
+import { parseDate } from '../../utils/dates'
 
 interface Signup {
   id: string; full_name: string; email: string; phone?: string; member_status: string
@@ -163,7 +164,7 @@ export default function AdminEventSignups() {
                       {s.playing_tennis && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">🎾 Playing</span>}
                       {s.attending_lunch && <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">🍽 Lunch ×{s.lunch_count}</span>}
                     </div>
-                    <div className="text-xs text-gray-400">{s.email} · Submitted {new Date(s.submitted_at).toLocaleDateString()}</div>
+                    <div className="text-xs text-gray-400">{s.email} · Submitted {parseDate(s.submitted_at).toLocaleDateString()}</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
