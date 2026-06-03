@@ -192,6 +192,9 @@ func (h *MailFilterHandler) Delete(c echo.Context) error {
 // many messages were acted on plus any per-rule errors.
 func (h *MailFilterHandler) RunNow(c echo.Context) error {
 	matched, errs := h.runAccountFilters(c.Request().Context(), c.Param("id"))
+	if errs == nil {
+		errs = []string{} // marshal as [] not null, so the client can read .length
+	}
 	return c.JSON(http.StatusOK, map[string]interface{}{"matched": matched, "errors": errs})
 }
 
@@ -292,6 +295,9 @@ func (h *MailFilterHandler) MyRunNow(c echo.Context) error {
 		return err
 	}
 	matched, errs := h.runAccountFilters(c.Request().Context(), id)
+	if errs == nil {
+		errs = []string{} // marshal as [] not null, so the client can read .length
+	}
 	return c.JSON(http.StatusOK, map[string]interface{}{"matched": matched, "errors": errs})
 }
 

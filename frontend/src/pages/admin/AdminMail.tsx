@@ -327,9 +327,10 @@ export default function AdminMail() {
     setFilterRunning(true); setFilterRunMsg('')
     try {
       const res = await api.mail.runFilters(filtersTarget.id)
+      const errs = res.errors ?? []
       setFilterRunMsg(
-        res.errors.length
-          ? `Acted on ${res.matched} · ${res.errors.length} error${res.errors.length === 1 ? '' : 's'}: ${res.errors[0]}`
+        errs.length
+          ? `Acted on ${res.matched} · ${errs.length} error${errs.length === 1 ? '' : 's'}: ${errs[0]}`
           : `Acted on ${res.matched} message${res.matched === 1 ? '' : 's'}`
       )
       await reloadFilters()

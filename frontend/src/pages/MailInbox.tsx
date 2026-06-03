@@ -342,9 +342,10 @@ export default function MailInbox() {
     setFilterRunning(true); setFilterRunMsg('')
     try {
       const res = await api.imap.filters.run()
+      const errs = res.errors ?? []
       setFilterRunMsg(
-        res.errors.length
-          ? `Acted on ${res.matched} · ${res.errors.length} error${res.errors.length === 1 ? '' : 's'}: ${res.errors[0]}`
+        errs.length
+          ? `Acted on ${res.matched} · ${errs.length} error${errs.length === 1 ? '' : 's'}: ${errs[0]}`
           : `Acted on ${res.matched} message${res.matched === 1 ? '' : 's'}`
       )
       await loadFilters()
