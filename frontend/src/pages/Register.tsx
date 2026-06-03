@@ -4,6 +4,7 @@ import { api } from '../api/client'
 
 export default function Register() {
   const [form, setForm] = useState({ first_name: '', last_name: '', email: '', phone: '', notes: '' })
+  const [human, setHuman] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [submitted, setSubmitted] = useState(false)
@@ -128,6 +129,17 @@ export default function Register() {
               />
             </div>
 
+            <label className="flex items-center gap-3 border border-gray-200 rounded-lg px-4 py-3 cursor-pointer select-none hover:bg-gray-50 transition">
+              <input
+                type="checkbox"
+                checked={human}
+                onChange={e => setHuman(e.target.checked)}
+                className="w-5 h-5 accent-lota-600 cursor-pointer"
+              />
+              <span className="text-sm text-gray-700">I am not a robot</span>
+              <span className="ml-auto text-2xl">🤖</span>
+            </label>
+
             {error && (
               <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">
                 {error}
@@ -136,7 +148,7 @@ export default function Register() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !human}
               className="w-full bg-lota-600 hover:bg-lota-700 text-white font-semibold py-2.5 rounded-lg transition disabled:opacity-50"
             >
               {loading ? 'Submitting…' : 'Request Membership'}
