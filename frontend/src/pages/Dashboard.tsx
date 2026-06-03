@@ -460,15 +460,11 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Active member polls */}
-      {polls.length > 0 && (
+      {/* Unvoted polls — full-width at top */}
+      {polls.some(p => !p.has_voted) && (
         <div className="space-y-4">
-          {polls.map(poll => {
-            const voted = poll.has_voted
+          {polls.filter(p => !p.has_voted).map(poll => {
             const total = poll.total_votes
-            const pct = (opt: string) =>
-              total === 0 ? 0 : Math.round(((poll.results[opt] ?? 0) / total) * 100)
-
             const vote = async (option: string) => {
               setPollVoting(poll.id)
               try {
@@ -477,50 +473,22 @@ export default function Dashboard() {
               } catch {}
               setPollVoting(null)
             }
-
             return (
               <div key={poll.id} className="bg-white border border-lota-200 rounded-xl shadow-sm px-5 py-4">
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-xs font-semibold uppercase tracking-wider text-lota-600">Member Poll</span>
-                  {voted && <span className="text-xs text-gray-400">· You voted</span>}
                 </div>
                 <p className="font-semibold text-gray-800 mb-3">{poll.question}</p>
                 <div className="space-y-2">
                   {poll.options.map(opt => (
-                    <div key={opt}>
-                      {voted ? (
-                        <div>
-                          <div className="flex justify-between text-sm mb-0.5">
-                            <span className={`text-gray-700 ${poll.my_vote === opt ? 'font-semibold' : ''}`}>
-                              {opt} {poll.my_vote === opt && '✓'}
-                            </span>
-                            <span className="text-gray-500">{poll.results[opt] ?? 0} ({pct(opt)}%)</span>
-                          </div>
-                          <div className="w-full bg-gray-100 rounded-full h-2">
-                            <div
-                              className={`h-2 rounded-full transition-all ${poll.my_vote === opt ? 'bg-lota-600' : 'bg-gray-300'}`}
-                              style={{ width: `${pct(opt)}%` }}
-                            />
-                          </div>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => vote(opt)}
-                          disabled={pollVoting === poll.id}
-                          className="w-full text-left border border-gray-200 hover:border-lota-400 hover:bg-lota-50 rounded-lg px-4 py-2.5 text-sm text-gray-700 transition disabled:opacity-50"
-                        >
-                          {opt}
-                        </button>
-                      )}
-                    </div>
+                    <button key={opt}
+                      onClick={() => vote(opt)}
+                      disabled={pollVoting === poll.id}
+                      className="w-full text-left border border-gray-200 hover:border-lota-400 hover:bg-lota-50 rounded-lg px-4 py-2.5 text-sm text-gray-700 transition disabled:opacity-50"
+                    >{opt}</button>
                   ))}
                 </div>
-                {voted && (
-                  <p className="text-xs text-gray-400 mt-2">{total} vote{total !== 1 ? 's' : ''} · Anonymous</p>
-                )}
-                {!voted && (
-                  <p className="text-xs text-gray-400 mt-2">Anonymous · {total} vote{total !== 1 ? 's' : ''} so far</p>
-                )}
+                <p className="text-xs text-gray-400 mt-2">Anonymous · {total} vote{total !== 1 ? 's' : ''} so far</p>
               </div>
             )
           })}
@@ -1223,6 +1191,45 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      {/* Voted polls — results shown just above weather */}
+      {polls.some(p => p.has_voted) && (
+        <div className="space-y-4">
+          {polls.filter(p => p.has_voted).map(poll => {
+            const total = poll.total_votes
+            const pct = (opt: string) =>
+              total === 0 ? 0 : Math.round(((poll.results[opt] ?? 0) / total) * 100)
+            return (
+              <div key={poll.id} className="bg-white border border-gray-200 rounded-xl shadow-sm px-5 py-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-lota-600">Member Poll</span>
+                  <span className="text-xs text-green-600 font-medium">· You voted</span>
+                </div>
+                <p className="font-semibold text-gray-800 mb-3">{poll.question}</p>
+                <div className="space-y-2">
+                  {poll.options.map(opt => (
+                    <div key={opt}>
+                      <div className="flex justify-between text-sm mb-0.5">
+                        <span className={`text-gray-700 ${poll.my_vote === opt ? 'font-semibold' : ''}`}>
+                          {poll.my_vote === opt && '✓ '}{opt}
+                        </span>
+                        <span className="text-gray-500">{poll.results[opt] ?? 0} ({pct(opt)}%)</span>
+                      </div>
+                      <div className="w-full bg-gray-100 rounded-full h-2">
+                        <div
+                          className={`h-2 rounded-full transition-all ${poll.my_vote === opt ? 'bg-lota-600' : 'bg-gray-300'}`}
+                          style={{ width: `${pct(opt)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-400 mt-2">{total} vote{total !== 1 ? 's' : ''} · Anonymous</p>
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       {/* Weather */}
       {weather && <WeatherWidget weather={weather} airQuality={airQuality} />}
