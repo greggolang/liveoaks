@@ -209,6 +209,16 @@ export default function Dashboard() {
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [checkResponses, refreshAlerts, refreshSlow])
 
+  // Broadcast countdown to Layout header via custom event
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('booking-countdown', { detail: bookingCountdown }))
+  }, [bookingCountdown])
+
+  // Clear header countdown when leaving dashboard
+  useEffect(() => {
+    return () => { window.dispatchEvent(new CustomEvent('booking-countdown', { detail: null })) }
+  }, [])
+
   useEffect(() => {
     if (!isBoard) return
     const checkCamera = () =>
@@ -1015,7 +1025,6 @@ export default function Dashboard() {
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <h2 className="text-lg font-semibold text-gray-700">My Upcoming Bookings</h2>
-            <span className="text-xs text-gray-400">↻ {bookingCountdown}s</span>
           </div>
           <Link to="/bookings?tab=grid"
             className="bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-4 py-1.5 rounded-lg transition whitespace-nowrap">

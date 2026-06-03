@@ -31,6 +31,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     return () => clearInterval(id)
   }, [])
 
+  const [bookingCountdown, setBookingCountdown] = useState<number | null>(null)
+  useEffect(() => {
+    const handler = (e: Event) => setBookingCountdown((e as CustomEvent<number | null>).detail)
+    window.addEventListener('booking-countdown', handler)
+    return () => window.removeEventListener('booking-countdown', handler)
+  }, [])
+
   const [menuOpen, setMenuOpen] = useState(false)
   const [bugOpen, setBugOpen] = useState(false)
   const [bugText, setBugText] = useState('')
@@ -93,6 +100,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   </>
               }
               <span className="text-green-300 text-xs font-normal">v{APP_VERSION}</span>
+              {bookingCountdown !== null && (
+                <span className="text-green-400 text-xs tabular-nums" title="Bookings auto-refresh">↻ {bookingCountdown}s</span>
+              )}
             </Link>
 
             {/* Desktop nav */}
