@@ -39,7 +39,6 @@ import AdminWaitlist from './pages/admin/AdminWaitlist'
 import AdminMemberRequests from './pages/admin/AdminMemberRequests'
 import AdminTestEmail from './pages/admin/AdminTestEmail'
 import AdminPermissions from './pages/admin/AdminPermissions'
-import AdminBoardPermissions from './pages/admin/AdminBoardPermissions'
 import AdminFeedback from './pages/admin/AdminFeedback'
 import AdminEmailTemplates from './pages/admin/AdminEmailTemplates'
 import AdminReceipts from './pages/admin/AdminReceipts'
@@ -162,7 +161,6 @@ function AppRoutes() {
         <Route path="communication-test" element={<AdminTestEmail />} />
         <Route path="log" element={<AdminLog />} />
         <Route path="permissions" element={<AdminPermissions />} />
-        <Route path="board-access" element={<AdminBoardPermissions />} />
         <Route path="feedback" element={<AdminFeedback />} />
         <Route path="email-templates" element={<AdminEmailTemplates />} />
         <Route path="receipts" element={<AdminReceipts />} />

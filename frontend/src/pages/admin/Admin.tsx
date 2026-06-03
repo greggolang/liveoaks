@@ -19,6 +19,11 @@ const sections: Section[] = [
       { to: '/files', label: 'Files', section: 'files' },
       { to: '/photos', label: 'Photos', section: 'photos' },
       { to: '/usta-teams', label: 'USTA Teams', section: 'usta_teams' },
+    ],
+  },
+  {
+    heading: 'Main Site',
+    links: [
       { to: '/club-info', label: 'About' },
     ],
   },
@@ -88,8 +93,7 @@ const sections: Section[] = [
       { to: '/admin/broadcast', label: 'Broadcast Email', section: 'broadcast' },
       { to: '/admin/settings', label: 'Settings', section: 'settings' },
       { to: '/admin/email-templates', label: 'Email Templates', section: 'email_templates' },
-      { to: '/admin/permissions', label: 'Page Permissions' },
-      { to: '/admin/board-access', label: 'Board Access' },
+      { to: '/admin/permissions', label: 'Permissions' },
       { to: '/admin/resets', label: 'Password Resets', section: 'password_resets' },
       { to: '/admin/passwords', label: 'Password Vault' },
       { to: '/admin/communication-test', label: 'Test Communications', section: 'communication_test' },
@@ -100,7 +104,7 @@ const sections: Section[] = [
 
 // Links restricted to full admins regardless of section grants.
 const ADMIN_ONLY_LINKS = new Set([
-  '/admin/mail', '/admin/passwords', '/admin/permissions', '/admin/board-access',
+  '/admin/mail', '/admin/passwords', '/admin/permissions',
 ])
 
 export default function Admin() {
