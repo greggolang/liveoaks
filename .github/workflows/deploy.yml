@@ -102,7 +102,12 @@ jobs:
             sed -i "s|Environment=TWILIO_AUTH_TOKEN=.*|Environment=TWILIO_AUTH_TOKEN=$TWILIO_AUTH_TOKEN|" /etc/systemd/system/liveoaks.service
             sed -i "s|Environment=TWILIO_FROM=.*|Environment=TWILIO_FROM=$TWILIO_FROM|" /etc/systemd/system/liveoaks.service
             systemctl daemon-reload
-            systemctl restart liveoaks
+            systemctl restart liveoaks || true
+            sleep 5
+            echo "=== SERVICE STATUS ==="
+            systemctl status liveoaks --no-pager -l || true
+            echo "=== RECENT LOGS ==="
+            journalctl -u liveoaks -n 50 --no-pager || true
         env:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
