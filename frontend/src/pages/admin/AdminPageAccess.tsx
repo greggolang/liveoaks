@@ -26,7 +26,6 @@ const PAGE_GROUPS: { group: string; items: { key: string; label: string }[] }[] 
       { key: 'guests', label: 'Guest Passes' },
       { key: 'dues', label: 'My Dues' },
       { key: 'club_info', label: 'Club Info' },
-      { key: 'messages', label: 'Messages' },
     ],
   },
 ]

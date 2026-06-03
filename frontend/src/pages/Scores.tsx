@@ -75,14 +75,15 @@ export default function Scores() {
           <p className="text-center text-gray-400 text-sm py-16">No public match results yet.</p>
         ) : (
           <div className="border border-gray-200 rounded-xl overflow-hidden bg-white">
-            <div className="grid grid-cols-[2rem_1fr_3rem_3rem_3.5rem] gap-2 px-4 py-2 text-[11px] font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-100">
-              <span>#</span><span>Member</span><span className="text-right">W</span><span className="text-right">L</span><span className="text-right">Win%</span>
+            <div className="grid grid-cols-[2rem_1fr_2.5rem_2.5rem_2.5rem_3.5rem] gap-2 px-4 py-2 text-[11px] font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-100">
+              <span>#</span><span>Member</span><span className="text-right" title="Matches played">P</span><span className="text-right">W</span><span className="text-right">L</span><span className="text-right">Win%</span>
             </div>
             <div className="divide-y divide-gray-100">
               {leaders.map((r, i) => (
-                <div key={r.user_id} className="grid grid-cols-[2rem_1fr_3rem_3rem_3.5rem] gap-2 px-4 py-2.5 items-center text-sm">
+                <div key={r.user_id} className="grid grid-cols-[2rem_1fr_2.5rem_2.5rem_2.5rem_3.5rem] gap-2 px-4 py-2.5 items-center text-sm">
                   <span className="text-gray-400 tabular-nums">{i + 1}</span>
                   <Link to={`/players/${r.user_id}`} className="text-gray-800 hover:underline truncate">{r.name}</Link>
+                  <span className="text-right tabular-nums text-gray-500">{r.played}</span>
                   <span className="text-right tabular-nums font-semibold text-green-700">{r.wins}</span>
                   <span className="text-right tabular-nums text-gray-500">{r.losses}</span>
                   <span className="text-right tabular-nums text-gray-700">{r.win_pct}%</span>

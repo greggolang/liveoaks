@@ -20,6 +20,7 @@ const sections: Section[] = [
       { to: '/admin/member-requests', label: 'New Member Requests', section: 'member_requests' },
       { to: '/admin/waitlist', label: 'Waitlist', section: 'waitlist' },
 { to: '/admin/polls', label: 'Membership Polls' },
+      { to: '/admin/page-access', label: 'Page Access' },
     ],
   },
   {
@@ -100,7 +101,7 @@ const sections: Section[] = [
 
 // Links restricted to full admins regardless of section grants.
 const ADMIN_ONLY_LINKS = new Set([
-  '/admin/mail', '/admin/passwords', '/admin/permissions',
+  '/admin/mail', '/admin/passwords', '/admin/permissions', '/admin/page-access',
 ])
 
 export default function Admin() {

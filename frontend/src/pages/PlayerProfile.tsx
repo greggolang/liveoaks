@@ -78,9 +78,12 @@ export default function PlayerProfile() {
               <h2 className="text-lg font-semibold text-gray-700 mb-2">Head-to-head</h2>
               <div className="border border-gray-200 rounded-xl overflow-hidden divide-y divide-gray-100 bg-white">
                 {data.head_to_head.map(h => (
-                  <div key={h.user_id} className="flex items-center justify-between px-4 py-2.5">
-                    <Link to={`/players/${h.user_id}`} className="text-sm text-gray-700 hover:underline">{h.name}</Link>
-                    <span className="text-sm tabular-nums">
+                  <div key={h.user_id} className="flex items-center justify-between px-4 py-2.5 gap-3">
+                    <div className="min-w-0">
+                      <Link to={`/players/${h.user_id}`} className="text-sm text-gray-700 hover:underline">{h.name}</Link>
+                      <div className="text-[11px] text-gray-400">{h.played} {h.played === 1 ? 'match' : 'matches'}</div>
+                    </div>
+                    <span className="text-sm tabular-nums shrink-0">
                       <span className={h.wins >= h.losses ? 'text-green-700 font-semibold' : 'text-gray-700'}>{h.wins}</span>
                       <span className="text-gray-400"> – </span>
                       <span className={h.losses > h.wins ? 'text-red-600 font-semibold' : 'text-gray-700'}>{h.losses}</span>
