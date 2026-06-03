@@ -47,6 +47,15 @@ interface Announcement {
   require_confirmation: boolean; confirmed: boolean
 }
 
+// Safari/iOS rejects datetime strings without an explicit timezone (e.g.
+// "2026-06-05T10:00:00" → Invalid Date). Append Z if no offset is present.
+function parseDate(s: string): Date {
+  if (s && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(s) && !/[Zz]|[+-]\d{2}:?\d{2}$/.test(s)) {
+    return new Date(s + 'Z')
+  }
+  return new Date(s)
+}
+
 function readKey(userId: string) { return `news_read_${userId}` }
 
 function loadRead(userId: string): Set<string> {
@@ -245,7 +254,7 @@ export default function Dashboard() {
       const now = new Date()
       const in7days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
       setUpcomingEvents((d as Event[]).filter(e => {
-        const t = new Date(e.start_time)
+        const t = parseDate(e.start_time)
         return t >= now && t <= in7days
       }))
     }).catch(() => {})
@@ -261,8 +270,8 @@ export default function Dashboard() {
   }, [])
 
   const openEdit = (b: Booking) => {
-    const dHours = (new Date(b.end_time).getTime() - new Date(b.start_time).getTime()) / 3600000
-    const s = new Date(b.start_time)
+    const dHours = (parseDate(b.end_time).getTime() - parseDate(b.start_time).getTime()) / 3600000
+    const s = parseDate(b.start_time)
     const startSlot = s.getHours() + s.getMinutes() / 60
     setEditForm({ duration: dHours <= 1 ? 1 : 1.5, matchType: b.match_type ?? 'casual', startSlot })
     setEditError('')
@@ -273,7 +282,7 @@ export default function Dashboard() {
     setEditSaving(true)
     setEditError('')
     try {
-      const orig = new Date(b.start_time)
+      const orig = parseDate(b.start_time)
       const dateStr = `${orig.getFullYear()}-${String(orig.getMonth()+1).padStart(2,'0')}-${String(orig.getDate()).padStart(2,'0')}`
       const h = Math.floor(editForm.startSlot)
       const m = editForm.startSlot % 1 === 0.5 ? '30' : '00'
@@ -522,7 +531,7 @@ export default function Dashboard() {
       {(() => {
         const unpaidDues = dues.filter(d => d.status !== 'paid')
         const soonBooking = myBookings.find(b => {
-          const mins = (new Date(b.start_time).getTime() - Date.now()) / 60000
+          const mins = (parseDate(b.start_time).getTime() - Date.now()) / 60000
           return mins > 0 && mins <= 120
         })
         const openSpotBookings = myBookings.filter(b =>
@@ -534,7 +543,7 @@ export default function Dashboard() {
 
         // Board meeting invitations
         boardMeetingInvites.forEach(bm => {
-          const start = new Date(bm.start_time)
+          const start = parseDate(bm.start_time)
           const dateStr = start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
           const timeStr = start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
           if (bm.status === 'invited') {
@@ -608,7 +617,7 @@ export default function Dashboard() {
 
         // LiveBall invitations
         liveballInvites.forEach(lb => {
-          const start = new Date(lb.start_time)
+          const start = parseDate(lb.start_time)
           const dateStr = start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
           const timeStr = start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 
@@ -680,7 +689,7 @@ export default function Dashboard() {
 
         // Invitations received — need response
         pendingInvites.forEach(inv => {
-          const start = new Date(inv.start_time)
+          const start = parseDate(inv.start_time)
           const dateStr = start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
           const timeStr = start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
           alerts.push(
@@ -713,7 +722,7 @@ export default function Dashboard() {
 
         // Invitations you sent — accepted or declined
         responseAlerts.forEach(r => {
-            const start = new Date(r.start_time)
+            const start = parseDate(r.start_time)
             const dateStr = start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
             const timeStr = start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
             const accepted = r.status === 'accepted'
@@ -836,7 +845,7 @@ export default function Dashboard() {
 
         // Invitations you sent — still waiting for a response
         sentPending.forEach(p => {
-          const start = new Date(p.start_time)
+          const start = parseDate(p.start_time)
           const dateStr = start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
           const timeStr = start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
           alerts.push(
@@ -878,7 +887,7 @@ export default function Dashboard() {
         }
 
         upcomingEvents.forEach(ev => {
-          const start = new Date(ev.start_time)
+          const start = parseDate(ev.start_time)
           const dateStr = start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
           alerts.push(
             <div key={ev.id} className="flex items-start gap-3 bg-purple-50 border border-purple-200 rounded-xl px-4 py-3">
@@ -1059,8 +1068,8 @@ export default function Dashboard() {
         ) : (
           <div className="space-y-3">
             {myBookings.map(b => {
-              const start = new Date(b.start_time)
-              const end = new Date(b.end_time)
+              const start = parseDate(b.start_time)
+              const end = parseDate(b.end_time)
               const isEditing = editingId === b.id
               const matchLabel = b.match_type === 'ball_machine' ? '🤖 Ball Machine'
                 : b.match_type === 'singles' ? 'Singles'
@@ -1370,10 +1379,10 @@ function Toast({ response, onDismiss }: { response: InviteResponse; onDismiss: (
   }, [])
 
   const accepted = response.status === 'accepted'
-  const date = new Date(response.start_time).toLocaleDateString('en-US', {
+  const date = parseDate(response.start_time).toLocaleDateString('en-US', {
     weekday: 'short', month: 'short', day: 'numeric',
   })
-  const time = new Date(response.start_time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  const time = parseDate(response.start_time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 
   return (
     <div className={`flex items-start gap-3 w-80 rounded-xl shadow-lg border px-4 py-3 text-sm
