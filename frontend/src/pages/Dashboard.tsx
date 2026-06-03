@@ -731,6 +731,7 @@ export default function Dashboard() {
                                         })
                                         setInviteSent(true)
                                         setSentPending(p => [...p, { id: 'tmp', booking_id: r.booking_id, invitee_name: f.friend_name, court_name: r.court_name, start_time: r.start_time, sent_at: new Date().toISOString() }])
+                                        setTimeout(() => dismissAlert(r.id), 1500)
                                       } catch {} finally { setInviteSending(false) }
                                     }}
                                     className="text-xs px-2.5 py-1 rounded-full border border-gray-200 text-gray-700 hover:border-red-400 hover:text-red-700 bg-white transition disabled:opacity-50">
@@ -769,6 +770,7 @@ export default function Dashboard() {
                                             })
                                             setInviteSent(true)
                                             setInviteSearch('')
+                                            setTimeout(() => dismissAlert(r.id), 1500)
                                           } catch {} finally { setInviteSending(false) }
                                         }}
                                         className="text-xs bg-red-700 text-white px-2 py-1 rounded hover:bg-red-800 transition disabled:opacity-50">
