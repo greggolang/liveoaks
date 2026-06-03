@@ -14,7 +14,6 @@ const sections: Section[] = [
     heading: 'Content',
     links: [
       { to: '/events', label: 'Events', section: 'events_admin' },
-      { to: '/photos', label: 'Photos', section: 'photos' },
       { to: '/usta-teams', label: 'USTA Teams', section: 'usta_teams' },
     ],
   },
@@ -95,6 +94,7 @@ const sections: Section[] = [
     heading: 'System',
     links: [
       { to: '/files', label: 'Files', section: 'files' },
+      { to: '/photos', label: 'Photos', section: 'photos' },
       { to: '/admin/mail', label: 'Mail Accounts' },
       { to: '/admin/broadcast', label: 'Broadcast Email', section: 'broadcast' },
       { to: '/admin/settings', label: 'Settings', section: 'settings' },
