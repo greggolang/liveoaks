@@ -1,3 +1,30 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ── iPhone PWA & Mobile Safari fixes ──────────────────────────────────── */
+
+/* Prevent iOS from inflating text size on orientation change */
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  /* Disable the elastic overscroll bounce that makes the app feel like a webpage */
+  overscroll-behavior: none;
+}
+
+/* Remove the blue semi-transparent tap-flash that shows on every touchable element */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Prevent iOS from zooming the viewport when an input is focused.
+   Safari zooms whenever the computed font-size is below 16px.
+   max(16px, 1em) keeps the size at 1em if it's already ≥ 16px, otherwise
+   clamps to 16px — invisible difference but prevents the jarring zoom. */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+select,
+textarea {
+  font-size: max(16px, 1em);
+}

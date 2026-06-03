@@ -87,7 +87,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <nav className="bg-green-700 text-white shadow-md sticky top-0 z-40">
+      {/* paddingTop: env(safe-area-inset-top) pulls nav content below the iOS status bar.
+           The nav's green background fills the status bar area behind it (black-translucent mode). */}
+      <nav className="bg-green-700 text-white shadow-md sticky top-0 z-40"
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <Link to="/dashboard" className="flex items-center gap-2 shrink-0">
@@ -201,6 +204,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       )}
 
       <main className="max-w-7xl mx-auto px-4 py-5 sm:py-8">{children}</main>
+      {/* Spacer so content is never hidden behind the iPhone home indicator */}
+      <div style={{ height: 'env(safe-area-inset-bottom)' }} />
 
       {/* Bug report modal */}
       {bugOpen && (

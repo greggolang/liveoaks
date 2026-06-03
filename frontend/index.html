@@ -2,13 +2,24 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover lets content fill behind the notch/dynamic island.
+         We handle safe areas in CSS/JS so nothing important gets clipped. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Live Oaks Tennis Club</title>
-    <meta name="theme-color" content="#ffffff" />
+
+    <!-- Match the app's dark green nav so Android/Chrome tints the browser chrome -->
+    <meta name="theme-color" content="#2c4a2e" />
+
+    <!-- iOS PWA / Add to Home Screen -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <!-- black-translucent = status bar is transparent; nav background fills behind it.
+         Combined with padding-top: env(safe-area-inset-top) on the sticky nav this
+         gives a seamless full-bleed green header all the way to the top edge. -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Live Oaks" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.svg" />
+    <!-- iOS ignores webmanifest icons — must be a PNG apple-touch-icon.
+         lota-logo.png is 539x539 which iOS scales down to 180x180. -->
+    <link rel="apple-touch-icon" href="/lota-logo.png" />
   </head>
   <body>
     <div id="root"></div>

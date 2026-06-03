@@ -11,11 +11,17 @@ export default defineConfig({
         name: 'Live Oaks Tennis Club',
         short_name: 'Live Oaks',
         description: 'Live Oaks Tennis Club member portal',
-        theme_color: '#ffffff',
-        background_color: '#ffffff',
+        theme_color: '#2c4a2e',
+        background_color: '#2c4a2e',
         display: 'standalone',
         start_url: '/',
         icons: [
+          {
+            src: '/lota-logo.png',
+            sizes: '539x539',
+            type: 'image/png',
+            purpose: 'any',
+          },
           {
             src: '/pwa-192x192.svg',
             sizes: '192x192',
@@ -25,7 +31,7 @@ export default defineConfig({
             src: '/pwa-512x512.svg',
             sizes: '512x512',
             type: 'image/svg+xml',
-            purpose: 'any maskable',
+            purpose: 'maskable',
           },
         ],
       },
