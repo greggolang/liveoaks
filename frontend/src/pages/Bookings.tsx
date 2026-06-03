@@ -137,6 +137,11 @@ export default function Bookings() {
   // Add player directly (roster panel)
   const [addPlayerMode, setAddPlayerMode] = useState<'member' | 'guest' | null>(null)
   const [addPlayerQuery, setAddPlayerQuery] = useState('')
+  // Replace a pending invite inline
+  const [replacingInviteId, setReplacingInviteId] = useState<string | null>(null)
+  const [replaceQuery, setReplaceQuery] = useState('')
+  const [replaceResults, setReplaceResults] = useState<{id: string; first_name: string; last_name: string; email: string}[]>([])
+  const [replacing, setReplacing] = useState(false)
   const [addPlayerResults, setAddPlayerResults] = useState<{id: string; first_name: string; last_name: string; email: string; isFamilyMember?: boolean; relationship?: string}[]>([])
   const [guestAddForm, setGuestAddForm] = useState({ name: '', email: '' })
   const [addingPlayer, setAddingPlayer] = useState(false)
@@ -362,6 +367,33 @@ export default function Bookings() {
       })
       await refreshRoster(bookingId)
     } finally { setInviting(false) }
+  }
+
+  const searchReplace = (q: string, roster: { players: MatchPlayer[]; invitations: Invitation[] } | null) => {
+    setReplaceQuery(q)
+    if (q.length < 2) { setReplaceResults([]); return }
+    const lower = q.toLowerCase()
+    setReplaceResults(
+      directory.filter(m =>
+        m.id !== user?.id &&
+        !roster?.players.some(p => p.player_email === m.email) &&
+        !roster?.invitations.some(i => i.invitee_email === m.email && i.status === 'pending') &&
+        (`${m.first_name} ${m.last_name}`.toLowerCase().includes(lower) || m.email.toLowerCase().includes(lower))
+      ).slice(0, 8)
+    )
+  }
+
+  const doReplace = async (bookingId: string, oldInviteId: string, m: {id: string; first_name: string; last_name: string; email: string}) => {
+    setReplacing(true)
+    try {
+      await api.invitations.cancel(oldInviteId)
+      await api.invitations.send(bookingId, { invitee_user_id: m.id, invitee_name: `${m.first_name} ${m.last_name}`, invitee_email: m.email, is_guest: false })
+      setReplacingInviteId(null)
+      setReplaceQuery('')
+      setReplaceResults([])
+      await refreshRoster(bookingId)
+    } catch {}
+    setReplacing(false)
   }
 
   const searchMemberInvite = (q: string, roster: { players: MatchPlayer[]; invitations: Invitation[] } | null) => {
@@ -1546,14 +1578,56 @@ export default function Bookings() {
                                 </div>
                               ))}
                               {roster.invitations.filter(i => i.status === 'pending').map(i => (
-                                <div key={i.id} className="flex items-center gap-2 text-sm">
-                                  <span className="w-5 h-5 bg-yellow-100 text-yellow-600 rounded-full flex items-center justify-center text-xs shrink-0">⏳</span>
-                                  <span className="text-gray-500 truncate">{i.invitee_name}</span>
-                                  {i.is_guest && <span className="text-xs bg-orange-100 text-orange-600 px-1.5 rounded shrink-0">Guest</span>}
-                                  <button onClick={() => api.invitations.cancel(i.id).then(() => refreshRoster(b.id))}
-                                    className="ml-auto text-xs text-red-400 hover:text-red-600 shrink-0 transition">
-                                    Cancel
-                                  </button>
+                                <div key={i.id}>
+                                  <div className="flex items-center gap-2 text-sm">
+                                    <span className="w-5 h-5 bg-yellow-100 text-yellow-600 rounded-full flex items-center justify-center text-xs shrink-0">⏳</span>
+                                    <span className="text-gray-500 truncate">{i.invitee_name}</span>
+                                    {i.is_guest && <span className="text-xs bg-orange-100 text-orange-600 px-1.5 rounded shrink-0">Guest</span>}
+                                    <div className="ml-auto flex gap-2 shrink-0">
+                                      <button
+                                        onClick={() => {
+                                          setReplacingInviteId(replacingInviteId === i.id ? null : i.id)
+                                          setReplaceQuery('')
+                                          setReplaceResults([])
+                                        }}
+                                        className="text-xs text-lota-600 hover:text-lota-800 transition">
+                                        {replacingInviteId === i.id ? 'Close' : 'Replace'}
+                                      </button>
+                                      <button onClick={() => api.invitations.cancel(i.id).then(() => refreshRoster(b.id))}
+                                        className="text-xs text-red-400 hover:text-red-600 transition">
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  </div>
+                                  {replacingInviteId === i.id && (
+                                    <div className="mt-2 ml-7">
+                                      <input
+                                        autoFocus
+                                        value={replaceQuery}
+                                        onChange={e => searchReplace(e.target.value, roster)}
+                                        placeholder="Search member to replace…"
+                                        className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-lota-500 bg-white"
+                                      />
+                                      {replaceResults.length > 0 && (
+                                        <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 bg-white max-h-36 overflow-y-auto mt-1">
+                                          {replaceResults.map(m => (
+                                            <div key={m.id} className="flex items-center justify-between px-3 py-1.5">
+                                              <div>
+                                                <div className="text-xs font-medium text-gray-800">{m.first_name} {m.last_name}</div>
+                                                <div className="text-xs text-gray-400">{m.email}</div>
+                                              </div>
+                                              <button
+                                                onClick={() => doReplace(b.id, i.id, m)}
+                                                disabled={replacing}
+                                                className="text-xs bg-lota-600 text-white px-2 py-1 rounded hover:bg-lota-700 transition disabled:opacity-50">
+                                                Replace
+                                              </button>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
                               ))}
                             </div>
