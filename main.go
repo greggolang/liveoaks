@@ -219,6 +219,7 @@ func main() {
 	authed.GET("/conversations/:id", conversations.Get)
 	authed.POST("/conversations/:id/messages", conversations.Send)
 	authed.POST("/conversations/:id/read", conversations.MarkRead)
+	authed.POST("/conversations/:id/mute", conversations.Mute)
 	authed.DELETE("/conversations/:id", conversations.Leave)
 
 	// Friends

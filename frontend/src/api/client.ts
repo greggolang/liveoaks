@@ -80,11 +80,11 @@ export interface IMAPMessage {
 
 export interface ConvSummary {
   id: string; title: string | null; participants: string; member_count: number
-  last_body: string | null; last_sender_name: string | null; last_at: string | null; unread: number
+  last_body: string | null; last_sender_name: string | null; last_at: string | null; unread: number; muted: boolean
 }
 export interface ConvPerson { id: string; name: string }
 export interface ConvMessage { id: string; sender_id: string | null; sender_name: string; body: string; created_at: string }
-export interface ConvDetail { id: string; title: string | null; participants: ConvPerson[]; messages: ConvMessage[] }
+export interface ConvDetail { id: string; title: string | null; muted: boolean; participants: ConvPerson[]; messages: ConvMessage[] }
 
 export type MailFilterInput = {
   name: string
@@ -794,6 +794,8 @@ export const api = {
     send: (id: string, body: string) =>
       request(`/conversations/${id}/messages`, { method: 'POST', body: JSON.stringify({ body }) }),
     markRead: (id: string) => request(`/conversations/${id}/read`, { method: 'POST' }),
+    mute: (id: string, muted: boolean) =>
+      request(`/conversations/${id}/mute`, { method: 'POST', body: JSON.stringify({ muted }) }),
     leave: (id: string) => request(`/conversations/${id}`, { method: 'DELETE' }),
   },
   kiosk: {

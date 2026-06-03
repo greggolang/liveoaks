@@ -1,9 +1,12 @@
 package handlers
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"time"
 
+	"github.com/greggolang/liveoaks/internal/notifprefs"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
 )
@@ -26,6 +29,7 @@ type convSummary struct {
 	LastSender   *string    `json:"last_sender_name"`
 	LastAt       *time.Time `json:"last_at"`
 	Unread       int        `json:"unread"`
+	Muted        bool       `json:"muted"`
 }
 
 type convPerson struct {
@@ -67,7 +71,8 @@ func (h *ConversationsHandler) List(c echo.Context) error {
 		       (SELECT m.created_at FROM conversation_messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1),
 		       (SELECT COUNT(*) FROM conversation_messages m
 		         WHERE m.conversation_id = c.id AND m.sender_id <> $1
-		           AND (cp.last_read_at IS NULL OR m.created_at > cp.last_read_at))
+		           AND (cp.last_read_at IS NULL OR m.created_at > cp.last_read_at)),
+		       cp.muted
 		FROM conversations c
 		JOIN conversation_participants cp ON cp.conversation_id = c.id AND cp.user_id = $1
 		WHERE cp.hidden = false
@@ -81,7 +86,7 @@ func (h *ConversationsHandler) List(c echo.Context) error {
 	for rows.Next() {
 		var s convSummary
 		if err := rows.Scan(&s.ID, &s.Title, &s.Participants, &s.MemberCount,
-			&s.LastBody, &s.LastSender, &s.LastAt, &s.Unread); err != nil {
+			&s.LastBody, &s.LastSender, &s.LastAt, &s.Unread, &s.Muted); err != nil {
 			continue
 		}
 		out = append(out, s)
@@ -100,7 +105,9 @@ func (h *ConversationsHandler) Get(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	var title *string
+	var muted bool
 	h.DB.QueryRow(ctx, `SELECT title FROM conversations WHERE id = $1`, convID).Scan(&title)
+	h.DB.QueryRow(ctx, `SELECT muted FROM conversation_participants WHERE conversation_id=$1 AND user_id=$2`, convID, userID).Scan(&muted)
 
 	people := []convPerson{}
 	prows, err := h.DB.Query(ctx, `
@@ -139,11 +146,10 @@ func (h *ConversationsHandler) Get(c echo.Context) error {
 		mrows.Close()
 	}
 
-	// Mark read.
 	h.DB.Exec(ctx, `UPDATE conversation_participants SET last_read_at = NOW() WHERE conversation_id = $1 AND user_id = $2`, convID, userID)
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
-		"id": convID, "title": title, "participants": people, "messages": msgs,
+		"id": convID, "title": title, "muted": muted, "participants": people, "messages": msgs,
 	})
 }
 
@@ -162,7 +168,6 @@ func (h *ConversationsHandler) Create(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "a message is required")
 	}
 
-	// Build the participant set: creator plus the chosen members, deduped.
 	set := map[string]bool{userID: true}
 	for _, id := range req.ParticipantIDs {
 		if id != "" {
@@ -189,7 +194,7 @@ func (h *ConversationsHandler) Create(c echo.Context) error {
 	for uid := range set {
 		var lastRead interface{}
 		if uid == userID {
-			lastRead = time.Now() // creator has seen their own opening message
+			lastRead = time.Now()
 		}
 		h.DB.Exec(ctx,
 			`INSERT INTO conversation_participants (conversation_id, user_id, last_read_at)
@@ -199,6 +204,10 @@ func (h *ConversationsHandler) Create(c echo.Context) error {
 	h.DB.Exec(ctx,
 		`INSERT INTO conversation_messages (conversation_id, sender_id, body) VALUES ($1, $2, $3)`,
 		convID, userID, req.Body)
+
+	// Everyone is caught up at creation, so the opening message notifies them all
+	// (subject to mute / preferences) — handled by the same path as a reply.
+	h.notifyParticipants(convID, userID, req.Body)
 
 	return c.JSON(http.StatusCreated, map[string]string{"id": convID})
 }
@@ -228,7 +237,87 @@ func (h *ConversationsHandler) Send(c echo.Context) error {
 	h.DB.Exec(ctx, `UPDATE conversation_participants SET hidden = false WHERE conversation_id = $1`, convID)
 	h.DB.Exec(ctx, `UPDATE conversation_participants SET last_read_at = NOW() WHERE conversation_id = $1 AND user_id = $2`, convID, userID)
 
+	h.notifyParticipants(convID, userID, req.Body)
+
 	return c.JSON(http.StatusCreated, map[string]string{"status": "sent"})
+}
+
+// notifyParticipants emails a group message to the members who were caught up
+// (zero unread before this message), aren't muted, and want member-message email.
+// "Notify on first unread": once someone has unread, replies stop emailing them
+// until they read again, so a busy thread never spams.
+//
+// It must run AFTER the new message is inserted, so it ignores that message when
+// deciding who was caught up (a member is caught up if their only unread is the
+// one just sent).
+func (h *ConversationsHandler) notifyParticipants(convID, senderID, body string) {
+	if h.Mailer == nil {
+		return
+	}
+	ctx := context.Background()
+
+	var senderName, title string
+	h.DB.QueryRow(ctx, `SELECT first_name || ' ' || last_name FROM users WHERE id=$1`, senderID).Scan(&senderName)
+	h.DB.QueryRow(ctx, `SELECT COALESCE(title, '') FROM conversations WHERE id=$1`, convID).Scan(&title)
+	groupName := title
+	if groupName == "" {
+		groupName = "your group conversation"
+	}
+
+	// A member is "caught up" if they have no unread other than the message just
+	// sent — i.e. exactly one unread (this one) or fewer when counting != them.
+	rows, err := h.DB.Query(ctx, `
+		SELECT u.id, u.email, u.first_name
+		FROM conversation_participants cp
+		JOIN users u ON u.id = cp.user_id
+		WHERE cp.conversation_id = $1 AND cp.user_id <> $2 AND cp.muted = false AND u.email <> ''
+		  AND (SELECT COUNT(*) FROM conversation_messages m
+		         WHERE m.conversation_id = $1 AND m.sender_id <> u.id
+		           AND (cp.last_read_at IS NULL OR m.created_at > cp.last_read_at)) <= 1`,
+		convID, senderID)
+	if err != nil {
+		return
+	}
+	type target struct{ id, email, first string }
+	var targets []target
+	for rows.Next() {
+		var t target
+		if rows.Scan(&t.id, &t.email, &t.first) == nil {
+			targets = append(targets, t)
+		}
+	}
+	rows.Close()
+
+	for _, t := range targets {
+		t := t
+		go func() {
+			if notifprefs.UserWantsEmail(ctx, h.DB, t.id, "member_message") {
+				h.sendGroupNotification(t.email, t.first, senderName, groupName, body)
+			}
+		}()
+	}
+}
+
+func (h *ConversationsHandler) sendGroupNotification(to, recipientFirst, senderName, groupName, body string) {
+	preview := body
+	if len(preview) > 200 {
+		preview = preview[:200] + "…"
+	}
+	html := fmt.Sprintf(`
+<div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
+  <h2 style="color:#15803d">💬 New message in %s</h2>
+  <p>Hi %s,</p>
+  <p><strong>%s</strong> posted in <strong>%s</strong>:</p>
+  <div style="background:#f0fdf4;border-left:4px solid #15803d;border-radius:0 8px 8px 0;padding:16px;margin:20px 0">
+    <div style="color:#374151;white-space:pre-wrap;font-size:14px">%s</div>
+  </div>
+  <p style="margin-top:24px">
+    <a href="%s/messages" style="background:#15803d;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block">Open conversation →</a>
+  </p>
+  <p style="color:#9ca3af;font-size:12px;margin-top:16px">You'll only get one email per conversation until you read it — or mute it from the chat.</p>
+</div>`, groupName, recipientFirst, senderName, groupName, preview, h.SiteURL)
+
+	h.Mailer.Send(to, fmt.Sprintf("New message in %s – Liveoaks TC", groupName), html)
 }
 
 // MarkRead advances the current user's read marker to now.
@@ -241,8 +330,21 @@ func (h *ConversationsHandler) MarkRead(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
-// Leave hides a conversation for the current user (their own copy). A future
-// message in it will resurface it.
+// Mute toggles email notifications for the current user on one conversation.
+func (h *ConversationsHandler) Mute(c echo.Context) error {
+	userID := c.Get("user_id").(string)
+	convID := c.Param("id")
+	var req struct {
+		Muted bool `json:"muted"`
+	}
+	c.Bind(&req)
+	h.DB.Exec(c.Request().Context(),
+		`UPDATE conversation_participants SET muted = $1 WHERE conversation_id = $2 AND user_id = $3`,
+		req.Muted, convID, userID)
+	return c.NoContent(http.StatusNoContent)
+}
+
+// Leave hides a conversation for the current user. A future message resurfaces it.
 func (h *ConversationsHandler) Leave(c echo.Context) error {
 	userID := c.Get("user_id").(string)
 	convID := c.Param("id")

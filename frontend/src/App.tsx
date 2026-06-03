@@ -8,6 +8,7 @@ import ResetPassword from './pages/ResetPassword'
 import Waitlist from './pages/Waitlist'
 import Home from './pages/Home'
 import Dashboard from './pages/Dashboard'
+import Conditions from './pages/Conditions'
 import Bookings from './pages/Bookings'
 import CourtGrid from './pages/CourtGrid'
 import Announcements from './pages/Announcements'
@@ -129,6 +130,7 @@ function AppRoutes() {
 
       {/* Member pages */}
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+      <Route path="/conditions" element={<ProtectedRoute><Conditions /></ProtectedRoute>} />
       <Route path="/bookings" element={<ProtectedRoute><Bookings /></ProtectedRoute>} />
       <Route path="/court-grid" element={<Navigate to="/dashboard" replace />} />
       <Route path="/announcements" element={<ProtectedRoute><Announcements /></ProtectedRoute>} />

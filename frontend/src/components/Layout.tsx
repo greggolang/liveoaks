@@ -116,6 +116,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             {/* Desktop nav */}
             <div className="hidden md:flex items-center gap-5 text-sm font-medium flex-wrap justify-end">
               {hasPermission('bookings') && <NavLink to="/bookings?tab=grid" className={navLink}>Book a Court</NavLink>}
+              <NavLink to="/conditions" className={navLink}>Conditions</NavLink>
               {hasPermission('events') && <NavLink to="/events" className={navLink}>Events</NavLink>}
               {hasPermission('pro_shop') && <NavLink to="/pro-shop" className={navLink}>Pro Shop</NavLink>}
               {hasPermission('directory') && <NavLink to="/directory" className={navLink}>Directory</NavLink>}
@@ -174,6 +175,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <div className="md:hidden mt-3 pb-2 border-t border-green-600 flex flex-col gap-2 pt-3 text-sm">
               {[
                 hasPermission('bookings')  && ['/bookings?tab=grid', 'Book a Court'],
+                ['/conditions', 'Conditions'],
                 hasPermission('events')    && ['/events', 'Events'],
                 hasPermission('pro_shop')  && ['/pro-shop', 'Pro Shop'],
                 hasPermission('directory') && ['/directory', 'Directory'],

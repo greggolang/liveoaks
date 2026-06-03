@@ -176,6 +176,16 @@ export default function Messages() {
     } finally { setReplySending(false) }
   }
 
+  async function toggleMute() {
+    if (selected?.kind !== 'group' || !groupDetail) return
+    const next = !groupDetail.muted
+    try {
+      await api.conversations.mute(selected.convId, next)
+      setGroupDetail(d => d ? { ...d, muted: next } : d)
+      setGroups(prev => prev.map(g => g.id === selected.convId ? { ...g, muted: next } : g))
+    } catch { /* ignore */ }
+  }
+
   // Member search
   useEffect(() => {
     if (searchRef.current) clearTimeout(searchRef.current)
@@ -347,6 +357,15 @@ export default function Messages() {
                   <p className="text-xs text-gray-400 truncate">{groupDetail.participants.map(p => p.name.split(' ')[0]).join(', ')}</p>
                 )}
               </div>
+              {selected.kind === 'group' && groupDetail && (
+                <button onClick={toggleMute} title={groupDetail.muted ? 'Muted — tap to unmute' : 'Mute notifications'}
+                  className={`p-1.5 rounded-lg transition shrink-0 ${groupDetail.muted ? 'text-amber-600 hover:bg-amber-100' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'}`}>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                    {groupDetail.muted && <path strokeLinecap="round" strokeWidth={2} d="M3 3l18 18" />}
+                  </svg>
+                </button>
+              )}
               <button onClick={() => setDeletingKey(selected.key)} title={selected.kind === 'group' ? 'Leave conversation' : 'Delete conversation'}
                 className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition shrink-0">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

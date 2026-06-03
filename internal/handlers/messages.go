@@ -175,6 +175,15 @@ func (h *MessagesHandler) Send(c echo.Context) error {
 		replyToPtr = &req.ReplyTo
 	}
 
+	// "Notify on first unread": only email if the recipient is currently caught up
+	// with this sender (no existing unread from them). Once they have unread, later
+	// replies don't re-email until they read again — so a back-and-forth never spams.
+	var priorUnread int
+	h.DB.QueryRow(c.Request().Context(),
+		`SELECT COUNT(*) FROM member_messages
+		 WHERE recipient_id = $1 AND sender_id = $2 AND read_at IS NULL AND deleted_by_recipient = false`,
+		req.RecipientID, senderID).Scan(&priorUnread)
+
 	var msg MemberMessage
 	err := h.DB.QueryRow(c.Request().Context(), `
 		INSERT INTO member_messages (sender_id, recipient_id, subject, body, reply_to)
@@ -194,8 +203,9 @@ func (h *MessagesHandler) Send(c echo.Context) error {
 		senderID, msg.SenderName, "",
 		req.RecipientID, msg.RecipientName, recipientEmail)
 
-	// Email notification — async so the API returns fast.
-	if h.Mailer != nil {
+	// Email notification — async so the API returns fast. Skipped when the
+	// recipient already has unread from this sender (see priorUnread above).
+	if h.Mailer != nil && priorUnread == 0 {
 		senderName := senderFirst + " " + senderLast
 		recipID := req.RecipientID
 		go func() {
