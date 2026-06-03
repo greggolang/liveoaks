@@ -129,7 +129,8 @@ export default function AdminMail() {
   async function refreshStat(id: string) {
     setStats(s => ({ ...s, [id]: 'loading' }))
     try {
-      setStats(s => ({ ...s, [id]: await api.mail.stats(id) }))
+      const stat = await api.mail.stats(id)
+      setStats(s => ({ ...s, [id]: stat }))
     } catch {
       setStats(s => ({ ...s, [id]: 'error' }))
     }
