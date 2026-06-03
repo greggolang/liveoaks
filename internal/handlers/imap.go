@@ -94,6 +94,22 @@ func imapConnect(host, address, password string) (*imapclient.Client, error) {
 	return c, nil
 }
 
+// smtpSend delivers msg via port 587, falling back to localhost when the
+// external hostname fails (hairpin NAT — app and mail server on same host).
+func smtpSend(host, address, password string, msg *gomail.Message) error {
+	tlsCfg := &tls.Config{ServerName: host}
+	var lastErr error
+	for _, smtpHost := range []string{host, "localhost"} {
+		d := gomail.NewDialer(smtpHost, 587, address, password)
+		d.TLSConfig = tlsCfg
+		d.Timeout = 15 * time.Second
+		if lastErr = d.DialAndSend(msg); lastErr == nil {
+			return nil
+		}
+	}
+	return lastErr
+}
+
 func formatAddr(addrs []*imap.Address) string {
 	if len(addrs) == 0 {
 		return ""
@@ -427,20 +443,8 @@ func (h *IMAPHandler) SendMessage(c echo.Context) error {
 		}
 	}
 
-	d := gomail.NewDialer(host, 587, address, password)
-	d.TLSConfig = &tls.Config{ServerName: host}
-	d.Timeout = 15 * time.Second
-
-	type result struct{ err error }
-	ch := make(chan result, 1)
-	go func() { ch <- result{d.DialAndSend(msg)} }()
-	select {
-	case r := <-ch:
-		if r.err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, "send failed: "+r.err.Error())
-		}
-	case <-time.After(20 * time.Second):
-		return echo.NewHTTPError(http.StatusGatewayTimeout, "SMTP timed out")
+	if err := smtpSend(host, address, password, msg); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "send failed: "+err.Error())
 	}
 
 	// Save a copy to the Sent folder via IMAP so it appears in the Sent tab.
