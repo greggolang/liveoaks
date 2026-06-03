@@ -11,13 +11,6 @@ type Section = { heading: string; links: LinkItem[] }
 
 const sections: Section[] = [
   {
-    heading: 'Content',
-    links: [
-      { to: '/events', label: 'Events', section: 'events_admin' },
-      { to: '/usta-teams', label: 'USTA Teams', section: 'usta_teams' },
-    ],
-  },
-  {
     heading: 'Main Site',
     links: [
       { to: '/admin/content', label: 'Content' },
@@ -27,6 +20,8 @@ const sections: Section[] = [
     heading: 'Members',
     links: [
       { to: '/admin/users', label: 'Members', section: 'members' },
+      { to: '/events', label: 'Events', section: 'events_admin' },
+      { to: '/usta-teams', label: 'USTA Teams', section: 'usta_teams' },
       { to: '/announcements', label: 'Announcements', section: 'announcements' },
       { to: '/admin/member-requests', label: 'New Member Requests', section: 'member_requests' },
       { to: '/admin/waitlist', label: 'Waitlist', section: 'waitlist' },
