@@ -41,12 +41,30 @@ func (m *DBMailer) build() *Mailer {
 		}
 	}
 
+	fromAddr := or("smtp_from", m.Fallback.From)
+	username := or("smtp_user", m.Fallback.Username)
+	password := or("smtp_pass", m.Fallback.Password)
+
+	// If the From address matches a mail account, use that account's stored
+	// password — no need to manually copy credentials into SMTP settings.
+	if fromAddr != "" {
+		var accountPass string
+		m.DB.QueryRow(context.Background(),
+			`SELECT imap_password FROM mail_accounts WHERE address = $1 AND active = true LIMIT 1`,
+			fromAddr,
+		).Scan(&accountPass)
+		if accountPass != "" {
+			username = fromAddr
+			password = accountPass
+		}
+	}
+
 	return &Mailer{
 		Host:     or("smtp_host", m.Fallback.Host),
 		Port:     port,
-		Username: or("smtp_user", m.Fallback.Username),
-		Password: or("smtp_pass", m.Fallback.Password),
-		From:     or("smtp_from", m.Fallback.From),
+		Username: username,
+		Password: password,
+		From:     fromAddr,
 		SiteURL:  m.Fallback.SiteURL,
 	}
 }
