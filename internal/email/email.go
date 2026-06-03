@@ -35,37 +35,21 @@ func (m *Mailer) Send(to, subject, body string) error {
 	msg.SetHeader("Subject", subject)
 	msg.SetBody("text/html", m.brand(body))
 
-	// Try the configured host first, then localhost — handles the common case
-	// where the mail server is co-hosted and hairpin NAT breaks the external IP.
-	type result struct{ err error }
-	hosts := []string{m.Host, "localhost"}
-	if m.Host == "" || m.Host == "localhost" || m.Host == "127.0.0.1" {
-		hosts = []string{m.Host}
+	d := gomail.NewDialer(m.Host, m.Port, m.Username, m.Password)
+	d.Timeout = 15 * time.Second
+	if m.Username == "" {
+		d.Auth = nil
 	}
 
-	for i, host := range hosts {
-		d := gomail.NewDialer(host, m.Port, m.Username, m.Password)
-		d.Timeout = 15 * time.Second
-		if m.Username == "" {
-			d.Auth = nil
-		}
-		ch := make(chan result, 1)
-		go func() { ch <- result{d.DialAndSend(msg)} }()
-		var err error
-		select {
-		case r := <-ch:
-			err = r.err
-		case <-time.After(20 * time.Second):
-			err = fmt.Errorf("SMTP timed out after 20 s — verify host and credentials")
-		}
-		if err == nil {
-			return nil
-		}
-		if i == len(hosts)-1 {
-			return err
-		}
+	type result struct{ err error }
+	ch := make(chan result, 1)
+	go func() { ch <- result{d.DialAndSend(msg)} }()
+	select {
+	case r := <-ch:
+		return r.err
+	case <-time.After(20 * time.Second):
+		return fmt.Errorf("SMTP timed out after 20 s connecting to %s:%d", m.Host, m.Port)
 	}
-	return nil
 }
 
 func (m *Mailer) SendPasswordReset(to, firstName, resetURL string) error {
