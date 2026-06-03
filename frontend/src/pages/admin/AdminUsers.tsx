@@ -108,6 +108,7 @@ export default function AdminUsers() {
   const [alertType, setAlertType] = useState('info')
   const [sendingAlert, setSendingAlert] = useState(false)
   const [forceResetNotice, setForceResetNotice] = useState<{ name: string; emailSent: boolean; url: string; error?: string } | null>(null)
+  const [linkCopied, setLinkCopied] = useState(false)
 
   const load = () => api.admin.users().then(d => setUsers(d as User[]))
   const loadWaitlist = () => api.waitlist.list().then(d => setWaitlist(d as WaitlistEntry[]))
@@ -334,8 +335,29 @@ export default function AdminUsers() {
             {!forceResetNotice.emailSent && forceResetNotice.url && (
               <div className="mt-1.5 flex items-center gap-2">
                 <code className="text-xs bg-white border border-amber-200 rounded px-2 py-1 break-all">{forceResetNotice.url}</code>
-                <button onClick={() => navigator.clipboard.writeText(forceResetNotice.url)}
-                  className="shrink-0 text-xs bg-amber-700 text-white px-2 py-1 rounded hover:bg-amber-800 transition">Copy</button>
+                <button
+                  onClick={() => {
+                    const url = forceResetNotice!.url
+                    const doCopy = () => {
+                      const el = document.createElement('textarea')
+                      el.value = url
+                      el.style.cssText = 'position:fixed;opacity:0'
+                      document.body.appendChild(el)
+                      el.select()
+                      document.execCommand('copy')
+                      document.body.removeChild(el)
+                    }
+                    if (navigator.clipboard) {
+                      navigator.clipboard.writeText(url).catch(doCopy)
+                    } else {
+                      doCopy()
+                    }
+                    setLinkCopied(true)
+                    setTimeout(() => setLinkCopied(false), 2000)
+                  }}
+                  className="shrink-0 text-xs bg-amber-700 text-white px-2 py-1 rounded hover:bg-amber-800 transition min-w-[52px] text-center">
+                  {linkCopied ? '✓ Copied' : 'Copy'}
+                </button>
               </div>
             )}
           </div>

@@ -99,7 +99,7 @@ func main() {
 	events := &handlers.EventsHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	emailTemplates := &handlers.EmailTemplatesHandler{DB: pool}
 	dues := &handlers.DuesHandler{DB: pool}
-	waitlist := &handlers.WaitlistHandler{DB: pool}
+	waitlist := &handlers.WaitlistHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	guests := &handlers.GuestsHandler{DB: pool}
 	usta := &handlers.USTAHandler{DB: pool}
 	uploads := &handlers.UploadsHandler{DB: pool, UploadDir: uploadDir}
@@ -306,7 +306,15 @@ func main() {
 	adminOnly.GET("/waitlist", waitlist.List)
 	adminOnly.PUT("/waitlist/:id/status", waitlist.UpdateStatus)
 	adminOnly.PUT("/waitlist/:id/contact", waitlist.UpdateContact)
+	adminOnly.PUT("/waitlist/:id/admin-notes", waitlist.UpdateAdminNotes)
 	adminOnly.DELETE("/waitlist/:id", waitlist.Delete)
+	// Member requests — new applicants awaiting board review
+	boardPlus.GET("/admin/member-requests", waitlist.ListRequests)
+	boardPlus.PUT("/admin/member-requests/:id/approve", waitlist.Approve)
+	boardPlus.PUT("/admin/member-requests/:id/admin-notes", waitlist.UpdateAdminNotes)
+	boardPlus.POST("/admin/member-requests/:id/email", waitlist.SendApplicantEmail)
+	boardPlus.PUT("/admin/member-requests/:id/status", waitlist.UpdateStatus)
+	boardPlus.DELETE("/admin/member-requests/:id", waitlist.Delete)
 	adminOnly.GET("/guests", guests.AdminList)
 	adminOnly.GET("/events/:id/signups", signups.List)
 	adminOnly.GET("/events/:id/signups/summary", signups.Summary)

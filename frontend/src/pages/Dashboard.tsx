@@ -91,7 +91,7 @@ export default function Dashboard() {
   const [idea, setIdea] = useState('')
   const [ideaState, setIdeaState] = useState<SubmitState>('idle')
   const [myBookings, setMyBookings] = useState<Booking[]>([])
-  const [bookingCountdown, setBookingCountdown] = useState(30)
+  const [bookingCountdown, setBookingCountdown] = useState(15)
   const [weather, setWeather] = useState<WeatherData | null>(null)
   const [airQuality, setAirQuality] = useState<AirQualityData | null>(null)
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
@@ -169,12 +169,34 @@ export default function Dashboard() {
     api.memberAlerts.getMyAlerts().then(d => setAdminAlerts(d)).catch(() => {})
   }, [])
 
+  const refreshSlow = useCallback(() => {
+    api.messages.inbox().then(d => setInbox(d)).catch(() => {})
+    api.liveball.myInvitations().then(d => setLiveballInvites(d as any[])).catch(() => {})
+    api.boardMeetings.myInvitations().then(d => setBoardMeetingInvites(d as any[])).catch(() => {})
+    api.announcements.list().then(d => setAnnouncements(d as Announcement[])).catch(() => {})
+  }, [])
+
   useEffect(() => {
     checkResponses()
-    const responseInterval = setInterval(checkResponses, 60000)
-    const alertInterval = setInterval(refreshAlerts, 10000)
-    return () => { clearInterval(responseInterval); clearInterval(alertInterval) }
-  }, [checkResponses, refreshAlerts])
+    const responseInterval = setInterval(checkResponses, 30000)
+    const alertInterval   = setInterval(refreshAlerts, 10000)
+    const slowInterval    = setInterval(refreshSlow, 30000)
+    return () => { clearInterval(responseInterval); clearInterval(alertInterval); clearInterval(slowInterval) }
+  }, [checkResponses, refreshAlerts, refreshSlow])
+
+  // Refresh immediately when the tab becomes visible again.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return
+      checkResponses()
+      refreshAlerts()
+      refreshSlow()
+      api.bookings.mine().then(d => setMyBookings(d as Booking[])).catch(() => {})
+      setBookingCountdown(15)
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [checkResponses, refreshAlerts, refreshSlow])
 
   useEffect(() => {
     if (!isBoard) return
@@ -222,7 +244,7 @@ export default function Dashboard() {
     refreshBookings()
     const timer = setInterval(() => {
       setBookingCountdown(c => {
-        if (c <= 1) { refreshBookings(); return 30 }
+        if (c <= 1) { refreshBookings(); return 15 }
         return c - 1
       })
     }, 1000)

@@ -1,6 +1,8 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { api, DocFolder, DocFile } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
+
+const SESSION_KEY = 'files_open_folders'
 
 const ROLES: { key: string; label: string }[] = [
   { key: 'member',         label: 'Member' },
@@ -17,8 +19,32 @@ const ROLES: { key: string; label: string }[] = [
   { key: 'pro',            label: 'Pro' },
 ]
 
+const FILE_EXT_CONFIG: Record<string, { label: string; color: string }> = {
+  pdf:  { label: 'PDF',  color: '#ef4444' },
+  doc:  { label: 'DOC',  color: '#3b82f6' },
+  docx: { label: 'DOC',  color: '#3b82f6' },
+  xls:  { label: 'XLS',  color: '#16a34a' },
+  xlsx: { label: 'XLS',  color: '#16a34a' },
+  csv:  { label: 'CSV',  color: '#16a34a' },
+  ppt:  { label: 'PPT',  color: '#f97316' },
+  pptx: { label: 'PPT',  color: '#f97316' },
+  jpg:  { label: 'IMG',  color: '#9333ea' },
+  jpeg: { label: 'IMG',  color: '#9333ea' },
+  png:  { label: 'IMG',  color: '#9333ea' },
+  gif:  { label: 'IMG',  color: '#9333ea' },
+  webp: { label: 'IMG',  color: '#9333ea' },
+  svg:  { label: 'SVG',  color: '#9333ea' },
+  zip:  { label: 'ZIP',  color: '#ca8a04' },
+  rar:  { label: 'ZIP',  color: '#ca8a04' },
+  '7z': { label: 'ZIP',  color: '#ca8a04' },
+  txt:  { label: 'TXT',  color: '#6b7280' },
+  mp4:  { label: 'VID',  color: '#db2777' },
+  mov:  { label: 'VID',  color: '#db2777' },
+}
+
 function FolderPermissionBadges({ roles }: { roles: string[] }) {
-  if (roles.length === 0) return <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">All members</span>
+  if (roles.length === 0)
+    return <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">All members</span>
   return (
     <div className="flex flex-wrap gap-1">
       {roles.map(r => (
@@ -39,6 +65,18 @@ function flattenFolders(folders: DocFolder[], prefix = ''): { id: string; label:
   return result
 }
 
+function collectAllIds(folders: DocFolder[]): string[] {
+  const ids: string[] = []
+  const walk = (fs: DocFolder[]) => {
+    for (const f of fs) {
+      ids.push(f.id)
+      if (f.children?.length) walk(f.children)
+    }
+  }
+  walk(folders)
+  return ids
+}
+
 function searchFiles(folders: DocFolder[], query: string, path = ''): { doc: DocFile; folderPath: string }[] {
   const q = query.toLowerCase()
   const results: { doc: DocFile; folderPath: string }[] = []
@@ -53,56 +91,61 @@ function searchFiles(folders: DocFolder[], query: string, path = ''): { doc: Doc
   return results
 }
 
-const FILE_TYPE_MAP: Record<string, { label: string; cls: string }> = {
-  pdf:  { label: 'PDF',  cls: 'bg-red-100 text-red-700' },
-  doc:  { label: 'DOC',  cls: 'bg-blue-100 text-blue-700' },
-  docx: { label: 'DOC',  cls: 'bg-blue-100 text-blue-700' },
-  xls:  { label: 'XLS',  cls: 'bg-green-100 text-green-700' },
-  xlsx: { label: 'XLS',  cls: 'bg-green-100 text-green-700' },
-  csv:  { label: 'CSV',  cls: 'bg-green-100 text-green-700' },
-  ppt:  { label: 'PPT',  cls: 'bg-orange-100 text-orange-700' },
-  pptx: { label: 'PPT',  cls: 'bg-orange-100 text-orange-700' },
-  jpg:  { label: 'IMG',  cls: 'bg-purple-100 text-purple-700' },
-  jpeg: { label: 'IMG',  cls: 'bg-purple-100 text-purple-700' },
-  png:  { label: 'IMG',  cls: 'bg-purple-100 text-purple-700' },
-  gif:  { label: 'IMG',  cls: 'bg-purple-100 text-purple-700' },
-  webp: { label: 'IMG',  cls: 'bg-purple-100 text-purple-700' },
-  svg:  { label: 'SVG',  cls: 'bg-purple-100 text-purple-700' },
-  zip:  { label: 'ZIP',  cls: 'bg-yellow-100 text-yellow-700' },
-  rar:  { label: 'ZIP',  cls: 'bg-yellow-100 text-yellow-700' },
-  '7z': { label: 'ZIP',  cls: 'bg-yellow-100 text-yellow-700' },
-  txt:  { label: 'TXT',  cls: 'bg-gray-100 text-gray-600' },
-  mp4:  { label: 'VID',  cls: 'bg-pink-100 text-pink-700' },
-  mov:  { label: 'VID',  cls: 'bg-pink-100 text-pink-700' },
+function relativeDate(dateStr: string): string {
+  const d = new Date(dateStr)
+  const diffDays = Math.floor((Date.now() - d.getTime()) / 86400000)
+  if (diffDays === 0) return 'Today'
+  if (diffDays === 1) return 'Yesterday'
+  if (diffDays < 7) return `${diffDays} days ago`
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`
+  return d.toLocaleDateString()
 }
 
+// ── File type icon (document silhouette with folded corner) ──────────────────
 function FileTypeBadge({ filename }: { filename: string }) {
   const ext = (filename.split('.').pop() ?? '').toLowerCase()
-  const c = FILE_TYPE_MAP[ext] ?? { label: ext ? ext.toUpperCase().slice(0, 4) : 'FILE', cls: 'bg-gray-100 text-gray-500' }
+  const cfg = FILE_EXT_CONFIG[ext] ?? {
+    label: ext ? ext.toUpperCase().slice(0, 4) : 'FILE',
+    color: '#9ca3af',
+  }
   return (
-    <span className={`inline-flex items-center justify-center w-10 h-8 rounded text-xs font-bold shrink-0 tracking-wide ${c.cls}`}>
-      {c.label}
-    </span>
+    <div className="relative shrink-0 w-9 h-10 flex items-center justify-center">
+      <svg viewBox="0 0 28 34" className="absolute inset-0 w-full h-full" fill="none">
+        <path
+          d="M2 2 H18 L26 10 V32 a2 2 0 01-2 2 H4 a2 2 0 01-2-2 V4 a2 2 0 012-2z"
+          fill={cfg.color} fillOpacity="0.12"
+          stroke={cfg.color} strokeOpacity="0.45" strokeWidth="1.5"
+        />
+        <path d="M18 2 V10 H26" stroke={cfg.color} strokeOpacity="0.45" strokeWidth="1.5" strokeLinecap="round"/>
+      </svg>
+      <span className="relative z-10 mt-2.5 font-black tracking-widest leading-none" style={{ fontSize: 7, color: cfg.color }}>
+        {cfg.label}
+      </span>
+    </div>
   )
 }
 
-function FileRow({ doc, isBoard, onDelete, subtitle }: { doc: DocFile; isBoard: boolean; onDelete: (id: string) => void; subtitle?: string }) {
+// ── File row ─────────────────────────────────────────────────────────────────
+function FileRow({ doc, isBoard, onDelete, subtitle }: {
+  doc: DocFile; isBoard: boolean; onDelete: (id: string) => void; subtitle?: string
+}) {
   return (
     <div className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 transition group">
-      {/* Entire row is the click target so files are easy to open on touch + desktop */}
-      <a href={`/uploads/documents/${doc.filename}`} target="_blank" rel="noreferrer"
+      <a
+        href={`/uploads/documents/${doc.filename}`}
+        target="_blank" rel="noreferrer"
         title="Open file"
-        className="flex items-center gap-3 flex-1 min-w-0">
+        className="flex items-center gap-3 flex-1 min-w-0"
+      >
         <FileTypeBadge filename={doc.filename} />
         <div className="flex-1 min-w-0">
           <span className="font-medium text-gray-800 group-hover:text-green-700 text-sm transition block truncate">
             {doc.title}
           </span>
           <p className="text-xs text-gray-400 mt-0.5">
-            {subtitle ? `${subtitle} · ` : ''}{new Date(doc.created_at).toLocaleDateString()}
+            {subtitle ? `${subtitle} · ` : ''}{relativeDate(doc.created_at)}
           </p>
         </div>
-        {/* Open icon always visible (was hover-only, so invisible on mobile) */}
         <svg className="w-4 h-4 shrink-0 text-gray-300 group-hover:text-green-600 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
         </svg>
@@ -117,15 +160,45 @@ function FileRow({ doc, isBoard, onDelete, subtitle }: { doc: DocFile; isBoard: 
   )
 }
 
+// ── Loading skeleton ─────────────────────────────────────────────────────────
+function LoadingSkeleton() {
+  return (
+    <div className="space-y-5 animate-pulse">
+      {[1, 2, 3].map(i => (
+        <div key={i}>
+          <div className="h-8 bg-gray-100 rounded-lg w-44 mb-2" />
+          <div className="ml-6 bg-white border border-gray-100 rounded-xl shadow-sm divide-y divide-gray-100">
+            {[1, 2].map(j => (
+              <div key={j} className="flex items-center gap-3 px-3 py-3">
+                <div className="w-9 h-10 bg-gray-100 rounded" />
+                <div className="flex-1 space-y-1.5">
+                  <div className="h-3.5 bg-gray-100 rounded w-3/4" />
+                  <div className="h-2.5 bg-gray-100 rounded w-1/3" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── Folder form state ────────────────────────────────────────────────────────
 interface FolderFormState {
   name: string; sortOrder: string; roles: string[]; parentId: string
 }
 const emptyFolderForm = (): FolderFormState => ({ name: '', sortOrder: '0', roles: [], parentId: '' })
 
+// ── FolderNode props ─────────────────────────────────────────────────────────
 interface FolderNodeProps {
   folder: DocFolder
   depth: number
   isBoard: boolean
+  isOpen: boolean
+  onToggle: (id: string) => void
+  openFolders: Set<string>
+  sortBy: 'date' | 'name'
   showUploadFor: string | null
   uploadFolderId: string
   uploadTitle: string
@@ -143,13 +216,13 @@ interface FolderNodeProps {
   onDelete: (docId: string) => void
 }
 
+// ── FolderNode ───────────────────────────────────────────────────────────────
 function FolderNode({
-  folder, depth, isBoard,
+  folder, depth, isBoard, isOpen, onToggle, openFolders, sortBy,
   showUploadFor, uploadFolderId, uploadTitle, uploadFiles, uploading, uploadError,
   uploadProgress, uploadCurrent, uploadTotal,
   onUploadOpen, onUploadCancel, onUploadTitleChange, onUploadFileChange, onUploadSubmit, onDelete,
 }: FolderNodeProps) {
-  const [open, setOpen] = useState(depth === 0)
   const [dragOver, setDragOver] = useState(false)
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -162,50 +235,73 @@ function FolderNode({
     onUploadFileChange(files)
   }, [isBoard, folder.id, onUploadOpen, onUploadFileChange])
 
-  const docs = folder.docs ?? []
+  const sortedDocs = useMemo(() => {
+    const d = folder.docs ?? []
+    if (sortBy === 'name') return [...d].sort((a, b) => a.title.localeCompare(b.title))
+    return d
+  }, [folder.docs, sortBy])
+
   const children = folder.children ?? []
 
   return (
     <div style={{ marginLeft: depth * 20 }}>
-      {/* Folder header */}
-      <div className="flex items-center justify-between mb-2">
+      {/* Folder header row */}
+      <div className="flex items-center justify-between mb-1.5">
         <button
-          onClick={() => setOpen(o => !o)}
-          className="flex items-center gap-2 flex-1 min-w-0 text-left rounded-lg -ml-2 px-2 py-1.5 hover:bg-gray-100 transition cursor-pointer">
-          <span className="text-gray-400 w-4 shrink-0 text-xs">{open ? '▾' : '▸'}</span>
-          <svg className={`w-4 h-4 shrink-0 transition-colors ${open ? 'text-yellow-400' : 'text-yellow-500'}`} fill="currentColor" viewBox="0 0 24 24">
+          onClick={() => onToggle(folder.id)}
+          className="flex items-center gap-2 flex-1 min-w-0 text-left rounded-lg -ml-2 px-2 py-1.5 hover:bg-gray-100 transition"
+        >
+          <svg
+            className={`w-3.5 h-3.5 shrink-0 text-gray-400 transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`}
+            fill="none" stroke="currentColor" viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 18l6-6-6-6" />
+          </svg>
+          <svg
+            className={`w-4 h-4 shrink-0 transition-colors ${isOpen ? 'text-yellow-400' : 'text-yellow-500'}`}
+            fill="currentColor" viewBox="0 0 24 24"
+          >
             <path d="M10 4H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V8a2 2 0 00-2-2h-8l-2-2z" />
           </svg>
-          <h2 className={`font-semibold text-gray-700 ${depth === 0 ? 'text-sm' : 'text-xs'}`}>{folder.name}</h2>
+          <h2 className={`font-semibold text-gray-700 truncate ${depth === 0 ? 'text-sm' : 'text-xs'}`}>
+            {folder.name}
+          </h2>
           {isBoard && <FolderPermissionBadges roles={folder.roles} />}
-          {docs.length > 0 && (
-            <span className="text-xs text-gray-400 ml-1">{docs.length} file{docs.length !== 1 ? 's' : ''}</span>
+          {sortedDocs.length > 0 && (
+            <span className="text-xs text-gray-400 shrink-0 tabular-nums">
+              {sortedDocs.length}
+            </span>
           )}
         </button>
-        {isBoard && open && showUploadFor !== folder.id && (
-          <button onClick={() => onUploadOpen(folder.id)}
-            className="text-xs text-green-700 hover:text-green-900 font-medium transition shrink-0 ml-2">
+
+        {isBoard && isOpen && showUploadFor !== folder.id && (
+          <button
+            onClick={() => onUploadOpen(folder.id)}
+            className="text-xs text-green-700 hover:text-green-900 font-medium transition shrink-0 ml-2 px-2 py-1 rounded hover:bg-green-50"
+          >
             + Upload
           </button>
         )}
       </div>
 
-      {open && (
+      {isOpen && (
         <div
           className={`ml-6 rounded-xl transition-all ${dragOver ? 'ring-2 ring-green-400 ring-offset-1 bg-green-50' : ''}`}
           onDragOver={isBoard ? (e) => { e.preventDefault(); setDragOver(true) } : undefined}
           onDragLeave={isBoard ? (e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false) } : undefined}
-          onDrop={isBoard ? handleDrop : undefined}>
-
+          onDrop={isBoard ? handleDrop : undefined}
+        >
           {/* Upload form */}
           {isBoard && showUploadFor === folder.id && (
             <form onSubmit={onUploadSubmit}
               className="bg-green-50 border border-green-200 rounded-xl p-4 mb-3 space-y-3">
               <div
-                className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors cursor-default ${dragOver ? 'border-green-500 bg-green-100' : 'border-green-300 bg-white'}`}
+                className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors cursor-default
+                  ${dragOver ? 'border-green-500 bg-green-100' : 'border-green-300 bg-white'}`}
                 onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
                 onDragLeave={() => setDragOver(false)}
-                onDrop={(e) => { e.preventDefault(); setDragOver(false); onUploadFileChange(Array.from(e.dataTransfer.files)) }}>
+                onDrop={(e) => { e.preventDefault(); setDragOver(false); onUploadFileChange(Array.from(e.dataTransfer.files)) }}
+              >
                 <svg className="w-6 h-6 text-gray-300 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                 </svg>
@@ -236,7 +332,9 @@ function FolderNode({
 
               {uploadFiles.length > 1 && (
                 <div className="bg-white border border-gray-200 rounded-lg px-3 py-2 max-h-40 overflow-y-auto space-y-1">
-                  <p className="text-xs font-medium text-gray-700 mb-1.5">{uploadFiles.length} files selected — filenames used as titles</p>
+                  <p className="text-xs font-medium text-gray-700 mb-1.5">
+                    {uploadFiles.length} files selected — filenames used as titles
+                  </p>
                   {uploadFiles.map((f, i) => (
                     <div key={i} className="flex items-center gap-2">
                       <FileTypeBadge filename={f.name} />
@@ -278,23 +376,25 @@ function FolderNode({
             </form>
           )}
 
-          {/* Drag hint for empty folders (board only) */}
-          {isBoard && showUploadFor !== folder.id && docs.length === 0 && children.length === 0 && (
+          {/* Empty folder hint */}
+          {isBoard && showUploadFor !== folder.id && sortedDocs.length === 0 && children.length === 0 && (
             <div className="border-2 border-dashed border-gray-200 rounded-xl p-5 mb-3 text-center">
-              <p className="text-xs text-gray-400">Empty folder — drop files here or use <span className="font-medium text-green-700">+ Upload</span></p>
+              <p className="text-xs text-gray-400">
+                Empty folder — drop files here or use <span className="font-medium text-green-700">+ Upload</span>
+              </p>
             </div>
           )}
 
           {/* File list */}
-          {docs.length > 0 && (
+          {sortedDocs.length > 0 && (
             <div className="bg-white border border-gray-200 rounded-xl shadow-sm divide-y divide-gray-100 mb-3">
-              {docs.map((doc: DocFile) => (
+              {sortedDocs.map((doc: DocFile) => (
                 <FileRow key={doc.id} doc={doc} isBoard={isBoard} onDelete={onDelete} />
               ))}
             </div>
           )}
 
-          {docs.length === 0 && children.length === 0 && !isBoard && (
+          {sortedDocs.length === 0 && children.length === 0 && !isBoard && (
             <p className="text-xs text-gray-400 italic mb-3">No files.</p>
           )}
 
@@ -302,6 +402,10 @@ function FolderNode({
           {children.map(child => (
             <FolderNode key={child.id} folder={child} depth={depth + 1}
               isBoard={isBoard}
+              isOpen={openFolders.has(child.id)}
+              onToggle={onToggle}
+              openFolders={openFolders}
+              sortBy={sortBy}
               showUploadFor={showUploadFor} uploadFolderId={uploadFolderId}
               uploadTitle={uploadTitle} uploadFiles={uploadFiles}
               uploading={uploading} uploadError={uploadError}
@@ -335,12 +439,18 @@ function AdminFolderRow({
           <p className="text-sm font-medium text-gray-800">{folder.name}</p>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
             <FolderPermissionBadges roles={folder.roles} />
-            <span className="text-xs text-gray-400">{folder.doc_count ?? 0} file{(folder.doc_count ?? 0) !== 1 ? 's' : ''}</span>
+            <span className="text-xs text-gray-400">
+              {folder.doc_count ?? 0} file{(folder.doc_count ?? 0) !== 1 ? 's' : ''}
+            </span>
           </div>
         </div>
-        <button onClick={() => onEdit(folder)} className="text-xs text-blue-500 hover:text-blue-700 font-medium shrink-0 transition">Edit</button>
+        <button onClick={() => onEdit(folder)} className="text-xs text-blue-500 hover:text-blue-700 font-medium shrink-0 transition">
+          Edit
+        </button>
         <button onClick={() => onDelete(folder.id, folder.name, folder.doc_count ?? 0)}
-          className="text-xs text-red-400 hover:text-red-600 shrink-0 transition">Delete</button>
+          className="text-xs text-red-400 hover:text-red-600 shrink-0 transition">
+          Delete
+        </button>
       </div>
       {(folder.children ?? []).map(child => (
         <AdminFolderRow key={child.id} folder={child} depth={depth + 1} onEdit={onEdit} onDelete={onDelete} />
@@ -355,7 +465,10 @@ export default function Files() {
 
   const [folders, setFolders] = useState<DocFolder[]>([])
   const [adminFolders, setAdminFolders] = useState<DocFolder[]>([])
+  const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
+  const [sortBy, setSortBy] = useState<'date' | 'name'>('date')
+  const [openFolders, setOpenFolders] = useState<Set<string>>(new Set())
 
   const [showFolderForm, setShowFolderForm] = useState(false)
   const [folderForm, setFolderForm] = useState<FolderFormState>(emptyFolderForm())
@@ -373,18 +486,66 @@ export default function Files() {
   const [uploadCurrent, setUploadCurrent] = useState(0)
   const [uploadTotal, setUploadTotal] = useState(0)
 
-  const loadFolders = () => api.documents.list().then(d => setFolders(d))
-  const loadAdminFolders = () => api.documents.folders.adminList().then(d => setAdminFolders(d))
+  const loadFolders = useCallback(async () => {
+    const d = await api.documents.list()
+    setFolders(d)
+    return d
+  }, [])
+
+  const loadAdminFolders = useCallback(async () => {
+    const d = await api.documents.folders.adminList()
+    setAdminFolders(d)
+  }, [])
 
   useEffect(() => {
-    loadFolders()
-    if (isBoard) loadAdminFolders()
-  }, [isBoard])
+    const init = async () => {
+      try {
+        const [data] = await Promise.all([
+          loadFolders(),
+          isBoard ? loadAdminFolders() : Promise.resolve(),
+        ])
+        try {
+          const saved = sessionStorage.getItem(SESSION_KEY)
+          if (saved) {
+            setOpenFolders(new Set(JSON.parse(saved)))
+          } else {
+            const rootIds = new Set((data as DocFolder[]).map(f => f.id))
+            setOpenFolders(rootIds)
+            sessionStorage.setItem(SESSION_KEY, JSON.stringify([...rootIds]))
+          }
+        } catch {}
+      } finally {
+        setLoading(false)
+      }
+    }
+    init()
+  }, [isBoard, loadFolders, loadAdminFolders])
+
+  const toggleFolder = useCallback((id: string) => {
+    setOpenFolders(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify([...next]))
+      return next
+    })
+  }, [])
+
+  const expandAll = useCallback(() => {
+    const ids = new Set(collectAllIds(folders))
+    setOpenFolders(ids)
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify([...ids]))
+  }, [folders])
+
+  const collapseAll = useCallback(() => {
+    setOpenFolders(new Set())
+    sessionStorage.setItem(SESSION_KEY, '[]')
+  }, [])
 
   const flatFolders = flattenFolders(adminFolders).filter(f => f.id !== editingFolderId)
   const searchResults = searchQuery.trim() ? searchFiles(folders, searchQuery.trim()) : null
 
-  // ── Folder CRUD ──────────────────────────────────────────────────────────────
+  // ── Folder CRUD ──────────────────────────────────────────────────────────
   const openCreateFolder = () => {
     setEditingFolderId(null); setFolderForm(emptyFolderForm()); setFolderError(''); setShowFolderForm(true)
   }
@@ -427,10 +588,10 @@ export default function Files() {
 
   const toggleRole = (role: string) =>
     setFolderForm(f => ({
-      ...f, roles: f.roles.includes(role) ? f.roles.filter(r => r !== role) : [...f.roles, role]
+      ...f, roles: f.roles.includes(role) ? f.roles.filter(r => r !== role) : [...f.roles, role],
     }))
 
-  // ── Upload ───────────────────────────────────────────────────────────────────
+  // ── Upload ───────────────────────────────────────────────────────────────
   const handleUploadFileChange = (files: File[]) => {
     setUploadFiles(files)
     if (files.length === 1) setUploadTitle(files[0].name.replace(/\.[^.]+$/, ''))
@@ -475,22 +636,76 @@ export default function Files() {
     setUploadTitle(''); setUploadFiles([]); setUploadError('')
   }
 
-  // ── Render ───────────────────────────────────────────────────────────────────
+  // ── Shared FolderNode upload props ────────────────────────────────────────
+  const uploadNodeProps = {
+    showUploadFor, uploadFolderId, uploadTitle, uploadFiles,
+    uploading, uploadError, uploadProgress, uploadCurrent, uploadTotal,
+    onUploadOpen: openUpload,
+    onUploadCancel: () => setShowUploadFor(null),
+    onUploadTitleChange: setUploadTitle,
+    onUploadFileChange: handleUploadFileChange,
+    onUploadSubmit: handleUpload,
+    onDelete: handleDelete,
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
+  const hasTree = !loading && folders.length > 0
+  const showControls = hasTree && searchResults === null
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-2xl font-bold text-gray-800">Files</h1>
-        {isBoard && (
-          <button onClick={openCreateFolder}
-            className="bg-green-700 hover:bg-green-800 text-white text-sm font-medium px-4 py-2 rounded-lg transition">
-            + New Folder
-          </button>
-        )}
+
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Sort toggle */}
+          {showControls && (
+            <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+              <button
+                onClick={() => setSortBy('date')}
+                className={`text-xs px-3 py-1.5 rounded-md font-medium transition ${
+                  sortBy === 'date' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Newest
+              </button>
+              <button
+                onClick={() => setSortBy('name')}
+                className={`text-xs px-3 py-1.5 rounded-md font-medium transition ${
+                  sortBy === 'name' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                A–Z
+              </button>
+            </div>
+          )}
+
+          {/* Expand / Collapse all */}
+          {showControls && (
+            <div className="flex items-center gap-0.5">
+              <button onClick={expandAll}
+                className="text-xs text-gray-400 hover:text-gray-700 px-2 py-1.5 rounded hover:bg-gray-100 transition">
+                Expand all
+              </button>
+              <button onClick={collapseAll}
+                className="text-xs text-gray-400 hover:text-gray-700 px-2 py-1.5 rounded hover:bg-gray-100 transition">
+                Collapse
+              </button>
+            </div>
+          )}
+
+          {isBoard && (
+            <button onClick={openCreateFolder}
+              className="bg-green-700 hover:bg-green-800 text-white text-sm font-medium px-4 py-2 rounded-lg transition">
+              + New Folder
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Search bar */}
-      {folders.length > 0 && (
+      {hasTree && (
         <div className="relative">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
             fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -512,8 +727,11 @@ export default function Files() {
         </div>
       )}
 
+      {/* Loading skeleton */}
+      {loading && <LoadingSkeleton />}
+
       {/* Search results */}
-      {searchResults !== null && (
+      {!loading && searchResults !== null && (
         searchResults.length === 0 ? (
           <p className="text-sm text-gray-400 py-2">No files match "{searchQuery}".</p>
         ) : (
@@ -528,8 +746,8 @@ export default function Files() {
         )
       )}
 
-      {/* Folder form + tree (hidden while searching) */}
-      {searchResults === null && (
+      {/* Main content (hidden while searching) */}
+      {!loading && searchResults === null && (
         <>
           {/* Folder form */}
           {isBoard && showFolderForm && (
@@ -608,22 +826,25 @@ export default function Files() {
 
           {/* Folder tree */}
           {folders.length === 0 ? (
-            <p className="text-gray-400 text-sm">No folders yet.</p>
+            <div className="text-center py-16">
+              <svg className="w-12 h-12 text-gray-200 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                  d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+              </svg>
+              <p className="text-gray-400 text-sm">
+                {isBoard ? 'No folders yet — create one to get started.' : 'No files available.'}
+              </p>
+            </div>
           ) : (
             <div className="space-y-4">
               {folders.map(folder => (
                 <FolderNode key={folder.id} folder={folder} depth={0}
                   isBoard={isBoard}
-                  showUploadFor={showUploadFor} uploadFolderId={uploadFolderId}
-                  uploadTitle={uploadTitle} uploadFiles={uploadFiles}
-                  uploading={uploading} uploadError={uploadError}
-                  uploadProgress={uploadProgress} uploadCurrent={uploadCurrent} uploadTotal={uploadTotal}
-                  onUploadOpen={openUpload}
-                  onUploadCancel={() => setShowUploadFor(null)}
-                  onUploadTitleChange={setUploadTitle}
-                  onUploadFileChange={handleUploadFileChange}
-                  onUploadSubmit={handleUpload}
-                  onDelete={handleDelete}
+                  isOpen={openFolders.has(folder.id)}
+                  onToggle={toggleFolder}
+                  openFolders={openFolders}
+                  sortBy={sortBy}
+                  {...uploadNodeProps}
                 />
               ))}
             </div>

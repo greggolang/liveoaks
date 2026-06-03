@@ -39,6 +39,13 @@ export interface PLReport {
   expense_breakdown?: Record<string, number>
 }
 
+export interface MemberRequest {
+  id: string; first_name: string; last_name: string
+  email?: string; phone?: string; notes?: string; admin_notes?: string
+  usta_ranking?: string; status: string
+  application_date?: string; created_at: string
+}
+
 export interface DocFile {
   id: string; title: string; filename: string; original_name: string; created_at: string
 }
@@ -74,10 +81,18 @@ export interface YoLinkRule {
   id: string
   name: string
   enabled: boolean
+  priority: number                  // lower = evaluated first; default 100
   device_id: string | null
   device_type: string | null
   event_contains: string | null
   state_equals: string | null
+  active_start_time: string | null  // "HH:MM" 24h, null = no restriction
+  active_end_time: string | null    // "HH:MM" 24h, null = no restriction
+  active_days: number | null        // bitmask: bit0=Sun..bit6=Sat, null = any
+  cooldown_minutes: number | null   // suppress re-firing within N min, null = none
+  last_fired_at: string | null      // read-only, set by the service
+  stop_processing: boolean          // halt lower-priority rules after this one fires
+  notes: string | null
   recipient_scope: 'all_members' | 'board' | 'role' | 'user'
   recipient_role: string | null
   recipient_user_id: string | null
@@ -318,7 +333,21 @@ export const api = {
       request(`/admin/waitlist/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),
     updateContact: (id: string, email: string, phone: string, usta_ranking: string) =>
       request(`/admin/waitlist/${id}/contact`, { method: 'PUT', body: JSON.stringify({ email, phone, usta_ranking }) }),
+    updateAdminNotes: (id: string, admin_notes: string) =>
+      request(`/admin/waitlist/${id}/admin-notes`, { method: 'PUT', body: JSON.stringify({ admin_notes }) }),
     delete: (id: string) => request(`/admin/waitlist/${id}`, { method: 'DELETE' }),
+  },
+  memberRequests: {
+    list: () => request<MemberRequest[]>('/admin/member-requests'),
+    approve: (id: string) =>
+      request(`/admin/member-requests/${id}/approve`, { method: 'PUT' }),
+    updateAdminNotes: (id: string, admin_notes: string) =>
+      request(`/admin/member-requests/${id}/admin-notes`, { method: 'PUT', body: JSON.stringify({ admin_notes }) }),
+    sendEmail: (id: string, subject: string, message: string) =>
+      request(`/admin/member-requests/${id}/email`, { method: 'POST', body: JSON.stringify({ subject, message }) }),
+    updateStatus: (id: string, status: string) =>
+      request(`/admin/member-requests/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),
+    delete: (id: string) => request(`/admin/member-requests/${id}`, { method: 'DELETE' }),
   },
   guests: {
     log: (data: object) => request('/guests', { method: 'POST', body: JSON.stringify(data) }),

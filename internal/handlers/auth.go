@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -267,10 +268,9 @@ func (h *AuthHandler) ForgotPassword(c echo.Context) error {
 	bgCtx := context.Background()
 	go func() {
 		if err := h.Mailer.SendPasswordReset(req.Email, firstName, resetURL); err != nil {
-			println("EMAIL ERROR:", err.Error())
+			log.Printf("password reset email error to %s: %v", req.Email, err)
 			h.Logger.Log(bgCtx, "email_error", "password reset to "+req.Email+": "+err.Error(), userID, ip)
 		} else {
-			println("EMAIL SENT to", req.Email)
 			h.Logger.Log(bgCtx, "email_sent", "password reset to "+req.Email, userID, ip)
 		}
 	}()

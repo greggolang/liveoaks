@@ -133,22 +133,30 @@ func (h *YoLinkHandler) ListAlerts(c echo.Context) error {
 // ─── Alert rules ──────────────────────────────────────────────────────────────
 
 type yoRule struct {
-	ID              string    `json:"id"`
-	Name            string    `json:"name"`
-	Enabled         bool      `json:"enabled"`
-	DeviceID        *string   `json:"device_id"`
-	DeviceType      *string   `json:"device_type"`
-	EventContains   *string   `json:"event_contains"`
-	StateEquals     *string   `json:"state_equals"`
-	RecipientScope  string    `json:"recipient_scope"`
-	RecipientRole   *string   `json:"recipient_role"`
-	RecipientUserID *string   `json:"recipient_user_id"`
-	NotifyDashboard bool      `json:"notify_dashboard"`
-	NotifyEmail     bool      `json:"notify_email"`
-	NotifySMS       bool      `json:"notify_sms"`
-	AlertType       string    `json:"alert_type"`
-	MessageTemplate *string   `json:"message_template"`
-	CreatedAt       time.Time `json:"created_at"`
+	ID              string     `json:"id"`
+	Name            string     `json:"name"`
+	Enabled         bool       `json:"enabled"`
+	Priority        int        `json:"priority"`
+	DeviceID        *string    `json:"device_id"`
+	DeviceType      *string    `json:"device_type"`
+	EventContains   *string    `json:"event_contains"`
+	StateEquals     *string    `json:"state_equals"`
+	ActiveStartTime *string    `json:"active_start_time"`
+	ActiveEndTime   *string    `json:"active_end_time"`
+	ActiveDays      *int       `json:"active_days"`
+	CooldownMinutes *int       `json:"cooldown_minutes"`
+	LastFiredAt     *time.Time `json:"last_fired_at"`
+	StopProcessing  bool       `json:"stop_processing"`
+	Notes           *string    `json:"notes"`
+	RecipientScope  string     `json:"recipient_scope"`
+	RecipientRole   *string    `json:"recipient_role"`
+	RecipientUserID *string    `json:"recipient_user_id"`
+	NotifyDashboard bool       `json:"notify_dashboard"`
+	NotifyEmail     bool       `json:"notify_email"`
+	NotifySMS       bool       `json:"notify_sms"`
+	AlertType       string     `json:"alert_type"`
+	MessageTemplate *string    `json:"message_template"`
+	CreatedAt       time.Time  `json:"created_at"`
 }
 
 func nilIfEmpty(p *string) *string {
@@ -175,7 +183,19 @@ func normalizeRule(r *yoRule) {
 	r.DeviceType = nilIfEmpty(r.DeviceType)
 	r.EventContains = nilIfEmpty(r.EventContains)
 	r.StateEquals = nilIfEmpty(r.StateEquals)
+	r.ActiveStartTime = nilIfEmpty(r.ActiveStartTime)
+	r.ActiveEndTime = nilIfEmpty(r.ActiveEndTime)
+	if r.ActiveDays != nil && *r.ActiveDays == 0 {
+		r.ActiveDays = nil
+	}
+	if r.CooldownMinutes != nil && *r.CooldownMinutes <= 0 {
+		r.CooldownMinutes = nil
+	}
+	r.Notes = nilIfEmpty(r.Notes)
 	r.MessageTemplate = nilIfEmpty(r.MessageTemplate)
+	if r.Priority == 0 {
+		r.Priority = 100
+	}
 	if r.RecipientScope == "role" {
 		r.RecipientRole = nilIfEmpty(r.RecipientRole)
 	} else {
@@ -190,10 +210,14 @@ func normalizeRule(r *yoRule) {
 
 func (h *YoLinkHandler) ListRules(c echo.Context) error {
 	rows, err := h.DB.Query(c.Request().Context(), `
-		SELECT id, name, enabled, device_id, device_type, event_contains, state_equals,
+		SELECT id, name, enabled, priority,
+		       device_id, device_type, event_contains, state_equals,
+		       active_start_time, active_end_time, active_days,
+		       cooldown_minutes, last_fired_at,
+		       stop_processing, notes,
 		       recipient_scope, recipient_role, recipient_user_id,
 		       notify_dashboard, notify_email, notify_sms, alert_type, message_template, created_at
-		FROM yolink_alert_rules ORDER BY created_at`)
+		FROM yolink_alert_rules ORDER BY priority ASC, created_at ASC`)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch rules")
 	}
@@ -201,9 +225,15 @@ func (h *YoLinkHandler) ListRules(c echo.Context) error {
 	rules := []yoRule{}
 	for rows.Next() {
 		var r yoRule
-		if err := rows.Scan(&r.ID, &r.Name, &r.Enabled, &r.DeviceID, &r.DeviceType, &r.EventContains, &r.StateEquals,
+		if err := rows.Scan(
+			&r.ID, &r.Name, &r.Enabled, &r.Priority,
+			&r.DeviceID, &r.DeviceType, &r.EventContains, &r.StateEquals,
+			&r.ActiveStartTime, &r.ActiveEndTime, &r.ActiveDays,
+			&r.CooldownMinutes, &r.LastFiredAt,
+			&r.StopProcessing, &r.Notes,
 			&r.RecipientScope, &r.RecipientRole, &r.RecipientUserID,
-			&r.NotifyDashboard, &r.NotifyEmail, &r.NotifySMS, &r.AlertType, &r.MessageTemplate, &r.CreatedAt); err != nil {
+			&r.NotifyDashboard, &r.NotifyEmail, &r.NotifySMS, &r.AlertType, &r.MessageTemplate, &r.CreatedAt,
+		); err != nil {
 			continue
 		}
 		rules = append(rules, r)
@@ -219,12 +249,18 @@ func (h *YoLinkHandler) CreateRule(c echo.Context) error {
 	normalizeRule(&r)
 	err := h.DB.QueryRow(c.Request().Context(), `
 		INSERT INTO yolink_alert_rules
-		    (name, enabled, device_id, device_type, event_contains, state_equals,
+		    (name, enabled, priority,
+		     device_id, device_type, event_contains, state_equals,
+		     active_start_time, active_end_time, active_days,
+		     cooldown_minutes, stop_processing, notes,
 		     recipient_scope, recipient_role, recipient_user_id,
 		     notify_dashboard, notify_email, notify_sms, alert_type, message_template)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
 		RETURNING id, created_at`,
-		r.Name, r.Enabled, r.DeviceID, r.DeviceType, r.EventContains, r.StateEquals,
+		r.Name, r.Enabled, r.Priority,
+		r.DeviceID, r.DeviceType, r.EventContains, r.StateEquals,
+		r.ActiveStartTime, r.ActiveEndTime, r.ActiveDays,
+		r.CooldownMinutes, r.StopProcessing, r.Notes,
 		r.RecipientScope, r.RecipientRole, r.RecipientUserID,
 		r.NotifyDashboard, r.NotifyEmail, r.NotifySMS, r.AlertType, r.MessageTemplate,
 	).Scan(&r.ID, &r.CreatedAt)
@@ -243,13 +279,18 @@ func (h *YoLinkHandler) UpdateRule(c echo.Context) error {
 	normalizeRule(&r)
 	ct, err := h.DB.Exec(c.Request().Context(), `
 		UPDATE yolink_alert_rules SET
-		    name = $1, enabled = $2, device_id = $3, device_type = $4,
-		    event_contains = $5, state_equals = $6, recipient_scope = $7,
-		    recipient_role = $8, recipient_user_id = $9, notify_dashboard = $10,
-		    notify_email = $11, notify_sms = $12, alert_type = $13,
-		    message_template = $14, updated_at = NOW()
-		WHERE id = $15`,
-		r.Name, r.Enabled, r.DeviceID, r.DeviceType, r.EventContains, r.StateEquals,
+		    name = $1, enabled = $2, priority = $3,
+		    device_id = $4, device_type = $5, event_contains = $6, state_equals = $7,
+		    active_start_time = $8, active_end_time = $9, active_days = $10,
+		    cooldown_minutes = $11, stop_processing = $12, notes = $13,
+		    recipient_scope = $14, recipient_role = $15, recipient_user_id = $16,
+		    notify_dashboard = $17, notify_email = $18, notify_sms = $19,
+		    alert_type = $20, message_template = $21, updated_at = NOW()
+		WHERE id = $22`,
+		r.Name, r.Enabled, r.Priority,
+		r.DeviceID, r.DeviceType, r.EventContains, r.StateEquals,
+		r.ActiveStartTime, r.ActiveEndTime, r.ActiveDays,
+		r.CooldownMinutes, r.StopProcessing, r.Notes,
 		r.RecipientScope, r.RecipientRole, r.RecipientUserID,
 		r.NotifyDashboard, r.NotifyEmail, r.NotifySMS, r.AlertType, r.MessageTemplate, id)
 	if err != nil {

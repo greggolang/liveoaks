@@ -3,6 +3,7 @@ import { api } from '../../api/client'
 
 interface FeedbackItem {
   id: string
+  user_id: string
   message: string
   status: string
   type: string
@@ -34,6 +35,12 @@ export default function AdminFeedback() {
   const [typeFilter, setTypeFilter] = useState<'all' | 'idea' | 'bug'>('all')
   const [filter, setFilter] = useState('all')
 
+  const [replyId, setReplyId] = useState<string | null>(null)
+  const [replyBody, setReplyBody] = useState('')
+  const [replySending, setReplySending] = useState(false)
+  const [replyDone, setReplyDone] = useState<string | null>(null)
+  const [replyError, setReplyError] = useState<string | null>(null)
+
   const load = () =>
     api.feedback.adminList()
       .then(d => setItems(d as FeedbackItem[]))
@@ -50,6 +57,29 @@ export default function AdminFeedback() {
     if (!confirm('Delete this idea?')) return
     await api.feedback.delete(id)
     setItems(prev => prev.filter(i => i.id !== id))
+  }
+
+  const openReply = (id: string) => {
+    setReplyId(id)
+    setReplyBody('')
+    setReplyDone(null)
+    setReplyError(null)
+  }
+
+  const sendReply = async (item: FeedbackItem) => {
+    if (!replyBody.trim()) return
+    setReplySending(true)
+    setReplyError(null)
+    const subject = `Re: Your ${item.type === 'bug' ? 'bug report' : 'site idea'}`
+    try {
+      await api.messages.send({ recipient_id: item.user_id, subject, body: replyBody.trim() })
+      setReplyDone(item.id)
+      setReplyBody('')
+    } catch {
+      setReplyError('Could not send — please try again.')
+    } finally {
+      setReplySending(false)
+    }
   }
 
   const visible = items
@@ -120,6 +150,15 @@ export default function AdminFeedback() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => replyId === item.id ? setReplyId(null) : openReply(item.id)}
+                    title="Reply to member"
+                    className={`text-xs px-2 py-1 rounded-lg border transition font-medium
+                      ${replyId === item.id
+                        ? 'bg-green-700 text-white border-green-700'
+                        : 'bg-white text-green-700 border-green-300 hover:border-green-600'}`}>
+                    ↩ Reply
+                  </button>
                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusStyle(item.status)}`}>
                     {statusLabel(item.status)}
                   </span>
@@ -137,6 +176,49 @@ export default function AdminFeedback() {
                   </button>
                 </div>
               </div>
+
+              {/* Inline reply compose */}
+              {replyId === item.id && (
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  {replyDone === item.id ? (
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-green-700 font-medium">
+                        Message sent — {item.first_name} will see it in their inbox.
+                      </p>
+                      <button onClick={() => { setReplyDone(null); setReplyId(null) }}
+                        className="text-xs text-gray-400 hover:text-gray-600 ml-4">
+                        Close
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-xs text-gray-500 mb-1.5">
+                        Replying to <span className="font-medium text-gray-700">{item.first_name} {item.last_name}</span> — this will appear in their Messages inbox and they can reply back.
+                      </p>
+                      <textarea
+                        value={replyBody}
+                        onChange={e => setReplyBody(e.target.value)}
+                        placeholder={`Write a message to ${item.first_name}…`}
+                        rows={3}
+                        className="w-full text-sm border border-gray-200 rounded-lg p-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-800 placeholder-gray-400"
+                      />
+                      {replyError && <p className="text-xs text-red-500 mt-1">{replyError}</p>}
+                      <div className="flex justify-end gap-2 mt-2">
+                        <button onClick={() => setReplyId(null)}
+                          className="text-xs text-gray-400 hover:text-gray-600 px-3 py-1.5">
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => sendReply(item)}
+                          disabled={!replyBody.trim() || replySending}
+                          className="text-xs bg-green-700 text-white px-4 py-1.5 rounded-lg hover:bg-green-800 disabled:opacity-40 font-medium transition">
+                          {replySending ? 'Sending…' : 'Send Message'}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>

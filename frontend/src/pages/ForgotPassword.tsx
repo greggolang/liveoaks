@@ -34,7 +34,7 @@ export default function ForgotPassword() {
         {sent ? (
           <div className="text-center space-y-4">
             <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-green-800 text-sm">
-              Request submitted. The club admin will send you a reset link shortly.
+              If that email is registered, a reset link has been sent. Check your inbox (and spam/junk folder).
             </div>
             <Link to="/login" className="block text-green-700 font-medium hover:underline text-sm">
               Back to sign in

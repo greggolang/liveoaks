@@ -45,9 +45,13 @@ export default function AdminWaitlist() {
   return (
     <div>
       <div className="flex justify-between items-center mb-1">
-        <h2 className="text-xl font-bold text-gray-800">Waitlist</h2>
+        <h2 className="text-xl font-bold text-gray-800">Official Waitlist</h2>
         <span className="text-sm text-gray-400">{entries.length} entries</span>
       </div>
+      <p className="text-xs text-gray-400 mb-4">
+        These members have been approved by the board and are officially on the waitlist.
+        New applications awaiting review are in <a href="/admin/member-requests" className="text-green-700 hover:underline">New Member Requests</a>.
+      </p>
       {missing > 0 && (
         <p className="text-xs text-amber-600 mb-4">
           {missing} entr{missing === 1 ? 'y has' : 'ies have'} no contact info — click the contact cell to add email / phone.

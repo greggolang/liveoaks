@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -46,7 +47,9 @@ func (h *BookingsHandler) emailRoster(bookingID, subject, body string) {
 			u, e := uid, email
 			go func() {
 				if notifprefs.UserWantsEmail(context.Background(), h.DB, u, "booking_confirmation") {
-					h.Mailer.Send(e, subject, body)
+					if err := h.Mailer.Send(e, subject, body); err != nil {
+						log.Printf("booking roster email error to %s: %v", e, err)
+					}
 				}
 			}()
 		}
@@ -526,7 +529,9 @@ func (h *BookingsHandler) Create(c echo.Context) error {
   %s
   %s
 </div>`, hostName, courtName, startStr, endStr, matchLabel, playerSection, ctaHTML, calHTML)
-			h.Mailer.Send(hostEmail, "Booking confirmed – "+courtName, body)
+			if err := h.Mailer.Send(hostEmail, "Booking confirmed – "+courtName, body); err != nil {
+				log.Printf("booking confirmation email error to %s: %v", hostEmail, err)
+			}
 		}()
 	}
 

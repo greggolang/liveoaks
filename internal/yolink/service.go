@@ -334,6 +334,14 @@ type alertRule struct {
 	DeviceType      *string
 	EventContains   *string
 	StateEquals     *string
+	ActiveStartTime *string    // "HH:MM" 24h, nil = no restriction
+	ActiveEndTime   *string    // "HH:MM" 24h, nil = no restriction
+	ActiveDays      *int       // bitmask bit0=Sun..bit6=Sat, nil = any day
+	CooldownMinutes *int       // nil = no cooldown
+	LastFiredAt     *time.Time // managed by service, not editable via API
+	Priority        int        // lower = evaluated first
+	StopProcessing  bool       // halt lower-priority rules after this one fires
+	Notes           *string
 	RecipientScope  string
 	RecipientRole   *string
 	RecipientUserID *string
@@ -346,9 +354,60 @@ type alertRule struct {
 
 func nonEmpty(p *string) bool { return p != nil && strings.TrimSpace(*p) != "" }
 
+// inTimeWindow returns false when the current local time falls outside the
+// [start, end) window.  Overnight ranges (start > end) are supported.
+// Returns true when either pointer is nil (no restriction).
+func inTimeWindow(start, end *string) bool {
+	if !nonEmpty(start) || !nonEmpty(end) {
+		return true
+	}
+	parseHHMM := func(s string) int {
+		var h, m int
+		fmt.Sscanf(s, "%d:%d", &h, &m)
+		return h*60 + m
+	}
+	now := time.Now()
+	cur := now.Hour()*60 + now.Minute()
+	s := parseHHMM(*start)
+	e := parseHHMM(*end)
+	if s == e {
+		return true // degenerate — treat as always active
+	}
+	if s < e {
+		return cur >= s && cur < e
+	}
+	// overnight window e.g. 22:00–06:00
+	return cur >= s || cur < e
+}
+
+// activeOnDay returns false when today's weekday is not in the bitmask.
+// nil or 0 means no restriction.
+func activeOnDay(activeDays *int) bool {
+	if activeDays == nil || *activeDays == 0 {
+		return true
+	}
+	bit := 1 << int(time.Now().Weekday()) // time.Weekday: 0=Sun..6=Sat
+	return *activeDays&bit != 0
+}
+
+// inCooldown returns true when the rule has fired recently enough that it
+// should be suppressed.
+func inCooldown(cooldownMinutes *int, lastFiredAt *time.Time) bool {
+	if cooldownMinutes == nil || *cooldownMinutes <= 0 || lastFiredAt == nil {
+		return false
+	}
+	return time.Since(*lastFiredAt) < time.Duration(*cooldownMinutes)*time.Minute
+}
+
 // matches reports whether every present (non-empty) condition on the rule is
 // satisfied by the event. Absent conditions mean "any".
 func (r alertRule) matches(e ruleEvent) bool {
+	if !inTimeWindow(r.ActiveStartTime, r.ActiveEndTime) {
+		return false
+	}
+	if !activeOnDay(r.ActiveDays) {
+		return false
+	}
 	if nonEmpty(r.DeviceID) && *r.DeviceID != e.DeviceID {
 		return false
 	}
@@ -377,14 +436,19 @@ type recipient struct{ ID, Email, FirstName, Phone string }
 
 // evaluateRules runs every enabled alert rule against an incoming device event
 // and dispatches the configured channels (dashboard / email / SMS) to matching
-// recipients. Each recipient is notified at most once per channel per event,
-// even when several rules match.
+// recipients. Rules are evaluated in priority order (ascending). Each recipient
+// is notified at most once per channel per event. A rule with stop_processing=true
+// halts evaluation of lower-priority rules once it fires.
 func (s *Service) evaluateRules(ctx context.Context, e ruleEvent) {
 	rows, err := s.DB.Query(ctx, `
 		SELECT id, name, device_id, device_type, event_contains, state_equals,
+		       active_start_time, active_end_time, active_days,
+		       cooldown_minutes, last_fired_at,
+		       priority, stop_processing,
 		       recipient_scope, recipient_role, recipient_user_id,
 		       notify_dashboard, notify_email, notify_sms, alert_type, message_template
-		FROM yolink_alert_rules WHERE enabled = true`)
+		FROM yolink_alert_rules WHERE enabled = true
+		ORDER BY priority ASC`)
 	if err != nil {
 		log.Printf("yolink: load rules failed: %v", err)
 		return
@@ -392,9 +456,14 @@ func (s *Service) evaluateRules(ctx context.Context, e ruleEvent) {
 	var rules []alertRule
 	for rows.Next() {
 		var r alertRule
-		if err := rows.Scan(&r.ID, &r.Name, &r.DeviceID, &r.DeviceType, &r.EventContains, &r.StateEquals,
+		if err := rows.Scan(
+			&r.ID, &r.Name, &r.DeviceID, &r.DeviceType, &r.EventContains, &r.StateEquals,
+			&r.ActiveStartTime, &r.ActiveEndTime, &r.ActiveDays,
+			&r.CooldownMinutes, &r.LastFiredAt,
+			&r.Priority, &r.StopProcessing,
 			&r.RecipientScope, &r.RecipientRole, &r.RecipientUserID,
-			&r.NotifyDashboard, &r.NotifyEmail, &r.NotifySMS, &r.AlertType, &r.MessageTemplate); err != nil {
+			&r.NotifyDashboard, &r.NotifyEmail, &r.NotifySMS, &r.AlertType, &r.MessageTemplate,
+		); err != nil {
 			continue
 		}
 		rules = append(rules, r)
@@ -409,13 +478,18 @@ func (s *Service) evaluateRules(ctx context.Context, e ruleEvent) {
 		if !r.matches(e) {
 			continue
 		}
+		if inCooldown(r.CooldownMinutes, r.LastFiredAt) {
+			continue
+		}
 		text := r.message(e)
+		fired := false
 		for _, m := range s.resolveRecipients(ctx, r) {
 			if r.NotifyDashboard && !sentDash[m.ID] {
 				s.DB.Exec(ctx,
 					`INSERT INTO member_alerts (user_id, message, type) VALUES ($1, $2, $3)`,
 					m.ID, text, r.AlertType)
 				sentDash[m.ID] = true
+				fired = true
 			}
 			if r.NotifyEmail && m.Email != "" && !sentEmail[m.ID] {
 				body := fmt.Sprintf(
@@ -425,12 +499,21 @@ func (s *Service) evaluateRules(ctx context.Context, e ruleEvent) {
 					log.Printf("yolink: email to %s failed: %v", m.Email, err)
 				}
 				sentEmail[m.ID] = true
+				fired = true
 			}
 			if r.NotifySMS && m.Phone != "" && s.SMS != nil && !sentSMS[m.ID] {
 				if err := s.SMS.Send(m.Phone, "Live Oaks Tennis Club alert — "+text); err != nil {
 					log.Printf("yolink: sms to %s failed: %v", m.Phone, err)
 				}
 				sentSMS[m.ID] = true
+				fired = true
+			}
+		}
+		if fired {
+			s.DB.Exec(ctx,
+				`UPDATE yolink_alert_rules SET last_fired_at = NOW() WHERE id = $1`, r.ID)
+			if r.StopProcessing {
+				break
 			}
 		}
 	}
@@ -444,10 +527,16 @@ func (s *Service) TestRule(ctx context.Context, id string) (int, error) {
 	var r alertRule
 	err := s.DB.QueryRow(ctx, `
 		SELECT id, name, device_id, device_type, event_contains, state_equals,
+		       active_start_time, active_end_time, active_days,
+		       cooldown_minutes, last_fired_at,
+		       priority, stop_processing,
 		       recipient_scope, recipient_role, recipient_user_id,
 		       notify_dashboard, notify_email, notify_sms, alert_type, message_template
 		FROM yolink_alert_rules WHERE id = $1`, id).
 		Scan(&r.ID, &r.Name, &r.DeviceID, &r.DeviceType, &r.EventContains, &r.StateEquals,
+			&r.ActiveStartTime, &r.ActiveEndTime, &r.ActiveDays,
+			&r.CooldownMinutes, &r.LastFiredAt,
+			&r.Priority, &r.StopProcessing,
 			&r.RecipientScope, &r.RecipientRole, &r.RecipientUserID,
 			&r.NotifyDashboard, &r.NotifyEmail, &r.NotifySMS, &r.AlertType, &r.MessageTemplate)
 	if err != nil {

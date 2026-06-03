@@ -31,12 +31,32 @@ const ROLE_OPTIONS: [string, string][] = [
 ]
 
 const emptyRule = (): Partial<YoLinkRule> => ({
-  name: '', enabled: true,
+  name: '', enabled: true, priority: 100,
   device_id: null, device_type: null, event_contains: null, state_equals: null,
+  active_start_time: null, active_end_time: null, active_days: null,
+  cooldown_minutes: null, stop_processing: false, notes: null,
   recipient_scope: 'board', recipient_role: null, recipient_user_id: null,
   notify_dashboard: true, notify_email: false, notify_sms: false,
   alert_type: 'warning', message_template: null,
 })
+
+const DAYS: { bit: number; label: string; short: string }[] = [
+  { bit: 1,  label: 'Sunday',    short: 'Su' },
+  { bit: 2,  label: 'Monday',    short: 'Mo' },
+  { bit: 4,  label: 'Tuesday',   short: 'Tu' },
+  { bit: 8,  label: 'Wednesday', short: 'We' },
+  { bit: 16, label: 'Thursday',  short: 'Th' },
+  { bit: 32, label: 'Friday',    short: 'Fr' },
+  { bit: 64, label: 'Saturday',  short: 'Sa' },
+]
+
+function activeDaysLabel(mask: number | null): string {
+  if (!mask) return ''
+  if (mask === 127) return 'Every day'
+  if (mask === 62)  return 'Mon–Fri'
+  if (mask === 65)  return 'Weekends'
+  return DAYS.filter(d => mask & d.bit).map(d => d.short).join(' ')
+}
 
 const SCOPE_LABEL: Record<string, string> = {
   all_members: 'All members', board: 'Board', role: 'Role', user: 'Specific user',
@@ -341,6 +361,92 @@ export default function AdminYoLink() {
                     <input value={ruleForm.state_equals ?? ''} onChange={e => setRF({ state_equals: e.target.value || null })}
                       placeholder="e.g. alert, open, normal" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
                   </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Active from (optional)</label>
+                    <input type="time" value={ruleForm.active_start_time ?? ''} onChange={e => setRF({ active_start_time: e.target.value || null })}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Active until (optional)</label>
+                    <input type="time" value={ruleForm.active_end_time ?? ''} onChange={e => setRF({ active_end_time: e.target.value || null })}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                  </div>
+                </div>
+                {(ruleForm.active_start_time || ruleForm.active_end_time) && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    Rule only fires between {ruleForm.active_start_time || '?'} and {ruleForm.active_end_time || '?'}.
+                    Overnight windows (e.g. 22:00–06:00) are supported.
+                  </p>
+                )}
+
+                <div className="mt-3">
+                  <label className="block text-xs text-gray-500 mb-1">Days of week (blank = any)</label>
+                  <div className="flex gap-1 flex-wrap">
+                    {DAYS.map(d => {
+                      const active = !!((ruleForm.active_days ?? 0) & d.bit)
+                      return (
+                        <button
+                          key={d.bit}
+                          type="button"
+                          title={d.label}
+                          onClick={() => setRF({ active_days: ((ruleForm.active_days ?? 0) ^ d.bit) || null })}
+                          className={`w-9 h-9 text-xs font-medium rounded-lg border transition ${
+                            active
+                              ? 'bg-green-700 text-white border-green-700'
+                              : 'bg-white text-gray-500 border-gray-300 hover:border-green-400'
+                          }`}
+                        >
+                          {d.short}
+                        </button>
+                      )
+                    })}
+                    <button
+                      type="button"
+                      onClick={() => setRF({ active_days: (ruleForm.active_days ?? 0) === 62 ? null : 62 })}
+                      className="px-2 h-9 text-xs text-gray-500 border border-gray-300 rounded-lg hover:border-green-400 transition"
+                    >M–F</button>
+                    <button
+                      type="button"
+                      onClick={() => setRF({ active_days: null })}
+                      className="px-2 h-9 text-xs text-gray-500 border border-gray-300 rounded-lg hover:border-green-400 transition"
+                    >Any</button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t border-gray-100 pt-3">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Behaviour</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Priority (lower fires first)</label>
+                    <input
+                      type="number" min={1} max={999}
+                      value={ruleForm.priority ?? 100}
+                      onChange={e => setRF({ priority: parseInt(e.target.value) || 100 })}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Cooldown (minutes, optional)</label>
+                    <input
+                      type="number" min={1} placeholder="No cooldown"
+                      value={ruleForm.cooldown_minutes ?? ''}
+                      onChange={e => setRF({ cooldown_minutes: parseInt(e.target.value) || null })}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-4 mt-3">
+                  <label className="flex items-center gap-2 text-sm text-gray-700">
+                    <input type="checkbox" checked={ruleForm.stop_processing ?? false} onChange={e => setRF({ stop_processing: e.target.checked })} className="accent-green-600" />
+                    Stop processing lower-priority rules when this fires
+                  </label>
+                </div>
+                <div className="mt-3">
+                  <label className="block text-xs text-gray-500 mb-1">Notes (internal, not sent)</label>
+                  <input value={ruleForm.notes ?? ''} onChange={e => setRF({ notes: e.target.value || null })}
+                    placeholder="Describe what this rule is for…"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
                 </div>
               </div>
 
@@ -443,6 +549,23 @@ export default function AdminYoLink() {
                             r.state_equals ? `state = "${r.state_equals}"` : null,
                           ].filter(Boolean).join(' · ') || 'any event'} → {SCOPE_LABEL[r.recipient_scope]}{r.recipient_role ? ` (${r.recipient_role})` : ''}{r.recipient_scope === 'user' ? ` (${memberName(r.recipient_user_id)})` : ''}
                         </p>
+                        {(r.active_start_time || r.active_end_time || r.active_days) && (
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            {[
+                              (r.active_start_time || r.active_end_time) ? `${r.active_start_time ?? '?'}–${r.active_end_time ?? '?'}` : null,
+                              activeDaysLabel(r.active_days),
+                            ].filter(Boolean).join(' · ')}
+                          </p>
+                        )}
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {[
+                            `P${r.priority}`,
+                            r.cooldown_minutes ? `cooldown ${r.cooldown_minutes}m` : null,
+                            r.stop_processing ? 'stop after' : null,
+                            r.last_fired_at ? `last fired ${new Date(r.last_fired_at).toLocaleString()}` : null,
+                          ].filter(Boolean).join(' · ')}
+                        </p>
+                        {r.notes && <p className="text-xs text-gray-400 italic mt-0.5">{r.notes}</p>}
                         <p className="text-xs text-gray-400 mt-0.5">
                           {[r.notify_dashboard && 'Dashboard', r.notify_email && 'Email', r.notify_sms && 'SMS'].filter(Boolean).join(' · ') || 'No channels'}
                         </p>

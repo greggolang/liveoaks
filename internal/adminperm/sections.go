@@ -30,7 +30,8 @@ var Catalog = []Section{
 	{"usta_teams", "USTA Teams", "Content", "Add and remove USTA league teams"},
 	// Members
 	{"members", "Members", "Members", "View and manage the member roster, roles, and status"},
-	{"waitlist", "Waitlist", "Members", "Review and manage the membership waitlist"},
+	{"member_requests", "New Member Requests", "Members", "Review, approve, and communicate with membership applicants"},
+	{"waitlist", "Waitlist", "Members", "Review and manage the official membership waitlist"},
 	{"guests", "Guest Passes", "Members", "View logged guest visits"},
 	// Billing
 	{"accounting", "Accounting / P&L", "Billing", "Member balances, charges, kiosk payments, and P&L"},
@@ -98,6 +99,7 @@ var routePrefixes = []routePrefix{
 	{"/api/admin/photo-folders", "photos"},
 	{"/api/usta-teams", "usta_teams"},
 	{"/api/admin/users", "members"},
+	{"/api/admin/member-requests", "member_requests"},
 	{"/api/admin/waitlist", "waitlist"},
 	{"/api/admin/guests", "guests"},
 	{"/api/admin/finance/balances", "accounting"},

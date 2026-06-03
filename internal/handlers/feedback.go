@@ -72,7 +72,7 @@ func (h *FeedbackHandler) NewFeedback(c echo.Context) error {
 
 func (h *FeedbackHandler) AdminList(c echo.Context) error {
 	rows, err := h.DB.Query(c.Request().Context(),
-		`SELECT f.id, f.message, f.status, f.type, f.page, f.created_at,
+		`SELECT f.id, f.user_id, f.message, f.status, f.type, f.page, f.created_at,
 		        u.first_name, u.last_name, u.email
 		 FROM feedback f
 		 JOIN users u ON u.id = f.user_id
@@ -84,6 +84,7 @@ func (h *FeedbackHandler) AdminList(c echo.Context) error {
 
 	type Item struct {
 		ID        string    `json:"id"`
+		UserID    string    `json:"user_id"`
 		Message   string    `json:"message"`
 		Status    string    `json:"status"`
 		Type      string    `json:"type"`
@@ -96,7 +97,7 @@ func (h *FeedbackHandler) AdminList(c echo.Context) error {
 	items := []Item{}
 	for rows.Next() {
 		var i Item
-		if err := rows.Scan(&i.ID, &i.Message, &i.Status, &i.Type, &i.Page, &i.CreatedAt, &i.FirstName, &i.LastName, &i.Email); err != nil {
+		if err := rows.Scan(&i.ID, &i.UserID, &i.Message, &i.Status, &i.Type, &i.Page, &i.CreatedAt, &i.FirstName, &i.LastName, &i.Email); err != nil {
 			continue
 		}
 		items = append(items, i)

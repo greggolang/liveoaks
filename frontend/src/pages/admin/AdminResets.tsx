@@ -27,7 +27,7 @@ export default function AdminResets() {
   return (
     <div>
       <h2 className="text-xl font-bold text-gray-800 mb-1">Password Reset Requests</h2>
-      <p className="text-sm text-gray-500 mb-4">Copy a reset link and send it to the member.</p>
+      <p className="text-sm text-gray-500 mb-4">Reset emails are sent automatically. Use these links as a fallback if a member didn't receive theirs.</p>
 
       {resets.length === 0 ? (
         <p className="text-gray-400 text-sm">No pending reset requests.</p>
