@@ -7,7 +7,7 @@ import { APP_VERSION } from '../version'
 type BugState = 'idle' | 'sending' | 'done' | 'error'
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  const { user, logout, isAdmin, isBoard, hasPermission } = useAuth()
+  const { user, logout, hasPermission, canAccessAdmin } = useAuth()
   const [clubLogo, setClubLogo] = useState('')
 
   useEffect(() => {
@@ -119,7 +119,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               {hasPermission('documents') && showDocuments && <NavLink to="/files" className={navLink}>Files</NavLink>}
               {hasPermission('fantasy') && showFantasy && <NavLink to="/fantasy" className={navLink}>Fantasy Pool</NavLink>}
               {hasPermission('ladder') && showLadder && <NavLink to="/ladder" className={navLink}>Ladder</NavLink>}
-              {isBoard && <NavLink to="/admin" className={navLink}>Admin</NavLink>}
+              {canAccessAdmin && <NavLink to="/admin" className={navLink}>Admin</NavLink>}
               <button onClick={openBug}
                 title="Report a bug"
                 className="text-green-200 hover:text-white transition"
@@ -177,7 +177,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 hasPermission('documents') && showDocuments && ['/files', 'Files'],
                 hasPermission('fantasy')   && showFantasy   && ['/fantasy', 'Fantasy Pool'],
                 hasPermission('ladder')    && showLadder    && ['/ladder', 'Ladder'],
-                isBoard                    && ['/admin', 'Admin'],
+                canAccessAdmin             && ['/admin', 'Admin'],
               ].filter((x): x is string[] => Boolean(x)).map(([to, label]) => (
                 <Link key={to as string} to={to as string} onClick={() => setMenuOpen(false)}
                   className="text-green-100 hover:text-white">{label as string}</Link>

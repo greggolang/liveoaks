@@ -99,7 +99,7 @@ const sections: Section[] = [
       { to: '/admin/broadcast', label: 'Broadcast Email', section: 'broadcast' },
       { to: '/admin/settings', label: 'Settings', section: 'settings' },
       { to: '/admin/email-templates', label: 'Email Templates', section: 'email_templates' },
-      { to: '/admin/permissions', label: 'Permissions' },
+      { to: '/admin/permissions', label: 'Admin Pages' },
       { to: '/admin/passwords', label: 'Password Vault' },
       { to: '/admin/communication-test', label: 'Test Communications', section: 'communication_test' },
       { to: '/admin/log', label: 'Activity Log', section: 'activity_log' },
@@ -114,7 +114,7 @@ const ADMIN_ONLY_LINKS = new Set([
 ])
 
 export default function Admin() {
-  const { isBoard, isAdmin, canSeeAdmin } = useAuth()
+  const { isBoard, isAdmin, canSeeAdmin, canAccessAdmin } = useAuth()
   const { pathname } = useLocation()
   const isIndex = pathname === '/admin' || pathname === '/admin/'
   // Section groups start collapsed; an explicit toggle overrides.
@@ -125,14 +125,14 @@ export default function Admin() {
   // new page's content scrolled out of view.
   useEffect(() => { window.scrollTo(0, 0) }, [pathname])
 
-  if (!isBoard) return <Navigate to="/" replace />
+  if (!canAccessAdmin) return <Navigate to="/" replace />
 
   const visibleSections = sections.map(s => ({
     ...s,
     links: s.links.filter(l => {
       if (ADMIN_ONLY_LINKS.has(l.to)) return isAdmin
       if (l.section) return canSeeAdmin(l.section)
-      return true // ungated link — visible to every board member
+      return isBoard // ungated links — board members only (hidden from granted non-board users)
     }),
   })).filter(s => s.links.length > 0)
 

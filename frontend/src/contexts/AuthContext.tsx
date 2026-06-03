@@ -35,6 +35,9 @@ interface AuthContextType {
   bookingMaxDaysAhead: number
   hasPermission: (page: string) => boolean
   canSeeAdmin: (section: string) => boolean
+  // Can the user open the admin area at all? True for admins, board members, or
+  // any non-board user who has been granted at least one admin section.
+  canAccessAdmin: boolean
 }
 
 const AuthContext = createContext<AuthContextType>(null!)
@@ -113,6 +116,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       bookingMaxDaysAhead,
       hasPermission: (page: string) => (!isFamilyMember && (user ? allRoles(user).includes('admin') : false)) || myPages.has(page),
       canSeeAdmin: (section: string) => !isFamilyMember && ((user ? allRoles(user).includes('admin') : false) || myAdminSections.has(section)),
+      canAccessAdmin: !isFamilyMember && (
+        (user ? allRoles(user).includes('admin') : false) ||
+        (user ? allRoles(user).some(r => BOARD_ROLES.includes(r)) : false) ||
+        myAdminSections.size > 0
+      ),
     }}>
       {children}
     </AuthContext.Provider>

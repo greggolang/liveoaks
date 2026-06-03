@@ -15,6 +15,7 @@ const ROLES: { key: string; label: string; short: string }[] = [
   { key: 'usta',           label: 'USTA',            short: 'USTA' },
   { key: 'games',          label: 'Games',           short: 'Games' },
   { key: 'pro',            label: 'Pro',             short: 'Pro' },
+  { key: 'member',         label: 'Member',          short: 'Mem' },
 ]
 
 export default function AdminBoardPermissions() {
@@ -69,10 +70,10 @@ export default function AdminBoardPermissions() {
     <div>
       <div className="flex items-start justify-between mb-1">
         <div>
-          <h2 className="text-xl font-bold text-gray-800">Board Access</h2>
+          <h2 className="text-xl font-bold text-gray-800">Admin Pages</h2>
           <p className="text-sm text-gray-500 mt-0.5">
-            Control which board roles can open each admin section.
-            Admins always have full access.
+            Control which roles — including regular members — can open each admin page.
+            Granting a page lets that role into the admin area for that page only. Admins always have full access.
           </p>
         </div>
         <div className="flex gap-1 shrink-0 mt-1">
