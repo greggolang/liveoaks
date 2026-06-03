@@ -73,6 +73,9 @@ export default function AdminMail() {
   const [error, setError] = useState('')
   const [showGuide, setShowGuide] = useState(false)
 
+  type MailStat = { messages: number; unseen: number; by_folder: Record<string, number> }
+  const [stats, setStats] = useState<Record<string, MailStat | 'loading' | 'error'>>({})
+
   const [showAdd, setShowAdd] = useState(false)
   const [addForm, setAddForm] = useState({ address: '', role_label: '', display_name: '', quota_mb: 1000 })
   const [addSaving, setAddSaving] = useState(false)
@@ -115,8 +118,25 @@ export default function AdminMail() {
       const [accs, users] = await Promise.all([api.mail.list(), api.admin.users() as Promise<BoardMember[]>])
       setAccounts(accs)
       setBoardMembers((users as BoardMember[]).filter(isBoardMember))
+      loadStats(accs)
     } catch (e: any) { setError(e.message) }
     finally { setLoading(false) }
+  }
+
+  // Email counts come from IMAP, so they're fetched per-account after the list
+  // renders rather than blocking the page. Accounts with no password can't be
+  // queried and are left without a count.
+  async function refreshStat(id: string) {
+    setStats(s => ({ ...s, [id]: 'loading' }))
+    try {
+      setStats(s => ({ ...s, [id]: await api.mail.stats(id) }))
+    } catch {
+      setStats(s => ({ ...s, [id]: 'error' }))
+    }
+  }
+
+  function loadStats(accs: MailAccount[]) {
+    accs.filter(a => a.has_password).forEach(a => refreshStat(a.id))
   }
 
   useEffect(() => { load() }, [])
@@ -226,6 +246,7 @@ export default function AdminMail() {
     try {
       const res = await api.mail.importMbox(importTarget.id, importFile, importFolder, setImportProgress)
       setImportResult({ imported: res.imported, failed: res.failed, by_folder: res.by_folder ?? {} })
+      refreshStat(importTarget.id)
     } catch (e: any) { setImportError(e.message) }
     finally { setImporting(false) }
   }
@@ -233,6 +254,10 @@ export default function AdminMail() {
   const assigned  = accounts.filter(a => a.assigned_user_id).length
   const withPw    = accounts.filter(a => a.has_password).length
   const unassigned = accounts.filter(a => !a.assigned_user_id).length
+
+  const loadedStats = Object.values(stats).filter((s): s is MailStat => typeof s === 'object')
+  const totalEmails = loadedStats.reduce((n, s) => n + s.messages, 0)
+  const countsPending = accounts.some(a => a.has_password && (!stats[a.id] || stats[a.id] === 'loading'))
 
   if (!isAdmin) return <div className="text-gray-500 text-sm p-4">You don't have permission to manage mail accounts.</div>
 
@@ -263,9 +288,10 @@ export default function AdminMail() {
       </div>
 
       {/* ── Stats ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {[
           { label: 'Total Accounts', value: accounts.length, icon: '📬', bg: 'bg-slate-50 border-slate-200', text: 'text-slate-700' },
+          { label: 'Total Emails',   value: countsPending ? `${totalEmails.toLocaleString()}…` : totalEmails.toLocaleString(), icon: '✉️', bg: 'bg-indigo-50 border-indigo-200', text: 'text-indigo-700' },
           { label: 'Assigned',       value: assigned,         icon: '👤', bg: 'bg-green-50 border-green-200', text: 'text-green-700' },
           { label: 'Unassigned',     value: unassigned,       icon: '⚠️', bg: 'bg-amber-50 border-amber-200', text: 'text-amber-700' },
           { label: 'Password Set',   value: withPw,           icon: '🔑', bg: 'bg-blue-50 border-blue-200',   text: 'text-blue-700' },
@@ -315,9 +341,44 @@ export default function AdminMail() {
               </div>
 
               {/* Display name */}
-              <p className="text-xs text-gray-500 mb-3 truncate">
+              <p className="text-xs text-gray-500 mb-2 truncate">
                 <span className="text-gray-400">From: </span>{a.display_name}
               </p>
+
+              {/* Email count (loaded lazily from IMAP) */}
+              {(() => {
+                const st = stats[a.id]
+                const obj = typeof st === 'object' ? st : null
+                const tip = obj
+                  ? Object.entries(obj.by_folder).filter(([, n]) => n > 0).sort((x, y) => y[1] - x[1])
+                      .map(([f, n]) => `${f}: ${n.toLocaleString()}`).join('\n') || 'No email'
+                  : undefined
+                return (
+                  <div className="mb-3 flex items-center gap-1.5 text-xs" title={tip}>
+                    <svg className="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                    </svg>
+                    {!a.has_password ? (
+                      <span className="text-gray-400">Set a password to see counts</span>
+                    ) : !st || st === 'loading' ? (
+                      <span className="text-gray-400 flex items-center gap-1.5">
+                        <span className="w-3 h-3 border-2 border-gray-300 border-t-transparent rounded-full animate-spin inline-block" />
+                        Counting…
+                      </span>
+                    ) : st === 'error' ? (
+                      <button onClick={() => refreshStat(a.id)} className="text-gray-400 hover:text-gray-600 underline decoration-dotted">
+                        Count unavailable — retry
+                      </button>
+                    ) : (
+                      <span className="text-gray-600">
+                        <strong className="text-gray-800">{obj!.messages.toLocaleString()}</strong> email{obj!.messages === 1 ? '' : 's'}
+                        {obj!.unseen > 0 && <span className="text-green-700"> · {obj!.unseen.toLocaleString()} unread</span>}
+                      </span>
+                    )}
+                  </div>
+                )
+              })()}
 
               {/* Assigned to */}
               <div className="flex items-center gap-2 mb-4">

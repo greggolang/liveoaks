@@ -197,6 +197,61 @@ func (h *MailHandler) EmptyMailbox(c echo.Context) error {
 	})
 }
 
+// MailboxStats returns how many messages a mail account holds, in total and
+// per folder, using a cheap IMAP STATUS query per folder (no message fetch).
+// It's loaded lazily per card on the admin Mail page so admins can see how full
+// each board mailbox is — e.g. before cancelling a Google Workspace account.
+func (h *MailHandler) MailboxStats(c echo.Context) error {
+	address, password, host, err := h.mailboxCreds(c.Request().Context(), c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
+	ic, err := imapConnect(host, address, password)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusServiceUnavailable, err.Error())
+	}
+	defer ic.Logout()
+
+	listCh := make(chan *imap.MailboxInfo, 32)
+	listDone := make(chan error, 1)
+	go func() { listDone <- ic.List("", "*", listCh) }()
+	var folders []string
+	for mb := range listCh {
+		selectable := true
+		for _, attr := range mb.Attributes {
+			if attr == imap.NoSelectAttr {
+				selectable = false
+				break
+			}
+		}
+		if selectable {
+			folders = append(folders, mb.Name)
+		}
+	}
+	if err := <-listDone; err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not list folders: "+err.Error())
+	}
+
+	total, unseen := 0, 0
+	byFolder := map[string]int{}
+	for _, folder := range folders {
+		status, err := ic.Status(folder, []imap.StatusItem{imap.StatusMessages, imap.StatusUnseen})
+		if err != nil {
+			continue
+		}
+		byFolder[folder] = int(status.Messages)
+		total += int(status.Messages)
+		unseen += int(status.Unseen)
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"messages":  total,
+		"unseen":    unseen,
+		"by_folder": byFolder,
+	})
+}
+
 // routeByLabels maps a Gmail X-Gmail-Labels header value to a target folder and
 // the IMAP flags to store with the message. Routing is by the system labels
 // Takeout writes; user labels are ignored. Archived mail (no Inbox label) falls
