@@ -421,6 +421,9 @@ func main() {
 	authed.PUT("/imap/messages/:uid/unread", imapH.MarkUnread)
 	authed.DELETE("/imap/messages/:uid", imapH.DeleteMessage)
 	authed.POST("/imap/messages/action", imapH.MessageAction)
+	authed.GET("/imap/folders", imapH.ListFolders)
+	authed.POST("/imap/folders", imapH.CreateFolder)
+	authed.DELETE("/imap/folders/:folder", imapH.DeleteFolder)
 	authed.POST("/imap/folders/:folder/empty", imapH.EmptyFolder)
 
 	// Mail contacts (personal address book per user)

@@ -552,6 +552,122 @@ func (h *IMAPHandler) MarkRead(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
+// systemFolder reports whether a name is one of the built-in mailboxes, which
+// must not be created as duplicates or deleted as if they were custom folders.
+func systemFolder(name string) bool {
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "inbox", "sent", "sent items", "drafts", "draft", "trash",
+		"deleted items", "junk", "spam", "archive", "archives", "all mail":
+		return true
+	}
+	return false
+}
+
+// ListFolders returns every selectable mailbox folder for the user's account,
+// so the mail page can show custom folders alongside the built-in ones.
+func (h *IMAPHandler) ListFolders(c echo.Context) error {
+	address, password, host, err := h.creds(c)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
+	ic, err := imapConnect(host, address, password)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusServiceUnavailable, err.Error())
+	}
+	defer ic.Logout()
+
+	ch := make(chan *imap.MailboxInfo, 32)
+	done := make(chan error, 1)
+	go func() { done <- ic.List("", "*", ch) }()
+	folders := []string{}
+	for mb := range ch {
+		selectable := true
+		for _, attr := range mb.Attributes {
+			if attr == imap.NoSelectAttr {
+				selectable = false
+				break
+			}
+		}
+		if selectable {
+			folders = append(folders, mb.Name)
+		}
+	}
+	if err := <-done; err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not list folders: "+err.Error())
+	}
+	return c.JSON(http.StatusOK, map[string]interface{}{"folders": folders})
+}
+
+// CreateFolder makes a new custom mailbox folder.
+func (h *IMAPHandler) CreateFolder(c echo.Context) error {
+	address, password, host, err := h.creds(c)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
+	}
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "folder name required")
+	}
+	if len(name) > 100 {
+		return echo.NewHTTPError(http.StatusBadRequest, "folder name too long")
+	}
+	if strings.ContainsAny(name, "/\\\"") {
+		return echo.NewHTTPError(http.StatusBadRequest, "folder name can't contain / \\ or \"")
+	}
+	if systemFolder(name) {
+		return echo.NewHTTPError(http.StatusBadRequest, "that name is reserved")
+	}
+
+	ic, err := imapConnect(host, address, password)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusServiceUnavailable, err.Error())
+	}
+	defer ic.Logout()
+
+	if err := ic.Create(name); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "could not create folder — it may already exist")
+	}
+	ic.Subscribe(name) // best-effort, so subscription-aware clients show it
+
+	return c.JSON(http.StatusOK, map[string]string{"name": name})
+}
+
+// DeleteFolder removes a custom folder (and its messages). Built-in folders
+// are protected.
+func (h *IMAPHandler) DeleteFolder(c echo.Context) error {
+	address, password, host, err := h.creds(c)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
+	name := c.Param("folder")
+	if name == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "folder required")
+	}
+	if systemFolder(name) {
+		return echo.NewHTTPError(http.StatusBadRequest, "built-in folders can't be deleted")
+	}
+
+	ic, err := imapConnect(host, address, password)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusServiceUnavailable, err.Error())
+	}
+	defer ic.Logout()
+
+	if err := ic.Delete(name); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "could not delete folder: "+err.Error())
+	}
+	return c.NoContent(http.StatusNoContent)
+}
+
 // MessageAction applies a bulk action to one or more messages by UID. It backs
 // every list/viewer button on the mail page (delete, mark read/unread, move,
 // mark spam, archive) for both single messages and multi-select. Doing it in

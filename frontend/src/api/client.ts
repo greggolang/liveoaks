@@ -834,6 +834,11 @@ export const api = {
       }),
     emptyFolder: (folder: string) =>
       request<{ deleted: number }>(`/imap/folders/${encodeURIComponent(folder)}/empty`, { method: 'POST' }),
+    folders: () => request<{ folders: string[] }>('/imap/folders'),
+    createFolder: (name: string) =>
+      request<{ name: string }>('/imap/folders', { method: 'POST', body: JSON.stringify({ name }) }),
+    deleteFolder: (name: string) =>
+      request(`/imap/folders/${encodeURIComponent(name)}`, { method: 'DELETE' }),
     contacts: {
       list: () => request<MailContact[]>('/imap/contacts'),
       create: (data: { name: string; email: string; phone?: string; notes?: string }) =>

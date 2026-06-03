@@ -23,6 +23,18 @@ const ICON = {
   move:    'M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z',
 }
 
+const FOLDER_ICON = 'M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z'
+
+// Names the server reports that map to built-in folders; anything else the user
+// created themselves and is shown as a custom folder.
+const SYSTEM_FOLDER_NAMES = new Set([
+  'inbox', 'sent', 'sent items', 'drafts', 'draft', 'trash',
+  'deleted items', 'junk', 'spam', 'archive', 'archives', 'all mail',
+])
+function isCustomFolder(name: string) {
+  return !SYSTEM_FOLDER_NAMES.has(name.trim().toLowerCase())
+}
+
 function folderLabel(key: string) {
   return FOLDERS.find(f => f.key === key)?.label ?? key
 }
@@ -91,24 +103,37 @@ function ToolbarBtn({ onClick, title, d, danger, disabled }: {
 }
 
 // ── "Move to folder" dropdown, reused by the toolbar and the open message ──
-function MoveMenu({ folder, onMove, up }: { folder: string; onMove: (to: string) => void; up?: boolean }) {
+function MoveMenu({ folder, customFolders, onMove, up }: {
+  folder: string; customFolders: string[]; onMove: (to: string) => void; up?: boolean
+}) {
   const [open, setOpen] = useState(false)
-  const targets = FOLDERS.filter(f => f.key !== folder)
+  const sysTargets = FOLDERS.filter(f => f.key !== folder)
+  const customTargets = customFolders.filter(c => c !== folder)
   return (
     <div className="relative">
       <ToolbarBtn onClick={() => setOpen(o => !o)} title="Move to folder" d={ICON.move} />
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className={`absolute right-0 ${up ? 'bottom-full mb-1' : 'top-full mt-1'} z-20 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-40`}>
+          <div className={`absolute right-0 ${up ? 'bottom-full mb-1' : 'top-full mt-1'} z-20 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-44 max-h-80 overflow-y-auto`}>
             <p className="px-3 py-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Move to</p>
-            {targets.map(t => (
+            {sysTargets.map(t => (
               <button key={t.key} onClick={() => { onMove(t.key); setOpen(false) }}
                 className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
                 <svg className="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={t.d} />
                 </svg>
                 {t.label}
+              </button>
+            ))}
+            {customTargets.length > 0 && <div className="my-1 border-t border-gray-100" />}
+            {customTargets.map(name => (
+              <button key={name} onClick={() => { onMove(name); setOpen(false) }}
+                className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                <svg className="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={FOLDER_ICON} />
+                </svg>
+                <span className="truncate">{name}</span>
               </button>
             ))}
           </div>
@@ -137,6 +162,14 @@ export default function MailInbox() {
   const [selectedUids, setSelectedUids] = useState<Set<number>>(new Set())
   const [actionBusy, setActionBusy]     = useState(false)
   const [confirmEmpty, setConfirmEmpty] = useState(false)
+
+  // ── Custom folders ──
+  const [customFolders, setCustomFolders] = useState<string[]>([])
+  const [showNewFolder, setShowNewFolder] = useState(false)
+  const [newFolderName, setNewFolderName] = useState('')
+  const [creatingFolder, setCreatingFolder] = useState(false)
+  const [folderError, setFolderError] = useState('')
+  const [deleteFolderName, setDeleteFolderName] = useState<string | null>(null)
 
   // ── Compose state ──
   const [composing, setComposing]     = useState(false)
@@ -184,6 +217,39 @@ export default function MailInbox() {
   }
 
   useEffect(() => { loadFolder(folder) }, [folder])
+
+  // ── Custom folder list ──
+  async function loadFolders() {
+    try {
+      const res = await api.imap.folders()
+      setCustomFolders(res.folders.filter(isCustomFolder).sort((a, b) => a.localeCompare(b)))
+    } catch {}
+  }
+  useEffect(() => { loadFolders() }, [])
+
+  async function handleCreateFolder(e: React.FormEvent) {
+    e.preventDefault()
+    const name = newFolderName.trim()
+    if (!name) return
+    setCreatingFolder(true); setFolderError('')
+    try {
+      await api.imap.createFolder(name)
+      setNewFolderName(''); setShowNewFolder(false)
+      await loadFolders()
+      setFolder(name)
+    } catch (e: any) { setFolderError(e.message) }
+    finally { setCreatingFolder(false) }
+  }
+
+  async function handleDeleteFolder() {
+    if (!deleteFolderName) return
+    try {
+      await api.imap.deleteFolder(deleteFolderName)
+      if (folder === deleteFolderName) setFolder('INBOX')
+      setDeleteFolderName(null)
+      await loadFolders()
+    } catch (e: any) { setError(e.message) }
+  }
 
   useEffect(() => {
     const id = setInterval(async () => {
@@ -446,6 +512,38 @@ export default function MailInbox() {
                 </button>
               )
             })}
+
+            {/* Custom folders */}
+            {customFolders.length > 0 && <div className="my-1 border-t border-gray-100" />}
+            {customFolders.map(name => {
+              const active = folder === name
+              return (
+                <div key={name}
+                  className={`group flex items-center rounded-lg ${active ? 'bg-green-100' : 'hover:bg-gray-100'}`}>
+                  <button onClick={() => setFolder(name)}
+                    className={`flex-1 flex items-center gap-2.5 px-3 py-2 text-sm min-w-0 ${active ? 'text-green-800 font-semibold' : 'text-gray-600'}`}>
+                    <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={FOLDER_ICON} />
+                    </svg>
+                    <span className="flex-1 text-left truncate">{name}</span>
+                  </button>
+                  <button onClick={() => setDeleteFolderName(name)} title="Delete folder"
+                    className="opacity-0 group-hover:opacity-100 px-2 py-2 text-gray-300 hover:text-red-600 transition shrink-0">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={ICON.trash} />
+                    </svg>
+                  </button>
+                </div>
+              )
+            })}
+
+            <button onClick={() => { setShowNewFolder(true); setNewFolderName(''); setFolderError('') }}
+              className="flex items-center gap-2.5 px-3 py-2 mt-0.5 text-sm text-gray-400 hover:text-green-700 hover:bg-gray-100 rounded-lg transition">
+              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              New folder
+            </button>
           </div>
 
           {/* ── List + viewer ── */}
@@ -467,7 +565,7 @@ export default function MailInbox() {
                     <ToolbarBtn onClick={() => applyAction([...selectedUids], 'unread')} title="Mark unread" d={ICON.unread} disabled={actionBusy} />
                     {folder !== 'Archive' && <ToolbarBtn onClick={() => applyAction([...selectedUids], 'archive')} title="Archive" d={ICON.archive} disabled={actionBusy} />}
                     {folder !== 'Junk' && <ToolbarBtn onClick={() => applyAction([...selectedUids], 'spam')} title="Mark as spam" d={ICON.spam} disabled={actionBusy} />}
-                    <MoveMenu folder={folder} onMove={to => applyAction([...selectedUids], 'move', to)} />
+                    <MoveMenu folder={folder} customFolders={customFolders} onMove={to => applyAction([...selectedUids], 'move', to)} />
                     <ToolbarBtn onClick={() => applyAction([...selectedUids], 'delete')} title="Delete" d={ICON.trash} danger disabled={actionBusy} />
                     <button onClick={() => setSelectedUids(new Set<number>())}
                       className="ml-auto text-xs text-gray-400 hover:text-gray-700 px-2 py-1 transition">Cancel</button>
@@ -478,7 +576,18 @@ export default function MailInbox() {
                     <select value={folder} onChange={e => setFolder(e.target.value)}
                       className="md:hidden text-sm font-medium bg-gray-100 border-0 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-green-500">
                       {FOLDERS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+                      {customFolders.length > 0 && (
+                        <optgroup label="Folders">
+                          {customFolders.map(name => <option key={name} value={name}>{name}</option>)}
+                        </optgroup>
+                      )}
                     </select>
+                    <button onClick={() => { setShowNewFolder(true); setNewFolderName(''); setFolderError('') }} title="New folder"
+                      className="md:hidden p-1.5 text-gray-400 hover:text-green-700 hover:bg-green-50 rounded-lg transition">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                    </button>
                     <span className="hidden md:block text-sm font-semibold text-gray-700 px-1">{folderLabel(folder)}</span>
                     <button onClick={() => loadFolder(folder)} title="Refresh"
                       className="p-1.5 text-gray-400 hover:text-green-700 hover:bg-green-50 rounded-lg transition">
@@ -616,7 +725,7 @@ export default function MailInbox() {
                         <ToolbarBtn onClick={() => { applyAction([selected.uid], 'unread'); setSelected(null) }} title="Mark as unread" d={ICON.unread} disabled={actionBusy} />
                         {folder !== 'Archive' && <ToolbarBtn onClick={() => applyAction([selected.uid], 'archive')} title="Archive" d={ICON.archive} disabled={actionBusy} />}
                         {folder !== 'Junk' && <ToolbarBtn onClick={() => applyAction([selected.uid], 'spam')} title="Mark as spam" d={ICON.spam} disabled={actionBusy} />}
-                        <MoveMenu folder={folder} onMove={to => applyAction([selected.uid], 'move', to)} />
+                        <MoveMenu folder={folder} customFolders={customFolders} onMove={to => applyAction([selected.uid], 'move', to)} />
                         {!contacts.find(c => c.email.toLowerCase() === fromEmail(selected.from).toLowerCase()) && (
                           <ToolbarBtn onClick={saveSenderAsContact} title="Save sender as contact"
                             d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
@@ -741,6 +850,54 @@ export default function MailInbox() {
               <button onClick={emptyCurrentFolder} disabled={actionBusy}
                 className="px-5 py-2 bg-red-600 text-white text-sm font-semibold rounded-xl hover:bg-red-700 disabled:opacity-50 transition">
                 {actionBusy ? 'Emptying…' : `Empty ${folder === 'Trash' ? 'Trash' : 'Spam'}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════ NEW FOLDER MODAL ══════════════ */}
+      {showNewFolder && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          onClick={() => { if (!creatingFolder) setShowNewFolder(false) }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-semibold text-gray-900 mb-1">New Folder</h3>
+            <p className="text-xs text-gray-500 mb-4">
+              Create a folder to organize your email. You can move any message into it from the message list or while reading it.
+            </p>
+            <form onSubmit={handleCreateFolder}>
+              <input autoFocus value={newFolderName} onChange={e => setNewFolderName(e.target.value)}
+                placeholder="e.g. Receipts, Vendors, Board"
+                className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+              {folderError && <p className="text-red-600 text-xs bg-red-50 px-3 py-2 rounded-lg mt-2">{folderError}</p>}
+              <div className="flex justify-end gap-2 mt-4">
+                <button type="button" onClick={() => { setShowNewFolder(false); setNewFolderName(''); setFolderError('') }}
+                  className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-xl transition">Cancel</button>
+                <button type="submit" disabled={creatingFolder || !newFolderName.trim()}
+                  className="px-5 py-2 bg-green-700 text-white text-sm font-semibold rounded-xl hover:bg-green-800 disabled:opacity-50 transition">
+                  {creatingFolder ? 'Creating…' : 'Create Folder'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════ DELETE FOLDER CONFIRM ══════════════ */}
+      {deleteFolderName && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          onClick={() => setDeleteFolderName(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-semibold text-gray-900 mb-2">Delete "{deleteFolderName}"?</h3>
+            <p className="text-sm text-gray-500 mb-5">
+              The folder and any messages still inside it will be permanently deleted. Move anything you want to keep first.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setDeleteFolderName(null)}
+                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-xl transition">Cancel</button>
+              <button onClick={handleDeleteFolder}
+                className="px-5 py-2 bg-red-600 text-white text-sm font-semibold rounded-xl hover:bg-red-700 transition">
+                Delete Folder
               </button>
             </div>
           </div>
