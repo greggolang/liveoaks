@@ -3,13 +3,29 @@ import { api, IMAPMessage, IMAPMessageDetail, MailContact, DocFile } from '../ap
 import { formatPhone } from '../utils/phone'
 import { parseDate } from '../utils/dates'
 
-const FOLDERS = [
-  { key: 'INBOX',   label: 'Inbox'   },
-  { key: 'Archive', label: 'Archive' },
-  { key: 'Sent',    label: 'Sent'    },
-  { key: 'Drafts',  label: 'Drafts'  },
-  { key: 'Trash',   label: 'Trash'   },
+type Folder = { key: string; label: string; d: string }
+
+const FOLDERS: Folder[] = [
+  { key: 'INBOX',   label: 'Inbox',   d: 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z' },
+  { key: 'Archive', label: 'Archive', d: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4' },
+  { key: 'Sent',    label: 'Sent',    d: 'M12 19l9 2-9-18-9 18 9-2zm0 0v-8' },
+  { key: 'Drafts',  label: 'Drafts',  d: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z' },
+  { key: 'Junk',    label: 'Spam',    d: 'M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636' },
+  { key: 'Trash',   label: 'Trash',   d: 'M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16' },
 ]
+
+const ICON = {
+  read:    'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
+  unread:  'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9',
+  archive: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4',
+  spam:    'M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636',
+  trash:   'M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16',
+  move:    'M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z',
+}
+
+function folderLabel(key: string) {
+  return FOLDERS.find(f => f.key === key)?.label ?? key
+}
 
 function formatDate(iso: string) {
   if (!iso) return ''
@@ -58,6 +74,50 @@ type SectionTab = 'mail' | 'contacts'
 
 const emptyContactForm = { name: '', email: '', phone: '', notes: '' }
 
+// ── Small icon action button used in the list toolbar and viewer ──
+function ToolbarBtn({ onClick, title, d, danger, disabled }: {
+  onClick: () => void; title: string; d: string; danger?: boolean; disabled?: boolean
+}) {
+  return (
+    <button onClick={onClick} title={title} disabled={disabled}
+      className={`p-1.5 rounded-lg transition disabled:opacity-40 ${
+        danger ? 'text-gray-400 hover:text-red-600 hover:bg-red-50' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'
+      }`}>
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={d} />
+      </svg>
+    </button>
+  )
+}
+
+// ── "Move to folder" dropdown, reused by the toolbar and the open message ──
+function MoveMenu({ folder, onMove, up }: { folder: string; onMove: (to: string) => void; up?: boolean }) {
+  const [open, setOpen] = useState(false)
+  const targets = FOLDERS.filter(f => f.key !== folder)
+  return (
+    <div className="relative">
+      <ToolbarBtn onClick={() => setOpen(o => !o)} title="Move to folder" d={ICON.move} />
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className={`absolute right-0 ${up ? 'bottom-full mb-1' : 'top-full mt-1'} z-20 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-40`}>
+            <p className="px-3 py-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Move to</p>
+            {targets.map(t => (
+              <button key={t.key} onClick={() => { onMove(t.key); setOpen(false) }}
+                className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                <svg className="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={t.d} />
+                </svg>
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function MailInbox() {
   const [section, setSection] = useState<SectionTab>('mail')
 
@@ -72,6 +132,11 @@ export default function MailInbox() {
   const viewerRef   = useRef<HTMLDivElement>(null)
   const toInputRef  = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // ── Selection / bulk actions ──
+  const [selectedUids, setSelectedUids] = useState<Set<number>>(new Set())
+  const [actionBusy, setActionBusy]     = useState(false)
+  const [confirmEmpty, setConfirmEmpty] = useState(false)
 
   // ── Compose state ──
   const [composing, setComposing]     = useState(false)
@@ -110,7 +175,7 @@ export default function MailInbox() {
 
   // ── Load mail ──
   async function loadFolder(f: string) {
-    setLoading(true); setError(''); setSelected(null)
+    setLoading(true); setError(''); setSelected(null); setSelectedUids(new Set<number>())
     try {
       const res = await api.imap.listMessages(f)
       setMessages(res.messages); setMailbox(res.mailbox)
@@ -169,12 +234,33 @@ export default function MailInbox() {
     finally { setMsgLoading(false) }
   }
 
-  async function deleteMessage(uid: number) {
+  // ── Bulk / single message actions ──
+  type Action = 'delete' | 'read' | 'unread' | 'move' | 'spam' | 'archive'
+  async function applyAction(uids: number[], action: Action, to?: string) {
+    if (uids.length === 0) return
+    setActionBusy(true); setError('')
     try {
-      await api.imap.delete(uid, folder)
-      setMessages(prev => prev.filter(m => m.uid !== uid))
-      if (selected?.uid === uid) setSelected(null)
+      await api.imap.action(folder, uids, action, to)
+      if (action === 'read' || action === 'unread') {
+        const unread = action === 'unread'
+        setMessages(prev => prev.map(m => uids.includes(m.uid) ? { ...m, unread } : m))
+      } else {
+        // delete / move / spam / archive all remove the message from this folder
+        setMessages(prev => prev.filter(m => !uids.includes(m.uid)))
+        if (selected && uids.includes(selected.uid)) setSelected(null)
+      }
+      setSelectedUids(new Set<number>())
     } catch (e: any) { setError(e.message) }
+    finally { setActionBusy(false) }
+  }
+
+  async function emptyCurrentFolder() {
+    setActionBusy(true); setError('')
+    try {
+      await api.imap.emptyFolder(folder)
+      setMessages([]); setSelected(null); setSelectedUids(new Set<number>()); setConfirmEmpty(false)
+    } catch (e: any) { setError(e.message) }
+    finally { setActionBusy(false) }
   }
 
   // ── Compose ──
@@ -223,15 +309,6 @@ export default function MailInbox() {
       body: `\n\n---------- Forwarded message ----------\nFrom: ${selected.from}\nDate: ${parseDate(selected.date).toLocaleString()}\nSubject: ${selected.subject}\n\n`,
     })
     setComposing(true)
-  }
-
-  async function handleMarkUnread() {
-    if (!selected) return
-    try {
-      await api.imap.markUnread(selected.uid, folder)
-      setMessages(prev => prev.map(m => m.uid === selected.uid ? { ...m, unread: true } : m))
-      setSelected(null)
-    } catch {}
   }
 
   function openCompose() {
@@ -286,6 +363,7 @@ export default function MailInbox() {
         m.subject?.toLowerCase().includes(search.toLowerCase()) ||
         m.from?.toLowerCase().includes(search.toLowerCase()))
     : messages
+  const allSelected = filteredMessages.length > 0 && filteredMessages.every(m => selectedUids.has(m.uid))
   const filteredContacts = contacts.filter(c =>
     !contactSearch2 ||
     c.name.toLowerCase().includes(contactSearch2.toLowerCase()) ||
@@ -297,83 +375,48 @@ export default function MailInbox() {
      c.email.toLowerCase().includes(contactSearch.toLowerCase()))
   )
 
+  function toggleSelect(uid: number) {
+    setSelectedUids(prev => {
+      const next = new Set(prev)
+      if (next.has(uid)) next.delete(uid); else next.add(uid)
+      return next
+    })
+  }
+  function toggleSelectAll() {
+    setSelectedUids(allSelected ? new Set<number>() : new Set(filteredMessages.map(m => m.uid)))
+  }
+
+  const isTrashOrSpam = folder === 'Trash' || folder === 'Junk'
+
   return (
-    <div className="flex flex-col h-full max-h-[calc(100vh-120px)]">
+    <div className="flex flex-col h-full max-h-[calc(100vh-110px)]">
 
       {/* ── Header ── */}
-      <div className="flex items-center justify-between mb-3">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900 leading-none">Messages</h1>
-          {mailbox && <p className="text-xs text-gray-400 mt-0.5 font-mono">{mailbox}</p>}
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold text-gray-900 leading-none">Email</h1>
+          {mailbox && <p className="text-xs text-gray-400 mt-0.5 font-mono truncate">{mailbox}</p>}
         </div>
-        <button
-          onClick={openCompose}
-          className="flex items-center gap-2 px-4 py-2 bg-green-700 text-white text-sm font-semibold rounded-xl hover:bg-green-800 active:scale-95 transition shadow-sm shadow-green-900/20">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-          </svg>
-          Compose
-        </button>
-      </div>
-
-      {/* ── Nav: section + folders in one row ── */}
-      <div className="flex items-center gap-0.5 mb-4 border-b border-gray-200 overflow-x-auto">
-        <button onClick={() => setSection('mail')}
-          className={`flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition ${
-            section === 'mail' ? 'border-green-700 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-800'
-          }`}>
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-          </svg>
-          Mail
-          {unreadCount > 0 && (
-            <span className="px-1.5 py-0.5 bg-green-700 text-white text-[11px] font-bold rounded-full leading-none">{unreadCount}</span>
-          )}
-        </button>
-        <button onClick={() => setSection('contacts')}
-          className={`flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition ${
-            section === 'contacts' ? 'border-green-700 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-800'
-          }`}>
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-          Contacts
-          {contacts.length > 0 && <span className="text-xs text-gray-400 font-normal">{contacts.length}</span>}
-        </button>
-
-        {section === 'mail' && (
-          <>
-            <span className="w-px h-4 bg-gray-200 mx-1 shrink-0" />
-            {FOLDERS.map(f => (
-              <button key={f.key} onClick={() => setFolder(f.key)}
-                className={`px-3 py-2.5 text-sm border-b-2 -mb-px whitespace-nowrap transition ${
-                  folder === f.key ? 'border-green-700 text-green-700 font-medium' : 'border-transparent text-gray-400 hover:text-gray-700'
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="flex bg-gray-100 rounded-xl p-0.5">
+            {(['mail', 'contacts'] as SectionTab[]).map(s => (
+              <button key={s} onClick={() => setSection(s)}
+                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition ${
+                  section === s ? 'bg-white text-green-700 shadow-sm' : 'text-gray-500 hover:text-gray-800'
                 }`}>
-                {f.label}
+                {s === 'mail' ? 'Mail' : 'Contacts'}
               </button>
             ))}
-            <button onClick={() => loadFolder(folder)} title="Refresh"
-              className="ml-auto p-2 text-gray-400 hover:text-green-700 hover:bg-green-50 rounded-lg transition shrink-0">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-            </button>
-          </>
-        )}
-
-        {section === 'contacts' && (
+          </div>
           <button
-            onClick={() => { setEditingContact(null); setContactForm(emptyContactForm); setContactError(''); setShowAddContact(true) }}
-            className="ml-auto flex items-center gap-1.5 px-3 py-1.5 mr-0.5 text-xs font-semibold text-green-700 hover:bg-green-50 rounded-lg transition shrink-0">
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            onClick={openCompose}
+            className="flex items-center gap-2 px-4 py-2 bg-green-700 text-white text-sm font-semibold rounded-xl hover:bg-green-800 active:scale-95 transition shadow-sm shadow-green-900/20">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
             </svg>
-            Add Contact
+            <span className="hidden sm:inline">Compose</span>
           </button>
-        )}
+        </div>
       </div>
 
       {error && (
@@ -384,182 +427,239 @@ export default function MailInbox() {
       {section === 'mail' && (
         <div className="flex flex-1 gap-3 min-h-0">
 
-          {/* ── Message list ── */}
-          <div className={`flex flex-col rounded-2xl overflow-hidden bg-white border border-gray-200 shadow-sm
-            ${selected ? 'hidden lg:flex lg:w-72 xl:w-80 shrink-0' : 'flex-1'}`}>
-            {/* Search bar */}
-            <div className="px-3 pt-3 pb-2">
-              <div className="relative">
-                <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0" />
-                </svg>
-                <input
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  placeholder="Search…"
-                  className="w-full pl-8 pr-3 py-1.5 text-sm rounded-lg bg-gray-100 border-0 focus:outline-none focus:ring-2 focus:ring-green-500 placeholder-gray-400"
-                />
-              </div>
-            </div>
-
-            {loading ? (
-              <div className="flex-1 flex items-center justify-center">
-                <div className="w-5 h-5 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
-              </div>
-            ) : filteredMessages.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center text-gray-400 text-sm gap-2 pb-6">
-                <svg className="w-10 h-10 opacity-15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                    d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-                <p>{search ? 'No matches' : 'No messages'}</p>
-              </div>
-            ) : (
-              <div className="flex-1 overflow-y-auto">
-                {filteredMessages.map((msg, idx) => {
-                  const name = fromName(msg.from)
-                  const isSelected = selected?.uid === msg.uid
-                  return (
-                    <button key={msg.uid} onClick={() => openMessage(msg)}
-                      className={`w-full text-left px-3 py-3 transition group
-                        ${isSelected ? 'bg-green-50 border-l-2 border-green-600' : 'border-l-2 border-transparent hover:bg-gray-50'}
-                        ${idx > 0 ? 'border-t border-gray-100' : ''}`}>
-                      <div className="flex items-start gap-2.5">
-                        <div className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-xs font-bold ${avatarColor(name)}`}>
-                          {nameInitials(name)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-1 mb-0.5">
-                            <span className={`text-sm truncate ${msg.unread ? 'font-semibold text-gray-900' : 'text-gray-600'}`}>
-                              {name}
-                            </span>
-                            <span className="text-[11px] text-gray-400 shrink-0">{formatDate(msg.date)}</span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            {msg.unread && <span className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />}
-                            <p className={`text-xs truncate leading-snug ${msg.unread ? 'text-gray-700' : 'text-gray-400'}`}>
-                              {msg.subject || '(no subject)'}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
-            )}
+          {/* ── Folder rail (desktop) ── */}
+          <div className="hidden md:flex flex-col w-40 shrink-0 gap-0.5">
+            {FOLDERS.map(f => {
+              const active = folder === f.key
+              return (
+                <button key={f.key} onClick={() => setFolder(f.key)}
+                  className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition ${
+                    active ? 'bg-green-100 text-green-800 font-semibold' : 'text-gray-600 hover:bg-gray-100'
+                  }`}>
+                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={f.d} />
+                  </svg>
+                  <span className="flex-1 text-left">{f.label}</span>
+                  {f.key === 'INBOX' && unreadCount > 0 && (
+                    <span className="px-1.5 py-0.5 bg-green-700 text-white text-[11px] font-bold rounded-full leading-none">{unreadCount}</span>
+                  )}
+                </button>
+              )
+            })}
           </div>
 
-          {/* ── Message viewer ── */}
-          {(selected || msgLoading) && (
-            <div ref={viewerRef} className="flex-1 flex flex-col rounded-2xl overflow-hidden bg-white border border-gray-200 shadow-sm min-h-0">
-              {msgLoading ? (
+          {/* ── List + viewer ── */}
+          <div className="flex flex-1 gap-3 min-h-0">
+
+            {/* Message list */}
+            <div className={`flex flex-col rounded-2xl overflow-hidden bg-white border border-gray-200 shadow-sm
+              ${selected ? 'hidden lg:flex lg:w-80 xl:w-96 shrink-0' : 'flex-1'}`}>
+
+              {/* Toolbar */}
+              <div className="px-3 py-2 border-b border-gray-100 flex items-center gap-1 min-h-[46px]">
+                <input type="checkbox" checked={allSelected} onChange={toggleSelectAll}
+                  className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500 cursor-pointer mr-1"
+                  title="Select all" />
+                {selectedUids.size > 0 ? (
+                  <>
+                    <span className="text-xs font-medium text-gray-500 mr-1">{selectedUids.size}</span>
+                    <ToolbarBtn onClick={() => applyAction([...selectedUids], 'read')}   title="Mark read"   d={ICON.read}   disabled={actionBusy} />
+                    <ToolbarBtn onClick={() => applyAction([...selectedUids], 'unread')} title="Mark unread" d={ICON.unread} disabled={actionBusy} />
+                    {folder !== 'Archive' && <ToolbarBtn onClick={() => applyAction([...selectedUids], 'archive')} title="Archive" d={ICON.archive} disabled={actionBusy} />}
+                    {folder !== 'Junk' && <ToolbarBtn onClick={() => applyAction([...selectedUids], 'spam')} title="Mark as spam" d={ICON.spam} disabled={actionBusy} />}
+                    <MoveMenu folder={folder} onMove={to => applyAction([...selectedUids], 'move', to)} />
+                    <ToolbarBtn onClick={() => applyAction([...selectedUids], 'delete')} title="Delete" d={ICON.trash} danger disabled={actionBusy} />
+                    <button onClick={() => setSelectedUids(new Set<number>())}
+                      className="ml-auto text-xs text-gray-400 hover:text-gray-700 px-2 py-1 transition">Cancel</button>
+                  </>
+                ) : (
+                  <>
+                    {/* Mobile folder picker */}
+                    <select value={folder} onChange={e => setFolder(e.target.value)}
+                      className="md:hidden text-sm font-medium bg-gray-100 border-0 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-green-500">
+                      {FOLDERS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+                    </select>
+                    <span className="hidden md:block text-sm font-semibold text-gray-700 px-1">{folderLabel(folder)}</span>
+                    <button onClick={() => loadFolder(folder)} title="Refresh"
+                      className="p-1.5 text-gray-400 hover:text-green-700 hover:bg-green-50 rounded-lg transition">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                    </button>
+                    {isTrashOrSpam && messages.length > 0 && (
+                      <button onClick={() => setConfirmEmpty(true)}
+                        className="ml-auto text-xs font-semibold text-red-600 hover:bg-red-50 px-2.5 py-1.5 rounded-lg transition">
+                        Empty {folder === 'Trash' ? 'Trash' : 'Spam'}
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* Search */}
+              <div className="px-3 pt-2 pb-1.5">
+                <div className="relative">
+                  <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0" />
+                  </svg>
+                  <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…"
+                    className="w-full pl-8 pr-3 py-1.5 text-sm rounded-lg bg-gray-100 border-0 focus:outline-none focus:ring-2 focus:ring-green-500 placeholder-gray-400" />
+                </div>
+              </div>
+
+              {loading ? (
                 <div className="flex-1 flex items-center justify-center">
                   <div className="w-5 h-5 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
                 </div>
-              ) : selected ? (
-                <>
-                  {/* Viewer header */}
-                  <div className="px-5 py-4 border-b border-gray-100 bg-gray-50/60">
-                    {/* Subject + back */}
-                    <div className="flex items-start gap-3 mb-3">
-                      <button onClick={() => setSelected(null)}
-                        className="mt-0.5 p-1 -ml-1 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-200 transition lg:hidden shrink-0">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                        </svg>
-                      </button>
-                      <h2 className="flex-1 text-base font-semibold text-gray-900 leading-snug">
-                        {selected.subject || '(no subject)'}
-                      </h2>
-                    </div>
-                    {/* Sender row */}
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className={`w-9 h-9 rounded-full shrink-0 flex items-center justify-center text-xs font-bold ${avatarColor(fromName(selected.from))}`}>
-                        {nameInitials(fromName(selected.from))}
+              ) : filteredMessages.length === 0 ? (
+                <div className="flex-1 flex flex-col items-center justify-center text-gray-400 text-sm gap-2 pb-6">
+                  <svg className="w-10 h-10 opacity-15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                      d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  <p>{search ? 'No matches' : 'No messages'}</p>
+                </div>
+              ) : (
+                <div className="flex-1 overflow-y-auto">
+                  {filteredMessages.map((msg, idx) => {
+                    const name = fromName(msg.from)
+                    const isSelected = selected?.uid === msg.uid
+                    const isChecked = selectedUids.has(msg.uid)
+                    return (
+                      <div key={msg.uid}
+                        className={`flex items-start gap-2 px-3 py-3 transition group
+                          ${isSelected ? 'bg-green-50 border-l-2 border-green-600' : isChecked ? 'bg-green-50/40 border-l-2 border-transparent' : 'border-l-2 border-transparent hover:bg-gray-50'}
+                          ${idx > 0 ? 'border-t border-gray-100' : ''}`}>
+                        <input type="checkbox" checked={isChecked}
+                          onChange={() => toggleSelect(msg.uid)}
+                          onClick={e => e.stopPropagation()}
+                          className="mt-2 w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500 cursor-pointer shrink-0" />
+                        <button onClick={() => openMessage(msg)} className="flex-1 flex items-start gap-2.5 text-left min-w-0">
+                          <div className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-xs font-bold ${avatarColor(name)}`}>
+                            {nameInitials(name)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-1 mb-0.5">
+                              <span className={`text-sm truncate ${msg.unread ? 'font-semibold text-gray-900' : 'text-gray-600'}`}>{name}</span>
+                              <span className="text-[11px] text-gray-400 shrink-0">{formatDate(msg.date)}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              {msg.unread && <span className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />}
+                              <p className={`text-xs truncate leading-snug ${msg.unread ? 'text-gray-700' : 'text-gray-400'}`}>
+                                {msg.subject || '(no subject)'}
+                              </p>
+                            </div>
+                          </div>
+                        </button>
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-gray-900 truncate">{fromName(selected.from)}</p>
-                        <p className="text-xs text-gray-400 truncate">
-                          {selected.from} · {parseDate(selected.date).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                        </p>
-                      </div>
-                    </div>
-                    {/* Meta */}
-                    <div className="text-xs text-gray-500 space-y-0.5 mb-3 pl-12">
-                      <p><span className="text-gray-400">To:</span> {selected.to}</p>
-                      {selected.cc && <p><span className="text-gray-400">Cc:</span> {selected.cc}</p>}
-                    </div>
-                    {/* Actions */}
-                    <div className="flex items-center gap-1.5 flex-wrap pl-12">
-                      <button onClick={startReply}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-green-700 text-white rounded-lg hover:bg-green-800 transition">
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                        </svg>
-                        Reply
-                      </button>
-                      <button onClick={startForward}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition">
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10H11a8 8 0 00-8 8v2m18-10l-6-6m6 6l-6 6" />
-                        </svg>
-                        Forward
-                      </button>
-                      <button onClick={handleMarkUnread} title="Mark as unread"
-                        className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                            d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                        </svg>
-                      </button>
-                      {!contacts.find(c => c.email.toLowerCase() === fromEmail(selected.from).toLowerCase()) && (
-                        <button onClick={saveSenderAsContact} title="Save sender as contact"
-                          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition">
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Message viewer */}
+            {(selected || msgLoading) && (
+              <div ref={viewerRef} className="flex-1 flex flex-col rounded-2xl overflow-hidden bg-white border border-gray-200 shadow-sm min-h-0">
+                {msgLoading ? (
+                  <div className="flex-1 flex items-center justify-center">
+                    <div className="w-5 h-5 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : selected ? (
+                  <>
+                    {/* Viewer header */}
+                    <div className="px-5 py-4 border-b border-gray-100 bg-gray-50/60">
+                      <div className="flex items-start gap-3 mb-3">
+                        <button onClick={() => setSelected(null)}
+                          className="mt-0.5 p-1 -ml-1 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-200 transition lg:hidden shrink-0">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                              d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                           </svg>
                         </button>
-                      )}
-                      <button onClick={() => deleteMessage(selected.uid)} title="Delete"
-                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
+                        <h2 className="flex-1 text-base font-semibold text-gray-900 leading-snug">
+                          {selected.subject || '(no subject)'}
+                        </h2>
+                      </div>
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className={`w-9 h-9 rounded-full shrink-0 flex items-center justify-center text-xs font-bold ${avatarColor(fromName(selected.from))}`}>
+                          {nameInitials(fromName(selected.from))}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-gray-900 truncate">{fromName(selected.from)}</p>
+                          <p className="text-xs text-gray-400 truncate">
+                            {selected.from} · {parseDate(selected.date).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-xs text-gray-500 space-y-0.5 mb-3 pl-12">
+                        <p><span className="text-gray-400">To:</span> {selected.to}</p>
+                        {selected.cc && <p><span className="text-gray-400">Cc:</span> {selected.cc}</p>}
+                      </div>
+                      {/* Actions */}
+                      <div className="flex items-center gap-1.5 flex-wrap pl-12">
+                        <button onClick={startReply}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-green-700 text-white rounded-lg hover:bg-green-800 transition">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                          </svg>
+                          Reply
+                        </button>
+                        <button onClick={startForward}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10H11a8 8 0 00-8 8v2m18-10l-6-6m6 6l-6 6" />
+                          </svg>
+                          Forward
+                        </button>
+                        <span className="w-px h-5 bg-gray-200 mx-0.5" />
+                        <ToolbarBtn onClick={() => { applyAction([selected.uid], 'unread'); setSelected(null) }} title="Mark as unread" d={ICON.unread} disabled={actionBusy} />
+                        {folder !== 'Archive' && <ToolbarBtn onClick={() => applyAction([selected.uid], 'archive')} title="Archive" d={ICON.archive} disabled={actionBusy} />}
+                        {folder !== 'Junk' && <ToolbarBtn onClick={() => applyAction([selected.uid], 'spam')} title="Mark as spam" d={ICON.spam} disabled={actionBusy} />}
+                        <MoveMenu folder={folder} onMove={to => applyAction([selected.uid], 'move', to)} />
+                        {!contacts.find(c => c.email.toLowerCase() === fromEmail(selected.from).toLowerCase()) && (
+                          <ToolbarBtn onClick={saveSenderAsContact} title="Save sender as contact"
+                            d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                        )}
+                        <ToolbarBtn onClick={() => applyAction([selected.uid], 'delete')} title="Delete" d={ICON.trash} danger disabled={actionBusy} />
+                      </div>
                     </div>
-                  </div>
-                  {/* Body */}
-                  <div className="flex-1 overflow-y-auto px-6 py-5">
-                    {selected.body ? (
-                      <div className="prose prose-sm max-w-none text-gray-800"
-                        dangerouslySetInnerHTML={{ __html: selected.body }} />
-                    ) : (
-                      <p className="text-gray-400 text-sm italic">No content</p>
-                    )}
-                  </div>
-                </>
-              ) : null}
-            </div>
-          )}
+                    {/* Body */}
+                    <div className="flex-1 overflow-y-auto px-6 py-5">
+                      {selected.body ? (
+                        <div className="prose prose-sm max-w-none text-gray-800"
+                          dangerouslySetInnerHTML={{ __html: selected.body }} />
+                      ) : (
+                        <p className="text-gray-400 text-sm italic">No content</p>
+                      )}
+                    </div>
+                  </>
+                ) : null}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
       {/* ══════════════ CONTACTS SECTION ══════════════ */}
       {section === 'contacts' && (
         <div className="flex-1 min-h-0 overflow-y-auto">
-          <div className="mb-4 relative">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0" />
-            </svg>
-            <input
-              value={contactSearch2}
-              onChange={e => setContactSearch2(e.target.value)}
-              placeholder="Search contacts…"
-              className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
-            />
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <div className="flex-1 relative">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0" />
+              </svg>
+              <input value={contactSearch2} onChange={e => setContactSearch2(e.target.value)} placeholder="Search contacts…"
+                className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white" />
+            </div>
+            <button
+              onClick={() => { setEditingContact(null); setContactForm(emptyContactForm); setContactError(''); setShowAddContact(true) }}
+              className="flex items-center gap-1.5 px-3 py-2.5 text-sm font-semibold text-green-700 bg-green-50 hover:bg-green-100 rounded-xl transition shrink-0">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add Contact
+            </button>
           </div>
 
           {contactsLoading ? (
@@ -624,6 +724,26 @@ export default function MailInbox() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ══════════════ EMPTY FOLDER CONFIRM ══════════════ */}
+      {confirmEmpty && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setConfirmEmpty(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-semibold text-gray-900 mb-2">Empty {folder === 'Trash' ? 'Trash' : 'Spam'}?</h3>
+            <p className="text-sm text-gray-500 mb-5">
+              This permanently deletes <strong>every</strong> message in {folder === 'Trash' ? 'Trash' : 'Spam'} — not just the ones shown. This cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setConfirmEmpty(false)} disabled={actionBusy}
+                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-xl transition disabled:opacity-50">Cancel</button>
+              <button onClick={emptyCurrentFolder} disabled={actionBusy}
+                className="px-5 py-2 bg-red-600 text-white text-sm font-semibold rounded-xl hover:bg-red-700 disabled:opacity-50 transition">
+                {actionBusy ? 'Emptying…' : `Empty ${folder === 'Trash' ? 'Trash' : 'Spam'}`}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -697,16 +817,12 @@ export default function MailInbox() {
                     </button>
                   )}
                 </div>
-                {/* Contact suggestions dropdown */}
                 {contactPickerOpen && (composeContactSuggestions.length > 0 || (contactSearch === '' && contacts.length > 0)) && (
                   <div className="absolute left-0 right-0 top-full mt-1 z-10 bg-white border border-gray-200 rounded-xl shadow-lg max-h-40 overflow-y-auto">
                     {(contactSearch === '' ? contacts : composeContactSuggestions).map(c => (
                       <button key={c.id} type="button"
                         onClick={() => {
                           if (!toChips.includes(c.email)) setToChips(ch => [...ch, c.email])
-                          // Refocus the input first: focus() synchronously fires the
-                          // input's onFocus (which reopens the picker), so we must queue
-                          // the close *after* it or the popup stays open.
                           toInputRef.current?.focus()
                           setContactPickerOpen(false); setContactSearch('')
                         }}
@@ -805,7 +921,6 @@ export default function MailInbox() {
 
               {/* ── Attachments ── */}
               <div className="space-y-2">
-                {/* Attached file chips */}
                 {(attachments.length > 0 || docAttachments.length > 0) && (
                   <div className="flex flex-wrap gap-1.5">
                     {attachments.map((f, i) => (
@@ -840,7 +955,6 @@ export default function MailInbox() {
                     ))}
                   </div>
                 )}
-                {/* Attach buttons */}
                 <div className="flex items-center gap-2">
                   <input ref={fileInputRef} type="file" multiple className="hidden"
                     onChange={e => { if (e.target.files) setAttachments(a => [...a, ...Array.from(e.target.files!)]) }} />
@@ -863,7 +977,6 @@ export default function MailInbox() {
                     </button>
                   )}
                 </div>
-                {/* Doc picker dropdown */}
                 {docPickerOpen && allDocs.length > 0 && (
                   <div className="border border-gray-200 rounded-xl bg-white shadow-sm max-h-40 overflow-y-auto">
                     {allDocs.map(d => {

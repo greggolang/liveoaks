@@ -552,6 +552,118 @@ func (h *IMAPHandler) MarkRead(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
+// MessageAction applies a bulk action to one or more messages by UID. It backs
+// every list/viewer button on the mail page (delete, mark read/unread, move,
+// mark spam, archive) for both single messages and multi-select. Doing it in
+// one IMAP session keeps multi-select fast instead of one connection per UID.
+func (h *IMAPHandler) MessageAction(c echo.Context) error {
+	address, password, host, err := h.creds(c)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
+	var req struct {
+		Folder string   `json:"folder"`
+		UIDs   []uint32 `json:"uids"`
+		Action string   `json:"action"` // delete | read | unread | move | spam | archive
+		To     string   `json:"to"`     // destination folder for action=move
+	}
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
+	}
+	if req.Folder == "" {
+		req.Folder = "INBOX"
+	}
+	if len(req.UIDs) == 0 {
+		return c.JSON(http.StatusOK, map[string]int{"affected": 0})
+	}
+
+	ic, err := imapConnect(host, address, password)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusServiceUnavailable, err.Error())
+	}
+	defer ic.Logout()
+
+	folder := resolveFolder(ic, req.Folder)
+	if _, err := ic.Select(folder, false); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "folder not found: "+folder)
+	}
+
+	seqset := new(imap.SeqSet)
+	seqset.AddNum(req.UIDs...)
+
+	switch req.Action {
+	case "read":
+		ic.UidStore(seqset, imap.FormatFlagsOp(imap.AddFlags, true), []interface{}{imap.SeenFlag}, nil)
+	case "unread":
+		ic.UidStore(seqset, imap.FormatFlagsOp(imap.RemoveFlags, true), []interface{}{imap.SeenFlag}, nil)
+	case "move", "spam", "archive":
+		dest := req.To
+		switch req.Action {
+		case "spam":
+			dest = "Junk"
+		case "archive":
+			dest = "Archive"
+		}
+		if dest == "" {
+			return echo.NewHTTPError(http.StatusBadRequest, "destination folder required")
+		}
+		dest = resolveFolder(ic, dest)
+		ic.Create(dest) // ensure the destination exists; ignores "already exists"
+		if err := ic.UidCopy(seqset, dest); err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "move failed: "+err.Error())
+		}
+		ic.UidStore(seqset, imap.FormatFlagsOp(imap.AddFlags, true), []interface{}{imap.DeletedFlag}, nil)
+		ic.Expunge(nil)
+	case "delete":
+		trash := resolveFolder(ic, "Trash")
+		if folder != trash {
+			ic.Create(trash)
+			ic.UidCopy(seqset, trash)
+		}
+		ic.UidStore(seqset, imap.FormatFlagsOp(imap.AddFlags, true), []interface{}{imap.DeletedFlag}, nil)
+		ic.Expunge(nil)
+	default:
+		return echo.NewHTTPError(http.StatusBadRequest, "unknown action")
+	}
+
+	return c.JSON(http.StatusOK, map[string]int{"affected": len(req.UIDs)})
+}
+
+// EmptyFolder permanently deletes every message in a single folder — the
+// "Empty Trash" / "Empty Spam" buttons. Unlike delete (which moves to Trash),
+// this expunges in place.
+func (h *IMAPHandler) EmptyFolder(c echo.Context) error {
+	address, password, host, err := h.creds(c)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
+	want := c.Param("folder")
+	if want == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "folder required")
+	}
+
+	ic, err := imapConnect(host, address, password)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusServiceUnavailable, err.Error())
+	}
+	defer ic.Logout()
+
+	folder := resolveFolder(ic, want)
+	mbox, err := ic.Select(folder, false)
+	if err != nil || mbox.Messages == 0 {
+		return c.JSON(http.StatusOK, map[string]int{"deleted": 0})
+	}
+
+	seqset := new(imap.SeqSet)
+	seqset.AddRange(1, mbox.Messages)
+	ic.Store(seqset, imap.FormatFlagsOp(imap.AddFlags, true), []interface{}{imap.DeletedFlag}, nil)
+	ic.Expunge(nil)
+
+	return c.JSON(http.StatusOK, map[string]int{"deleted": int(mbox.Messages)})
+}
+
 // DeleteMessage moves a message to Trash by UID.
 func (h *IMAPHandler) DeleteMessage(c echo.Context) error {
 	address, password, host, err := h.creds(c)

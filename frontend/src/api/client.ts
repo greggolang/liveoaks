@@ -828,6 +828,12 @@ export const api = {
       request(`/imap/messages/${uid}/unread?folder=${encodeURIComponent(folder)}`, { method: 'PUT' }),
     delete: (uid: number, folder = 'INBOX') =>
       request(`/imap/messages/${uid}?folder=${encodeURIComponent(folder)}`, { method: 'DELETE' }),
+    action: (folder: string, uids: number[], action: 'delete' | 'read' | 'unread' | 'move' | 'spam' | 'archive', to?: string) =>
+      request<{ affected: number }>('/imap/messages/action', {
+        method: 'POST', body: JSON.stringify({ folder, uids, action, to }),
+      }),
+    emptyFolder: (folder: string) =>
+      request<{ deleted: number }>(`/imap/folders/${encodeURIComponent(folder)}/empty`, { method: 'POST' }),
     contacts: {
       list: () => request<MailContact[]>('/imap/contacts'),
       create: (data: { name: string; email: string; phone?: string; notes?: string }) =>

@@ -46,6 +46,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [showLadder, setShowLadder] = useState(false)
   const [showDocuments, setShowDocuments] = useState(false)
   const [unreadMessages, setUnreadMessages] = useState(0)
+  const [hasMailAccount, setHasMailAccount] = useState(false)
 
   useEffect(() => {
     api.fantasy.tournaments()
@@ -56,6 +57,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       .catch(() => {})
     api.documents.list()
       .then((d: any[]) => setShowDocuments(d.length > 0))
+      .catch(() => {})
+    // Show the Email link only to users who have a mailbox assigned.
+    api.mail.myAccount()
+      .then(d => setHasMailAccount(!!d))
       .catch(() => {})
 
     // Poll unread message count every 60 seconds
@@ -116,6 +121,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               {hasPermission('directory') && <NavLink to="/directory" className={navLink}>Directory</NavLink>}
               <span className="w-px h-4 bg-green-600" />
               {hasPermission('friends') && <NavLink to="/friends" className={navLink}>Friends</NavLink>}
+              {hasMailAccount && <NavLink to="/email" className={navLink}>Email</NavLink>}
               {hasPermission('documents') && showDocuments && <NavLink to="/files" className={navLink}>Files</NavLink>}
               {hasPermission('fantasy') && showFantasy && <NavLink to="/fantasy" className={navLink}>Fantasy Pool</NavLink>}
               {hasPermission('ladder') && showLadder && <NavLink to="/ladder" className={navLink}>Ladder</NavLink>}
@@ -130,20 +136,19 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 </svg>
               </button>
               <div className="flex items-center gap-2 pl-2 border-l border-green-600">
-                {hasPermission('messages') && (
-                  <NavLink to="/messages" title="Messages" className={({ isActive }) =>
-                    `relative hover:text-green-200 transition ${isActive ? 'text-white' : 'text-green-200'}`}>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                        d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
-                    {unreadMessages > 0 && (
-                      <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-bold min-w-[1.1rem] h-[1.1rem] rounded-full flex items-center justify-center px-0.5 leading-none">
-                        {unreadMessages > 99 ? '99+' : unreadMessages}
-                      </span>
-                    )}
-                  </NavLink>
-                )}
+                {/* Member-to-member messaging is available to every member — no permission gate. */}
+                <NavLink to="/messages" title="Messages" className={({ isActive }) =>
+                  `relative hover:text-green-200 transition ${isActive ? 'text-white' : 'text-green-200'}`}>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  {unreadMessages > 0 && (
+                    <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-bold min-w-[1.1rem] h-[1.1rem] rounded-full flex items-center justify-center px-0.5 leading-none">
+                      {unreadMessages > 99 ? '99+' : unreadMessages}
+                    </span>
+                  )}
+                </NavLink>
                 <Link to="/profile" className="text-green-200 hover:text-white text-xs transition">
                   {user?.first_name}
                 </Link>
@@ -173,7 +178,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 hasPermission('pro_shop')  && ['/pro-shop', 'Pro Shop'],
                 hasPermission('directory') && ['/directory', 'Directory'],
                 hasPermission('friends')   && ['/friends', 'Friends'],
-                hasPermission('messages')  && ['/messages', unreadMessages > 0 ? `Messages (${unreadMessages})` : 'Messages'],
+                hasMailAccount             && ['/email', 'Email'],
+                ['/messages', unreadMessages > 0 ? `Messages (${unreadMessages})` : 'Messages'],
                 hasPermission('documents') && showDocuments && ['/files', 'Files'],
                 hasPermission('fantasy')   && showFantasy   && ['/fantasy', 'Fantasy Pool'],
                 hasPermission('ladder')    && showLadder    && ['/ladder', 'Ladder'],
