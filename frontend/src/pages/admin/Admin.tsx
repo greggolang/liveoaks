@@ -28,8 +28,7 @@ const sections: Section[] = [
       { to: '/admin/users', label: 'Members', section: 'members' },
       { to: '/admin/member-requests', label: 'New Member Requests', section: 'member_requests' },
       { to: '/admin/waitlist', label: 'Waitlist', section: 'waitlist' },
-      { to: '/admin/guests', label: 'Guest Passes', section: 'guests' },
-      { to: '/admin/polls', label: 'Membership Polls' },
+{ to: '/admin/polls', label: 'Membership Polls' },
     ],
   },
   {

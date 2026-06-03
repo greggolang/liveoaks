@@ -10,7 +10,6 @@ const PAGES: { key: string; label: string; desc: string }[] = [
   { key: 'photos',        label: 'Photo Gallery',       desc: 'Browse club photo albums (/photos)' },
   { key: 'usta_teams',    label: 'USTA Teams',          desc: 'View USTA league teams and rosters (/usta-teams)' },
   { key: 'directory',     label: 'Member Directory',    desc: 'Search and view member contact info (/directory)' },
-  { key: 'guests',        label: 'Guest Passes',        desc: 'Log guest visits and view personal guest pass history (/guests)' },
   { key: 'dues',          label: 'My Dues',             desc: 'View personal dues balance and payment history (/dues)' },
   { key: 'club_info',       label: 'About / Club Info',    desc: 'Club hours, contact details, and general information (/club-info)' },
   { key: 'bylaws',        label: 'Bylaws',              desc: 'View the club bylaws document (/bylaws)' },

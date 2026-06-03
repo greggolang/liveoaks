@@ -32,7 +32,6 @@ var Catalog = []Section{
 	{"members", "Members", "Members", "View and manage the member roster, roles, and status"},
 	{"member_requests", "New Member Requests", "Members", "Review, approve, and communicate with membership applicants"},
 	{"waitlist", "Waitlist", "Members", "Review and manage the official membership waitlist"},
-	{"guests", "Guest Passes", "Members", "View logged guest visits"},
 	// Billing
 	{"accounting", "Accounting / P&L", "Billing", "Member balances, charges, kiosk payments, and P&L"},
 	{"financial_rules", "Enforcement Rules", "Billing", "Manage automated billing enforcement rules"},
@@ -101,7 +100,6 @@ var routePrefixes = []routePrefix{
 	{"/api/admin/users", "members"},
 	{"/api/admin/member-requests", "member_requests"},
 	{"/api/admin/waitlist", "waitlist"},
-	{"/api/admin/guests", "guests"},
 	{"/api/admin/finance/balances", "accounting"},
 	{"/api/admin/finance/statement", "accounting"},
 	{"/api/admin/finance/charges", "accounting"},

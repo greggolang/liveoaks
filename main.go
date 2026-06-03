@@ -327,7 +327,6 @@ func main() {
 	boardPlus.POST("/admin/member-requests/:id/email", waitlist.SendApplicantEmail)
 	boardPlus.PUT("/admin/member-requests/:id/status", waitlist.UpdateStatus)
 	boardPlus.DELETE("/admin/member-requests/:id", waitlist.Delete)
-	adminOnly.GET("/guests", guests.AdminList)
 	adminOnly.GET("/events/:id/signups", signups.List)
 	adminOnly.GET("/events/:id/signups/summary", signups.Summary)
 	adminOnly.DELETE("/events/:id/signups/:signupId", signups.Delete)

@@ -97,18 +97,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null)
   }
 
+  const isFamilyMember = user?.is_family_member ?? false
+
   return (
     <AuthContext.Provider value={{
       user,
       loading,
       login,
       logout,
-      isAdmin: user ? allRoles(user).includes('admin') : false,
-      isBoard: user ? allRoles(user).some(r => BOARD_ROLES.includes(r)) : false,
-      isFamilyMember: user?.is_family_member ?? false,
+      isAdmin: !isFamilyMember && (user ? allRoles(user).includes('admin') : false),
+      isBoard: !isFamilyMember && (user ? allRoles(user).some(r => BOARD_ROLES.includes(r)) : false),
+      isFamilyMember,
       bookingMaxDaysAhead,
-      hasPermission: (page: string) => (user ? allRoles(user).includes('admin') : false) || myPages.has(page),
-      canSeeAdmin: (section: string) => (user ? allRoles(user).includes('admin') : false) || myAdminSections.has(section),
+      hasPermission: (page: string) => (!isFamilyMember && (user ? allRoles(user).includes('admin') : false)) || myPages.has(page),
+      canSeeAdmin: (section: string) => !isFamilyMember && ((user ? allRoles(user).includes('admin') : false) || myAdminSections.has(section)),
     }}>
       {children}
     </AuthContext.Provider>
