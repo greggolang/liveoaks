@@ -7,11 +7,21 @@
 /* Prevent iOS from inflating text size on orientation change */
 html {
   -webkit-text-size-adjust: 100%;
+  /* Prevent any child element from making the page wider than the screen.
+     `clip` (not `hidden`) preserves position:sticky on iOS Safari. */
+  overflow-x: clip;
 }
 
 body {
+  overflow-x: clip;
+  width: 100%;
   /* Disable the elastic overscroll bounce that makes the app feel like a webpage */
   overscroll-behavior: none;
+}
+
+#root {
+  overflow-x: clip;
+  width: 100%;
 }
 
 /* Remove the blue semi-transparent tap-flash that shows on every touchable element */

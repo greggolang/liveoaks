@@ -86,7 +86,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     `hover:text-green-200 transition text-sm ${isActive ? 'text-white font-semibold' : 'text-green-100'}`
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 w-full">
       {/* paddingTop: env(safe-area-inset-top) pulls nav content below the iOS status bar.
            The nav's green background fills the status bar area behind it (black-translucent mode). */}
       <nav className="bg-green-700 text-white shadow-md sticky top-0 z-40"

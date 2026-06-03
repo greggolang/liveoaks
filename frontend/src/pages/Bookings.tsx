@@ -802,43 +802,56 @@ export default function Bookings() {
           {(() => {
             const maxDate = localDateStr(new Date(new Date().setDate(new Date().getDate() + bookingMaxDaysAhead)))
             const atMax = date >= maxDate
+            const shortDate = parseDate(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
             return (
-              <div className="flex items-center justify-between mb-4 bg-white border border-gray-200 rounded-xl px-4 py-3 shadow-sm">
-                <button onClick={() => setDate(d => addDays(d, -1))}
-                  className="flex items-center gap-1 text-gray-600 hover:text-green-700 transition text-sm font-medium">
-                  ← Prev
-                </button>
-                <div className="flex items-center gap-3">
-                  <button onClick={() => setDate(today)}
-                    className={`text-xs px-3 py-1 rounded-full font-medium transition ${date === today ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-                    Today
+              <div className="mb-4 bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+                <div className="flex items-center justify-between px-3 py-2.5 sm:px-4 sm:py-3">
+                  {/* ← */}
+                  <button onClick={() => setDate(d => addDays(d, -1))}
+                    className="flex items-center gap-1 text-gray-600 hover:text-green-700 transition font-medium text-sm shrink-0 px-2 py-1">
+                    ←<span className="hidden sm:inline"> Prev</span>
                   </button>
-                  <span className="font-semibold text-gray-800 text-sm sm:text-base">{formatDate(date)}</span>
-                  <input type="date" value={date} max={maxDate}
-                    onChange={e => setDate(e.target.value <= maxDate ? e.target.value : maxDate)}
-                    className="text-xs border border-gray-200 rounded px-2 py-1 text-gray-500 focus:outline-none focus:ring-1 focus:ring-green-500" />
-                </div>
-                <div className="flex items-center gap-3">
-                  {weather && (() => {
-                    const idx = weather.daily.time.indexOf(date)
-                    if (idx === -1) return null
-                    const code = weather.daily.weathercode[idx]
-                    const precip = weather.daily.precipitation_probability_max[idx]
-                    const hi = Math.round(weather.daily.temperature_2m_max[idx])
-                    const lo = Math.round(weather.daily.temperature_2m_min[idx])
-                    const cond = courtCondition(code, precip)
-                    return (
-                      <span className={`hidden sm:flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border ${conditionColors[cond]}`}>
-                        {weatherIcon(code)} {hi}°/{lo}° {precip > 0 ? `· ${precip}% rain` : weatherLabel(code)}
-                      </span>
-                    )
-                  })()}
-                  <span className="text-xs text-gray-400">↻ {gridCountdown}s</span>
-                  <button onClick={() => !atMax && setDate(d => addDays(d, 1))}
-                    disabled={atMax}
-                    className={`flex items-center gap-1 transition text-sm font-medium ${atMax ? 'text-gray-300 cursor-not-allowed' : 'text-gray-600 hover:text-green-700'}`}>
-                    Next →
-                  </button>
+
+                  {/* Center: date text + Today + picker */}
+                  <div className="flex-1 flex flex-col items-center min-w-0 px-1">
+                    <span className="font-semibold text-gray-800 leading-tight text-center">
+                      <span className="sm:hidden text-sm">{shortDate}</span>
+                      <span className="hidden sm:inline text-base">{formatDate(date)}</span>
+                    </span>
+                    <div className="flex items-center gap-2 mt-1">
+                      <button onClick={() => setDate(today)}
+                        className={`text-xs px-2.5 py-0.5 rounded-full font-medium transition shrink-0 ${date === today ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                        Today
+                      </button>
+                      <input type="date" value={date} max={maxDate}
+                        onChange={e => setDate(e.target.value <= maxDate ? e.target.value : maxDate)}
+                        className="border border-gray-200 rounded-lg px-2 py-0.5 text-gray-500 focus:outline-none focus:ring-1 focus:ring-green-500 bg-white w-32 shrink-0" />
+                    </div>
+                  </div>
+
+                  {/* Right: weather badge (sm+) + countdown (sm+) + → */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    {weather && (() => {
+                      const idx = weather.daily.time.indexOf(date)
+                      if (idx === -1) return null
+                      const code = weather.daily.weathercode[idx]
+                      const precip = weather.daily.precipitation_probability_max[idx]
+                      const hi = Math.round(weather.daily.temperature_2m_max[idx])
+                      const lo = Math.round(weather.daily.temperature_2m_min[idx])
+                      const cond = courtCondition(code, precip)
+                      return (
+                        <span className={`hidden sm:flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border ${conditionColors[cond]}`}>
+                          {weatherIcon(code)} {hi}°/{lo}° {precip > 0 ? `· ${precip}% rain` : weatherLabel(code)}
+                        </span>
+                      )
+                    })()}
+                    <span className="hidden sm:inline text-xs text-gray-400">↻ {gridCountdown}s</span>
+                    <button onClick={() => !atMax && setDate(d => addDays(d, 1))}
+                      disabled={atMax}
+                      className={`flex items-center gap-1 transition font-medium text-sm px-2 py-1 ${atMax ? 'text-gray-300 cursor-not-allowed' : 'text-gray-600 hover:text-green-700'}`}>
+                      <span className="hidden sm:inline">Next </span>→
+                    </button>
+                  </div>
                 </div>
               </div>
             )

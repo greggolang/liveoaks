@@ -1411,27 +1411,27 @@ function WeatherWidget({ weather, airQuality }: { weather: WeatherData; airQuali
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
       {/* Current conditions */}
-      <div className="flex items-center gap-4 px-5 py-4 border-b border-gray-100">
-        <span className="text-4xl">{weatherIcon(cur.weathercode)}</span>
+      <div className="flex items-start gap-3 px-4 py-3 border-b border-gray-100">
+        <span className="text-3xl shrink-0">{weatherIcon(cur.weathercode)}</span>
         <div className="flex-1 min-w-0">
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-gray-800">{Math.round(cur.temperature_2m)}°F</span>
+          <div className="flex items-baseline gap-2 flex-wrap">
+            <span className="text-xl font-bold text-gray-800">{Math.round(cur.temperature_2m)}°F</span>
             <span className="text-sm text-gray-500">{weatherLabel(cur.weathercode)}</span>
+            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${conditionColors[condition]}`}>
+              {condition === 'good' ? '✓ Good' : condition === 'caution' ? '⚠ Caution' : '✗ Poor'}
+            </span>
           </div>
-          <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-0.5 text-xs text-gray-400">
+          <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5 text-xs text-gray-400">
             <span>💨 {Math.round(cur.windspeed_10m)} mph</span>
-            <span>💧 {cur.relativehumidity_2m}% humidity</span>
-            {todayPrecip > 0 && <span>🌂 {todayPrecip}% rain</span>}
+            <span>💧 {cur.relativehumidity_2m}%</span>
+            {todayPrecip > 0 && <span>🌂 {todayPrecip}%</span>}
             {aqi !== null && (
-              <span className={`font-medium px-1.5 py-0.5 rounded border text-xs ${aqiColor(aqi)}`}>
+              <span className={`font-medium px-1.5 py-0.5 rounded border ${aqiColor(aqi)}`}>
                 {aqiEmoji(aqi)} AQI {aqi} · {aqiLabel(aqi)}
               </span>
             )}
           </div>
         </div>
-        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${conditionColors[condition]}`}>
-          {condition === 'good' ? '✓ Good for tennis' : condition === 'caution' ? '⚠ Play with caution' : '✗ Poor conditions'}
-        </span>
       </div>
 
       {/* 7-day forecast strip */}
