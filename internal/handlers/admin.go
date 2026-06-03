@@ -1,9 +1,12 @@
 package handlers
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -172,6 +175,36 @@ func (h *AdminHandler) TestSMS(c echo.Context) error {
 		return c.JSON(http.StatusOK, map[string]interface{}{"success": false, "error": err.Error()})
 	}
 	return c.JSON(http.StatusOK, map[string]interface{}{"success": true})
+}
+
+// GetSiteContent returns the public-website content JSON. Public (no auth) so
+// the landing page can render it. Returns {} when nothing has been saved yet.
+func (h *AdminHandler) GetSiteContent(c echo.Context) error {
+	var val string
+	h.DB.QueryRow(c.Request().Context(),
+		`SELECT value FROM settings WHERE key = 'public_site_content'`).Scan(&val)
+	if strings.TrimSpace(val) == "" {
+		return c.JSON(http.StatusOK, map[string]interface{}{})
+	}
+	return c.Blob(http.StatusOK, "application/json", []byte(val))
+}
+
+// SaveSiteContent stores the public-website content JSON (board+).
+func (h *AdminHandler) SaveSiteContent(c echo.Context) error {
+	body, err := io.ReadAll(c.Request().Body)
+	if err != nil || len(body) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "empty body")
+	}
+	if !json.Valid(body) {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid JSON")
+	}
+	_, err = h.DB.Exec(c.Request().Context(),
+		`INSERT INTO settings (key, value) VALUES ('public_site_content', $1)
+		 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`, string(body))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not save content")
+	}
+	return c.NoContent(http.StatusNoContent)
 }
 
 func (h *AdminHandler) UpdateSetting(c echo.Context) error {

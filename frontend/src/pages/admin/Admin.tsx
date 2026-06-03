@@ -24,7 +24,7 @@ const sections: Section[] = [
   {
     heading: 'Main Site',
     links: [
-      { to: '/club-info', label: 'About' },
+      { to: '/admin/content', label: 'Content' },
     ],
   },
   {

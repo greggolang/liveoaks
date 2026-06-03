@@ -147,6 +147,7 @@ func main() {
 		return c.JSON(http.StatusOK, map[string]string{"version": Version})
 	})
 	api.GET("/session-config", admin.GetSessionConfig)
+	api.GET("/site-content", admin.GetSiteContent)
 	api.GET("/weather", weather.Get)
 	api.GET("/air-quality", weather.AirQuality)
 	api.POST("/auth/register", auth.Register)
@@ -442,6 +443,9 @@ func main() {
 	boardPlus.POST("/admin/notes", notes.Create)
 	boardPlus.PUT("/admin/notes/:id", notes.Update)
 	boardPlus.DELETE("/admin/notes/:id", notes.Delete)
+
+	// Public website content (the landing page shown before login)
+	boardPlus.PUT("/admin/site-content", admin.SaveSiteContent)
 
 	// Password vault (admin only) — adminOnly already prefixes /admin
 	adminOnly.GET("/passwords", passwords.List)

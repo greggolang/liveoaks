@@ -252,6 +252,10 @@ export const api = {
     getReadStats: (id: string) => request(`/announcements/${id}/reads`),
   },
   members: { directory: () => request('/members/directory') },
+  siteContent: {
+    get: () => request<any>('/site-content'),
+    save: (content: unknown) => request('/admin/site-content', { method: 'PUT', body: JSON.stringify(content) }),
+  },
   friends: {
     list: () => request('/friends'),
     searchMembers: (q: string, ustaRanking?: string) =>

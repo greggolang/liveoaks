@@ -32,6 +32,7 @@ import AdminEventSignups from './pages/admin/AdminEventSignups'
 import Admin from './pages/admin/Admin'
 import AdminUsers from './pages/admin/AdminUsers'
 import AdminSettings from './pages/admin/AdminSettings'
+import AdminContent from './pages/admin/AdminContent'
 import AdminResets from './pages/admin/AdminResets'
 import AdminLog from './pages/admin/AdminLog'
 import AdminDues from './pages/admin/AdminDues'
@@ -156,6 +157,7 @@ function AppRoutes() {
         <Route path="member-requests" element={<AdminMemberRequests />} />
         <Route path="waitlist" element={<AdminWaitlist />} />
         <Route path="settings" element={<AdminSettings />} />
+        <Route path="content" element={<AdminContent />} />
         <Route path="resets" element={<AdminResets />} />
         <Route path="events/:id/signups" element={<AdminEventSignups />} />
         <Route path="communication-test" element={<AdminTestEmail />} />
