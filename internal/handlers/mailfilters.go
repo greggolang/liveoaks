@@ -57,8 +57,13 @@ func validAction(s string) bool {
 
 // ─── CRUD ────────────────────────────────────────────────────────────────────
 
-// List returns every rule for one mail account.
+// List returns every rule for the mail account named in the :id path param.
 func (h *MailFilterHandler) List(c echo.Context) error {
+	return h.listForAccount(c, c.Param("id"))
+}
+
+// listForAccount writes the JSON rule list for one account.
+func (h *MailFilterHandler) listForAccount(c echo.Context, accountID string) error {
 	rows, err := h.DB.Query(c.Request().Context(), `
 		SELECT id, account_id, name, enabled, match_field, pattern,
 		       source_folder, action, dest_folder, matched_count,
@@ -66,7 +71,7 @@ func (h *MailFilterHandler) List(c echo.Context) error {
 		FROM mail_filter_rules
 		WHERE account_id = $1
 		ORDER BY created_at
-	`, c.Param("id"))
+	`, accountID)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"message": err.Error()})
 	}
@@ -120,7 +125,7 @@ func (in *filterRuleInput) validate() error {
 	return nil
 }
 
-// Create adds a rule to one mail account.
+// Create adds a rule to the mail account named in the :id path param.
 func (h *MailFilterHandler) Create(c echo.Context) error {
 	var in filterRuleInput
 	if err := c.Bind(&in); err != nil {
@@ -129,14 +134,18 @@ func (h *MailFilterHandler) Create(c echo.Context) error {
 	if err := in.validate(); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
+	return h.insertRule(c, c.Param("id"), in)
+}
 
+// insertRule inserts a validated rule for one account and returns its new id.
+func (h *MailFilterHandler) insertRule(c echo.Context, accountID string, in filterRuleInput) error {
 	var id string
 	err := h.DB.QueryRow(c.Request().Context(), `
 		INSERT INTO mail_filter_rules
 		    (account_id, name, enabled, match_field, pattern, source_folder, action, dest_folder)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING id
-	`, c.Param("id"), in.Name, in.Enabled, in.MatchField, in.Pattern,
+	`, accountID, in.Name, in.Enabled, in.MatchField, in.Pattern,
 		in.SourceFolder, in.Action, in.DestFolder).Scan(&id)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"message": err.Error()})
@@ -183,6 +192,106 @@ func (h *MailFilterHandler) Delete(c echo.Context) error {
 // many messages were acted on plus any per-rule errors.
 func (h *MailFilterHandler) RunNow(c echo.Context) error {
 	matched, errs := h.runAccountFilters(c.Request().Context(), c.Param("id"))
+	return c.JSON(http.StatusOK, map[string]interface{}{"matched": matched, "errors": errs})
+}
+
+// ─── user-facing (the logged-in user's own mailbox) ──────────────────────────
+//
+// These back the Filters tab in the /email area. They resolve the mail account
+// assigned to the current user and scope every read/write to it, so a member can
+// only ever manage rules for their own mailbox.
+
+// userAccountID returns the active mail account assigned to the current user.
+func (h *MailFilterHandler) userAccountID(c echo.Context) (string, error) {
+	userID, _ := c.Get("user_id").(string)
+	var id string
+	h.DB.QueryRow(c.Request().Context(), `
+		SELECT id FROM mail_accounts
+		WHERE assigned_user_id = $1 AND active = true
+		ORDER BY created_at LIMIT 1
+	`, userID).Scan(&id)
+	if id == "" {
+		return "", echo.NewHTTPError(http.StatusBadRequest,
+			"no mail account assigned to your user — ask an admin to set one up in Admin → Mail")
+	}
+	return id, nil
+}
+
+// MyList returns the current user's own filter rules.
+func (h *MailFilterHandler) MyList(c echo.Context) error {
+	id, err := h.userAccountID(c)
+	if err != nil {
+		return err
+	}
+	return h.listForAccount(c, id)
+}
+
+// MyCreate adds a rule to the current user's own mailbox.
+func (h *MailFilterHandler) MyCreate(c echo.Context) error {
+	id, err := h.userAccountID(c)
+	if err != nil {
+		return err
+	}
+	var in filterRuleInput
+	if err := c.Bind(&in); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
+	}
+	if err := in.validate(); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+	return h.insertRule(c, id, in)
+}
+
+// MyUpdate edits one of the current user's own rules (ownership enforced in SQL).
+func (h *MailFilterHandler) MyUpdate(c echo.Context) error {
+	id, err := h.userAccountID(c)
+	if err != nil {
+		return err
+	}
+	var in filterRuleInput
+	if err := c.Bind(&in); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
+	}
+	if err := in.validate(); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+	ct, e := h.DB.Exec(c.Request().Context(), `
+		UPDATE mail_filter_rules
+		SET name = $1, enabled = $2, match_field = $3, pattern = $4,
+		    source_folder = $5, action = $6, dest_folder = $7, updated_at = NOW()
+		WHERE id = $8 AND account_id = $9
+	`, in.Name, in.Enabled, in.MatchField, in.Pattern,
+		in.SourceFolder, in.Action, in.DestFolder, c.Param("fid"), id)
+	if e != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"message": e.Error()})
+	}
+	if ct.RowsAffected() == 0 {
+		return echo.NewHTTPError(http.StatusNotFound, "rule not found")
+	}
+	return c.NoContent(http.StatusNoContent)
+}
+
+// MyDelete removes one of the current user's own rules (ownership enforced in SQL).
+func (h *MailFilterHandler) MyDelete(c echo.Context) error {
+	id, err := h.userAccountID(c)
+	if err != nil {
+		return err
+	}
+	if _, e := h.DB.Exec(c.Request().Context(),
+		`DELETE FROM mail_filter_rules WHERE id = $1 AND account_id = $2`,
+		c.Param("fid"), id); e != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"message": e.Error()})
+	}
+	return c.NoContent(http.StatusNoContent)
+}
+
+// MyRunNow applies the current user's own rules immediately.
+func (h *MailFilterHandler) MyRunNow(c echo.Context) error {
+	id, err := h.userAccountID(c)
+	if err != nil {
+		return err
+	}
+	matched, errs := h.runAccountFilters(c.Request().Context(), id)
 	return c.JSON(http.StatusOK, map[string]interface{}{"matched": matched, "errors": errs})
 }
 

@@ -430,6 +430,11 @@ func main() {
 	authed.POST("/imap/folders", imapH.CreateFolder)
 	authed.DELETE("/imap/folders/:folder", imapH.DeleteFolder)
 	authed.POST("/imap/folders/:folder/empty", imapH.EmptyFolder)
+	authed.GET("/imap/filters", mailFilters.MyList)
+	authed.POST("/imap/filters", mailFilters.MyCreate)
+	authed.PUT("/imap/filters/:fid", mailFilters.MyUpdate)
+	authed.DELETE("/imap/filters/:fid", mailFilters.MyDelete)
+	authed.POST("/imap/filters/run", mailFilters.MyRunNow)
 
 	// Mail contacts (personal address book per user)
 	authed.GET("/imap/contacts", mailContacts.List)

@@ -1,7 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
-import { api, IMAPMessage, IMAPMessageDetail, MailContact, DocFile } from '../api/client'
+import { api, IMAPMessage, IMAPMessageDetail, MailContact, DocFile, type MailFilter, type MailFilterInput } from '../api/client'
 import { formatPhone } from '../utils/phone'
 import { parseDate } from '../utils/dates'
+
+const emptyFilterForm: MailFilterInput = {
+  name: '', enabled: true, match_field: 'from', pattern: '',
+  source_folder: 'INBOX', action: 'move', dest_folder: '',
+}
+
+const MATCH_FIELD_LABELS: Record<MailFilterInput['match_field'], string> = {
+  from: 'From', to_cc: 'To / Cc', subject: 'Subject', body: 'Body',
+}
 
 type Folder = { key: string; label: string; d: string }
 
@@ -82,7 +91,7 @@ function nameInitials(name: string) {
   return (parts[0]?.[0] ?? '?').toUpperCase() + (parts[1]?.[0] ?? '').toUpperCase()
 }
 
-type SectionTab = 'mail' | 'contacts'
+type SectionTab = 'mail' | 'contacts' | 'filters'
 
 const emptyContactForm = { name: '', email: '', phone: '', notes: '' }
 
@@ -145,6 +154,16 @@ function MoveMenu({ folder, customFolders, onMove, up }: {
 
 export default function MailInbox() {
   const [section, setSection] = useState<SectionTab>('mail')
+
+  // ── Filter rules state ──
+  const [filters, setFilters] = useState<MailFilter[]>([])
+  const [filtersLoading, setFiltersLoading] = useState(false)
+  const [filterForm, setFilterForm] = useState<MailFilterInput>(emptyFilterForm)
+  const [editingFilterId, setEditingFilterId] = useState<string | null>(null)
+  const [filterSaving, setFilterSaving] = useState(false)
+  const [filterError, setFilterError] = useState('')
+  const [filterRunning, setFilterRunning] = useState(false)
+  const [filterRunMsg, setFilterRunMsg] = useState('')
 
   // ── Mail state ──
   const [folder, setFolder]     = useState('INBOX')
@@ -270,6 +289,76 @@ export default function MailInbox() {
   }
 
   useEffect(() => { loadContacts() }, [])
+
+  // ── Filter rules ──
+  async function loadFilters() {
+    setFiltersLoading(true)
+    try { setFilters(await api.imap.filters.list()) }
+    catch (e: any) { setFilterError(e.message) }
+    finally { setFiltersLoading(false) }
+  }
+
+  // Load rules the first time the Filters tab is opened.
+  useEffect(() => { if (section === 'filters' && filters.length === 0) loadFilters() }, [section])
+
+  function resetFilterForm() {
+    setEditingFilterId(null); setFilterForm(emptyFilterForm); setFilterError('')
+  }
+
+  function editFilter(f: MailFilter) {
+    setEditingFilterId(f.id)
+    setFilterForm({
+      name: f.name, enabled: f.enabled, match_field: f.match_field, pattern: f.pattern,
+      source_folder: f.source_folder, action: f.action, dest_folder: f.dest_folder,
+    })
+    setFilterError('')
+  }
+
+  async function handleSaveFilter(e: React.FormEvent) {
+    e.preventDefault()
+    setFilterSaving(true); setFilterError('')
+    try {
+      if (editingFilterId) await api.imap.filters.update(editingFilterId, filterForm)
+      else await api.imap.filters.create(filterForm)
+      resetFilterForm(); await loadFilters()
+    } catch (e: any) { setFilterError(e.message) }
+    finally { setFilterSaving(false) }
+  }
+
+  async function toggleFilter(f: MailFilter) {
+    try { await api.imap.filters.update(f.id, { ...f, enabled: !f.enabled }); await loadFilters() }
+    catch { /* ignore */ }
+  }
+
+  async function handleDeleteFilter(id: string) {
+    try {
+      await api.imap.filters.delete(id)
+      if (editingFilterId === id) resetFilterForm()
+      await loadFilters()
+    } catch { /* ignore */ }
+  }
+
+  async function handleRunFilters() {
+    setFilterRunning(true); setFilterRunMsg('')
+    try {
+      const res = await api.imap.filters.run()
+      setFilterRunMsg(
+        res.errors.length
+          ? `Acted on ${res.matched} · ${res.errors.length} error${res.errors.length === 1 ? '' : 's'}: ${res.errors[0]}`
+          : `Acted on ${res.matched} message${res.matched === 1 ? '' : 's'}`
+      )
+      await loadFilters()
+      loadFolder(folder)
+    } catch (e: any) { setFilterRunMsg(e.message) }
+    finally { setFilterRunning(false) }
+  }
+
+  function filterSummary(f: MailFilter) {
+    const where = `${MATCH_FIELD_LABELS[f.match_field]} contains “${f.pattern}” in ${folderLabel(f.source_folder)}`
+    const what = f.action === 'move' ? `move to ${folderLabel(f.dest_folder)}`
+      : f.action === 'delete' ? 'move to Trash' : 'mark read'
+    return `${where} → ${what}`
+  }
 
   useEffect(() => {
     api.emailTemplates.list().then(setTemplates).catch(() => {})
@@ -465,12 +554,12 @@ export default function MailInbox() {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <div className="flex bg-gray-100 rounded-xl p-0.5">
-            {(['mail', 'contacts'] as SectionTab[]).map(s => (
+            {(['mail', 'contacts', 'filters'] as SectionTab[]).map(s => (
               <button key={s} onClick={() => setSection(s)}
                 className={`px-3 py-1.5 text-sm font-medium rounded-lg transition ${
                   section === s ? 'bg-white text-green-700 shadow-sm' : 'text-gray-500 hover:text-gray-800'
                 }`}>
-                {s === 'mail' ? 'Mail' : 'Contacts'}
+                {s === 'mail' ? 'Mail' : s === 'contacts' ? 'Contacts' : 'Filters'}
               </button>
             ))}
           </div>
@@ -833,6 +922,162 @@ export default function MailInbox() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ══════════════ FILTERS SECTION ══════════════ */}
+      {section === 'filters' && (
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          <div className="max-w-3xl mx-auto space-y-4">
+
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs text-gray-500 leading-relaxed">
+                Rules run automatically every 5 minutes (and on demand) against your mailbox,
+                matching case-insensitively. Each rule matches one field and moves, deletes, or
+                marks messages read.
+              </p>
+              <button onClick={handleRunFilters} disabled={filterRunning}
+                className="shrink-0 px-3 py-1.5 bg-green-700 text-white text-xs font-semibold rounded-lg hover:bg-green-800 disabled:opacity-50 transition">
+                {filterRunning ? 'Running…' : 'Run now'}
+              </button>
+            </div>
+            {filterRunMsg && <p className="text-xs text-gray-700 bg-gray-50 px-3 py-2 rounded-lg">{filterRunMsg}</p>}
+
+            {/* Existing rules */}
+            {filtersLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="w-6 h-6 border-2 border-green-700 border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : filters.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-8 border-2 border-dashed border-gray-200 rounded-2xl">
+                No rules yet. Add one below to auto-sort your mail.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {filters.map(f => (
+                  <div key={f.id} className="bg-white border border-gray-200 rounded-2xl px-4 py-3 shadow-sm">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        {f.name && <p className="text-sm font-semibold text-gray-800 truncate">{f.name}</p>}
+                        <p className="text-sm text-gray-600">{filterSummary(f)}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          Matched {f.matched_count.toLocaleString()}
+                          {f.last_run_at && <> · last run {formatDate(f.last_run_at)}</>}
+                        </p>
+                        {f.last_error && <p className="text-xs text-red-600 mt-0.5">⚠ {f.last_error}</p>}
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button onClick={() => toggleFilter(f)}
+                          title={f.enabled ? 'Disable' : 'Enable'}
+                          className={`text-[11px] font-semibold px-2 py-0.5 rounded-full transition ${
+                            f.enabled ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                              : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                          {f.enabled ? 'On' : 'Off'}
+                        </button>
+                        <button onClick={() => editFilter(f)} title="Edit"
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
+                        <button onClick={() => handleDeleteFilter(f.id)} title="Delete"
+                          className="p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Add / edit form */}
+            <form onSubmit={handleSaveFilter} className="bg-white border border-gray-200 rounded-2xl p-4 space-y-3 shadow-sm">
+              <p className="text-sm font-semibold text-gray-700">{editingFilterId ? 'Edit rule' : 'Add a rule'}</p>
+              <input
+                className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="Rule name (optional)"
+                value={filterForm.name}
+                onChange={e => setFilterForm(f => ({ ...f, name: e.target.value }))} />
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-500 mb-1">When field</label>
+                  <select
+                    className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    value={filterForm.match_field}
+                    onChange={e => setFilterForm(f => ({ ...f, match_field: e.target.value as MailFilterInput['match_field'] }))}>
+                    <option value="from">From</option>
+                    <option value="to_cc">To / Cc</option>
+                    <option value="subject">Subject</option>
+                    <option value="body">Body</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-500 mb-1">Contains</label>
+                  <input
+                    className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    placeholder="newsletter@…  or  text"
+                    value={filterForm.pattern}
+                    onChange={e => setFilterForm(f => ({ ...f, pattern: e.target.value }))} required />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-500 mb-1">In folder</label>
+                  <select
+                    className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    value={filterForm.source_folder}
+                    onChange={e => setFilterForm(f => ({ ...f, source_folder: e.target.value }))}>
+                    {FOLDERS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+                    {customFolders.map(name => <option key={name} value={name}>{name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-500 mb-1">Then</label>
+                  <select
+                    className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    value={filterForm.action}
+                    onChange={e => setFilterForm(f => ({ ...f, action: e.target.value as MailFilterInput['action'] }))}>
+                    <option value="move">Move to folder</option>
+                    <option value="delete">Delete (to Trash)</option>
+                    <option value="mark_read">Mark as read</option>
+                  </select>
+                </div>
+                {filterForm.action === 'move' && (
+                  <div className="sm:col-span-2">
+                    <label className="block text-[11px] font-semibold text-gray-500 mb-1">Destination folder</label>
+                    <select
+                      className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                      value={filterForm.dest_folder}
+                      onChange={e => setFilterForm(f => ({ ...f, dest_folder: e.target.value }))}
+                      required={filterForm.action === 'move'}>
+                      <option value="">Choose a folder…</option>
+                      {FOLDERS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+                      {customFolders.map(name => <option key={name} value={name}>{name}</option>)}
+                    </select>
+                  </div>
+                )}
+              </div>
+              <label className="flex items-center gap-2 text-sm text-gray-600">
+                <input type="checkbox" checked={filterForm.enabled}
+                  onChange={e => setFilterForm(f => ({ ...f, enabled: e.target.checked }))} />
+                Enabled
+              </label>
+              {filterError && <p className="text-red-600 text-xs bg-red-50 px-3 py-2 rounded-lg">{filterError}</p>}
+              <div className="flex justify-end gap-2">
+                {editingFilterId && (
+                  <button type="button" onClick={resetFilterForm}
+                    className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-xl transition">Cancel edit</button>
+                )}
+                <button type="submit" disabled={filterSaving}
+                  className="px-5 py-2 bg-green-700 text-white text-sm font-semibold rounded-xl hover:bg-green-800 disabled:opacity-50 transition">
+                  {filterSaving ? 'Saving…' : editingFilterId ? 'Save rule' : 'Add rule'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 

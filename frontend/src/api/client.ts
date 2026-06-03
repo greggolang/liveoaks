@@ -875,6 +875,15 @@ export const api = {
         request(`/imap/contacts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
       delete: (id: string) => request(`/imap/contacts/${id}`, { method: 'DELETE' }),
     },
+    filters: {
+      list: () => request<MailFilter[]>('/imap/filters'),
+      create: (data: MailFilterInput) =>
+        request<{ id: string }>('/imap/filters', { method: 'POST', body: JSON.stringify(data) }),
+      update: (fid: string, data: MailFilterInput) =>
+        request(`/imap/filters/${fid}`, { method: 'PUT', body: JSON.stringify(data) }),
+      delete: (fid: string) => request(`/imap/filters/${fid}`, { method: 'DELETE' }),
+      run: () => request<{ matched: number; errors: string[] }>('/imap/filters/run', { method: 'POST' }),
+    },
   },
   notificationPrefs: {
     get: () => request<{
