@@ -102,8 +102,6 @@ export default function AdminUsers() {
   const [editFamilyForm, setEditFamilyForm] = useState({ first_name: '', last_name: '', relationship: 'spouse', birthday: '', email: '', phone: '', usta_ranking: '' })
   const [savingEditFamily, setSavingEditFamily] = useState(false)
   const [editFamilyError, setEditFamilyError] = useState('')
-  const [editExtraRoles, setEditExtraRoles] = useState<string[]>([])
-  const [savingExtraRoles, setSavingExtraRoles] = useState(false)
   const [memberAlerts, setMemberAlerts] = useState<{ id: string; message: string; type: string; created_at: string; dismissed_at?: string }[]>([])
   const [alertMsg, setAlertMsg] = useState('')
   const [alertType, setAlertType] = useState('info')
@@ -126,7 +124,6 @@ export default function AdminUsers() {
 
   const openEdit = (u: User) => {
     setEditing(u)
-    setEditExtraRoles(u.extra_roles ?? [])
     setEditForm({ first_name: u.first_name, last_name: u.last_name, email: u.email,
       phone: formatPhone(u.phone) ?? '', address: u.address ?? '', family: u.family ?? '', usta_ranking: u.usta_ranking ?? '',
       birthday: u.birthday ?? '' })
@@ -704,39 +701,6 @@ export default function AdminUsers() {
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
               </div>
             </div>
-            {/* Additional roles */}
-            <div className="border-t border-gray-100 pt-3">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-medium text-gray-600">Additional Role Assignments</p>
-                {savingExtraRoles && <span className="text-xs text-gray-400">Saving…</span>}
-              </div>
-              <p className="text-xs text-gray-400 mb-2">Check any extra roles this member should hold alongside their primary role.</p>
-              <div className="grid grid-cols-2 gap-1.5">
-                {ALL_ASSIGNABLE_ROLES.filter(r => r.value !== (editing?.role ?? 'member')).map(r => (
-                  <label key={r.value} className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox"
-                      checked={editExtraRoles.includes(r.value)}
-                      onChange={async e => {
-                        const next = e.target.checked
-                          ? [...editExtraRoles, r.value]
-                          : editExtraRoles.filter(x => x !== r.value)
-                        setEditExtraRoles(next)
-                        setSavingExtraRoles(true)
-                        try {
-                          await api.admin.updateExtraRoles(editing!.id, next)
-                          setUsers(us => us.map(u => u.id === editing!.id ? { ...u, extra_roles: next } : u))
-                        } finally { setSavingExtraRoles(false) }
-                      }}
-                      className="w-3.5 h-3.5 rounded accent-green-600 cursor-pointer"
-                    />
-                    <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${roleColor(r.value)}`}>
-                      {r.label}
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
             {/* Family members */}
             <div className="border-t border-gray-100 pt-3">
               <div className="flex items-center justify-between mb-2">

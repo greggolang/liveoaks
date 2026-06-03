@@ -177,36 +177,6 @@ func (h *UsersHandler) UpdateRole(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]string{"message": "role updated"})
 }
 
-func (h *UsersHandler) UpdateExtraRoles(c echo.Context) error {
-	id := c.Param("id")
-	var body struct {
-		Roles []string `json:"roles"`
-	}
-	if err := c.Bind(&body); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
-	}
-	valid := map[string]bool{
-		"admin": true, "president": true, "vice_president": true, "secretary": true,
-		"treasurer": true, "entertainment": true, "house_grounds": true, "billing": true,
-		"membership": true, "usta": true, "games": true, "pro": true, "member": true,
-	}
-	for _, r := range body.Roles {
-		if !valid[r] {
-			return echo.NewHTTPError(http.StatusBadRequest, "invalid role: "+r)
-		}
-	}
-	if body.Roles == nil {
-		body.Roles = []string{}
-	}
-	_, err := h.DB.Exec(c.Request().Context(),
-		`UPDATE users SET extra_roles = $1::text[], updated_at = NOW() WHERE id = $2`,
-		body.Roles, id)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "could not update extra roles")
-	}
-	return c.JSON(http.StatusOK, map[string]interface{}{"roles": body.Roles})
-}
-
 func (h *UsersHandler) UpdateStatus(c echo.Context) error {
 	id := c.Param("id")
 	if isProtectedUser(c.Request().Context(), h.DB, id) {

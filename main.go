@@ -292,7 +292,6 @@ func main() {
 	adminOnly.POST("/users", users.Create)
 	adminOnly.PUT("/users/:id/profile", users.UpdateProfile)
 	adminOnly.PUT("/users/:id/role", users.UpdateRole)
-	adminOnly.PUT("/users/:id/extra-roles", users.UpdateExtraRoles)
 	adminOnly.PUT("/users/:id/status", users.UpdateStatus)
 	adminOnly.DELETE("/users/:id", users.Delete)
 	adminOnly.POST("/users/:id/force-reset", users.ForcePasswordReset)
