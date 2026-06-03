@@ -37,11 +37,16 @@ const sections: Section[] = [
     ],
   },
   {
-    heading: 'Billing',
+    heading: 'Accounting',
     links: [
       { to: '/admin/accounting', label: 'P&L', section: 'accounting' },
-      { to: '/admin/taxes', label: 'Taxes', section: 'taxes' },
       { to: '/admin/financial-rules', label: 'Enforcement Rules', section: 'financial_rules' },
+    ],
+  },
+  {
+    heading: 'Billing',
+    links: [
+      { to: '/admin/taxes', label: 'Taxes', section: 'taxes' },
       { to: '/admin/dues', label: 'Dues', section: 'dues' },
       { to: '/admin/receipts', label: 'Receipts', section: 'receipts' },
       { to: '/admin/kiosk-purchases', label: 'Kiosk Purchases', section: 'kiosk_purchases' },

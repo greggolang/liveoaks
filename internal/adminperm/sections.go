@@ -32,10 +32,11 @@ var Catalog = []Section{
 	{"members", "Members", "Members", "View and manage the member roster, roles, and status"},
 	{"member_requests", "New Member Requests", "Members", "Review, approve, and communicate with membership applicants"},
 	{"waitlist", "Waitlist", "Members", "Review and manage the official membership waitlist"},
+	// Accounting
+	{"accounting", "P&L", "Accounting", "Member balances, charges, kiosk payments, and P&L"},
+	{"financial_rules", "Enforcement Rules", "Accounting", "Manage automated billing enforcement rules"},
 	// Billing
-	{"accounting", "P&L", "Billing", "Member balances, charges, kiosk payments, and P&L"},
 	{"taxes", "Taxes", "Billing", "Tax documents and records for the club"},
-	{"financial_rules", "Enforcement Rules", "Billing", "Manage automated billing enforcement rules"},
 	{"dues", "Dues", "Billing", "Generate and manage member dues"},
 	{"receipts", "Receipts", "Billing", "Upload and manage expense receipts"},
 	{"kiosk_purchases", "Kiosk Purchases", "Billing", "View and edit kiosk purchase records"},
