@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react'
-import { useSearchParams, useNavigate } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { api, IMPERSONATION_KEY } from '../api/client'
 
 export const IMPERSONATION_NAME_KEY = 'impersonation_name'
 
 export default function Impersonate() {
   const [params] = useSearchParams()
-  const navigate = useNavigate()
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -17,7 +16,10 @@ export default function Impersonate() {
       .then(({ jwt, name }) => {
         sessionStorage.setItem(IMPERSONATION_KEY, jwt)
         sessionStorage.setItem(IMPERSONATION_NAME_KEY, name)
-        navigate('/dashboard', { replace: true })
+        // Full reload (not SPA navigate) so AuthProvider re-fetches /auth/me WITH the
+        // impersonation token. SPA navigation keeps the admin identity that was loaded
+        // before the token existed, leaving the header/welcome showing the wrong person.
+        window.location.replace('/dashboard')
       })
       .catch(() => setError('Token is invalid or has expired. Close this tab and try again.'))
   }, [])
