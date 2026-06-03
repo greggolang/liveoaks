@@ -362,6 +362,10 @@ func main() {
 	boardPlus.POST("/admin/board-meetings", boardMeetings.Create)
 	boardPlus.GET("/admin/board-meetings/:id/roster", boardMeetings.Roster)
 	boardPlus.DELETE("/admin/board-meetings/:id", boardMeetings.Delete)
+	boardPlus.GET("/admin/board-meetings/:id/minutes", boardMeetings.GetMinutes)
+	boardPlus.PUT("/admin/board-meetings/:id/minutes", boardMeetings.SaveMinutes)
+	boardPlus.POST("/admin/board-meetings/:id/minutes/publish", boardMeetings.PublishMinutes)
+	authed.GET("/board-meetings/:id/minutes", boardMeetings.GetMemberMinutes)
 
 	// LiveBall — public response
 	api.POST("/liveball/:token/:action", liveball.Respond)

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { api, MemberMessage, Poll } from '../api/client'
+import { api, BoardMinutes, MemberMessage, Poll } from '../api/client'
 import { parseDate } from '../utils/dates'
 import { WeatherData, AirQualityData, weatherIcon, weatherLabel, courtCondition, conditionColors, dayLabel, aqiLabel, aqiColor, aqiEmoji } from '../utils/weather'
 
@@ -110,7 +110,9 @@ export default function Dashboard() {
   const [upcomingEvents, setUpcomingEvents] = useState<Event[]>([])
   const [cameraURL, setCameraURL] = useState<string | null>(null)
   const [cameraDown, setCameraDown] = useState(false)
-  const [adminAlerts, setAdminAlerts] = useState<{ id: string; message: string; type: string }[]>([])
+  const [adminAlerts, setAdminAlerts] = useState<{ id: string; message: string; type: string; ref_id?: string }[]>([])
+  const [minutesModal, setMinutesModal] = useState<{ title: string; minutes: BoardMinutes } | null>(null)
+  const [minutesLoading, setMinutesLoading] = useState(false)
   const [polls, setPolls] = useState<Poll[]>([])
   const [pollVoting, setPollVoting] = useState<string | null>(null)
   const [showHeader, setShowHeader] = useState(true)
@@ -426,24 +428,46 @@ export default function Dashboard() {
         <div className="space-y-2">
           {adminAlerts.map(a => {
             const styles: Record<string, string> = {
-              info:    'bg-blue-50 border-blue-200 text-blue-800',
-              warning: 'bg-amber-50 border-amber-200 text-amber-800',
-              danger:  'bg-red-50 border-red-200 text-red-800',
+              info:             'bg-blue-50 border-blue-200 text-blue-800',
+              warning:          'bg-amber-50 border-amber-200 text-amber-800',
+              danger:           'bg-red-50 border-red-200 text-red-800',
+              meeting_minutes:  'bg-indigo-50 border-indigo-200 text-indigo-800',
             }
-            const icons: Record<string, string> = { info: 'ℹ️', warning: '⚠️', danger: '🚨' }
-            const bookUrl = courtAlertBookUrl(a.message)
+            const icons: Record<string, string> = {
+              info: 'ℹ️', warning: '⚠️', danger: '🚨', meeting_minutes: '📋',
+            }
+            const bookUrl = a.type !== 'meeting_minutes' ? courtAlertBookUrl(a.message) : null
             const dismiss = () => {
               api.memberAlerts.dismiss(a.id).catch(() => {})
               setAdminAlerts(prev => prev.filter(x => x.id !== a.id))
+            }
+            const openMinutes = async () => {
+              if (!a.ref_id) return
+              setMinutesLoading(true)
+              try {
+                const m = await api.boardMeetings.getMinutes(a.ref_id)
+                if (m) setMinutesModal({ title: a.message, minutes: m })
+              } finally {
+                setMinutesLoading(false)
+              }
             }
             return (
               <div key={a.id} className={`flex items-start gap-3 border rounded-xl px-4 py-3 ${styles[a.type] ?? styles.info}`}>
                 <span className="text-base shrink-0">{icons[a.type] ?? icons.info}</span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm">{a.message}</p>
+                  {a.type === 'meeting_minutes' ? (
+                    <p className="text-sm font-medium">Board meeting minutes available: <span className="font-semibold">{a.message}</span></p>
+                  ) : (
+                    <p className="text-sm">{a.message}</p>
+                  )}
+                  {a.type === 'meeting_minutes' && a.ref_id && (
+                    <button onClick={openMinutes} disabled={minutesLoading}
+                      className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition disabled:opacity-50">
+                      {minutesLoading ? 'Loading…' : '📖 Read Minutes'}
+                    </button>
+                  )}
                   {bookUrl && (
-                    <button
-                      onClick={() => { dismiss(); navigate(bookUrl) }}
+                    <button onClick={() => { dismiss(); navigate(bookUrl) }}
                       className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-700 hover:bg-green-800 text-white text-xs font-semibold rounded-lg transition">
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -452,14 +476,70 @@ export default function Dashboard() {
                     </button>
                   )}
                 </div>
-                <button
-                  onClick={dismiss}
+                <button onClick={dismiss}
                   className="shrink-0 opacity-40 hover:opacity-70 transition text-lg leading-none"
-                  title="Dismiss"
-                >✕</button>
+                  title="Dismiss">✕</button>
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* Board meeting minutes modal */}
+      {minutesModal && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-16 bg-black/50 overflow-y-auto"
+          onClick={() => setMinutesModal(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <div>
+                <h2 className="text-lg font-bold text-gray-800">Meeting Minutes</h2>
+                <p className="text-sm text-gray-500">{minutesModal.title}</p>
+              </div>
+              <button onClick={() => setMinutesModal(null)}
+                className="text-gray-400 hover:text-gray-600 text-2xl leading-none">✕</button>
+            </div>
+            <div className="px-6 py-5 space-y-4 max-h-[70vh] overflow-y-auto">
+              {(() => {
+                const mn = minutesModal.minutes
+                const row = (label: string, value?: string | null) => value ? (
+                  <div key={label}>
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">{label}</p>
+                    <p className="text-sm text-gray-700 whitespace-pre-line">{value}</p>
+                  </div>
+                ) : null
+                return (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      {row('Called to Order', mn.called_to_order)}
+                      {row('Adjourned', mn.adjourned_at)}
+                    </div>
+                    {row('Members Present', mn.attendees_present)}
+                    {row('Members Absent', mn.attendees_absent)}
+                    {(mn.prev_minutes_approved !== undefined) && (
+                      <div>
+                        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Previous Minutes</p>
+                        <p className="text-sm text-gray-700">{mn.prev_minutes_approved ? '✓ Approved' : 'Not approved'}</p>
+                      </div>
+                    )}
+                    {row("Treasurer's Report", mn.treasurer_report)}
+                    {row('Old Business', mn.old_business)}
+                    {row('New Business', mn.new_business)}
+                    {row('Action Items', mn.action_items)}
+                    {row('Additional Notes', mn.additional_notes)}
+                    {mn.submitted_by && (
+                      <p className="text-xs text-gray-400 pt-2 border-t border-gray-100">Submitted by {mn.submitted_by}</p>
+                    )}
+                  </>
+                )
+              })()}
+            </div>
+            <div className="flex justify-end px-6 py-4 border-t border-gray-100">
+              <button onClick={() => setMinutesModal(null)}
+                className="px-5 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700 transition">
+                Close
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

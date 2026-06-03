@@ -19,6 +19,7 @@ type MemberAlert struct {
 	CreatedAt   time.Time  `json:"created_at"`
 	CreatedBy   *string    `json:"created_by_name,omitempty"`
 	DismissedAt *time.Time `json:"dismissed_at,omitempty"`
+	RefID       *string    `json:"ref_id,omitempty"`
 }
 
 // GetMyAlerts returns undismissed alerts for the authenticated user.
@@ -26,7 +27,8 @@ func (h *AlertsHandler) GetMyAlerts(c echo.Context) error {
 	userID := c.Get("user_id").(string)
 	rows, err := h.DB.Query(c.Request().Context(), `
 		SELECT a.id, a.message, a.type, a.created_at,
-		       u.first_name || ' ' || u.last_name
+		       u.first_name || ' ' || u.last_name,
+		       a.ref_id::text
 		FROM member_alerts a
 		LEFT JOIN users u ON u.id = a.created_by
 		WHERE a.user_id = $1 AND a.dismissed_at IS NULL
@@ -38,7 +40,7 @@ func (h *AlertsHandler) GetMyAlerts(c echo.Context) error {
 	alerts := []MemberAlert{}
 	for rows.Next() {
 		var a MemberAlert
-		if err := rows.Scan(&a.ID, &a.Message, &a.Type, &a.CreatedAt, &a.CreatedBy); err != nil {
+		if err := rows.Scan(&a.ID, &a.Message, &a.Type, &a.CreatedAt, &a.CreatedBy, &a.RefID); err != nil {
 			continue
 		}
 		alerts = append(alerts, a)

@@ -112,6 +112,16 @@ export interface MailContact {
   phone?: string; notes?: string; created_at: string; updated_at: string
 }
 
+export interface BoardMinutes {
+  id: string; event_id: string
+  called_to_order?: string; adjourned_at?: string
+  attendees_present?: string; attendees_absent?: string
+  prev_minutes_approved: boolean
+  treasurer_report?: string; old_business?: string; new_business?: string
+  action_items?: string; additional_notes?: string; submitted_by?: string
+  published_at?: string; created_at: string; updated_at: string
+}
+
 export interface Poll {
   id: string; title: string; question: string; options: string[]
   created_by: string; creator_name: string; created_at: string
@@ -566,7 +576,7 @@ export const api = {
     delete: (id: string) => request(`/admin/pro-shop/${id}`, { method: 'DELETE' }),
   },
   memberAlerts: {
-    getMyAlerts: () => request<{ id: string; message: string; type: string; created_at: string; created_by_name?: string }[]>('/member-alerts'),
+    getMyAlerts: () => request<{ id: string; message: string; type: string; created_at: string; created_by_name?: string; ref_id?: string }[]>('/member-alerts'),
     dismiss: (id: string) => request(`/member-alerts/${id}/dismiss`, { method: 'POST' }),
     adminListAll: () => request<{ id: string; user_id: string; message: string; type: string; created_at: string; target_name: string }[]>('/admin/member-alerts'),
     adminList: (userId: string) => request<{ id: string; message: string; type: string; created_at: string; dismissed_at?: string }[]>(`/admin/member-alerts/${userId}`),
@@ -603,11 +613,15 @@ export const api = {
     myInvitations: () => request('/board-meetings/invitations/mine'),
     respond: (token: string, action: 'accept' | 'decline') =>
       request(`/board-meetings/invite/${token}/${action}`, { method: 'POST' }),
+    getMinutes: (id: string) => request<BoardMinutes | null>(`/board-meetings/${id}/minutes`),
     admin: {
       list: () => request('/admin/board-meetings'),
       create: (data: object) => request('/admin/board-meetings', { method: 'POST', body: JSON.stringify(data) }),
       roster: (id: string) => request(`/admin/board-meetings/${id}/roster`),
       delete: (id: string) => request(`/admin/board-meetings/${id}`, { method: 'DELETE' }),
+      getMinutes: (id: string) => request<BoardMinutes | null>(`/admin/board-meetings/${id}/minutes`),
+      saveMinutes: (id: string, data: object) => request<BoardMinutes>(`/admin/board-meetings/${id}/minutes`, { method: 'PUT', body: JSON.stringify(data) }),
+      publishMinutes: (id: string) => request<{ notified: number }>(`/admin/board-meetings/${id}/minutes/publish`, { method: 'POST' }),
     },
   },
   liveball: {

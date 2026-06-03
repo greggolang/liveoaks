@@ -261,6 +261,197 @@ func (h *BoardMeetingsHandler) Respond(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]string{"status": newStatus})
 }
 
+// ── Meeting Minutes ────────────────────────────────────────────────────────
+
+type BoardMinutes struct {
+	ID                   string  `json:"id"`
+	EventID              string  `json:"event_id"`
+	CalledToOrder        *string `json:"called_to_order,omitempty"`
+	AdjournedAt          *string `json:"adjourned_at,omitempty"`
+	AttendeesPresent     *string `json:"attendees_present,omitempty"`
+	AttendeesAbsent      *string `json:"attendees_absent,omitempty"`
+	PrevMinutesApproved  bool    `json:"prev_minutes_approved"`
+	TreasurerReport      *string `json:"treasurer_report,omitempty"`
+	OldBusiness          *string `json:"old_business,omitempty"`
+	NewBusiness          *string `json:"new_business,omitempty"`
+	ActionItems          *string `json:"action_items,omitempty"`
+	AdditionalNotes      *string `json:"additional_notes,omitempty"`
+	SubmittedBy          *string `json:"submitted_by,omitempty"`
+	PublishedAt          *string `json:"published_at,omitempty"`
+	CreatedAt            string  `json:"created_at"`
+	UpdatedAt            string  `json:"updated_at"`
+}
+
+func nullStr(s string) interface{} {
+	if s == "" {
+		return nil
+	}
+	return s
+}
+
+// GetMinutes returns the minutes for a meeting (board+ only, draft or published).
+func (h *BoardMeetingsHandler) GetMinutes(c echo.Context) error {
+	eventID := c.Param("id")
+	var m BoardMinutes
+	err := h.DB.QueryRow(c.Request().Context(), `
+		SELECT id, event_id, called_to_order, adjourned_at,
+		       attendees_present, attendees_absent, prev_minutes_approved,
+		       treasurer_report, old_business, new_business, action_items,
+		       additional_notes, submitted_by,
+		       to_char(published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+		       to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+		       to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+		FROM board_minutes WHERE event_id = $1`, eventID).
+		Scan(&m.ID, &m.EventID, &m.CalledToOrder, &m.AdjournedAt,
+			&m.AttendeesPresent, &m.AttendeesAbsent, &m.PrevMinutesApproved,
+			&m.TreasurerReport, &m.OldBusiness, &m.NewBusiness, &m.ActionItems,
+			&m.AdditionalNotes, &m.SubmittedBy, &m.PublishedAt,
+			&m.CreatedAt, &m.UpdatedAt)
+	if err != nil {
+		return c.JSON(http.StatusOK, nil)
+	}
+	return c.JSON(http.StatusOK, m)
+}
+
+// GetMemberMinutes returns published minutes for any authenticated member.
+func (h *BoardMeetingsHandler) GetMemberMinutes(c echo.Context) error {
+	eventID := c.Param("id")
+	var m BoardMinutes
+	err := h.DB.QueryRow(c.Request().Context(), `
+		SELECT id, event_id, called_to_order, adjourned_at,
+		       attendees_present, attendees_absent, prev_minutes_approved,
+		       treasurer_report, old_business, new_business, action_items,
+		       additional_notes, submitted_by,
+		       to_char(published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+		       to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+		       to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+		FROM board_minutes WHERE event_id = $1 AND published_at IS NOT NULL`, eventID).
+		Scan(&m.ID, &m.EventID, &m.CalledToOrder, &m.AdjournedAt,
+			&m.AttendeesPresent, &m.AttendeesAbsent, &m.PrevMinutesApproved,
+			&m.TreasurerReport, &m.OldBusiness, &m.NewBusiness, &m.ActionItems,
+			&m.AdditionalNotes, &m.SubmittedBy, &m.PublishedAt,
+			&m.CreatedAt, &m.UpdatedAt)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, "minutes not found")
+	}
+	return c.JSON(http.StatusOK, m)
+}
+
+// SaveMinutes creates or updates the minutes for a meeting (upsert).
+func (h *BoardMeetingsHandler) SaveMinutes(c echo.Context) error {
+	eventID := c.Param("id")
+	var req struct {
+		CalledToOrder       string `json:"called_to_order"`
+		AdjournedAt         string `json:"adjourned_at"`
+		AttendeesPresent    string `json:"attendees_present"`
+		AttendeesAbsent     string `json:"attendees_absent"`
+		PrevMinutesApproved bool   `json:"prev_minutes_approved"`
+		TreasurerReport     string `json:"treasurer_report"`
+		OldBusiness         string `json:"old_business"`
+		NewBusiness         string `json:"new_business"`
+		ActionItems         string `json:"action_items"`
+		AdditionalNotes     string `json:"additional_notes"`
+		SubmittedBy         string `json:"submitted_by"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
+	}
+	var m BoardMinutes
+	err := h.DB.QueryRow(c.Request().Context(), `
+		INSERT INTO board_minutes
+		    (event_id, called_to_order, adjourned_at, attendees_present, attendees_absent,
+		     prev_minutes_approved, treasurer_report, old_business, new_business,
+		     action_items, additional_notes, submitted_by, updated_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW())
+		ON CONFLICT (event_id) DO UPDATE SET
+		    called_to_order       = EXCLUDED.called_to_order,
+		    adjourned_at          = EXCLUDED.adjourned_at,
+		    attendees_present     = EXCLUDED.attendees_present,
+		    attendees_absent      = EXCLUDED.attendees_absent,
+		    prev_minutes_approved = EXCLUDED.prev_minutes_approved,
+		    treasurer_report      = EXCLUDED.treasurer_report,
+		    old_business          = EXCLUDED.old_business,
+		    new_business          = EXCLUDED.new_business,
+		    action_items          = EXCLUDED.action_items,
+		    additional_notes      = EXCLUDED.additional_notes,
+		    submitted_by          = EXCLUDED.submitted_by,
+		    updated_at            = NOW()
+		RETURNING id, event_id, called_to_order, adjourned_at,
+		          attendees_present, attendees_absent, prev_minutes_approved,
+		          treasurer_report, old_business, new_business, action_items,
+		          additional_notes, submitted_by,
+		          to_char(published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+		          to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+		          to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')`,
+		eventID,
+		nullStr(req.CalledToOrder), nullStr(req.AdjournedAt),
+		nullStr(req.AttendeesPresent), nullStr(req.AttendeesAbsent),
+		req.PrevMinutesApproved,
+		nullStr(req.TreasurerReport), nullStr(req.OldBusiness),
+		nullStr(req.NewBusiness), nullStr(req.ActionItems),
+		nullStr(req.AdditionalNotes), nullStr(req.SubmittedBy),
+	).Scan(&m.ID, &m.EventID, &m.CalledToOrder, &m.AdjournedAt,
+		&m.AttendeesPresent, &m.AttendeesAbsent, &m.PrevMinutesApproved,
+		&m.TreasurerReport, &m.OldBusiness, &m.NewBusiness, &m.ActionItems,
+		&m.AdditionalNotes, &m.SubmittedBy, &m.PublishedAt,
+		&m.CreatedAt, &m.UpdatedAt)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not save minutes")
+	}
+	return c.JSON(http.StatusOK, m)
+}
+
+// PublishMinutes marks minutes as published and creates a dashboard alert for every active member.
+func (h *BoardMeetingsHandler) PublishMinutes(c echo.Context) error {
+	ctx := c.Request().Context()
+	eventID := c.Param("id")
+	adminID := c.Get("user_id").(string)
+
+	// Fetch meeting title
+	var title string
+	if err := h.DB.QueryRow(ctx, `SELECT title FROM events WHERE id=$1`, eventID).Scan(&title); err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, "meeting not found")
+	}
+
+	// Publish the minutes
+	var minID string
+	err := h.DB.QueryRow(ctx, `
+		UPDATE board_minutes SET published_at = NOW(), updated_at = NOW()
+		WHERE event_id = $1 AND published_at IS NULL
+		RETURNING id`, eventID).Scan(&minID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "minutes not found or already published")
+	}
+
+	// Create a member_alert for every active member
+	rows, err := h.DB.Query(ctx,
+		`SELECT id FROM users WHERE status = 'active'`)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch members")
+	}
+	defer rows.Close()
+
+	var userIDs []string
+	for rows.Next() {
+		var id string
+		if rows.Scan(&id) == nil {
+			userIDs = append(userIDs, id)
+		}
+	}
+	rows.Close()
+
+	for _, uid := range userIDs {
+		h.DB.Exec(ctx, `
+			INSERT INTO member_alerts (user_id, message, type, created_by, ref_id)
+			VALUES ($1, $2, 'meeting_minutes', $3, $4)`,
+			uid, title, adminID, eventID)
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"notified": len(userIDs),
+	})
+}
+
 func (h *BoardMeetingsHandler) sendInviteEmail(to, name, title, dateStr, location, description, acceptURL, declineURL string) {
 	locLine := ""
 	if location != "" {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { parseDate } from '../../utils/dates'
-import { api } from '../../api/client'
+import { api, BoardMinutes } from '../../api/client'
 
 interface Meeting {
   id: string
@@ -29,6 +29,14 @@ const ROLE_LABELS: Record<string, string> = {
   admin: 'Admin',
 }
 
+const emptyMinutes = {
+  called_to_order: '', adjourned_at: '',
+  attendees_present: '', attendees_absent: '',
+  prev_minutes_approved: false,
+  treasurer_report: '', old_business: '', new_business: '',
+  action_items: '', additional_notes: '', submitted_by: '',
+}
+
 export default function AdminBoardMeetings() {
   const [meetings, setMeetings] = useState<Meeting[]>([])
   const [showForm, setShowForm] = useState(false)
@@ -39,6 +47,15 @@ export default function AdminBoardMeetings() {
   const [rosterFor, setRosterFor] = useState<string | null>(null)
   const [roster, setRoster] = useState<RSVP[]>([])
   const [rosterLoading, setRosterLoading] = useState(false)
+
+  // Minutes state
+  const [minutesFor, setMinutesFor] = useState<string | null>(null)
+  const [minutesData, setMinutesData] = useState<BoardMinutes | null>(null)
+  const [minutesForm, setMinutesForm] = useState(emptyMinutes)
+  const [minutesLoading, setMinutesLoading] = useState(false)
+  const [minutesSaving, setMinutesSaving] = useState(false)
+  const [minutesPublishing, setMinutesPublishing] = useState(false)
+  const [minutesError, setMinutesError] = useState('')
 
   const load = () => api.boardMeetings.admin.list().then(d => setMeetings(d as Meeting[]))
 
@@ -65,11 +82,13 @@ export default function AdminBoardMeetings() {
     if (!confirm(`Cancel "${title}"? This will remove the meeting and all RSVP records.`)) return
     await api.boardMeetings.admin.delete(id)
     setRosterFor(null)
+    if (minutesFor === id) setMinutesFor(null)
     load()
   }
 
   const loadRoster = async (id: string) => {
     if (rosterFor === id) { setRosterFor(null); return }
+    setMinutesFor(null)
     setRosterLoading(true)
     try {
       const data = await api.boardMeetings.admin.roster(id) as RSVP[]
@@ -77,6 +96,70 @@ export default function AdminBoardMeetings() {
       setRosterFor(id)
     } finally {
       setRosterLoading(false)
+    }
+  }
+
+  const openMinutes = async (id: string) => {
+    if (minutesFor === id) { setMinutesFor(null); return }
+    setRosterFor(null)
+    setMinutesFor(id)
+    setMinutesError('')
+    setMinutesLoading(true)
+    try {
+      const data = await api.boardMeetings.admin.getMinutes(id)
+      if (data) {
+        setMinutesData(data)
+        setMinutesForm({
+          called_to_order:        data.called_to_order      ?? '',
+          adjourned_at:           data.adjourned_at         ?? '',
+          attendees_present:      data.attendees_present    ?? '',
+          attendees_absent:       data.attendees_absent     ?? '',
+          prev_minutes_approved:  data.prev_minutes_approved,
+          treasurer_report:       data.treasurer_report     ?? '',
+          old_business:           data.old_business         ?? '',
+          new_business:           data.new_business         ?? '',
+          action_items:           data.action_items         ?? '',
+          additional_notes:       data.additional_notes     ?? '',
+          submitted_by:           data.submitted_by         ?? '',
+        })
+      } else {
+        setMinutesData(null)
+        setMinutesForm(emptyMinutes)
+      }
+    } finally {
+      setMinutesLoading(false)
+    }
+  }
+
+  const saveMinutes = async () => {
+    if (!minutesFor) return
+    setMinutesSaving(true)
+    setMinutesError('')
+    try {
+      const saved = await api.boardMeetings.admin.saveMinutes(minutesFor, minutesForm)
+      setMinutesData(saved)
+      setSuccessMsg('Minutes saved as draft.')
+    } catch (err: any) {
+      setMinutesError(err.message || 'Could not save minutes.')
+    } finally {
+      setMinutesSaving(false)
+    }
+  }
+
+  const publishMinutes = async () => {
+    if (!minutesFor) return
+    if (!confirm('Publish these minutes? All active members will receive a dashboard notification.')) return
+    setMinutesPublishing(true)
+    setMinutesError('')
+    try {
+      const res = await api.boardMeetings.admin.publishMinutes(minutesFor)
+      const refreshed = await api.boardMeetings.admin.getMinutes(minutesFor)
+      setMinutesData(refreshed)
+      setSuccessMsg(`Minutes published — ${res.notified} member${res.notified !== 1 ? 's' : ''} notified.`)
+    } catch (err: any) {
+      setMinutesError(err.message || 'Could not publish minutes.')
+    } finally {
+      setMinutesPublishing(false)
     }
   }
 
@@ -89,12 +172,15 @@ export default function AdminBoardMeetings() {
   const upcoming = meetings.filter(m => parseDate(m.start_time) >= now)
   const past = meetings.filter(m => parseDate(m.start_time) < now)
 
+  const mf = (field: keyof typeof emptyMinutes) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    setMinutesForm(f => ({ ...f, [field]: e.target.value }))
+
   return (
     <div>
       <div className="flex items-center justify-between mb-5">
         <div>
           <h2 className="text-xl font-bold text-gray-800">Board Meetings</h2>
-          <p className="text-xs text-gray-400 mt-0.5">Schedule meetings and send RSVP invitations to all board members.</p>
+          <p className="text-xs text-gray-400 mt-0.5">Schedule meetings, collect RSVPs, and record minutes.</p>
         </div>
         <button
           onClick={() => { setShowForm(s => !s); setError(''); setSuccessMsg('') }}
@@ -139,7 +225,7 @@ export default function AdminBoardMeetings() {
             <div className="col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Agenda / Description</label>
               <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={4}
-                placeholder="Meeting agenda, topics to discuss, any attachments or notes…"
+                placeholder="Meeting agenda, topics to discuss…"
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
             </div>
           </div>
@@ -150,27 +236,36 @@ export default function AdminBoardMeetings() {
               {saving ? 'Scheduling…' : 'Schedule & Invite Board'}
             </button>
             <button type="button" onClick={() => setShowForm(false)}
-              className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition">
-              Cancel
-            </button>
+              className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition">Cancel</button>
           </div>
           <p className="text-xs text-gray-400">All active board members will receive an email invitation with Accept / Decline links.</p>
         </form>
       )}
 
-      {/* Upcoming meetings */}
+      {/* Upcoming */}
       {upcoming.length > 0 && (
         <div className="mb-6">
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Upcoming</h3>
           <div className="space-y-3">
             {upcoming.map(m => (
-              <MeetingCard
-                key={m.id} meeting={m} past={false}
+              <MeetingCard key={m.id} meeting={m} past={false}
                 onRoster={() => loadRoster(m.id)}
                 onDelete={() => handleDelete(m.id, m.title)}
+                onMinutes={() => openMinutes(m.id)}
                 rosterOpen={rosterFor === m.id}
                 roster={rosterFor === m.id ? roster : []}
                 rosterLoading={rosterLoading && rosterFor === m.id}
+                minutesOpen={minutesFor === m.id}
+                minutesData={minutesFor === m.id ? minutesData : null}
+                minutesLoading={minutesLoading && minutesFor === m.id}
+                minutesForm={minutesForm}
+                minutesSaving={minutesSaving}
+                minutesPublishing={minutesPublishing}
+                minutesError={minutesError}
+                onMf={mf}
+                onTogglePrevApproved={() => setMinutesForm(f => ({ ...f, prev_minutes_approved: !f.prev_minutes_approved }))}
+                onSaveMinutes={saveMinutes}
+                onPublishMinutes={publishMinutes}
                 fmt={fmt}
               />
             ))}
@@ -178,19 +273,30 @@ export default function AdminBoardMeetings() {
         </div>
       )}
 
-      {/* Past meetings */}
+      {/* Past */}
       {past.length > 0 && (
         <div>
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Past</h3>
-          <div className="space-y-3 opacity-75">
+          <div className="space-y-3">
             {past.map(m => (
-              <MeetingCard
-                key={m.id} meeting={m} past={true}
+              <MeetingCard key={m.id} meeting={m} past={true}
                 onRoster={() => loadRoster(m.id)}
                 onDelete={() => handleDelete(m.id, m.title)}
+                onMinutes={() => openMinutes(m.id)}
                 rosterOpen={rosterFor === m.id}
                 roster={rosterFor === m.id ? roster : []}
                 rosterLoading={rosterLoading && rosterFor === m.id}
+                minutesOpen={minutesFor === m.id}
+                minutesData={minutesFor === m.id ? minutesData : null}
+                minutesLoading={minutesLoading && minutesFor === m.id}
+                minutesForm={minutesForm}
+                minutesSaving={minutesSaving}
+                minutesPublishing={minutesPublishing}
+                minutesError={minutesError}
+                onMf={mf}
+                onTogglePrevApproved={() => setMinutesForm(f => ({ ...f, prev_minutes_approved: !f.prev_minutes_approved }))}
+                onSaveMinutes={saveMinutes}
+                onPublishMinutes={publishMinutes}
                 fmt={fmt}
               />
             ))}
@@ -207,10 +313,29 @@ export default function AdminBoardMeetings() {
   )
 }
 
-function MeetingCard({ meeting: m, past, onRoster, onDelete, rosterOpen, roster, rosterLoading, fmt }: {
+type MfFn = (field: keyof typeof emptyMinutes) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void
+const emptyMinutes = {
+  called_to_order: '', adjourned_at: '',
+  attendees_present: '', attendees_absent: '',
+  prev_minutes_approved: false,
+  treasurer_report: '', old_business: '', new_business: '',
+  action_items: '', additional_notes: '', submitted_by: '',
+}
+
+function MeetingCard({ meeting: m, past, onRoster, onDelete, onMinutes,
+  rosterOpen, roster, rosterLoading,
+  minutesOpen, minutesData, minutesLoading, minutesForm, minutesSaving, minutesPublishing, minutesError,
+  onMf, onTogglePrevApproved, onSaveMinutes, onPublishMinutes, fmt,
+}: {
   meeting: Meeting; past: boolean
-  onRoster: () => void; onDelete: () => void
+  onRoster: () => void; onDelete: () => void; onMinutes: () => void
   rosterOpen: boolean; roster: RSVP[]; rosterLoading: boolean
+  minutesOpen: boolean; minutesData: BoardMinutes | null; minutesLoading: boolean
+  minutesForm: typeof emptyMinutes
+  minutesSaving: boolean; minutesPublishing: boolean; minutesError: string
+  onMf: MfFn
+  onTogglePrevApproved: () => void
+  onSaveMinutes: () => void; onPublishMinutes: () => void
   fmt: (iso: string) => string
 }) {
   const total = m.pending + m.accepted + m.declined
@@ -222,6 +347,12 @@ function MeetingCard({ meeting: m, past, onRoster, onDelete, rosterOpen, roster,
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-base font-semibold text-gray-800">{m.title}</span>
             {!past && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">Upcoming</span>}
+            {past && minutesData?.published_at && (
+              <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">Minutes Published</span>
+            )}
+            {past && minutesData && !minutesData.published_at && (
+              <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">Minutes Draft</span>
+            )}
           </div>
           <p className="text-sm text-gray-500 mt-0.5">
             📅 {fmt(m.start_time)}
@@ -236,11 +367,17 @@ function MeetingCard({ meeting: m, past, onRoster, onDelete, rosterOpen, roster,
             </div>
           )}
         </div>
-        <div className="flex gap-2 shrink-0">
+        <div className="flex gap-2 shrink-0 flex-wrap justify-end">
           <button onClick={onRoster}
             className={`text-xs px-3 py-1.5 rounded-lg font-medium transition ${rosterOpen ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
             {rosterOpen ? 'Hide RSVPs' : 'RSVPs'}
           </button>
+          {past && (
+            <button onClick={onMinutes}
+              className={`text-xs px-3 py-1.5 rounded-lg font-medium transition ${minutesOpen ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+              {minutesOpen ? 'Hide Minutes' : 'Minutes'}
+            </button>
+          )}
           {!past && (
             <button onClick={onDelete}
               className="text-xs text-red-400 hover:text-red-600 px-2 py-1.5 transition">
@@ -250,6 +387,7 @@ function MeetingCard({ meeting: m, past, onRoster, onDelete, rosterOpen, roster,
         </div>
       </div>
 
+      {/* RSVP Roster */}
       {rosterOpen && (
         <div className="border-t border-gray-100 px-5 py-4 bg-gray-50">
           {rosterLoading ? (
@@ -270,15 +408,105 @@ function MeetingCard({ meeting: m, past, onRoster, onDelete, rosterOpen, roster,
                       {group.map((r, i) => (
                         <div key={i} className="text-sm text-gray-700">
                           {r.first_name} {r.last_name}
-                          <span className="ml-1.5 text-xs text-gray-400 capitalize">
-                            {ROLE_LABELS[r.role] ?? r.role}
-                          </span>
+                          <span className="ml-1.5 text-xs text-gray-400 capitalize">{ROLE_LABELS[r.role] ?? r.role}</span>
                         </div>
                       ))}
                     </div>
                   </div>
                 )
               })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Meeting Minutes Form */}
+      {minutesOpen && (
+        <div className="border-t border-gray-100 bg-indigo-50/40 px-5 py-5">
+          {minutesLoading ? (
+            <p className="text-xs text-gray-400 animate-pulse">Loading minutes…</p>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-semibold text-indigo-900">Meeting Minutes</h4>
+                {minutesData?.published_at && (
+                  <span className="text-xs text-green-700 font-medium">
+                    ✓ Published {parseDate(minutesData.published_at).toLocaleDateString()}
+                  </span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Called to Order</label>
+                  <input value={minutesForm.called_to_order} onChange={onMf('called_to_order')}
+                    placeholder="e.g. 7:00 PM" disabled={!!minutesData?.published_at}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-gray-100 disabled:text-gray-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Adjourned</label>
+                  <input value={minutesForm.adjourned_at} onChange={onMf('adjourned_at')}
+                    placeholder="e.g. 9:15 PM" disabled={!!minutesData?.published_at}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-gray-100 disabled:text-gray-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Members Present</label>
+                  <textarea value={minutesForm.attendees_present} onChange={onMf('attendees_present')} rows={3}
+                    placeholder="Names of those present…" disabled={!!minutesData?.published_at}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-gray-100 disabled:text-gray-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Members Absent</label>
+                  <textarea value={minutesForm.attendees_absent} onChange={onMf('attendees_absent')} rows={3}
+                    placeholder="Names of those absent…" disabled={!!minutesData?.published_at}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-gray-100 disabled:text-gray-500" />
+                </div>
+              </div>
+
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={minutesForm.prev_minutes_approved}
+                  onChange={onTogglePrevApproved} disabled={!!minutesData?.published_at}
+                  className="w-4 h-4 accent-indigo-600" />
+                <span className="text-sm text-gray-700">Previous meeting minutes approved</span>
+              </label>
+
+              {(['treasurer_report', 'old_business', 'new_business', 'action_items', 'additional_notes'] as const).map(field => (
+                <div key={field}>
+                  <label className="block text-xs font-medium text-gray-600 mb-1 capitalize">
+                    {field.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                  </label>
+                  <textarea value={minutesForm[field] as string} onChange={onMf(field)} rows={3}
+                    disabled={!!minutesData?.published_at}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-gray-100 disabled:text-gray-500" />
+                </div>
+              ))}
+
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Submitted By (Secretary)</label>
+                <input value={minutesForm.submitted_by} onChange={onMf('submitted_by')}
+                  placeholder="Secretary's name" disabled={!!minutesData?.published_at}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-gray-100 disabled:text-gray-500" />
+              </div>
+
+              {minutesError && <p className="text-red-600 text-xs">{minutesError}</p>}
+
+              {!minutesData?.published_at && (
+                <div className="flex gap-3 pt-1">
+                  <button onClick={onSaveMinutes} disabled={minutesSaving}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition disabled:opacity-50">
+                    {minutesSaving ? 'Saving…' : 'Save Draft'}
+                  </button>
+                  {minutesData && (
+                    <button onClick={onPublishMinutes} disabled={minutesPublishing}
+                      className="bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-4 py-2 rounded-lg transition disabled:opacity-50">
+                      {minutesPublishing ? 'Publishing…' : 'Publish to Members'}
+                    </button>
+                  )}
+                </div>
+              )}
+              {!minutesData?.published_at && (
+                <p className="text-xs text-gray-400">Save a draft first, then publish when ready. Publishing sends a dashboard notification to all active members.</p>
+              )}
             </div>
           )}
         </div>
