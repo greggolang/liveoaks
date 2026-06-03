@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { parseDate } from '../utils/dates'
 import { QRCodeSVG } from 'qrcode.react'
 import { loadStripe } from '@stripe/stripe-js'
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js'
@@ -117,12 +118,12 @@ export default function MyDues() {
             <tbody className="divide-y divide-gray-100">
               {dues.map(d => (
                 <tr key={d.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-gray-700">{new Date(d.due_date).toLocaleDateString()}</td>
+                  <td className="px-4 py-3 text-gray-700">{parseDate(d.due_date).toLocaleDateString()}</td>
                   <td className="px-4 py-3 font-medium">${d.amount.toFixed(2)}</td>
                   <td className="px-4 py-3">
                     <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusColor[d.status]}`}>{d.status}</span>
                   </td>
-                  <td className="px-4 py-3 text-gray-400 text-xs">{d.paid_at ? new Date(d.paid_at).toLocaleDateString() : '—'}</td>
+                  <td className="px-4 py-3 text-gray-400 text-xs">{d.paid_at ? parseDate(d.paid_at).toLocaleDateString() : '—'}</td>
                   <td className="px-4 py-3">
                     {d.status === 'unpaid' && (
                       <button

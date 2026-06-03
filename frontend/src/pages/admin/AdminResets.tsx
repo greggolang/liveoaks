@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { parseDate } from '../../utils/dates'
 import { api } from '../../api/client'
 
 interface Reset {
@@ -47,7 +48,7 @@ export default function AdminResets() {
                 <tr key={r.token} className="hover:bg-gray-50">
                   <td className="px-4 py-3 font-medium text-gray-800">{r.first_name} {r.last_name}</td>
                   <td className="px-4 py-3 text-gray-500">{r.email}</td>
-                  <td className="px-4 py-3 text-gray-400 text-xs">{new Date(r.expires_at).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-gray-400 text-xs">{parseDate(r.expires_at).toLocaleString()}</td>
                   <td className="px-4 py-3">
                     <button onClick={() => copyLink(r.token)}
                       className={`px-3 py-1 rounded text-xs font-medium transition ${copied === r.token ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>

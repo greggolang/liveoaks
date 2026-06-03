@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
+import { parseDate } from '../../utils/dates'
 import { api } from '../../api/client'
 
 interface BoardComm {
@@ -201,7 +202,7 @@ export default function AdminBoardCommunications() {
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-sm font-medium text-gray-800 truncate">{c.subject || '(no subject)'}</p>
                         <span className="text-xs text-gray-400 whitespace-nowrap shrink-0">
-                          {new Date(c.created_at).toLocaleString()}
+                          {parseDate(c.created_at).toLocaleString()}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-500">

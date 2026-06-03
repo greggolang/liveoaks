@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { parseDate } from '../../utils/dates'
 import { api } from '../../api/client'
 import { formatPhone } from '../../utils/phone'
 
@@ -553,7 +554,7 @@ export default function AdminUsers() {
                   </td>
                   <td className="px-4 py-3 text-gray-300 text-xs">—</td>
                   <td className="px-4 py-3 text-gray-300 text-xs">—</td>
-                  <td className="px-4 py-3 text-gray-400 text-xs">{new Date(w.created_at).toLocaleDateString()}</td>
+                  <td className="px-4 py-3 text-gray-400 text-xs">{parseDate(w.created_at).toLocaleDateString()}</td>
                   <td className="px-4 py-3 flex gap-3">
                     <a href="/admin/waitlist" className="text-blue-500 hover:text-blue-700 text-xs font-medium">Manage</a>
                     <button onClick={() => deleteWaitlistEntry(w.id, `${w.first_name} ${w.last_name}`)}
@@ -621,7 +622,7 @@ export default function AdminUsers() {
                   </span>
                 </td>
                 <td className="px-4 py-3 text-xs text-gray-500">{u.login_count > 0 ? u.login_count : <span className="text-gray-300">0</span>}</td>
-                <td className="px-4 py-3 text-gray-400 text-xs">{new Date(u.created_at).toLocaleDateString()}</td>
+                <td className="px-4 py-3 text-gray-400 text-xs">{parseDate(u.created_at).toLocaleDateString()}</td>
                 <td className="px-4 py-3 flex gap-3">
                   <button onClick={() => openEdit(u)}
                     className="text-blue-500 hover:text-blue-700 text-xs font-medium">Edit</button>

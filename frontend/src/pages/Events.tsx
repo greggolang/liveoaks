@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { parseDate } from '../utils/dates'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
@@ -50,8 +51,8 @@ export default function Events() {
     } catch (err: any) { setError(err.message) }
   }
 
-  const upcoming = events.filter(e => new Date(e.start_time) >= new Date())
-  const past = events.filter(e => new Date(e.start_time) < new Date())
+  const upcoming = events.filter(e => parseDate(e.start_time) >= new Date())
+  const past = events.filter(e => parseDate(e.start_time) < new Date())
 
   return (
     <div>
@@ -192,8 +193,8 @@ function EventList({ title, events, isBoard, templates, members, onDelete, onTog
                   </div>
                   <h3 className="font-semibold text-gray-800">{ev.title}</h3>
                   <p className="text-sm text-green-700 mt-0.5">
-                    {new Date(ev.start_time).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-                    {ev.end_time && ` – ${new Date(ev.end_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`}
+                    {parseDate(ev.start_time).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                    {ev.end_time && ` – ${parseDate(ev.end_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`}
                   </p>
                   {ev.location && <p className="text-xs text-gray-400 mt-0.5">📍 {ev.location}</p>}
                   {ev.description && <p className="text-sm text-gray-600 mt-2">{ev.description}</p>}
@@ -226,7 +227,7 @@ function EventList({ title, events, isBoard, templates, members, onDelete, onTog
                   </Link>
                   {ev.signup_deadline && (
                     <span className="text-xs text-orange-600">
-                      Deadline: {new Date(ev.signup_deadline).toLocaleDateString()}
+                      Deadline: {parseDate(ev.signup_deadline).toLocaleDateString()}
                     </span>
                   )}
                 </div>

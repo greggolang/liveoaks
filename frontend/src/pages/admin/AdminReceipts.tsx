@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { parseDate } from '../../utils/dates'
 import { api } from '../../api/client'
 
 interface Receipt {
@@ -178,7 +179,7 @@ export default function AdminReceipts() {
                   <td className="px-4 py-3 text-gray-600 text-xs">{catLabel(r.category)}</td>
                   <td className="px-4 py-3 text-gray-500 text-xs">
                     {r.receipt_date
-                      ? new Date(r.receipt_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                      ? parseDate(r.receipt_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
                       : '—'}
                   </td>
                   <td className="px-4 py-3 text-right font-medium text-gray-800">

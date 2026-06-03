@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { parseDate } from '../utils/dates'
 import { useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
@@ -488,7 +489,7 @@ export default function Bookings() {
   const getBooking = (courtId: number, slot: number): Booking | null => {
     return bookings.find(b => {
       if (b.court_id !== courtId) return false
-      const start = new Date(b.start_time)
+      const start = parseDate(b.start_time)
       const end = new Date(b.end_time)
       const slotStart = slotToDate(date, slot)
       const slotEnd = new Date(slotStart.getTime() + 30 * 60 * 1000)
@@ -497,7 +498,7 @@ export default function Bookings() {
   }
 
   const isFirstSlot = (b: Booking, slot: number): boolean => {
-    const s = new Date(b.start_time)
+    const s = parseDate(b.start_time)
     return s.getHours() === Math.floor(slot) && s.getMinutes() === (slot % 1 === 0.5 ? 30 : 0)
   }
 
@@ -664,9 +665,9 @@ export default function Bookings() {
   }
 
   const openEdit = (b: Booking) => {
-    const dHours = (new Date(b.end_time).getTime() - new Date(b.start_time).getTime()) / 3600000
+    const dHours = (new Date(b.end_time).getTime() - parseDate(b.start_time).getTime()) / 3600000
     const mt = b.match_type ?? 'casual'
-    const bStart = new Date(b.start_time)
+    const bStart = parseDate(b.start_time)
     const startSlot = bStart.getHours() + bStart.getMinutes() / 60
     setEditForm({
       matchType: mt,
@@ -687,7 +688,7 @@ export default function Bookings() {
     setEditLoading(true)
     setEditError('')
     try {
-      const dateStr = localDateStr(new Date(b.start_time))
+      const dateStr = localDateStr(parseDate(b.start_time))
       const newStart = slotToDate(dateStr, editForm.startSlot)
       const newEnd = new Date(newStart.getTime() + editForm.duration * 3600000)
       await api.bookings.update(b.id, {
@@ -1435,7 +1436,7 @@ export default function Bookings() {
           {/* Booking detail panel */}
           {bookingDetail && (() => {
             const b = bookingDetail
-            const bStart = new Date(b.start_time)
+            const bStart = parseDate(b.start_time)
             const bEnd = new Date(b.end_time)
             const dMins = (bEnd.getTime() - bStart.getTime()) / 60000
             const isMe = b.user_id === user?.id
@@ -1487,7 +1488,7 @@ export default function Bookings() {
                         !bookings.some(bk =>
                           bk.id !== b.id &&
                           bk.court_id === c.id &&
-                          new Date(bk.start_time) < newEnd &&
+                          parseDate(bk.start_time) < newEnd &&
                           new Date(bk.end_time) > editStart
                         )
                       )
@@ -1932,7 +1933,7 @@ export default function Bookings() {
 
                         const showDetails = isFirstSlot(booking, slot)
                         const isBallMachine = booking.match_type === 'ball_machine'
-                        const bStart = new Date(booking.start_time)
+                        const bStart = parseDate(booking.start_time)
                         const bEnd = new Date(booking.end_time)
                         const timeRange = `${bStart.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} – ${bEnd.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
                         const matchLabel = isBallMachine ? '🤖 Ball Machine'
@@ -2116,7 +2117,7 @@ export default function Bookings() {
             ) : (
               <div className="space-y-2">
                 {history.map(b => {
-                  const start = new Date(b.start_time)
+                  const start = parseDate(b.start_time)
                   const end = new Date(b.end_time)
                   return (
                     <div key={b.id} className="bg-white border border-gray-100 rounded-xl px-4 py-3 shadow-sm flex items-center gap-4 opacity-80">
@@ -2156,7 +2157,7 @@ export default function Bookings() {
                 <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">My Waitlist</h3>
                 <div className="space-y-2">
                   {myWaitlist.map(w => {
-                    const start = new Date(w.start_time)
+                    const start = parseDate(w.start_time)
                     const end = new Date(w.end_time)
                     const wlKey = `${w.court_id}-${w.start_time}`
                     return (
@@ -2200,7 +2201,7 @@ export default function Bookings() {
             ) : (
             <div className="space-y-4">
               {myBookings.map(b => {
-                const start = new Date(b.start_time)
+                const start = parseDate(b.start_time)
                 const end = new Date(b.end_time)
                 const durationMins = (end.getTime() - start.getTime()) / 60000
                 const isActive = activeBookingRoster?.bookingId === b.id

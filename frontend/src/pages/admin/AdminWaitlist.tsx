@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { parseDate } from '../../utils/dates'
 import { api } from '../../api/client'
 import { formatPhone } from '../../utils/phone'
 
@@ -86,7 +87,7 @@ export default function AdminWaitlist() {
                   </td>
                   <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
                     {w.application_date
-                      ? new Date(w.application_date + 'T12:00:00').toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+                      ? parseDate(w.application_date + 'T12:00:00').toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
                       : <span className="text-gray-300">—</span>}
                   </td>
                   <td className="px-4 py-3">

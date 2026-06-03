@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { parseDate } from '../../utils/dates'
 import { api } from '../../api/client'
 
 interface Meeting {
@@ -85,8 +86,8 @@ export default function AdminBoardMeetings() {
   })
 
   const now = new Date()
-  const upcoming = meetings.filter(m => new Date(m.start_time) >= now)
-  const past = meetings.filter(m => new Date(m.start_time) < now)
+  const upcoming = meetings.filter(m => parseDate(m.start_time) >= now)
+  const past = meetings.filter(m => parseDate(m.start_time) < now)
 
   return (
     <div>
@@ -224,7 +225,7 @@ function MeetingCard({ meeting: m, past, onRoster, onDelete, rosterOpen, roster,
           </div>
           <p className="text-sm text-gray-500 mt-0.5">
             📅 {fmt(m.start_time)}
-            {m.end_time && <> – {new Date(m.end_time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</>}
+            {m.end_time && <> – {parseDate(m.end_time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</>}
           </p>
           {m.location && <p className="text-sm text-gray-500 mt-0.5">📍 {m.location}</p>}
           {total > 0 && (

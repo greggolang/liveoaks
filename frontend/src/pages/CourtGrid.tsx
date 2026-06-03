@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { parseDate } from '../utils/dates'
 import { api } from '../api/client'
 
 interface Booking {
@@ -29,8 +30,8 @@ export default function CourtGrid() {
 
   const getBooking = (courtId: number, hour: number) =>
     bookings.find(b => {
-      const start = new Date(b.start_time).getHours()
-      const end = new Date(b.end_time).getHours()
+      const start = parseDate(b.start_time).getHours()
+      const end = parseDate(b.end_time).getHours()
       return b.court_id === courtId && hour >= start && hour < end
     })
 

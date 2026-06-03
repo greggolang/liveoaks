@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { parseDate } from '../../utils/dates'
 import { api } from '../../api/client'
 
 interface Entry {
@@ -137,7 +138,7 @@ export default function AdminLog() {
                 return (
                   <tr key={e.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">
-                      {new Date(e.created_at).toLocaleString()}
+                      {parseDate(e.created_at).toLocaleString()}
                     </td>
                     <td className="px-4 py-3">
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${meta.color}`}>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { parseDate } from '../../utils/dates'
 import { api } from '../../api/client'
 
 interface Session {
@@ -46,7 +47,7 @@ export default function AdminTeachingPro() {
   useEffect(() => { load() }, [period, customFrom, customTo])
 
   const totalMins = sessions.reduce((sum, s) => {
-    return sum + (new Date(s.end_time).getTime() - new Date(s.start_time).getTime()) / 60000
+    return sum + (parseDate(s.end_time).getTime() - parseDate(s.start_time).getTime()) / 60000
   }, 0)
   const totalHours = (totalMins / 60).toFixed(1)
 
@@ -54,7 +55,7 @@ export default function AdminTeachingPro() {
     const name = `${s.user.first_name} ${s.user.last_name}`
     if (!acc[name]) acc[name] = { name, count: 0, mins: 0 }
     acc[name].count++
-    acc[name].mins += (new Date(s.end_time).getTime() - new Date(s.start_time).getTime()) / 60000
+    acc[name].mins += (parseDate(s.end_time).getTime() - parseDate(s.start_time).getTime()) / 60000
     return acc
   }, {})
 
@@ -152,8 +153,8 @@ export default function AdminTeachingPro() {
                 {sessions.length === 0 ? (
                   <tr><td colSpan={7} className="px-4 py-6 text-center text-gray-400">No teaching sessions in this period.</td></tr>
                 ) : sessions.map(s => {
-                  const start = new Date(s.start_time)
-                  const end = new Date(s.end_time)
+                  const start = parseDate(s.start_time)
+                  const end = parseDate(s.end_time)
                   const dMins = (end.getTime() - start.getTime()) / 60000
                   const students = s.players.filter(p => p !== `${s.user.first_name} ${s.user.last_name}`)
                   return (

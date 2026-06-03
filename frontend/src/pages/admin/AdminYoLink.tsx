@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { parseDate } from '../../utils/dates'
 import { api, YoLinkRule } from '../../api/client'
 
 interface Device {
@@ -562,7 +563,7 @@ export default function AdminYoLink() {
                             `P${r.priority}`,
                             r.cooldown_minutes ? `cooldown ${r.cooldown_minutes}m` : null,
                             r.stop_processing ? 'stop after' : null,
-                            r.last_fired_at ? `last fired ${new Date(r.last_fired_at).toLocaleString()}` : null,
+                            r.last_fired_at ? `last fired ${parseDate(r.last_fired_at).toLocaleString()}` : null,
                           ].filter(Boolean).join(' · ')}
                         </p>
                         {r.notes && <p className="text-xs text-gray-400 italic mt-0.5">{r.notes}</p>}
@@ -604,7 +605,7 @@ export default function AdminYoLink() {
                     {alerts.map(a => (
                       <tr key={a.id} className="hover:bg-gray-50">
                         <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">
-                          {new Date(a.created_at).toLocaleString()}
+                          {parseDate(a.created_at).toLocaleString()}
                         </td>
                         <td className="px-4 py-3 font-medium text-gray-800">{a.device_name}</td>
                         <td className="px-4 py-3">

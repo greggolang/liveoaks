@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { parseDate } from '../../utils/dates'
 import { api } from '../../api/client'
 
 interface Due { id: string; user_id: string; first_name: string; last_name: string; email: string; amount: number; due_date: string; paid_at?: string; status: string }
@@ -141,7 +142,7 @@ export default function AdminDues() {
                   <div className="text-xs text-gray-400">{d.email}</div>
                 </td>
                 <td className="px-4 py-3">${d.amount.toFixed(2)}</td>
-                <td className="px-4 py-3 text-gray-500">{new Date(d.due_date).toLocaleDateString()}</td>
+                <td className="px-4 py-3 text-gray-500">{parseDate(d.due_date).toLocaleDateString()}</td>
                 <td className="px-4 py-3">
                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusColor[d.status]}`}>{d.status}</span>
                 </td>

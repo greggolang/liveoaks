@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { api, MemberMessage, Poll } from '../api/client'
+import { parseDate } from '../utils/dates'
 import { WeatherData, AirQualityData, weatherIcon, weatherLabel, courtCondition, conditionColors, dayLabel, aqiLabel, aqiColor, aqiEmoji } from '../utils/weather'
 
 interface InviteResponse {
@@ -47,14 +48,6 @@ interface Announcement {
   require_confirmation: boolean; confirmed: boolean
 }
 
-// Safari/iOS rejects datetime strings without an explicit timezone (e.g.
-// "2026-06-05T10:00:00" → Invalid Date). Append Z if no offset is present.
-function parseDate(s: string): Date {
-  if (s && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(s) && !/[Zz]|[+-]\d{2}:?\d{2}$/.test(s)) {
-    return new Date(s + 'Z')
-  }
-  return new Date(s)
-}
 
 function readKey(userId: string) { return `news_read_${userId}` }
 

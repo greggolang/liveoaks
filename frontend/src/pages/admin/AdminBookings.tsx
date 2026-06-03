@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { parseDate } from '../../utils/dates'
 import { api } from '../../api/client'
 
 interface Booking {
@@ -97,7 +98,7 @@ export default function AdminBookings() {
   const utilization = courts.map(c => {
     const courtBookings = bookings.filter(b => b.court_id === c.id)
     const bookedSlots = courtBookings.reduce((sum, b) => {
-      const mins = (new Date(b.end_time).getTime() - new Date(b.start_time).getTime()) / 60000
+      const mins = (parseDate(b.end_time).getTime() - parseDate(b.start_time).getTime()) / 60000
       return sum + Math.ceil(mins / 30)
     }, 0)
     return { court: c, bookings: courtBookings, pct: Math.round((bookedSlots / slotCount) * 100) }
@@ -265,10 +266,10 @@ export default function AdminBookings() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {bookings
-                .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
+                .sort((a, b) => parseDate(a.start_time).getTime() - parseDate(b.start_time).getTime())
                 .map(b => {
-                  const start = new Date(b.start_time)
-                  const end = new Date(b.end_time)
+                  const start = parseDate(b.start_time)
+                  const end = parseDate(b.end_time)
                   const dMins = (end.getTime() - start.getTime()) / 60000
                   const matchLabel = b.match_type === 'ball_machine' ? '🤖 Ball Machine'
                     : b.match_type === 'singles' ? 'Singles'

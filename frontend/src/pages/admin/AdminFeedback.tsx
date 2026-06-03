@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { parseDate } from '../../utils/dates'
 import { api } from '../../api/client'
 
 interface FeedbackItem {
@@ -136,7 +137,7 @@ export default function AdminFeedback() {
                     </span>
                     <span>{item.first_name} {item.last_name}</span>
                     <span>·</span>
-                    <span>{new Date(item.created_at).toLocaleDateString('en-US', {
+                    <span>{parseDate(item.created_at).toLocaleDateString('en-US', {
                       month: 'short', day: 'numeric', year: 'numeric'
                     })}</span>
                     {item.page && (

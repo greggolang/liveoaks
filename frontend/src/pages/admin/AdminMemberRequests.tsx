@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { parseDate } from '../../utils/dates'
 import { api, MemberRequest } from '../../api/client'
 import { formatPhone } from '../../utils/phone'
 
@@ -109,10 +110,10 @@ function RequestRow({
   }
 
   const appliedDate = request.application_date
-    ? new Date(request.application_date + 'T12:00:00').toLocaleDateString(undefined, {
+    ? parseDate(request.application_date + 'T12:00:00').toLocaleDateString(undefined, {
         year: 'numeric', month: 'short', day: 'numeric',
       })
-    : new Date(request.created_at).toLocaleDateString(undefined, {
+    : parseDate(request.created_at).toLocaleDateString(undefined, {
         year: 'numeric', month: 'short', day: 'numeric',
       })
 

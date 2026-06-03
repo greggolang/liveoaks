@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { parseDate } from '../../utils/dates'
 import { api } from '../../api/client'
 import { useAuth } from '../../contexts/AuthContext'
 
@@ -93,8 +94,8 @@ export default function AdminLiveball() {
     const end   = new Date(start.getTime() + 90 * 60 * 1000)
     return !dayBookings.some(b =>
       b.court_id === courtId &&
-      new Date(b.start_time) < end &&
-      new Date(b.end_time) > start
+      parseDate(b.start_time) < end &&
+      parseDate(b.end_time) > start
     )
   }
 
@@ -406,7 +407,7 @@ export default function AdminLiveball() {
                   {selected.end_time && (
                     <span className="text-gray-400">
                       {' → '}
-                      {new Date(selected.end_time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                      {parseDate(selected.end_time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
                     </span>
                   )}
                 </p>

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
+import { parseDate } from '../utils/dates'
 import { api } from '../api/client'
 
 interface Friend {
@@ -660,8 +661,8 @@ export default function Friends() {
             ) : (
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {myBookings.map(b => {
-                  const start = new Date(b.start_time)
-                  const end = new Date(b.end_time)
+                  const start = parseDate(b.start_time)
+                  const end = parseDate(b.end_time)
                   const isSending = sendingInvite === b.id
                   return (
                     <div key={b.id} className={`border rounded-xl p-3 transition ${isSending ? 'border-green-400 bg-green-50' : 'border-gray-200 hover:border-gray-300'}`}>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { parseDate } from '../../utils/dates'
 import { api } from '../../api/client'
 
 interface Cancellation {
@@ -155,7 +156,7 @@ export default function AdminCancellations() {
                   <tr><td colSpan={7} className="px-4 py-6 text-center text-gray-400">No cancellations in this period.</td></tr>
                 ) : rows.map(r => {
                   const cancelledAt = new Date(r.cancelled_at)
-                  const start = new Date(r.start_time)
+                  const start = parseDate(r.start_time)
                   return (
                     <tr key={r.id} className="hover:bg-gray-50">
                       <td className="px-4 py-2.5 text-gray-600 text-xs whitespace-nowrap">

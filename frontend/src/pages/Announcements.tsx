@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { parseDate } from '../utils/dates'
 import { useNavigate } from 'react-router-dom'
 import { api, MemberMessage } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
@@ -318,7 +319,7 @@ export default function Announcements() {
                     {item.data.subject}
                   </p>
                   <p className="text-xs text-gray-500 mt-1 line-clamp-2">{item.data.body}</p>
-                  <p className="text-xs text-gray-400 mt-2">{new Date(item.data.created_at).toLocaleDateString()}</p>
+                  <p className="text-xs text-gray-400 mt-2">{parseDate(item.data.created_at).toLocaleDateString()}</p>
                 </div>
                 {!item.data.read_at && (
                   <span className="shrink-0 self-center bg-blue-100 text-blue-700 text-xs font-medium px-2 py-0.5 rounded-full">
@@ -371,7 +372,7 @@ export default function Announcements() {
                       </div>
                       <p className="text-gray-600 text-sm mt-2 whitespace-pre-wrap">{a.body}</p>
                       <p className="text-gray-400 text-xs mt-3">
-                        {a.author_first_name} {a.author_last_name} · {new Date(a.created_at).toLocaleDateString()}
+                        {a.author_first_name} {a.author_last_name} · {parseDate(a.created_at).toLocaleDateString()}
                       </p>
                     </div>
                     {isBoard && (

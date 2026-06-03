@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { parseDate } from '../utils/dates'
 import { useParams, Link } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
@@ -135,12 +136,12 @@ export default function EventSignup() {
           <h1 className="text-2xl font-bold text-green-800">Live Oaks Tennis Event</h1>
           <h2 className="text-lg font-semibold text-gray-700 mt-1">{event.title}</h2>
           <p className="text-gray-500 text-sm mt-1">
-            {new Date(event.start_time).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+            {parseDate(event.start_time).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
             {event.location && ` · ${event.location}`}
           </p>
           {event.signup_deadline && (
             <p className="text-orange-600 text-xs mt-2 font-medium">
-              Sign-up deadline: {new Date(event.signup_deadline).toLocaleDateString()}
+              Sign-up deadline: {parseDate(event.signup_deadline).toLocaleDateString()}
             </p>
           )}
           <p className="text-gray-500 text-sm mt-3 max-w-lg mx-auto">

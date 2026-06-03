@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { parseDate } from '../utils/dates'
 import { api, MemberMessage } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 import MailInbox from './MailInbox'
@@ -308,7 +309,7 @@ export default function Messages() {
                           : <><span className="text-gray-400">To</span> <span className="font-medium text-gray-700">{selected.recipient_name}</span></>}
                       </span>
                       <span className="text-gray-300">·</span>
-                      <span className="text-gray-400">{new Date(selected.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
+                      <span className="text-gray-400">{parseDate(selected.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
                     </div>
                     {/* Read receipt in detail view */}
                     {tab === 'sent' && (

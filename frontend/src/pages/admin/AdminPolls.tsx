@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { parseDate } from '../../utils/dates'
 import { api, Poll } from '../../api/client'
 
 const EMPTY_FORM = { title: '', question: '', options: ['', ''], deadline_at: '' }
@@ -147,7 +148,7 @@ export default function AdminPolls() {
                     )}
                     {poll.deadline_at && poll.status === 'active' && (
                       <span className="text-xs text-gray-400">
-                        Closes {new Date(poll.deadline_at).toLocaleDateString()}
+                        Closes {parseDate(poll.deadline_at).toLocaleDateString()}
                       </span>
                     )}
                   </div>
