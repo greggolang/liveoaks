@@ -152,3 +152,20 @@ type Due struct {
 	Status    string     `json:"status"`
 	CreatedAt time.Time  `json:"created_at"`
 }
+
+type Poll struct {
+	ID          string     `json:"id"`
+	Title       string     `json:"title"`
+	Question    string     `json:"question"`
+	Options     []string   `json:"options"`
+	CreatedBy   string     `json:"created_by"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+	DeadlineAt  *time.Time `json:"deadline_at,omitempty"`
+	Status      string     `json:"status"` // active | closed
+	CreatorName string     `json:"creator_name,omitempty"`
+	TotalVotes  int        `json:"total_votes,omitempty"`
+	Results     map[string]int `json:"results,omitempty"`
+	HasVoted    bool       `json:"has_voted,omitempty"`
+	MyVote      string     `json:"my_vote,omitempty"`
+}

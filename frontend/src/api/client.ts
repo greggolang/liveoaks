@@ -111,6 +111,14 @@ export interface MailContact {
   phone?: string; notes?: string; created_at: string; updated_at: string
 }
 
+export interface Poll {
+  id: string; title: string; question: string; options: string[]
+  created_by: string; creator_name: string; created_at: string
+  deadline_at?: string | null; status: 'active' | 'closed'
+  total_votes: number; results: Record<string, number>
+  has_voted: boolean; my_vote?: string
+}
+
 const BASE = '/api'
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -791,5 +799,15 @@ export const api = {
       return request(`/admin/board-communications${q ? '?' + q : ''}`)
     },
     boardMembers: () => request('/admin/board-members'),
+  },
+  polls: {
+    list: () => request<Poll[]>('/polls'),
+    vote: (id: string, option: string) =>
+      request(`/polls/${id}/vote`, { method: 'POST', body: JSON.stringify({ option }) }),
+    adminList: () => request<Poll[]>('/admin/polls'),
+    adminCreate: (data: { title: string; question: string; options: string[]; deadline_at?: string | null }) =>
+      request<Poll>('/admin/polls', { method: 'POST', body: JSON.stringify(data) }),
+    adminClose: (id: string) => request(`/admin/polls/${id}/close`, { method: 'PUT' }),
+    adminDelete: (id: string) => request(`/admin/polls/${id}`, { method: 'DELETE' }),
   },
 }

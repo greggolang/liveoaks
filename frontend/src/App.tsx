@@ -66,6 +66,7 @@ import AdminAccounting from './pages/admin/AdminAccounting'
 import AdminFinancialRules from './pages/admin/AdminFinancialRules'
 import AdminAppliances from './pages/admin/AdminAppliances'
 import AdminGuests from './pages/admin/AdminGuests'
+import AdminPolls from './pages/admin/AdminPolls'
 import BoardMeetingResponse from './pages/BoardMeetingResponse'
 import LiveballResponse from './pages/LiveballResponse'
 import BookingReminderResponse from './pages/BookingReminderResponse'
@@ -166,6 +167,7 @@ function AppRoutes() {
         <Route path="yolink" element={<AdminYoLink />} />
         <Route path="appliances" element={<AdminAppliances />} />
         <Route path="guests" element={<AdminGuests />} />
+        <Route path="polls" element={<AdminPolls />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -138,6 +138,7 @@ func main() {
 	stripeH := &handlers.StripeHandler{DB: pool, SecretKey: cfg.StripeSecretKey, WebhookSecret: cfg.StripeWebhookSecret, PublishableKey: cfg.StripePublishableKey}
 	appliances := &handlers.AppliancesHandler{DB: pool, UploadDir: uploadDir, Mailer: mailer, SiteURL: cfg.SiteURL}
 	passwords := &handlers.PasswordsHandler{DB: pool, Secret: cfg.JWTSecret}
+	polls := &handlers.PollsHandler{DB: pool}
 
 	api := e.Group("/api")
 
@@ -264,6 +265,14 @@ func main() {
 	boardPlus.DELETE("/admin/photo-folders/:id", uploads.DeletePhotoFolder)
 	boardPlus.POST("/usta-teams", usta.Create)
 	boardPlus.DELETE("/usta-teams/:id", usta.Delete)
+
+	// Polls — members vote, admins manage
+	authed.GET("/polls", polls.List)
+	authed.POST("/polls/:id/vote", polls.Vote)
+	boardPlus.GET("/admin/polls", polls.AdminList)
+	boardPlus.POST("/admin/polls", polls.AdminCreate)
+	boardPlus.PUT("/admin/polls/:id/close", polls.AdminClose)
+	boardPlus.DELETE("/admin/polls/:id", polls.AdminDelete)
 
 	// Admin only — admin-prefixed routes that map to a grantable section are
 	// opened to roles granted that section (admins always pass); routes that map
