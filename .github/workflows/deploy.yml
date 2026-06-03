@@ -101,13 +101,12 @@ jobs:
             sed -i "s|Environment=TWILIO_ACCOUNT_SID=.*|Environment=TWILIO_ACCOUNT_SID=$TWILIO_ACCOUNT_SID|" /etc/systemd/system/liveoaks.service
             sed -i "s|Environment=TWILIO_AUTH_TOKEN=.*|Environment=TWILIO_AUTH_TOKEN=$TWILIO_AUTH_TOKEN|" /etc/systemd/system/liveoaks.service
             sed -i "s|Environment=TWILIO_FROM=.*|Environment=TWILIO_FROM=$TWILIO_FROM|" /etc/systemd/system/liveoaks.service
+            # Transfer ownership of all public tables to the app user so ALTER TABLE
+            # migrations succeed. Tables created by postgres during initial setup
+            # are not owned by the liveoaks user and will fail ALTER TABLE otherwise.
+            sudo -u postgres psql -d liveoaks -c "DO \$\$ DECLARE r RECORD; BEGIN FOR r IN SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tableowner != 'liveoaks' LOOP EXECUTE 'ALTER TABLE public.' || quote_ident(r.tablename) || ' OWNER TO liveoaks'; END LOOP; END\$\$;" 2>/dev/null || true
             systemctl daemon-reload
-            systemctl restart liveoaks || true
-            sleep 5
-            echo "=== SERVICE STATUS ==="
-            systemctl status liveoaks --no-pager -l || true
-            echo "=== RECENT LOGS ==="
-            journalctl -u liveoaks -n 50 --no-pager || true
+            systemctl restart liveoaks
         env:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
