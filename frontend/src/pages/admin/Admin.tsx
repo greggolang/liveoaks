@@ -14,7 +14,6 @@ const sections: Section[] = [
     heading: 'Content',
     links: [
       { to: '/events', label: 'Events', section: 'events_admin' },
-      { to: '/announcements', label: 'Announcements', section: 'announcements' },
       { to: '/admin/pro-shop', label: 'Pro Shop', section: 'pro_shop' },
       { to: '/files', label: 'Files', section: 'files' },
       { to: '/photos', label: 'Photos', section: 'photos' },
@@ -31,6 +30,7 @@ const sections: Section[] = [
     heading: 'Members',
     links: [
       { to: '/admin/users', label: 'Members', section: 'members' },
+      { to: '/announcements', label: 'Announcements', section: 'announcements' },
       { to: '/admin/member-requests', label: 'New Member Requests', section: 'member_requests' },
       { to: '/admin/waitlist', label: 'Waitlist', section: 'waitlist' },
 { to: '/admin/polls', label: 'Membership Polls' },
