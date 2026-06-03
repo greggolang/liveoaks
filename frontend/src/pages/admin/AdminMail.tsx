@@ -802,14 +802,23 @@ query = SELECT address FROM mail_accounts WHERE address='%s' AND active = true`,
             {importError && <p className="text-red-600 text-xs bg-red-50 px-3 py-2 rounded-lg">{importError}</p>}
 
             <div className="flex justify-end gap-2 pt-1">
-              <button type="button" onClick={() => setImportTarget(null)} disabled={importing}
-                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-xl transition disabled:opacity-50">
-                {importResult ? 'Close' : 'Cancel'}
-              </button>
-              <button type="submit" disabled={importing || !importFile || !importTarget.has_password}
-                className="px-5 py-2 bg-green-700 text-white text-sm font-semibold rounded-xl hover:bg-green-800 disabled:opacity-50 transition">
-                {importing ? 'Importing…' : 'Import'}
-              </button>
+              {importResult ? (
+                <button type="button" onClick={() => setImportTarget(null)}
+                  className="px-5 py-2 bg-green-700 text-white text-sm font-semibold rounded-xl hover:bg-green-800 transition">
+                  Done
+                </button>
+              ) : (
+                <>
+                  <button type="button" onClick={() => setImportTarget(null)} disabled={importing}
+                    className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-xl transition disabled:opacity-50">
+                    Cancel
+                  </button>
+                  <button type="submit" disabled={importing || !importFile || !importTarget.has_password}
+                    className="px-5 py-2 bg-green-700 text-white text-sm font-semibold rounded-xl hover:bg-green-800 disabled:opacity-50 transition">
+                    {importing ? 'Importing…' : 'Import'}
+                  </button>
+                </>
+              )}
             </div>
           </form>
         </Modal>
