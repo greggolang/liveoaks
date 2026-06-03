@@ -7,7 +7,7 @@ import { APP_VERSION } from '../version'
 type BugState = 'idle' | 'sending' | 'done' | 'error'
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  const { user, logout, isAdmin, isBoard } = useAuth()
+  const { user, logout, isAdmin, isBoard, hasPermission } = useAuth()
   const [clubLogo, setClubLogo] = useState('')
 
   useEffect(() => {
@@ -107,15 +107,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
             {/* Desktop nav */}
             <div className="hidden md:flex items-center gap-5 text-sm font-medium flex-wrap justify-end">
-              <NavLink to="/bookings?tab=grid" className={navLink}>Book a Court</NavLink>
-              <NavLink to="/events" className={navLink}>Events</NavLink>
-              <NavLink to="/pro-shop" className={navLink}>Pro Shop</NavLink>
-              <NavLink to="/directory" className={navLink}>Directory</NavLink>
+              {hasPermission('bookings') && <NavLink to="/bookings?tab=grid" className={navLink}>Book a Court</NavLink>}
+              {hasPermission('events') && <NavLink to="/events" className={navLink}>Events</NavLink>}
+              {hasPermission('pro_shop') && <NavLink to="/pro-shop" className={navLink}>Pro Shop</NavLink>}
+              {hasPermission('directory') && <NavLink to="/directory" className={navLink}>Directory</NavLink>}
               <span className="w-px h-4 bg-green-600" />
-              <NavLink to="/friends" className={navLink}>Friends</NavLink>
-              {showDocuments && <NavLink to="/files" className={navLink}>Files</NavLink>}
-              {showFantasy && <NavLink to="/fantasy" className={navLink}>Fantasy Pool</NavLink>}
-              {showLadder && <NavLink to="/ladder" className={navLink}>Ladder</NavLink>}
+              {hasPermission('friends') && <NavLink to="/friends" className={navLink}>Friends</NavLink>}
+              {hasPermission('documents') && showDocuments && <NavLink to="/files" className={navLink}>Files</NavLink>}
+              {hasPermission('fantasy') && showFantasy && <NavLink to="/fantasy" className={navLink}>Fantasy Pool</NavLink>}
+              {hasPermission('ladder') && showLadder && <NavLink to="/ladder" className={navLink}>Ladder</NavLink>}
               {isBoard && <NavLink to="/admin" className={navLink}>Admin</NavLink>}
               <button onClick={openBug}
                 title="Report a bug"
@@ -127,18 +127,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 </svg>
               </button>
               <div className="flex items-center gap-2 pl-2 border-l border-green-600">
-                <NavLink to="/messages" title="Messages" className={({ isActive }) =>
-                  `relative hover:text-green-200 transition ${isActive ? 'text-white' : 'text-green-200'}`}>
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                      d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                  </svg>
-                  {unreadMessages > 0 && (
-                    <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-bold min-w-[1.1rem] h-[1.1rem] rounded-full flex items-center justify-center px-0.5 leading-none">
-                      {unreadMessages > 99 ? '99+' : unreadMessages}
-                    </span>
-                  )}
-                </NavLink>
+                {hasPermission('messages') && (
+                  <NavLink to="/messages" title="Messages" className={({ isActive }) =>
+                    `relative hover:text-green-200 transition ${isActive ? 'text-white' : 'text-green-200'}`}>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                    {unreadMessages > 0 && (
+                      <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-bold min-w-[1.1rem] h-[1.1rem] rounded-full flex items-center justify-center px-0.5 leading-none">
+                        {unreadMessages > 99 ? '99+' : unreadMessages}
+                      </span>
+                    )}
+                  </NavLink>
+                )}
                 <Link to="/profile" className="text-green-200 hover:text-white text-xs transition">
                   {user?.first_name}
                 </Link>
@@ -163,19 +165,19 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           {menuOpen && (
             <div className="md:hidden mt-3 pb-2 border-t border-green-600 flex flex-col gap-2 pt-3 text-sm">
               {[
-                ['/bookings?tab=grid', 'Book a Court'],
-                ['/events', 'Events'],
-                ['/pro-shop', 'Pro Shop'],
-                ['/directory', 'Directory'],
-                ['/friends', 'Friends'],
-                ['/messages', unreadMessages > 0 ? `Messages (${unreadMessages})` : 'Messages'],
-                ...(showDocuments ? [['/files', 'Files']] : []),
-                ...(showFantasy ? [['/fantasy', 'Fantasy Pool']] : []),
-                ...(showLadder ? [['/ladder', 'Ladder']] : []),
-                ...(isBoard ? [['/admin', 'Admin']] : []),
-              ].map(([to, label]) => (
-                <Link key={to} to={to} onClick={() => setMenuOpen(false)}
-                  className="text-green-100 hover:text-white">{label}</Link>
+                hasPermission('bookings')  && ['/bookings?tab=grid', 'Book a Court'],
+                hasPermission('events')    && ['/events', 'Events'],
+                hasPermission('pro_shop')  && ['/pro-shop', 'Pro Shop'],
+                hasPermission('directory') && ['/directory', 'Directory'],
+                hasPermission('friends')   && ['/friends', 'Friends'],
+                hasPermission('messages')  && ['/messages', unreadMessages > 0 ? `Messages (${unreadMessages})` : 'Messages'],
+                hasPermission('documents') && showDocuments && ['/files', 'Files'],
+                hasPermission('fantasy')   && showFantasy   && ['/fantasy', 'Fantasy Pool'],
+                hasPermission('ladder')    && showLadder    && ['/ladder', 'Ladder'],
+                isBoard                    && ['/admin', 'Admin'],
+              ].filter(Boolean).map(([to, label]) => (
+                <Link key={to as string} to={to as string} onClick={() => setMenuOpen(false)}
+                  className="text-green-100 hover:text-white">{label as string}</Link>
               ))}
               <button onClick={() => { setMenuOpen(false); openBug() }}
                 className="text-left text-green-200 hover:text-white">
