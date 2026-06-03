@@ -1,6 +1,7 @@
 package email
 
 import (
+	"crypto/tls"
 	"fmt"
 	"time"
 
@@ -35,21 +36,28 @@ func (m *Mailer) Send(to, subject, body string) error {
 	msg.SetHeader("Subject", subject)
 	msg.SetBody("text/html", m.brand(body))
 
-	d := gomail.NewDialer(m.Host, m.Port, m.Username, m.Password)
-	d.Timeout = 15 * time.Second
-	if m.Username == "" {
-		d.Auth = nil
+	// Use the configured hostname for TLS verification even when falling back to
+	// localhost — the mail server cert is issued for the external hostname.
+	tlsCfg := &tls.Config{ServerName: m.Host}
+
+	hosts := []string{m.Host, "localhost"}
+	if m.Host == "" || m.Host == "localhost" || m.Host == "127.0.0.1" {
+		hosts = []string{m.Host}
 	}
 
-	type result struct{ err error }
-	ch := make(chan result, 1)
-	go func() { ch <- result{d.DialAndSend(msg)} }()
-	select {
-	case r := <-ch:
-		return r.err
-	case <-time.After(20 * time.Second):
-		return fmt.Errorf("SMTP timed out after 20 s connecting to %s:%d", m.Host, m.Port)
+	var lastErr error
+	for _, host := range hosts {
+		d := gomail.NewDialer(host, m.Port, m.Username, m.Password)
+		d.TLSConfig = tlsCfg
+		d.Timeout = 15 * time.Second
+		if m.Username == "" {
+			d.Auth = nil
+		}
+		if lastErr = d.DialAndSend(msg); lastErr == nil {
+			return nil
+		}
 	}
+	return lastErr
 }
 
 func (m *Mailer) SendPasswordReset(to, firstName, resetURL string) error {
