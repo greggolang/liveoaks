@@ -146,6 +146,7 @@ func main() {
 	appliances := &handlers.AppliancesHandler{DB: pool, UploadDir: uploadDir, Mailer: mailer, SiteURL: cfg.SiteURL}
 	passwords := &handlers.PasswordsHandler{DB: pool, Secret: cfg.JWTSecret}
 	polls := &handlers.PollsHandler{DB: pool}
+	matches := &handlers.MatchesHandler{DB: pool}
 
 	api := e.Group("/api")
 
@@ -222,6 +223,13 @@ func main() {
 	authed.POST("/conversations/:id/read", conversations.MarkRead)
 	authed.POST("/conversations/:id/mute", conversations.Mute)
 	authed.DELETE("/conversations/:id", conversations.Leave)
+
+	// Match scores & club scoreboard
+	authed.GET("/matches/pending", matches.Pending)
+	authed.GET("/matches/recent", matches.Recent)
+	authed.GET("/matches/mine", matches.Mine)
+	authed.POST("/matches", matches.Create)
+	authed.GET("/matches/:id", matches.Get)
 
 	// Friends
 	authed.GET("/friends", friends.List)

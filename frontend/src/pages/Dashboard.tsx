@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { api, BoardMinutes, MemberMessage, Poll } from '../api/client'
+import { api, BoardMinutes, MemberMessage, Poll, PendingMatch, MatchResult } from '../api/client'
+import ScorecardModal from '../components/ScorecardModal'
+import MatchCard from '../components/MatchCard'
 import { parseDate } from '../utils/dates'
 import { votePercents } from '../utils/polls'
 
@@ -111,6 +113,16 @@ export default function Dashboard() {
   const [minutesLoading, setMinutesLoading] = useState(false)
   const [polls, setPolls] = useState<Poll[]>([])
   const [pollVoting, setPollVoting] = useState<string | null>(null)
+  const [pendingMatches, setPendingMatches] = useState<PendingMatch[]>([])
+  const [recentMatches, setRecentMatches] = useState<MatchResult[]>([])
+  const [scoreFor, setScoreFor] = useState<PendingMatch | null>(null)
+  const loadMatches = () => {
+    api.matches.pending().then(setPendingMatches).catch(() => {})
+    // The home dashboard shows the member's own matches (incl. their private
+    // ones); the club-wide public scoreboard lives on the /scores page.
+    api.matches.mine().then(m => setRecentMatches(m.slice(0, 5))).catch(() => {})
+  }
+  useEffect(() => { loadMatches() }, [])
   const [showHeader, setShowHeader] = useState(true)
   const [myBalance, setMyBalance] = useState<{ dues_owed: number; kiosk_tab: number; charges_owed: number; total: number } | null>(null)
   const [showStatement, setShowStatement] = useState(false)
@@ -1331,6 +1343,44 @@ export default function Dashboard() {
             )
           })}
         </div>
+      )}
+
+      {/* Matches waiting to be scored (host of an ended singles/doubles booking) */}
+      {pendingMatches.map(pm => (
+        <div key={pm.booking_id} className="flex items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="text-xl shrink-0">🎾</span>
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-amber-900">Enter your match score</p>
+              <p className="text-xs text-amber-700/80 truncate">
+                {pm.match_type === 'doubles' ? 'Doubles' : 'Singles'} · {pm.court_name} · {parseDate(pm.start_time).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+              </p>
+            </div>
+          </div>
+          <button onClick={() => setScoreFor(pm)}
+            className="bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition shrink-0">
+            Enter score
+          </button>
+        </div>
+      ))}
+
+      {/* Recent club matches */}
+      {recentMatches.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold text-gray-700">Your Recent Matches</h2>
+            <Link to="/scores" className="text-sm text-green-700 hover:text-green-900 font-medium">Club scoreboard →</Link>
+          </div>
+          <div className="space-y-3">
+            {recentMatches.map(m => <MatchCard key={m.id} match={m} />)}
+          </div>
+        </div>
+      )}
+
+      {scoreFor && (
+        <ScorecardModal match={scoreFor}
+          onClose={() => setScoreFor(null)}
+          onSubmitted={() => { setScoreFor(null); loadMatches() }} />
       )}
 
       {/* Feedback */}

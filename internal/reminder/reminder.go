@@ -31,6 +31,7 @@ func (s *Service) Start(ctx context.Context) {
 				return
 			case <-time.After(time.Until(nextHour())):
 				s.sendReminders(ctx)
+				s.sendScorePrompts(ctx)
 				// Send day-of reminders at 7am club-local time
 				loc := s.loadTimezone(ctx)
 				if time.Now().In(loc).Hour() == 7 {
@@ -109,6 +110,66 @@ func (s *Service) sendReminders(ctx context.Context) {
 			s.DB.Exec(ctx,
 				`INSERT INTO activity_log (event, details) VALUES ('booking_reminder', $1)`,
 				fmt.Sprintf("sent to %s for booking %s", email, bookingID))
+		}
+	}
+}
+
+// sendScorePrompts emails the host of every singles/doubles booking that ended
+// in the last ~75 minutes, inviting them to enter the match score. It runs each
+// hourly tick and de-dupes via activity_log so each booking is prompted once.
+func (s *Service) sendScorePrompts(ctx context.Context) {
+	rows, err := s.DB.Query(ctx, `
+		SELECT b.id, ct.name, u.id, u.first_name, u.email
+		FROM bookings b
+		JOIN users u ON u.id = b.user_id
+		JOIN courts ct ON ct.id = b.court_id
+		WHERE b.match_type IN ('singles', 'doubles')
+		  AND b.end_time BETWEEN NOW() - INTERVAL '75 minutes' AND NOW()
+		  AND NOT EXISTS (SELECT 1 FROM matches m WHERE m.booking_id = b.id)
+		  AND NOT EXISTS (
+		      SELECT 1 FROM activity_log
+		      WHERE event = 'score_prompt' AND details LIKE '%' || b.id || '%'
+		  )`)
+	if err != nil {
+		log.Printf("score prompt query error: %v", err)
+		return
+	}
+	defer rows.Close()
+
+	type prompt struct{ bookingID, courtName, userID, firstName, email string }
+	var prompts []prompt
+	for rows.Next() {
+		var p prompt
+		if err := rows.Scan(&p.bookingID, &p.courtName, &p.userID, &p.firstName, &p.email); err != nil {
+			continue
+		}
+		prompts = append(prompts, p)
+	}
+	rows.Close()
+
+	for _, p := range prompts {
+		// Record the prompt first so we never re-ask, even if the email is
+		// skipped by preference or fails.
+		s.DB.Exec(ctx,
+			`INSERT INTO activity_log (event, details) VALUES ('score_prompt', $1)`,
+			fmt.Sprintf("host %s for booking %s", p.email, p.bookingID))
+
+		if p.email == "" || !notifprefs.UserWantsEmail(ctx, s.DB, p.userID, "booking_reminder") {
+			continue
+		}
+		body := fmt.Sprintf(`
+<div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
+  <h2 style="color:#15803d">🎾 How did your match go?</h2>
+  <p>Hi %s,</p>
+  <p>Your match on <strong>%s</strong> just wrapped up. Want to record the score?</p>
+  <p style="margin:20px 0">
+    <a href="%s/scores" style="background:#15803d;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block">Enter the score →</a>
+  </p>
+  <p style="color:#9ca3af;font-size:12px">You choose whether the result is private to the players or shared on the club scoreboard.</p>
+</div>`, p.firstName, p.courtName, s.SiteURL)
+
+		if err := s.Mailer.Send(p.email, "Enter your match score – Live Oaks Tennis Club", body); err != nil {
+			log.Printf("score prompt email error for %s: %v", p.email, err)
 		}
 	}
 }

@@ -86,6 +86,25 @@ export interface ConvPerson { id: string; name: string }
 export interface ConvMessage { id: string; sender_id: string | null; sender_name: string; body: string; created_at: string }
 export interface ConvDetail { id: string; title: string | null; muted: boolean; participants: ConvPerson[]; messages: ConvMessage[] }
 
+export interface PendingMatchPlayer { user_id: string | null; name: string; is_guest: boolean }
+export interface PendingMatch {
+  booking_id: string; court_name: string; start_time: string
+  match_type: 'singles' | 'doubles'; players: PendingMatchPlayer[]
+}
+export interface MatchSet { a: number; b: number; tba?: number | null; tbb?: number | null }
+export interface MatchParticipant { side: number; position: number; user_id: string | null; name: string; is_guest: boolean }
+export interface MatchResult {
+  id: string; booking_id: string | null; match_type: 'singles' | 'doubles'
+  court_name: string | null; played_at: string; visibility: 'public' | 'private'
+  winner_side: number; score_summary: string; sets: MatchSet[]
+  reported_by_name: string | null; created_at: string; participants: MatchParticipant[]
+}
+export interface MatchInput {
+  booking_id: string; visibility: 'public' | 'private'
+  teams: { user_id: string | null; name: string; is_guest: boolean }[][]
+  sets: MatchSet[]
+}
+
 export type MailFilterInput = {
   name: string
   enabled: boolean
@@ -799,6 +818,14 @@ export const api = {
     mute: (id: string, muted: boolean) =>
       request(`/conversations/${id}/mute`, { method: 'POST', body: JSON.stringify({ muted }) }),
     leave: (id: string) => request(`/conversations/${id}`, { method: 'DELETE' }),
+  },
+  matches: {
+    pending: () => request<PendingMatch[]>('/matches/pending'),
+    recent: (limit = 30) => request<MatchResult[]>(`/matches/recent?limit=${limit}`),
+    mine: () => request<MatchResult[]>('/matches/mine'),
+    get: (id: string) => request<MatchResult>(`/matches/${id}`),
+    create: (data: MatchInput) =>
+      request<{ id: string }>('/matches', { method: 'POST', body: JSON.stringify(data) }),
   },
   kiosk: {
     members: () => request<{ id: string; name: string; member_number: number }[]>('/kiosk/members'),
