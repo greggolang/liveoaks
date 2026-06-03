@@ -70,12 +70,20 @@ export default function AdminContent() {
 
   return (
     <div className="max-w-3xl space-y-5 pb-24">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold text-gray-800">Public Website Content</h2>
           <p className="text-sm text-gray-500">Edit the landing page shown to the public before login.</p>
         </div>
-        <a href="/" target="_blank" rel="noreferrer" className="text-sm text-indigo-600 hover:text-indigo-800 font-medium">View site ↗</a>
+        <div className="flex items-center gap-3 shrink-0">
+          <a href="/" target="_blank" rel="noreferrer" className="text-sm text-indigo-600 hover:text-indigo-800 font-medium">View site ↗</a>
+          {status === 'saved' && <span className="text-sm font-medium text-green-700">✓ Saved</span>}
+          {status === 'error' && <span className="text-sm font-medium text-red-600">{error}</span>}
+          <button onClick={save} disabled={saving}
+            className="bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-5 py-2 rounded-lg transition disabled:opacity-50">
+            {saving ? 'Saving…' : 'Save & Publish'}
+          </button>
+        </div>
       </div>
 
       {/* Hero */}

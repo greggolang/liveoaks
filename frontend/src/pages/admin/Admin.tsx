@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 
@@ -117,6 +117,8 @@ export default function Admin() {
   const { isBoard, isAdmin, canSeeAdmin } = useAuth()
   const { pathname } = useLocation()
   const isIndex = pathname === '/admin' || pathname === '/admin/'
+  // Section groups start collapsed; an explicit toggle overrides.
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
 
   // Scroll back to the top whenever the admin sub-page changes — otherwise the
   // layout stays mounted and keeps the previous scroll position, leaving the
@@ -134,6 +136,13 @@ export default function Admin() {
     }),
   })).filter(s => s.links.length > 0)
 
+  // The group containing the current page is open by default; everything else
+  // is collapsed until clicked.
+  const activeHeading = visibleSections.find(s =>
+    s.links.some(l => pathname === l.to || pathname.startsWith(l.to + '/')))?.heading
+  const isOpen = (h: string) => expanded[h] ?? (h === activeHeading)
+  const toggleGroup = (h: string) => setExpanded(e => ({ ...e, [h]: !isOpen(h) }))
+
   return (
     <div>
       <div className="flex items-center gap-2 mb-4">
@@ -150,21 +159,28 @@ export default function Admin() {
       </div>
       <div className="flex flex-col md:flex-row gap-4 md:gap-8">
         {/* Desktop: sidebar (always visible) */}
-        <nav className="hidden md:block w-44 shrink-0 space-y-4">
+        <nav className="hidden md:block w-44 shrink-0 space-y-1">
           {visibleSections.map(section => (
             <div key={section.heading}>
-              <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">
+              <button onClick={() => toggleGroup(section.heading)}
+                className="w-full flex items-center justify-between px-4 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider hover:text-gray-600 transition">
                 {section.heading}
-              </p>
-              <div className="space-y-0.5">
-                {section.links.map(l => (
-                  <NavLink key={l.to} to={l.to}
-                    className={({ isActive }) =>
-                      `block px-4 py-2 rounded-lg text-sm font-medium transition ${isActive ? 'bg-green-100 text-green-800' : 'text-gray-600 hover:bg-gray-100'}`}>
-                    {l.label}
-                  </NavLink>
-                ))}
-              </div>
+                <svg className={`w-3.5 h-3.5 transition-transform ${isOpen(section.heading) ? 'rotate-90' : ''}`}
+                  fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+              {isOpen(section.heading) && (
+                <div className="space-y-0.5 mt-0.5 mb-2">
+                  {section.links.map(l => (
+                    <NavLink key={l.to} to={l.to}
+                      className={({ isActive }) =>
+                        `block px-4 py-2 rounded-lg text-sm font-medium transition ${isActive ? 'bg-green-100 text-green-800' : 'text-gray-600 hover:bg-gray-100'}`}>
+                      {l.label}
+                    </NavLink>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </nav>
@@ -173,21 +189,30 @@ export default function Admin() {
           {isIndex ? (
             <>
               {/* Mobile: the full menu is the landing screen */}
-              <nav className="md:hidden space-y-5">
+              <nav className="md:hidden space-y-2">
                 {visibleSections.map(section => (
-                  <div key={section.heading}>
-                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">{section.heading}</p>
-                    <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
-                      {section.links.map(l => (
-                        <Link key={l.to} to={l.to}
-                          className="flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 active:bg-gray-100">
-                          {l.label}
-                          <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                          </svg>
-                        </Link>
-                      ))}
-                    </div>
+                  <div key={section.heading} className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                    <button onClick={() => toggleGroup(section.heading)}
+                      className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-gray-800 hover:bg-gray-50 active:bg-gray-100">
+                      {section.heading}
+                      <svg className={`w-4 h-4 text-gray-400 transition-transform ${isOpen(section.heading) ? 'rotate-90' : ''}`}
+                        fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
+                    {isOpen(section.heading) && (
+                      <div className="border-t border-gray-100 divide-y divide-gray-100">
+                        {section.links.map(l => (
+                          <Link key={l.to} to={l.to}
+                            className="flex items-center justify-between pl-6 pr-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50 active:bg-gray-100">
+                            {l.label}
+                            <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </Link>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </nav>
