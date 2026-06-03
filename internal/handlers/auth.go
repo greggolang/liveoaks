@@ -167,18 +167,25 @@ func (h *AuthHandler) Me(c echo.Context) error {
 	var user models.User
 	var role, status string
 	var isFamilyMember bool
+	var photo *string
 	err := h.DB.QueryRow(c.Request().Context(),
 		`SELECT id, first_name, last_name, email, role::text, status::text, phone, address, family, usta_ranking, created_at,
 		        COALESCE(extra_roles, ARRAY[]::text[]),
-		        EXISTS(SELECT 1 FROM family_members WHERE linked_user_id = $1) AS is_family_member
+		        EXISTS(SELECT 1 FROM family_members WHERE linked_user_id = $1) AS is_family_member,
+		        photo_filename
 		 FROM users WHERE id = $1`,
 		userID,
-	).Scan(&user.ID, &user.FirstName, &user.LastName, &user.Email, &role, &status, &user.Phone, &user.Address, &user.Family, &user.USTARanking, &user.CreatedAt, &user.ExtraRoles, &isFamilyMember)
+	).Scan(&user.ID, &user.FirstName, &user.LastName, &user.Email, &role, &status, &user.Phone, &user.Address, &user.Family, &user.USTARanking, &user.CreatedAt, &user.ExtraRoles, &isFamilyMember, &photo)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "user not found")
 	}
 	user.Role = models.Role(role)
 	user.Status = models.Status(status)
+	var photoURL *string
+	if photo != nil && *photo != "" {
+		url := "/uploads/avatars/" + *photo
+		photoURL = &url
+	}
 	// Return as a map so we can include the virtual is_family_member field
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"id": user.ID, "first_name": user.FirstName, "last_name": user.LastName,
@@ -186,6 +193,7 @@ func (h *AuthHandler) Me(c echo.Context) error {
 		"phone": user.Phone, "address": user.Address, "family": user.Family,
 		"usta_ranking": user.USTARanking, "created_at": user.CreatedAt,
 		"extra_roles": user.ExtraRoles, "is_family_member": isFamilyMember,
+		"photo_url": photoURL,
 	})
 }
 

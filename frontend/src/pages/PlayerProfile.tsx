@@ -41,10 +41,19 @@ export default function PlayerProfile() {
     <div className="space-y-6">
       <div>
         <Link to="/scores" className="text-sm text-green-700 hover:text-green-900 font-medium">← Scores</Link>
-        <h1 className="text-2xl font-bold text-gray-800 mt-1">{data.name}</h1>
-        <p className="text-sm text-gray-500">
-          {data.played === 0 ? 'No public matches yet' : `${data.wins}–${data.losses} · ${data.win_pct}% win rate`}
-        </p>
+        <div className="flex items-center gap-4 mt-1">
+          {data.photo_url
+            ? <img src={data.photo_url} alt={data.name} className="w-16 h-16 rounded-full object-cover shrink-0" />
+            : <span className="w-16 h-16 rounded-full bg-green-100 text-green-700 flex items-center justify-center text-xl font-bold shrink-0">
+                {data.name.split(' ').map(p => p[0] ?? '').slice(0, 2).join('').toUpperCase()}
+              </span>}
+          <div>
+            <h1 className="text-2xl font-bold text-gray-800">{data.name}</h1>
+            <p className="text-sm text-gray-500">
+              {data.played === 0 ? 'No public matches yet' : `${data.wins}–${data.losses} · ${data.win_pct}% win rate`}
+            </p>
+          </div>
+        </div>
       </div>
 
       {data.played > 0 && (

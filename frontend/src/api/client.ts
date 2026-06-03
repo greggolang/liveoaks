@@ -107,11 +107,12 @@ export interface MatchInput {
 export interface LeaderboardRow { user_id: string; name: string; wins: number; losses: number; played: number; win_pct: number }
 export interface HeadToHeadRow { user_id: string; name: string; wins: number; losses: number; played: number }
 export interface PlayerStats {
-  id: string; name: string
+  id: string; name: string; photo_url: string | null
   wins: number; losses: number; played: number; win_pct: number
   sets_won: number; sets_lost: number; games_won: number; games_lost: number
   form: string[]; head_to_head: HeadToHeadRow[]; matches: MatchResult[]
 }
+export interface MatchStat { user_id: string; wins: number; losses: number; played: number; last_played: string | null }
 
 export type MailFilterInput = {
   name: string
@@ -260,6 +261,8 @@ export const api = {
     logout: () => request('/auth/logout', { method: 'POST' }),
     me: () => request('/auth/me'),
     updateProfile: (data: object) => request('/auth/profile', { method: 'PUT', body: JSON.stringify(data) }),
+    uploadPhoto: (file: File) => { const f = new FormData(); f.append('file', file); return upload<{ photo_url: string }>('/profile/photo', f) },
+    deletePhoto: () => request('/profile/photo', { method: 'DELETE' }),
     changePassword: (current: string, newPw: string) =>
       request('/auth/password', { method: 'PUT', body: JSON.stringify({ current, new: newPw }) }),
     forgotPassword: (email: string) =>
@@ -842,6 +845,7 @@ export const api = {
       request<{ id: string }>('/matches', { method: 'POST', body: JSON.stringify(data) }),
     leaderboard: () => request<LeaderboardRow[]>('/matches/leaderboard'),
     player: (id: string) => request<PlayerStats>(`/matches/player/${id}`),
+    stats: () => request<MatchStat[]>('/matches/stats'),
   },
   kiosk: {
     members: () => request<{ id: string; name: string; member_number: number }[]>('/kiosk/members'),

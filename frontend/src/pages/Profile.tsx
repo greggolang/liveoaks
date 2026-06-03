@@ -37,7 +37,7 @@ const emptyFamilyForm = { first_name: '', last_name: '', relationship: 'spouse',
 interface UserProfile {
   first_name: string; last_name: string; email: string
   phone?: string; address?: string; role: string; status: string
-  usta_ranking?: string
+  usta_ranking?: string; photo_url?: string | null
 }
 
 interface FamilyMember {
@@ -78,12 +78,17 @@ export default function Profile() {
   const [notifSaving, setNotifSaving] = useState(false)
   const [notifMsg, setNotifMsg] = useState('')
 
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null)
+  const [photoSaving, setPhotoSaving] = useState(false)
+  const [photoMsg, setPhotoMsg] = useState('')
+
   const loadFamily = () => api.family.list().then(d => setFamilyMembers(d as FamilyMember[]))
 
   useEffect(() => {
     api.auth.me().then(d => {
       const p = d as UserProfile
       setProfile(p)
+      setPhotoUrl(p.photo_url ?? null)
       setForm({ first_name: p.first_name, last_name: p.last_name, phone: formatPhone(p.phone), address: p.address ?? '', usta_ranking: p.usta_ranking ?? '' })
     })
     api.notificationPrefs.get().then(p => setNotifPrefs(p as NotifPrefs)).catch(() => {})
@@ -179,6 +184,25 @@ export default function Profile() {
     }
   }
 
+  const handlePhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setPhotoSaving(true); setPhotoMsg('')
+    try {
+      const res = await api.auth.uploadPhoto(file)
+      setPhotoUrl(res.photo_url)
+    } catch (err: any) {
+      setPhotoMsg(err.message || 'Could not upload photo.')
+    } finally { setPhotoSaving(false); e.target.value = '' }
+  }
+
+  const handleRemovePhoto = async () => {
+    setPhotoSaving(true); setPhotoMsg('')
+    try { await api.auth.deletePhoto(); setPhotoUrl(null) }
+    catch { setPhotoMsg('Could not remove photo.') }
+    finally { setPhotoSaving(false) }
+  }
+
   const set = (f: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm(prev => ({ ...prev, [f]: e.target.value }))
 
@@ -215,6 +239,30 @@ export default function Profile() {
   return (
     <div className="max-w-2xl space-y-6">
       <h1 className="text-2xl font-bold text-gray-800">My Profile</h1>
+
+      {/* Profile photo */}
+      <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm flex items-center gap-5">
+        {photoUrl
+          ? <img src={photoUrl} alt="Profile" className="w-20 h-20 rounded-full object-cover" />
+          : <span className="w-20 h-20 rounded-full bg-green-100 text-green-700 flex items-center justify-center text-2xl font-bold">
+              {`${profile.first_name[0] ?? ''}${profile.last_name[0] ?? ''}`.toUpperCase()}
+            </span>}
+        <div>
+          <h2 className="font-semibold text-gray-800 mb-1">Profile Photo</h2>
+          <p className="text-xs text-gray-400 mb-2">Shown in the member directory and on your player profile.</p>
+          <div className="flex items-center gap-3">
+            <label className={`inline-block text-sm font-medium px-4 py-1.5 rounded-lg cursor-pointer transition ${photoSaving ? 'bg-gray-100 text-gray-400' : 'bg-green-700 text-white hover:bg-green-800'}`}>
+              {photoSaving ? 'Saving…' : photoUrl ? 'Change' : 'Upload'}
+              <input type="file" accept="image/*" className="hidden" onChange={handlePhoto} disabled={photoSaving} />
+            </label>
+            {photoUrl && (
+              <button type="button" onClick={handleRemovePhoto} disabled={photoSaving}
+                className="text-sm text-red-400 hover:text-red-600 transition disabled:opacity-50">Remove</button>
+            )}
+          </div>
+          {photoMsg && <p className="text-xs text-red-600 mt-1">{photoMsg}</p>}
+        </div>
+      </div>
 
       {/* Personal info */}
       <form onSubmit={handleSave} className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm space-y-4">

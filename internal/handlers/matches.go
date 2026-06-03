@@ -466,6 +466,7 @@ type h2hRow struct {
 type playerStats struct {
 	ID         string     `json:"id"`
 	Name       string     `json:"name"`
+	PhotoURL   *string    `json:"photo_url"`
 	Wins       int        `json:"wins"`
 	Losses     int        `json:"losses"`
 	Played     int        `json:"played"`
@@ -486,8 +487,9 @@ func (h *MatchesHandler) Player(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	var name string
+	var photo *string
 	if err := h.DB.QueryRow(ctx,
-		`SELECT first_name || ' ' || last_name FROM users WHERE id = $1`, pid).Scan(&name); err != nil {
+		`SELECT first_name || ' ' || last_name, photo_filename FROM users WHERE id = $1`, pid).Scan(&name, &photo); err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "member not found")
 	}
 
@@ -501,6 +503,10 @@ func (h *MatchesHandler) Player(c echo.Context) error {
 	}
 
 	stats := playerStats{ID: pid, Name: name, Form: []string{}, HeadToHead: []h2hRow{}, Matches: out}
+	if photo != nil && *photo != "" {
+		url := "/uploads/avatars/" + *photo
+		stats.PhotoURL = &url
+	}
 	h2h := map[string]*h2hRow{}
 	var h2hOrder []string
 
@@ -575,4 +581,41 @@ func (h *MatchesHandler) Player(c echo.Context) error {
 		return stats.HeadToHead[i].Played > stats.HeadToHead[j].Played
 	})
 	return c.JSON(http.StatusOK, stats)
+}
+
+type statSummary struct {
+	UserID     string     `json:"user_id"`
+	Wins       int        `json:"wins"`
+	Losses     int        `json:"losses"`
+	Played     int        `json:"played"`
+	LastPlayed *time.Time `json:"last_played"`
+}
+
+// StatsSummary returns every member's public W/L record and most-recent match
+// date in one query — used to annotate the member directory without one request
+// per member.
+func (h *MatchesHandler) StatsSummary(c echo.Context) error {
+	rows, err := h.DB.Query(c.Request().Context(), `
+		SELECT mp.user_id::text,
+		       COUNT(*) FILTER (WHERE m.winner_side = mp.side),
+		       COUNT(*) FILTER (WHERE m.winner_side <> mp.side),
+		       COUNT(*),
+		       MAX(m.played_at)
+		FROM match_participants mp
+		JOIN matches m ON m.id = mp.match_id AND m.visibility = 'public'
+		WHERE mp.user_id IS NOT NULL
+		GROUP BY mp.user_id`)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not load stats")
+	}
+	defer rows.Close()
+	out := []statSummary{}
+	for rows.Next() {
+		var s statSummary
+		if err := rows.Scan(&s.UserID, &s.Wins, &s.Losses, &s.Played, &s.LastPlayed); err != nil {
+			continue
+		}
+		out = append(out, s)
+	}
+	return c.JSON(http.StatusOK, out)
 }

@@ -170,6 +170,8 @@ func main() {
 	authed.POST("/auth/logout", auth.Logout)
 	authed.GET("/auth/me", auth.Me)
 	authed.PUT("/auth/profile", auth.UpdateProfile)
+	authed.POST("/profile/photo", uploads.UploadAvatar)
+	authed.DELETE("/profile/photo", uploads.DeleteAvatar)
 	authed.PUT("/auth/password", auth.ChangePassword)
 	authed.GET("/notification-prefs", notifPrefs.Get)
 	authed.PUT("/notification-prefs", notifPrefs.Update)
@@ -229,6 +231,7 @@ func main() {
 	authed.GET("/matches/recent", matches.Recent)
 	authed.GET("/matches/mine", matches.Mine)
 	authed.GET("/matches/leaderboard", matches.Leaderboard)
+	authed.GET("/matches/stats", matches.StatsSummary)
 	authed.GET("/matches/player/:id", matches.Player)
 	authed.POST("/matches", matches.Create)
 	authed.GET("/matches/:id", matches.Get)
@@ -643,6 +646,7 @@ func main() {
 	// Serve uploaded files
 	e.GET("/uploads/documents/:filename", uploads.ServeDocument)
 	e.GET("/uploads/photos/:filename", uploads.ServePhoto)
+	e.GET("/uploads/avatars/:filename", uploads.ServeAvatar)
 	e.GET("/uploads/receipts/:filename", uploads.ServeReceipt)
 	e.GET("/uploads/tax-documents/:filename", tax.ServeDocument)
 

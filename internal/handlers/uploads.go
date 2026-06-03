@@ -562,6 +562,63 @@ func (h *UploadsHandler) ServeReceipt(c echo.Context) error {
 	return c.File(path)
 }
 
+// UploadAvatar stores the caller's profile photo, replacing any previous one,
+// and records the filename on their user row.
+func (h *UploadsHandler) UploadAvatar(c echo.Context) error {
+	userID := c.Get("user_id").(string)
+	file, header, err := c.Request().FormFile("file")
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "file required")
+	}
+	defer file.Close()
+
+	ext := strings.ToLower(filepath.Ext(header.Filename))
+	allowed := map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".webp": true, ".gif": true}
+	if !allowed[ext] {
+		return echo.NewHTTPError(http.StatusBadRequest, "please upload a JPG, PNG, WEBP or GIF image")
+	}
+
+	dir := filepath.Join(h.UploadDir, "avatars")
+	os.MkdirAll(dir, 0755)
+	filename := fmt.Sprintf("%d%s", time.Now().UnixNano(), ext)
+	dst, err := os.Create(filepath.Join(dir, filename))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not save image")
+	}
+	defer dst.Close()
+	if _, err = io.Copy(dst, file); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not write image")
+	}
+
+	ctx := c.Request().Context()
+	var old *string
+	h.DB.QueryRow(ctx, `SELECT photo_filename FROM users WHERE id = $1`, userID).Scan(&old)
+	h.DB.Exec(ctx, `UPDATE users SET photo_filename = $1 WHERE id = $2`, filename, userID)
+	if old != nil && *old != "" {
+		os.Remove(filepath.Join(dir, *old))
+	}
+	return c.JSON(http.StatusOK, map[string]string{"photo_url": "/uploads/avatars/" + filename})
+}
+
+// DeleteAvatar removes the caller's profile photo.
+func (h *UploadsHandler) DeleteAvatar(c echo.Context) error {
+	userID := c.Get("user_id").(string)
+	ctx := c.Request().Context()
+	var old *string
+	h.DB.QueryRow(ctx, `SELECT photo_filename FROM users WHERE id = $1`, userID).Scan(&old)
+	h.DB.Exec(ctx, `UPDATE users SET photo_filename = NULL WHERE id = $1`, userID)
+	if old != nil && *old != "" {
+		os.Remove(filepath.Join(h.UploadDir, "avatars", *old))
+	}
+	return c.NoContent(http.StatusNoContent)
+}
+
+// ServeAvatar serves a member profile photo.
+func (h *UploadsHandler) ServeAvatar(c echo.Context) error {
+	filename := c.Param("filename")
+	return c.File(filepath.Join(h.UploadDir, "avatars", filepath.Base(filename)))
+}
+
 // BylawsMeta returns the modification time of the uploaded bylaws PDF, or null if none exists.
 func (h *UploadsHandler) BylawsMeta(c echo.Context) error {
 	info, err := os.Stat(filepath.Join(h.UploadDir, "bylaws.pdf"))
