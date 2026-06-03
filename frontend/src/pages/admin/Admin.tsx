@@ -94,10 +94,10 @@ const sections: Section[] = [
       { to: '/admin/settings', label: 'Settings', section: 'settings' },
       { to: '/admin/email-templates', label: 'Email Templates', section: 'email_templates' },
       { to: '/admin/permissions', label: 'Permissions' },
-      { to: '/admin/resets', label: 'Password Resets', section: 'password_resets' },
       { to: '/admin/passwords', label: 'Password Vault' },
       { to: '/admin/communication-test', label: 'Test Communications', section: 'communication_test' },
       { to: '/admin/log', label: 'Activity Log', section: 'activity_log' },
+      { to: '/admin/resets', label: 'Password Resets', section: 'password_resets' },
     ],
   },
 ]
