@@ -152,7 +152,7 @@ export default function Messages() {
     try {
       await api.messages.send({
         recipient_id: selected.other.id,
-        subject: '(no subject)',
+        subject: 'Member message',
         body: replyBody.trim(),
       })
       setReplyBody('')
@@ -195,7 +195,7 @@ export default function Messages() {
     try {
       await api.messages.send({
         recipient_id: recipientId,
-        subject: '(no subject)',
+        subject: 'Member message',
         body: composeBody.trim(),
       })
       closeCompose()
