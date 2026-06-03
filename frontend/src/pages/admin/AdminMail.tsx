@@ -98,10 +98,10 @@ export default function AdminMail() {
 
   const [importTarget, setImportTarget] = useState<MailAccount | null>(null)
   const [importFile, setImportFile] = useState<File | null>(null)
-  const [importFolder, setImportFolder] = useState('INBOX')
+  const [importFolder, setImportFolder] = useState('__auto__')
   const [importing, setImporting] = useState(false)
   const [importProgress, setImportProgress] = useState(0)
-  const [importResult, setImportResult] = useState<{ imported: number; failed: number } | null>(null)
+  const [importResult, setImportResult] = useState<{ imported: number; failed: number; by_folder: Record<string, number> } | null>(null)
   const [importError, setImportError] = useState('')
 
   async function load() {
@@ -205,7 +205,7 @@ export default function AdminMail() {
     setImporting(true); setImportError(''); setImportResult(null); setImportProgress(0)
     try {
       const res = await api.mail.importMbox(importTarget.id, importFile, importFolder, setImportProgress)
-      setImportResult({ imported: res.imported, failed: res.failed })
+      setImportResult({ imported: res.imported, failed: res.failed, by_folder: res.by_folder ?? {} })
     } catch (e: any) { setImportError(e.message) }
     finally { setImporting(false) }
   }
@@ -668,14 +668,20 @@ query = SELECT address FROM mail_accounts WHERE address='%s' AND active = true`,
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1.5">Import Into Folder</label>
+              <label className="block text-xs font-semibold text-gray-600 mb-1.5">Where to file the messages</label>
               <select value={importFolder} onChange={e => setImportFolder(e.target.value)}
                 disabled={importing}
                 className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500">
-                <option value="INBOX">Inbox</option>
-                <option value="Archive">Archive</option>
-                <option value="Sent">Sent</option>
+                <option value="__auto__">Auto-sort by Gmail labels (recommended)</option>
+                <option value="INBOX">Everything into Inbox</option>
+                <option value="Archive">Everything into Archive</option>
+                <option value="Sent">Everything into Sent</option>
               </select>
+              <p className="text-xs text-gray-400 mt-1.5">
+                {importFolder === '__auto__'
+                  ? 'Sent mail → Sent, archived mail → Archive, and Inbox/Drafts/Trash/Spam to matching folders — rebuilding the original mailbox.'
+                  : 'Every message in the file goes into this one folder.'}
+              </p>
             </div>
 
             {importing && (
@@ -691,9 +697,20 @@ query = SELECT address FROM mail_accounts WHERE address='%s' AND active = true`,
             )}
 
             {importResult && (
-              <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm text-green-800">
-                Imported <strong>{importResult.imported}</strong> message{importResult.imported === 1 ? '' : 's'}
-                {importResult.failed > 0 && <> — <span className="text-amber-700">{importResult.failed} failed</span></>}.
+              <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm text-green-800 space-y-2">
+                <div>
+                  Imported <strong>{importResult.imported}</strong> message{importResult.imported === 1 ? '' : 's'}
+                  {importResult.failed > 0 && <> — <span className="text-amber-700">{importResult.failed} failed</span></>}.
+                </div>
+                {Object.keys(importResult.by_folder).length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {Object.entries(importResult.by_folder).sort((a, b) => b[1] - a[1]).map(([folder, n]) => (
+                      <span key={folder} className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-white border border-green-200 text-green-700">
+                        {folder}: {n}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
             {importError && <p className="text-red-600 text-xs bg-red-50 px-3 py-2 rounded-lg">{importError}</p>}

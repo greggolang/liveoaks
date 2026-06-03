@@ -4,9 +4,11 @@ import { formatPhone } from '../utils/phone'
 import { parseDate } from '../utils/dates'
 
 const FOLDERS = [
-  { key: 'INBOX', label: 'Inbox' },
-  { key: 'Sent',  label: 'Sent'  },
-  { key: 'Trash', label: 'Trash' },
+  { key: 'INBOX',   label: 'Inbox'   },
+  { key: 'Archive', label: 'Archive' },
+  { key: 'Sent',    label: 'Sent'    },
+  { key: 'Drafts',  label: 'Drafts'  },
+  { key: 'Trash',   label: 'Trash'   },
 ]
 
 function formatDate(iso: string) {

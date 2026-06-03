@@ -10,8 +10,14 @@ import (
 	"time"
 
 	"github.com/emersion/go-imap"
+	imapclient "github.com/emersion/go-imap/client"
 	"github.com/labstack/echo/v4"
 )
+
+// autoFolder is the sentinel folder value that turns on Gmail-label routing:
+// each message is filed by its X-Gmail-Labels header instead of all going to
+// one folder.
+const autoFolder = "__auto__"
 
 // ImportMbox imports every message from an uploaded MBOX file into a mail
 // account's mailbox via IMAP APPEND. It exists so archived Google Workspace
@@ -20,7 +26,12 @@ import (
 //
 // The target account must already have a mailbox password set (Reset Password)
 // because the importer logs into the mailbox over IMAP exactly like the holder
-// would. Imported messages are flagged \Seen — they're an archive, not new mail.
+// would.
+//
+// When the chosen folder is autoFolder, each message is routed by its Gmail
+// label (Sent → Sent, Inbox → Inbox, archived → Archive, Draft/Trash/Spam →
+// their folders), faithfully rebuilding the original mailbox layout from the
+// single Takeout file. Otherwise every message lands in the one chosen folder.
 func (h *MailHandler) ImportMbox(c echo.Context) error {
 	id := c.Param("id")
 	ctx := c.Request().Context()
@@ -44,8 +55,9 @@ func (h *MailHandler) ImportMbox(c echo.Context) error {
 
 	folder := c.FormValue("folder")
 	if folder == "" {
-		folder = "INBOX"
+		folder = autoFolder
 	}
+	autoSort := folder == autoFolder
 
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
@@ -63,15 +75,44 @@ func (h *MailHandler) ImportMbox(c echo.Context) error {
 	}
 	defer ic.Logout()
 
-	folder = resolveFolder(ic, folder)
+	router := newFolderRouter(ic)
+	single := ""
+	if !autoSort {
+		single = router.resolve(folder)
+	}
 
 	imported, failed := 0, 0
-	parseErr := splitMbox(f, func(raw []byte, internalDate time.Time) {
+	byFolder := map[string]int{}
+	parseErr := splitMbox(f, func(raw []byte, fromLine string) {
+		target := single
+		flags := []string{imap.SeenFlag}
+		date := time.Time{}
+
+		if m, err := mail.ReadMessage(bytes.NewReader(raw)); err == nil {
+			if d, err := m.Header.Date(); err == nil {
+				date = d
+			}
+			if autoSort {
+				logical, fl := routeByLabels(m.Header.Get("X-Gmail-Labels"))
+				target = router.resolve(logical)
+				flags = fl
+			}
+		} else if autoSort {
+			target = router.resolve("Archive")
+		}
+		if date.IsZero() {
+			date = parseFromLineDate(fromLine)
+		}
+		if target == "" {
+			target = "INBOX"
+		}
+
 		buf := bytes.NewBuffer(toCRLF(raw))
-		if appendErr := ic.Append(folder, []string{imap.SeenFlag}, internalDate, buf); appendErr != nil {
+		if appendErr := ic.Append(target, flags, date, buf); appendErr != nil {
 			failed++
 		} else {
 			imported++
+			byFolder[target]++
 		}
 	})
 	if parseErr != nil {
@@ -79,19 +120,79 @@ func (h *MailHandler) ImportMbox(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
-		"imported": imported,
-		"failed":   failed,
-		"mailbox":  address,
-		"folder":   folder,
+		"imported":  imported,
+		"failed":    failed,
+		"mailbox":   address,
+		"by_folder": byFolder,
 	})
 }
 
+// routeByLabels maps a Gmail X-Gmail-Labels header value to a target folder and
+// the IMAP flags to store with the message. Routing is by the system labels
+// Takeout writes; user labels are ignored. Archived mail (no Inbox label) falls
+// through to Archive, which also catches non-Gmail files that have no labels.
+func routeByLabels(labels string) (folder string, flags []string) {
+	has := func(name string) bool {
+		for _, l := range strings.Split(labels, ",") {
+			if strings.EqualFold(strings.Trim(strings.TrimSpace(l), `"`), name) {
+				return true
+			}
+		}
+		return false
+	}
+
+	seen := []string{imap.SeenFlag}
+	if has("Unread") {
+		seen = []string{}
+	}
+
+	switch {
+	case has("Trash"):
+		return "Trash", seen
+	case has("Spam"):
+		return "Junk", seen
+	case has("Draft"):
+		return "Drafts", []string{imap.DraftFlag}
+	case has("Sent"):
+		return "Sent", seen
+	case has("Inbox"):
+		return "INBOX", seen
+	default:
+		return "Archive", seen
+	}
+}
+
+// folderRouter resolves logical folder names to the server's actual mailbox
+// names once each, creating non-INBOX folders that don't exist yet so APPEND
+// can't fail on a missing mailbox.
+type folderRouter struct {
+	ic    *imapclient.Client
+	cache map[string]string
+}
+
+func newFolderRouter(ic *imapclient.Client) *folderRouter {
+	return &folderRouter{ic: ic, cache: map[string]string{}}
+}
+
+func (r *folderRouter) resolve(logical string) string {
+	if actual, ok := r.cache[logical]; ok {
+		return actual
+	}
+	actual := resolveFolder(r.ic, logical)
+	if !strings.EqualFold(actual, "INBOX") {
+		// Best-effort: Create errors when the mailbox already exists, which is fine.
+		r.ic.Create(actual)
+	}
+	r.cache[logical] = actual
+	return actual
+}
+
 // splitMbox streams an mbox file and calls fn once per message with the raw
-// RFC 822 bytes and the message's internal date. A message boundary is a line
-// beginning with "From " that follows a blank line (or the start of the file) —
-// the convention Gmail / Google Takeout exports use. Requiring the preceding
-// blank line avoids splitting on a body line that merely starts with "From ".
-func splitMbox(r io.Reader, fn func(raw []byte, date time.Time)) error {
+// RFC 822 bytes and the mbox "From " separator line. A message boundary is a
+// line beginning with "From " that follows a blank line (or the start of the
+// file) — the convention Gmail / Google Takeout exports use. Requiring the
+// preceding blank line avoids splitting on a body line that starts with "From ".
+func splitMbox(r io.Reader, fn func(raw []byte, fromLine string)) error {
 	br := bufio.NewReaderSize(r, 64*1024)
 	var cur bytes.Buffer
 	var fromLine string
@@ -105,7 +206,7 @@ func splitMbox(r io.Reader, fn func(raw []byte, date time.Time)) error {
 		msg := make([]byte, len(trimmed)) // copy: cur is reused for the next message
 		copy(msg, trimmed)
 		if len(msg) > 0 {
-			fn(msg, mboxDate(msg, fromLine))
+			fn(msg, fromLine)
 		}
 		cur.Reset()
 	}
@@ -131,16 +232,11 @@ func splitMbox(r io.Reader, fn func(raw []byte, date time.Time)) error {
 	}
 }
 
-// mboxDate determines a message's internal date: the Date header if present and
-// parseable, otherwise the date on the mbox "From " separator line, otherwise now.
-func mboxDate(msg []byte, fromLine string) time.Time {
-	if m, err := mail.ReadMessage(bytes.NewReader(msg)); err == nil {
-		if d, err := m.Header.Date(); err == nil {
-			return d
-		}
-	}
-	// "From sender@host  Mon Jan  2 15:04:05 2006" — the date is everything after
-	// the envelope sender (the second space-separated field onward).
+// parseFromLineDate extracts the date from an mbox "From " separator line, used
+// as a fallback when the message has no parseable Date header. The line looks
+// like "From sender@host  Mon Jan  2 15:04:05 2006"; the date is everything
+// after the envelope sender.
+func parseFromLineDate(fromLine string) time.Time {
 	if fields := strings.SplitN(fromLine, " ", 3); len(fields) == 3 {
 		ds := strings.TrimSpace(fields[2])
 		for _, layout := range []string{

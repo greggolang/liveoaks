@@ -794,7 +794,7 @@ export const api = {
       const form = new FormData()
       form.append('file', file)
       if (folder) form.append('folder', folder)
-      return uploadWithProgress<{ imported: number; failed: number; mailbox: string; folder: string }>(
+      return uploadWithProgress<{ imported: number; failed: number; mailbox: string; by_folder: Record<string, number> }>(
         `/admin/mail/accounts/${id}/import`, form, onProgress)
     },
     delete: (id: string) => request(`/admin/mail/accounts/${id}`, { method: 'DELETE' }),

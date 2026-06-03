@@ -169,8 +169,11 @@ func extractIMAPBody(r io.Reader) string {
 // If no match is found it returns the original name unchanged (let Select fail).
 func resolveFolder(ic *imapclient.Client, want string) string {
 	aliases := map[string][]string{
-		"Sent":  {"Sent", "Sent Items", "INBOX.Sent", "Sent Messages"},
-		"Trash": {"Trash", "INBOX.Trash", "Deleted Items", "Deleted Messages", "Junk"},
+		"Sent":    {"Sent", "Sent Items", "INBOX.Sent", "Sent Messages"},
+		"Trash":   {"Trash", "INBOX.Trash", "Deleted Items", "Deleted Messages", "Junk"},
+		"Drafts":  {"Drafts", "Draft", "INBOX.Drafts"},
+		"Junk":    {"Junk", "Spam", "Junk E-mail", "INBOX.Junk"},
+		"Archive": {"Archive", "Archives", "All Mail", "INBOX.Archive"},
 	}
 	variants, known := aliases[want]
 	if !known {
@@ -218,7 +221,14 @@ func (h *IMAPHandler) ListMessages(c echo.Context) error {
 	folder = resolveFolder(ic, folder)
 	mbox, err := ic.Select(folder, true)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "folder not found: "+folder)
+		// A folder that doesn't exist yet (e.g. Archive/Drafts on a mailbox that
+		// has never received any) is simply empty, not an error — let the tab
+		// render blank instead of surfacing a failure.
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"messages": []MailSummary{},
+			"mailbox":  address,
+			"total":    0,
+		})
 	}
 
 	if mbox.Messages == 0 {
