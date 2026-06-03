@@ -4,6 +4,7 @@ import { api } from '../../api/client'
 
 interface FeedbackItem {
   id: string
+  number: number
   user_id: string
   message: string
   status: string
@@ -35,6 +36,7 @@ export default function AdminFeedback() {
   const [loading, setLoading] = useState(true)
   const [typeFilter, setTypeFilter] = useState<'all' | 'idea' | 'bug'>('all')
   const [filter, setFilter] = useState('all')
+  const [searchText, setSearchText] = useState('')
 
   const [replyId, setReplyId] = useState<string | null>(null)
   const [replyBody, setReplyBody] = useState('')
@@ -83,9 +85,14 @@ export default function AdminFeedback() {
     }
   }
 
+  const q = searchText.trim().toLowerCase().replace(/^#/, '')
   const visible = items
     .filter(i => typeFilter === 'all' || i.type === typeFilter)
     .filter(i => filter === 'all' || i.status === filter)
+    .filter(i => !q
+      || String(i.number).includes(q)
+      || i.message.toLowerCase().includes(q)
+      || `${i.first_name} ${i.last_name}`.toLowerCase().includes(q))
 
   return (
     <div>
@@ -118,6 +125,15 @@ export default function AdminFeedback() {
         </div>
       </div>
 
+      <div className="relative max-w-xs mb-4">
+        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0" />
+        </svg>
+        <input value={searchText} onChange={e => setSearchText(e.target.value)}
+          placeholder="Search by #number, text, or name…"
+          className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+      </div>
+
       {loading ? (
         <p className="text-sm text-gray-400">Loading…</p>
       ) : visible.length === 0 ? (
@@ -132,6 +148,7 @@ export default function AdminFeedback() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-gray-800 whitespace-pre-wrap">{item.message}</p>
                   <p className="text-xs text-gray-400 mt-1.5 flex flex-wrap items-center gap-1.5">
+                    <span className="font-mono font-bold text-gray-700">#{item.number}</span>
                     <span className={`font-medium px-1.5 py-0.5 rounded text-xs ${item.type === 'bug' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'}`}>
                       {item.type === 'bug' ? '🐛 Bug' : '💡 Idea'}
                     </span>
