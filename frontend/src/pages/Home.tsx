@@ -49,16 +49,6 @@ export default function Home() {
             One of the oldest private tennis clubs in Southern California — a friendly
             community of players for over a century.
           </p>
-          <div className="flex gap-4 justify-center flex-wrap">
-            <Link to="/login"
-              className="bg-white text-lota-700 font-bold px-8 py-3 rounded-full hover:bg-lota-50 transition shadow-lg text-sm tracking-wide">
-              Member Login
-            </Link>
-            <Link to="/waitlist"
-              className="border-2 border-white text-white font-bold px-8 py-3 rounded-full hover:bg-white hover:text-lota-700 transition text-sm tracking-wide">
-              Join the Waitlist
-            </Link>
-          </div>
         </div>
       </header>
 
