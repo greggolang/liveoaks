@@ -78,6 +78,15 @@ export interface IMAPMessage {
   uid: number; subject: string; from: string; date: string; unread: boolean
 }
 
+export interface TaxDocument {
+  id: string; category: string; label: string; tax_year: number | null
+  filename: string; original_name: string; uploaded_by_name: string | null; created_at: string
+}
+export interface TaxContractor {
+  id: string; tax_year: number; name: string; amount_paid: number
+  w9_received: boolean; form_1099_sent: boolean; notes: string; created_at: string
+}
+
 export interface YoLinkRule {
   id: string
   name: string
@@ -255,6 +264,25 @@ export const api = {
   siteContent: {
     get: () => request<any>('/site-content'),
     save: (content: unknown) => request('/admin/site-content', { method: 'PUT', body: JSON.stringify(content) }),
+  },
+  tax: {
+    documents: {
+      list: () => request<TaxDocument[]>('/admin/taxes/documents'),
+      upload: (form: FormData) => upload<TaxDocument>('/admin/taxes/documents', form),
+      delete: (id: string) => request(`/admin/taxes/documents/${id}`, { method: 'DELETE' }),
+    },
+    contractors: {
+      list: () => request<TaxContractor[]>('/admin/taxes/contractors'),
+      create: (data: Partial<TaxContractor>) => request<TaxContractor>('/admin/taxes/contractors', { method: 'POST', body: JSON.stringify(data) }),
+      update: (id: string, data: Partial<TaxContractor>) => request(`/admin/taxes/contractors/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+      delete: (id: string) => request(`/admin/taxes/contractors/${id}`, { method: 'DELETE' }),
+    },
+    settings: {
+      get: () => request<{ ein: string; sales_tax_rate: string }>('/admin/taxes/settings'),
+      save: (data: { ein: string; sales_tax_rate: string }) => request('/admin/taxes/settings', { method: 'PUT', body: JSON.stringify(data) }),
+    },
+    salesSummary: (start: string, end: string) =>
+      request<{ start: string; end: string; taxable_sales: number; rate: number; tax_collected: number }>(`/admin/taxes/sales-summary?start=${start}&end=${end}`),
   },
   friends: {
     list: () => request('/friends'),

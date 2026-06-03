@@ -33,6 +33,7 @@ import Admin from './pages/admin/Admin'
 import AdminUsers from './pages/admin/AdminUsers'
 import AdminSettings from './pages/admin/AdminSettings'
 import AdminContent from './pages/admin/AdminContent'
+import AdminTaxes from './pages/admin/AdminTaxes'
 import AdminResets from './pages/admin/AdminResets'
 import AdminLog from './pages/admin/AdminLog'
 import AdminDues from './pages/admin/AdminDues'
@@ -178,6 +179,7 @@ function AppRoutes() {
         <Route path="cancellations" element={<AdminCancellations />} />
         <Route path="court-blocks" element={<AdminCourtBlocks />} />
         <Route path="accounting" element={<AdminAccounting />} />
+        <Route path="taxes" element={<AdminTaxes />} />
         <Route path="financial-rules" element={<AdminFinancialRules />} />
         <Route path="ladder" element={<AdminLadder />} />
         <Route path="liveball" element={<AdminLiveball />} />

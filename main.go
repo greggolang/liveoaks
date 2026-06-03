@@ -103,6 +103,7 @@ func main() {
 	guests := &handlers.GuestsHandler{DB: pool}
 	usta := &handlers.USTAHandler{DB: pool}
 	uploads := &handlers.UploadsHandler{DB: pool, UploadDir: uploadDir}
+	tax := &handlers.TaxHandler{DB: pool, UploadDir: uploadDir}
 	camera := &handlers.CameraHandler{DB: pool, CameraToken: cfg.CameraToken, HLSDir: cfg.CameraHLSDir, SiteURL: cfg.SiteURL, Mailer: mailer}
 	camera.Init()
 	alerts := &handlers.AlertsHandler{DB: pool}
@@ -447,6 +448,18 @@ func main() {
 	// Public website content (the landing page shown before login)
 	boardPlus.PUT("/admin/site-content", admin.SaveSiteContent)
 
+	// Taxes (board-grantable "taxes" section)
+	boardPlus.GET("/admin/taxes/documents", tax.ListDocuments)
+	boardPlus.POST("/admin/taxes/documents", tax.UploadDocument)
+	boardPlus.DELETE("/admin/taxes/documents/:id", tax.DeleteDocument)
+	boardPlus.GET("/admin/taxes/contractors", tax.ListContractors)
+	boardPlus.POST("/admin/taxes/contractors", tax.CreateContractor)
+	boardPlus.PUT("/admin/taxes/contractors/:id", tax.UpdateContractor)
+	boardPlus.DELETE("/admin/taxes/contractors/:id", tax.DeleteContractor)
+	boardPlus.GET("/admin/taxes/settings", tax.GetSettings)
+	boardPlus.PUT("/admin/taxes/settings", tax.SaveSettings)
+	boardPlus.GET("/admin/taxes/sales-summary", tax.SalesSummary)
+
 	// Password vault (admin only) — adminOnly already prefixes /admin
 	adminOnly.GET("/passwords", passwords.List)
 	adminOnly.POST("/passwords", passwords.Create)
@@ -584,6 +597,7 @@ func main() {
 	e.GET("/uploads/documents/:filename", uploads.ServeDocument)
 	e.GET("/uploads/photos/:filename", uploads.ServePhoto)
 	e.GET("/uploads/receipts/:filename", uploads.ServeReceipt)
+	e.GET("/uploads/tax-documents/:filename", tax.ServeDocument)
 
 	// Serve React frontend — fall back to index.html for SPA routes
 	distFS, err := fs.Sub(frontendFS, "frontend/dist")

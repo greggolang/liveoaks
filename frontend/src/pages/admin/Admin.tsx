@@ -39,7 +39,8 @@ const sections: Section[] = [
   {
     heading: 'Billing',
     links: [
-      { to: '/admin/accounting', label: 'Accounting / P&L', section: 'accounting' },
+      { to: '/admin/accounting', label: 'P&L', section: 'accounting' },
+      { to: '/admin/taxes', label: 'Taxes', section: 'taxes' },
       { to: '/admin/financial-rules', label: 'Enforcement Rules', section: 'financial_rules' },
       { to: '/admin/dues', label: 'Dues', section: 'dues' },
       { to: '/admin/receipts', label: 'Receipts', section: 'receipts' },

@@ -33,7 +33,8 @@ var Catalog = []Section{
 	{"member_requests", "New Member Requests", "Members", "Review, approve, and communicate with membership applicants"},
 	{"waitlist", "Waitlist", "Members", "Review and manage the official membership waitlist"},
 	// Billing
-	{"accounting", "Accounting / P&L", "Billing", "Member balances, charges, kiosk payments, and P&L"},
+	{"accounting", "P&L", "Billing", "Member balances, charges, kiosk payments, and P&L"},
+	{"taxes", "Taxes", "Billing", "Tax documents and records for the club"},
 	{"financial_rules", "Enforcement Rules", "Billing", "Manage automated billing enforcement rules"},
 	{"dues", "Dues", "Billing", "Generate and manage member dues"},
 	{"receipts", "Receipts", "Billing", "Upload and manage expense receipts"},
@@ -106,6 +107,7 @@ var routePrefixes = []routePrefix{
 	{"/api/admin/finance/kiosk-payments", "accounting"},
 	{"/api/admin/finance/pl", "accounting"},
 	{"/api/admin/finance/send-reminders", "accounting"},
+	{"/api/admin/taxes", "taxes"},
 	{"/api/admin/finance/rules", "financial_rules"},
 	{"/api/admin/dues", "dues"},
 	{"/api/admin/receipts", "receipts"},
