@@ -71,11 +71,30 @@ import BoardMeetingResponse from './pages/BoardMeetingResponse'
 import LiveballResponse from './pages/LiveballResponse'
 import BookingReminderResponse from './pages/BookingReminderResponse'
 import Fantasy from './pages/Fantasy'
+import Impersonate, { IMPERSONATION_NAME_KEY } from './pages/Impersonate'
+import { IMPERSONATION_KEY } from './api/client'
+
+function ImpersonationBanner() {
+  const name = sessionStorage.getItem(IMPERSONATION_NAME_KEY)
+  if (!name) return null
+  const exit = () => {
+    sessionStorage.removeItem(IMPERSONATION_KEY)
+    sessionStorage.removeItem(IMPERSONATION_NAME_KEY)
+    window.close()
+  }
+  return (
+    <div className="bg-amber-500 text-white text-xs font-semibold px-4 py-1.5 flex items-center justify-between sticky top-0 z-50">
+      <span>Admin view: seeing the app as <span className="underline">{name}</span></span>
+      <button onClick={exit} className="ml-4 underline hover:no-underline">Exit &amp; close tab</button>
+    </div>
+  )
+}
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
-  if (loading) return <div className="min-h-screen flex items-center justify-center text-gray-400">Loading...</div>
-  if (!user) return <Navigate to="/" replace />
+  const isImpersonating = !!sessionStorage.getItem(IMPERSONATION_KEY)
+  if (loading && !isImpersonating) return <div className="min-h-screen flex items-center justify-center text-gray-400">Loading...</div>
+  if (!user && !isImpersonating) return <Navigate to="/" replace />
   return <Layout>{children}</Layout>
 }
 
@@ -88,8 +107,11 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 
 function AppRoutes() {
   return (
+    <>
+      <ImpersonationBanner />
     <Routes>
       {/* Public */}
+      <Route path="/impersonate" element={<Impersonate />} />
       <Route path="/" element={<PublicRoute><Home /></PublicRoute>} />
       <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
       <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
@@ -172,6 +194,7 @@ function AppRoutes() {
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </>
   )
 }
 

@@ -225,6 +225,15 @@ export default function AdminUsers() {
     load()
   }
 
+  const viewAsMember = async (u: User) => {
+    try {
+      const { token } = await api.admin.impersonate(u.id)
+      window.open(`/impersonate?token=${token}`, '_blank', 'noopener,noreferrer')
+    } catch (err: any) {
+      alert(err.message || 'Could not start member view')
+    }
+  }
+
   const forcePasswordReset = async (u: User) => {
     if (!confirm(`Send a password reset email to ${u.first_name} ${u.last_name} (${u.email})?`)) return
     try {
@@ -626,6 +635,8 @@ export default function AdminUsers() {
                 <td className="px-4 py-3 flex gap-3">
                   <button onClick={() => openEdit(u)}
                     className="text-blue-500 hover:text-blue-700 text-xs font-medium">Edit</button>
+                  <button onClick={() => viewAsMember(u)}
+                    className="text-purple-500 hover:text-purple-700 text-xs font-medium">View as</button>
                   <button onClick={() => forcePasswordReset(u)}
                     className="text-orange-500 hover:text-orange-700 text-xs font-medium">Reset PW</button>
                   <button onClick={() => deleteUser(u.id, `${u.first_name} ${u.last_name}`)}

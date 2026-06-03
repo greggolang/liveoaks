@@ -19,12 +19,19 @@ type Claims struct {
 func JWTAuth(secret string) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
-			cookie, err := c.Cookie("token")
-			if err != nil {
-				return echo.NewHTTPError(http.StatusUnauthorized, "not authenticated")
+			var raw string
+			// Accept a Bearer token (used by impersonation tabs) or the HttpOnly cookie
+			if auth := c.Request().Header.Get("Authorization"); len(auth) > 7 && auth[:7] == "Bearer " {
+				raw = auth[7:]
+			} else {
+				cookie, err := c.Cookie("token")
+				if err != nil {
+					return echo.NewHTTPError(http.StatusUnauthorized, "not authenticated")
+				}
+				raw = cookie.Value
 			}
 			claims := &Claims{}
-			token, err := jwt.ParseWithClaims(cookie.Value, claims, func(t *jwt.Token) (interface{}, error) {
+			token, err := jwt.ParseWithClaims(raw, claims, func(t *jwt.Token) (interface{}, error) {
 				return []byte(secret), nil
 			})
 			if err != nil || !token.Valid {

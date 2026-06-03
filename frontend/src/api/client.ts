@@ -121,11 +121,20 @@ export interface Poll {
 }
 
 const BASE = '/api'
+export const IMPERSONATION_KEY = 'impersonation_jwt'
+
+function impersonationHeaders(): Record<string, string> {
+  try {
+    const jwt = sessionStorage.getItem(IMPERSONATION_KEY)
+    if (jwt) return { Authorization: `Bearer ${jwt}` }
+  } catch {}
+  return {}
+}
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    headers: { 'Content-Type': 'application/json', ...impersonationHeaders(), ...options?.headers },
     ...options,
   })
   if (!res.ok) {
@@ -137,7 +146,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 async function upload<T>(path: string, form: FormData): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, { method: 'POST', credentials: 'include', body: form })
+  const res = await fetch(`${BASE}${path}`, { method: 'POST', credentials: 'include', headers: impersonationHeaders(), body: form })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ message: res.statusText }))
     throw new Error(err.message || 'Upload failed')
@@ -184,6 +193,8 @@ export const api = {
       request('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
     resetPassword: (token: string, password: string) =>
       request('/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, password }) }),
+    redeemImpersonation: (token: string) =>
+      request<{ jwt: string; name: string }>('/auth/redeem-impersonation', { method: 'POST', body: JSON.stringify({ token }) }),
   },
   courts: { list: () => request('/courts') },
   courtWaitlist: {
@@ -449,6 +460,7 @@ export const api = {
       request(`/admin/users/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),
     deleteUser: (id: string) => request(`/admin/users/${id}`, { method: 'DELETE' }),
     forceReset: (id: string) => request<{ reset_url: string; email_sent: boolean; email_error: string }>(`/admin/users/${id}/force-reset`, { method: 'POST' }),
+    impersonate: (id: string) => request<{ token: string }>(`/admin/users/${id}/impersonate`, { method: 'POST' }),
     settings: () => request('/admin/settings'),
     updateSetting: (key: string, value: string) =>
       request(`/admin/settings/${key}`, { method: 'PUT', body: JSON.stringify({ value }) }),

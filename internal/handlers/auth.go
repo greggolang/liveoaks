@@ -279,6 +279,77 @@ func (h *AuthHandler) ForgotPassword(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]string{"message": "If that email is registered, you'll receive a reset link shortly."})
 }
 
+// CreateImpersonationToken lets an admin create a short-lived one-time token
+// that can be redeemed in a new browser tab to view the app as another user.
+func (h *AuthHandler) CreateImpersonationToken(c echo.Context) error {
+	adminID := c.Get("user_id").(string)
+	targetID := c.Param("id")
+
+	// Verify target user exists and is active
+	var exists bool
+	if err := h.DB.QueryRow(c.Request().Context(),
+		`SELECT EXISTS(SELECT 1 FROM users WHERE id=$1 AND status='active')`, targetID).Scan(&exists); err != nil || !exists {
+		return echo.NewHTTPError(http.StatusNotFound, "user not found")
+	}
+
+	b := make([]byte, 24)
+	rand.Read(b)
+	token := hex.EncodeToString(b)
+
+	if _, err := h.DB.Exec(c.Request().Context(),
+		`INSERT INTO impersonation_tokens (token, target_id, created_by) VALUES ($1, $2, $3)`,
+		token, targetID, adminID); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not create token")
+	}
+	return c.JSON(http.StatusOK, map[string]string{"token": token})
+}
+
+// RedeemImpersonationToken exchanges a one-time token for a JWT returned in
+// the response body (never set as a cookie, so the admin's session is untouched).
+func (h *AuthHandler) RedeemImpersonationToken(c echo.Context) error {
+	var req struct {
+		Token string `json:"token"`
+	}
+	if err := c.Bind(&req); err != nil || req.Token == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "token required")
+	}
+
+	var targetID, firstName, lastName, role string
+	var extraRoles []string
+	err := h.DB.QueryRow(c.Request().Context(),
+		`DELETE FROM impersonation_tokens WHERE token=$1 AND expires_at > NOW()
+		 RETURNING target_id`, req.Token).Scan(&targetID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid or expired token")
+	}
+
+	if err := h.DB.QueryRow(c.Request().Context(),
+		`SELECT first_name, last_name, role::text, COALESCE(extra_roles, ARRAY[]::text[])
+		 FROM users WHERE id=$1`, targetID).
+		Scan(&firstName, &lastName, &role, &extraRoles); err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, "user not found")
+	}
+
+	claims := &middleware.Claims{
+		UserID:     targetID,
+		Role:       role,
+		ExtraRoles: extraRoles,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(8 * time.Hour)),
+		},
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	signed, err := token.SignedString([]byte(h.JWTSecret))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not sign token")
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"jwt":  signed,
+		"name": firstName + " " + lastName,
+	})
+}
+
 func (h *AuthHandler) ResetPassword(c echo.Context) error {
 	var req struct {
 		Token    string `json:"token"`
