@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { api, BoardMinutes, MemberMessage, Poll } from '../api/client'
 import { parseDate } from '../utils/dates'
+import { votePercents } from '../utils/polls'
 import { WeatherData, AirQualityData, weatherIcon, weatherLabel, courtCondition, conditionColors, dayLabel, aqiLabel, aqiColor, aqiEmoji } from '../utils/weather'
 
 interface InviteResponse {
@@ -1299,8 +1300,8 @@ export default function Dashboard() {
         <div className="space-y-3">
           {polls.filter(p => p.has_voted).map(poll => {
             const total = poll.total_votes
-            const pct = (opt: string) =>
-              total === 0 ? 0 : Math.round(((poll.results[opt] ?? 0) / total) * 100)
+            const percents = votePercents(poll.options, poll.results, total)
+            const pct = (opt: string) => percents[opt] ?? 0
             const winner = poll.options.reduce((a, b) =>
               (poll.results[a] ?? 0) >= (poll.results[b] ?? 0) ? a : b, poll.options[0])
             return (

@@ -131,6 +131,7 @@ func main() {
 	fantasy := &handlers.FantasyHandler{DB: pool}
 	bookingReminder := &handlers.BookingReminderHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	messages := &handlers.MessagesHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
+	conversations := &handlers.ConversationsHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	kiosk := &handlers.KioskHandler{DB: pool}
 	mail := &handlers.MailHandler{DB: pool}
 	mailFilters := &handlers.MailFilterHandler{DB: pool}
@@ -211,6 +212,14 @@ func main() {
 	authed.POST("/messages", messages.Send)
 	authed.PUT("/messages/read-all", messages.MarkAllRead)
 	authed.DELETE("/messages/:id", messages.Delete)
+
+	// Group conversations (multi-member chat)
+	authed.GET("/conversations", conversations.List)
+	authed.POST("/conversations", conversations.Create)
+	authed.GET("/conversations/:id", conversations.Get)
+	authed.POST("/conversations/:id/messages", conversations.Send)
+	authed.POST("/conversations/:id/read", conversations.MarkRead)
+	authed.DELETE("/conversations/:id", conversations.Leave)
 
 	// Friends
 	authed.GET("/friends", friends.List)

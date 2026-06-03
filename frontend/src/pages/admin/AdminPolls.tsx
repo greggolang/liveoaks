@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { parseDate } from '../../utils/dates'
+import { votePercents } from '../../utils/polls'
 import { api, Poll } from '../../api/client'
 
 const EMPTY_FORM = { title: '', question: '', options: ['', ''], deadline_at: '' }
@@ -54,10 +55,8 @@ export default function AdminPolls() {
     load()
   }
 
-  const pct = (poll: Poll, option: string) => {
-    if (poll.total_votes === 0) return 0
-    return Math.round(((poll.results[option] ?? 0) / poll.total_votes) * 100)
-  }
+  const pct = (poll: Poll, option: string) =>
+    votePercents(poll.options, poll.results, poll.total_votes)[option] ?? 0
 
   return (
     <div>

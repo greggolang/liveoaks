@@ -78,6 +78,14 @@ export interface IMAPMessage {
   uid: number; subject: string; from: string; date: string; unread: boolean
 }
 
+export interface ConvSummary {
+  id: string; title: string | null; participants: string; member_count: number
+  last_body: string | null; last_sender_name: string | null; last_at: string | null; unread: number
+}
+export interface ConvPerson { id: string; name: string }
+export interface ConvMessage { id: string; sender_id: string | null; sender_name: string; body: string; created_at: string }
+export interface ConvDetail { id: string; title: string | null; participants: ConvPerson[]; messages: ConvMessage[] }
+
 export type MailFilterInput = {
   name: string
   enabled: boolean
@@ -777,6 +785,16 @@ export const api = {
       request<MemberMessage>('/messages', { method: 'POST', body: JSON.stringify(data) }),
     markAllRead: () => request('/messages/read-all', { method: 'PUT' }),
     delete: (id: string) => request(`/messages/${id}`, { method: 'DELETE' }),
+  },
+  conversations: {
+    list: () => request<ConvSummary[]>('/conversations'),
+    get: (id: string) => request<ConvDetail>(`/conversations/${id}`),
+    create: (data: { title?: string; participant_ids: string[]; body: string }) =>
+      request<{ id: string }>('/conversations', { method: 'POST', body: JSON.stringify(data) }),
+    send: (id: string, body: string) =>
+      request(`/conversations/${id}/messages`, { method: 'POST', body: JSON.stringify({ body }) }),
+    markRead: (id: string) => request(`/conversations/${id}/read`, { method: 'POST' }),
+    leave: (id: string) => request(`/conversations/${id}`, { method: 'DELETE' }),
   },
   kiosk: {
     members: () => request<{ id: string; name: string; member_number: number }[]>('/kiosk/members'),

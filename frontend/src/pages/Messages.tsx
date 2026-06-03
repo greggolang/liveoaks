@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { parseDate } from '../utils/dates'
-import { api, MemberMessage } from '../api/client'
+import { api, MemberMessage, ConvSummary, ConvDetail } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 
-function timeAgo(ts: string) {
+function timeAgo(ts: string | null) {
+  if (!ts) return ''
   const diff = Date.now() - parseDate(ts).getTime()
   const m = Math.floor(diff / 60000)
   if (m < 1) return 'just now'
@@ -14,19 +15,14 @@ function timeAgo(ts: string) {
   if (d < 7) return `${d}d ago`
   return parseDate(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
-
 function fmtReadAt(ts?: string) {
   if (!ts) return null
-  return parseDate(ts).toLocaleString('en-US', {
-    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
-  })
+  return parseDate(ts).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
-
 function fmtFull(ts: string) {
-  return parseDate(ts).toLocaleString('en-US', {
-    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
-  })
+  return parseDate(ts).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
+function sortTime(ts: string | null) { return ts ? parseDate(ts).getTime() : 0 }
 
 const AVATAR_COLORS = [
   'bg-violet-100 text-violet-700', 'bg-sky-100 text-sky-700', 'bg-emerald-100 text-emerald-700',
@@ -45,33 +41,36 @@ function nameInitials(name: string) {
 
 interface Member { id: string; first_name: string; last_name: string; email: string }
 
-// One running conversation per other member — every message between the current
-// user and that person, in chronological order (Slack-style DM).
-type Conversation = {
-  otherId: string
-  other: { id: string; name: string }
-  messages: MemberMessage[]
-  last: MemberMessage
-  unread: number
+type DMItem = {
+  kind: 'dm'; key: string; otherId: string; name: string
+  messages: MemberMessage[]; lastBody: string; lastFromMe: boolean; lastAt: string; unread: number
 }
+type GroupItem = {
+  kind: 'group'; key: string; convId: string; name: string
+  lastBody: string | null; lastSender: string | null; lastAt: string | null; unread: number; memberCount: number
+}
+type ChatItem = DMItem | GroupItem
 
 export default function Messages() {
   const { user } = useAuth()
   const me = user?.id
   const [inbox, setInbox] = useState<MemberMessage[]>([])
   const [sent, setSent] = useState<MemberMessage[]>([])
+  const [groups, setGroups] = useState<ConvSummary[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectedKey, setSelectedKey] = useState<string | null>(null)
+  const [groupDetail, setGroupDetail] = useState<ConvDetail | null>(null)
+  const [groupLoading, setGroupLoading] = useState(false)
 
-  // Reply (within the open conversation)
   const [replyBody, setReplyBody] = useState('')
   const [replySending, setReplySending] = useState(false)
   const [replyError, setReplyError] = useState('')
   const threadEndRef = useRef<HTMLDivElement | null>(null)
 
-  // New conversation
+  // Compose
   const [composing, setComposing] = useState(false)
-  const [composeRecipient, setComposeRecipient] = useState<Member | null>(null)
+  const [recipients, setRecipients] = useState<Member[]>([])
+  const [composeTitle, setComposeTitle] = useState('')
   const [composeBody, setComposeBody] = useState('')
   const [memberSearch, setMemberSearch] = useState('')
   const [memberResults, setMemberResults] = useState<Member[]>([])
@@ -80,69 +79,81 @@ export default function Messages() {
   const [sendError, setSendError] = useState('')
   const searchRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Delete conversation confirm
-  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [deletingKey, setDeletingKey] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [i, s] = await Promise.all([api.messages.inbox(), api.messages.sent()])
-      setInbox(i); setSent(s)
+      const [i, s, g] = await Promise.all([api.messages.inbox(), api.messages.sent(), api.conversations.list()])
+      setInbox(i); setSent(s); setGroups(g)
     } finally { setLoading(false) }
   }, [])
 
   useEffect(() => { load() }, [load])
 
-  // ── Group all messages into one conversation per other person ──
-  const conversations = useMemo<Conversation[]>(() => {
+  // Build the unified chat list: one DM per other person + every group.
+  const chats = useMemo<ChatItem[]>(() => {
     if (!me) return []
     const other = (m: MemberMessage) =>
-      m.sender_id === me ? { id: m.recipient_id, name: m.recipient_name }
-                         : { id: m.sender_id, name: m.sender_name }
+      m.sender_id === me ? { id: m.recipient_id, name: m.recipient_name } : { id: m.sender_id, name: m.sender_name }
 
-    const groups = new Map<string, MemberMessage[]>()
+    const byOther = new Map<string, MemberMessage[]>()
     const seen = new Set<string>()
     for (const m of [...inbox, ...sent]) {
       if (seen.has(m.id)) continue
       seen.add(m.id)
       const o = other(m)
-      const arr = groups.get(o.id) ?? []
-      arr.push(m)
-      groups.set(o.id, arr)
+      const arr = byOther.get(o.id) ?? []
+      arr.push(m); byOther.set(o.id, arr)
     }
 
-    const out: Conversation[] = []
-    for (const [otherId, msgs] of groups) {
-      msgs.sort((a, b) => parseDate(a.created_at).getTime() - parseDate(b.created_at).getTime())
+    const dms: DMItem[] = []
+    for (const [otherId, msgs] of byOther) {
+      msgs.sort((a, b) => sortTime(a.created_at) - sortTime(b.created_at))
       const last = msgs[msgs.length - 1]
-      out.push({
-        otherId,
-        other: other(last),
-        messages: msgs,
-        last,
-        unread: msgs.filter(m => m.recipient_id === me && !m.read_at).length,
+      dms.push({
+        kind: 'dm', key: 'dm:' + otherId, otherId, name: other(last).name,
+        messages: msgs, lastBody: last.body, lastFromMe: last.sender_id === me,
+        lastAt: last.created_at, unread: msgs.filter(m => m.recipient_id === me && !m.read_at).length,
       })
     }
-    out.sort((a, b) => parseDate(b.last.created_at).getTime() - parseDate(a.last.created_at).getTime())
-    return out
-  }, [inbox, sent, me])
 
-  const selected = conversations.find(c => c.otherId === selectedId) ?? null
-  const totalUnread = conversations.reduce((n, c) => n + c.unread, 0)
+    const grp: GroupItem[] = groups.map(g => ({
+      kind: 'group', key: 'grp:' + g.id, convId: g.id,
+      name: g.title || g.participants || 'Group', lastBody: g.last_body,
+      lastSender: g.last_sender_name, lastAt: g.last_at, unread: g.unread, memberCount: g.member_count,
+    }))
+
+    return [...dms, ...grp].sort((a, b) => sortTime(b.lastAt) - sortTime(a.lastAt))
+  }, [inbox, sent, groups, me])
+
+  const selected = chats.find(c => c.key === selectedKey) ?? null
+  const totalUnread = chats.reduce((n, c) => n + c.unread, 0)
 
   useEffect(() => {
     threadEndRef.current?.scrollIntoView({ block: 'end' })
-  }, [selectedId, selected?.messages.length])
+  }, [selectedKey, groupDetail?.messages.length, selected?.kind === 'dm' ? selected.messages.length : 0])
 
-  async function openConversation(c: Conversation) {
-    setSelectedId(c.otherId)
+  async function openChat(item: ChatItem) {
+    setSelectedKey(item.key)
     setReplyBody(''); setReplyError('')
-    const unread = c.messages.filter(m => m.recipient_id === me && !m.read_at)
-    if (unread.length) {
-      await Promise.all(unread.map(m => api.messages.get(m.id).catch(() => {})))
-      const now = new Date().toISOString()
-      const ids = new Set(unread.map(m => m.id))
-      setInbox(prev => prev.map(m => ids.has(m.id) ? { ...m, read_at: now } : m))
+    if (item.kind === 'dm') {
+      setGroupDetail(null)
+      const unread = item.messages.filter(m => m.recipient_id === me && !m.read_at)
+      if (unread.length) {
+        await Promise.all(unread.map(m => api.messages.get(m.id).catch(() => {})))
+        const now = new Date().toISOString()
+        const ids = new Set(unread.map(m => m.id))
+        setInbox(prev => prev.map(m => ids.has(m.id) ? { ...m, read_at: now } : m))
+      }
+    } else {
+      setGroupDetail(null); setGroupLoading(true)
+      try {
+        const detail = await api.conversations.get(item.convId)
+        setGroupDetail(detail)
+        setGroups(prev => prev.map(g => g.id === item.convId ? { ...g, unread: 0 } : g))
+      } catch { /* ignore */ }
+      finally { setGroupLoading(false) }
     }
   }
 
@@ -150,19 +161,22 @@ export default function Messages() {
     if (!selected || !replyBody.trim()) return
     setReplySending(true); setReplyError('')
     try {
-      await api.messages.send({
-        recipient_id: selected.other.id,
-        subject: 'Member message',
-        body: replyBody.trim(),
-      })
-      setReplyBody('')
-      await load()
+      if (selected.kind === 'dm') {
+        await api.messages.send({ recipient_id: selected.otherId, subject: 'Member message', body: replyBody.trim() })
+        setReplyBody(''); await load()
+      } else {
+        await api.conversations.send(selected.convId, replyBody.trim())
+        setReplyBody('')
+        const detail = await api.conversations.get(selected.convId).catch(() => null)
+        if (detail) setGroupDetail(detail)
+        await load()
+      }
     } catch (e: any) {
       setReplyError(e.message || 'Could not send message.')
     } finally { setReplySending(false) }
   }
 
-  // Debounced member search for new conversations
+  // Member search
   useEffect(() => {
     if (searchRef.current) clearTimeout(searchRef.current)
     if (memberSearch.length < 2) { setMemberResults([]); return }
@@ -170,50 +184,66 @@ export default function Messages() {
       setSearching(true)
       try {
         const results = await api.friends.searchMembers(memberSearch) as Member[]
-        setMemberResults(results.filter(m => m.id !== me))
+        const taken = new Set([me, ...recipients.map(r => r.id)])
+        setMemberResults(results.filter(m => !taken.has(m.id)))
       } finally { setSearching(false) }
     }, 300)
     return () => { if (searchRef.current) clearTimeout(searchRef.current) }
-  }, [memberSearch, me])
+  }, [memberSearch, me, recipients])
 
   function startCompose() {
     setComposing(true)
-    setComposeRecipient(null); setMemberSearch(''); setMemberResults([])
-    setComposeBody(''); setSendError('')
+    setRecipients([]); setMemberSearch(''); setMemberResults([])
+    setComposeTitle(''); setComposeBody(''); setSendError('')
   }
   function closeCompose() {
-    setComposing(false); setComposeRecipient(null); setMemberSearch('')
-    setMemberResults([]); setComposeBody(''); setSendError('')
+    setComposing(false); setRecipients([]); setMemberSearch(''); setMemberResults([])
+    setComposeTitle(''); setComposeBody(''); setSendError('')
   }
 
   async function handleSendNew() {
-    if (!composeRecipient || !composeBody.trim()) {
-      setSendError('Pick a member and write a message.'); return
+    if (recipients.length === 0 || !composeBody.trim()) {
+      setSendError('Pick at least one member and write a message.'); return
     }
-    const recipientId = composeRecipient.id
     setSending(true); setSendError('')
     try {
-      await api.messages.send({
-        recipient_id: recipientId,
-        subject: 'Member message',
-        body: composeBody.trim(),
-      })
-      closeCompose()
-      await load()
-      setSelectedId(recipientId)
+      if (recipients.length === 1) {
+        await api.messages.send({ recipient_id: recipients[0].id, subject: 'Member message', body: composeBody.trim() })
+        closeCompose(); await load(); setSelectedKey('dm:' + recipients[0].id)
+      } else {
+        const res = await api.conversations.create({
+          title: composeTitle.trim() || undefined,
+          participant_ids: recipients.map(r => r.id),
+          body: composeBody.trim(),
+        })
+        closeCompose(); await load()
+        const key = 'grp:' + res.id
+        setSelectedKey(key)
+        const detail = await api.conversations.get(res.id).catch(() => null)
+        if (detail) setGroupDetail(detail)
+      }
     } catch (e: any) {
       setSendError(e.message || 'Could not send message.')
     } finally { setSending(false) }
   }
 
-  async function handleDeleteConversation() {
-    const c = conversations.find(x => x.otherId === deletingId)
-    if (!c) { setDeletingId(null); return }
-    await Promise.all(c.messages.map(m => api.messages.delete(m.id).catch(() => {})))
-    setDeletingId(null)
-    if (selectedId === c.otherId) setSelectedId(null)
+  async function handleDelete() {
+    const item = chats.find(c => c.key === deletingKey)
+    if (!item) { setDeletingKey(null); return }
+    if (item.kind === 'dm') {
+      await Promise.all(item.messages.map(m => api.messages.delete(m.id).catch(() => {})))
+    } else {
+      await api.conversations.leave(item.convId).catch(() => {})
+    }
+    setDeletingKey(null)
+    if (selectedKey === item.key) { setSelectedKey(null); setGroupDetail(null) }
     await load()
   }
+
+  // Bubbles for the open conversation (DM messages, or group detail messages).
+  const bubbles = selected?.kind === 'dm'
+    ? selected.messages.map(m => ({ id: m.id, mine: m.sender_id === me, sender: m.sender_name, body: m.body, at: m.created_at, read: m.read_at }))
+    : (groupDetail?.messages ?? []).map(m => ({ id: m.id, mine: m.sender_id === me, sender: m.sender_name, body: m.body, at: m.created_at, read: undefined as string | undefined }))
 
   return (
     <div className="flex flex-col h-full max-h-[calc(100vh-110px)]">
@@ -222,7 +252,7 @@ export default function Messages() {
       <div className="flex items-center justify-between gap-3 mb-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-800 leading-none">Messages</h1>
-          <p className="text-sm text-gray-500 mt-1">Direct messages with other members</p>
+          <p className="text-sm text-gray-500 mt-1">Direct & group messages with members</p>
         </div>
         <button onClick={startCompose}
           className="bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-4 py-2 rounded-xl transition flex items-center gap-2 shrink-0">
@@ -235,10 +265,10 @@ export default function Messages() {
 
       <div className="flex flex-1 gap-4 min-h-0">
 
-        {/* ── Conversation list ── */}
+        {/* ── Chat list ── */}
         <div className={`flex flex-col rounded-2xl overflow-hidden bg-white border border-gray-200 shadow-sm
           ${selected ? 'hidden lg:flex lg:w-80 shrink-0' : 'flex-1'}`}>
-          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+          <div className="px-4 py-3 border-b border-gray-100">
             <span className="text-sm font-semibold text-gray-700">
               Conversations{totalUnread > 0 && <span className="ml-1.5 text-green-700">· {totalUnread} unread</span>}
             </span>
@@ -248,36 +278,40 @@ export default function Messages() {
             <div className="flex-1 flex items-center justify-center">
               <div className="w-5 h-5 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
             </div>
-          ) : conversations.length === 0 ? (
+          ) : chats.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center text-gray-400 text-sm gap-2 px-6 text-center">
-              <svg className="w-10 h-10 opacity-15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                  d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 3v-3z" />
-              </svg>
               No conversations yet. Start one with “New Message”.
             </div>
           ) : (
             <div className="flex-1 overflow-y-auto divide-y divide-gray-100">
-              {conversations.map(c => {
-                const active = c.otherId === selectedId
+              {chats.map(c => {
+                const active = c.key === selectedKey
+                const isGroup = c.kind === 'group'
+                const preview = isGroup
+                  ? (c.lastBody ? `${c.lastSender ? c.lastSender.split(' ')[0] + ': ' : ''}${c.lastBody}` : 'No messages yet')
+                  : `${c.lastFromMe ? 'You: ' : ''}${c.lastBody}`
                 return (
-                  <button key={c.otherId} onClick={() => openConversation(c)}
-                    className={`w-full text-left px-4 py-3 transition flex items-start gap-3
-                      ${active ? 'bg-green-50' : 'hover:bg-gray-50'}`}>
-                    <div className={`w-9 h-9 rounded-full shrink-0 flex items-center justify-center text-xs font-bold ${avatarColor(c.other.name)}`}>
-                      {nameInitials(c.other.name)}
+                  <button key={c.key} onClick={() => openChat(c)}
+                    className={`w-full text-left px-4 py-3 transition flex items-start gap-3 ${active ? 'bg-green-50' : 'hover:bg-gray-50'}`}>
+                    <div className={`w-9 h-9 rounded-full shrink-0 flex items-center justify-center text-xs font-bold ${isGroup ? 'bg-indigo-100 text-indigo-700' : avatarColor(c.name)}`}>
+                      {isGroup ? (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                            d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                      ) : nameInitials(c.name)}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
                         <span className={`text-sm truncate ${c.unread ? 'font-bold text-gray-900' : 'font-medium text-gray-700'}`}>
-                          {c.other.name}
+                          {c.name}{isGroup && <span className="text-gray-400 font-normal"> · {c.memberCount}</span>}
                         </span>
-                        <span className="text-[11px] text-gray-400 shrink-0">{timeAgo(c.last.created_at)}</span>
+                        <span className="text-[11px] text-gray-400 shrink-0">{timeAgo(c.lastAt)}</span>
                       </div>
                       <div className="flex items-center gap-1.5 mt-0.5">
                         {c.unread > 0 && <span className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />}
                         <span className={`text-xs truncate ${c.unread ? 'text-gray-700' : 'text-gray-400'}`}>
-                          {c.last.sender_id === me ? 'You: ' : ''}{c.last.body.slice(0, 56)}{c.last.body.length > 56 ? '…' : ''}
+                          {(preview ?? '').slice(0, 56)}{(preview ?? '').length > 56 ? '…' : ''}
                         </span>
                       </div>
                     </div>
@@ -293,17 +327,27 @@ export default function Messages() {
           <div className="flex-1 flex flex-col rounded-2xl overflow-hidden bg-white border border-gray-200 shadow-sm min-h-0">
             {/* Header */}
             <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-3">
-              <button onClick={() => setSelectedId(null)}
+              <button onClick={() => { setSelectedKey(null); setGroupDetail(null) }}
                 className="lg:hidden p-1 -ml-1 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition shrink-0">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
               </button>
-              <div className={`w-9 h-9 rounded-full shrink-0 flex items-center justify-center text-xs font-bold ${avatarColor(selected.other.name)}`}>
-                {nameInitials(selected.other.name)}
+              <div className={`w-9 h-9 rounded-full shrink-0 flex items-center justify-center text-xs font-bold ${selected.kind === 'group' ? 'bg-indigo-100 text-indigo-700' : avatarColor(selected.name)}`}>
+                {selected.kind === 'group' ? (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                ) : nameInitials(selected.name)}
               </div>
-              <p className="text-sm font-semibold text-gray-900 truncate flex-1">{selected.other.name}</p>
-              <button onClick={() => setDeletingId(selected.otherId)} title="Delete conversation"
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-gray-900 truncate">{selected.name}</p>
+                {selected.kind === 'group' && groupDetail && (
+                  <p className="text-xs text-gray-400 truncate">{groupDetail.participants.map(p => p.name.split(' ')[0]).join(', ')}</p>
+                )}
+              </div>
+              <button onClick={() => setDeletingKey(selected.key)} title={selected.kind === 'group' ? 'Leave conversation' : 'Delete conversation'}
                 className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition shrink-0">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -314,23 +358,28 @@ export default function Messages() {
 
             {/* Messages */}
             <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 bg-gray-50/40">
-              {selected.messages.map(m => {
-                const mine = m.sender_id === me
-                return (
-                  <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[78%] rounded-2xl px-4 py-2.5 ${
-                      mine ? 'bg-green-700 text-white rounded-br-sm' : 'bg-white border border-gray-200 text-gray-800 rounded-bl-sm'}`}>
-                      <div className="text-sm whitespace-pre-wrap leading-relaxed break-words">{m.body}</div>
-                      <div className={`text-[10px] mt-1 flex items-center gap-1 ${mine ? 'text-green-100/80 justify-end' : 'text-gray-400'}`}>
-                        {fmtFull(m.created_at)}
-                        {mine && (m.read_at
-                          ? <span title={`Read ${fmtReadAt(m.read_at)}`}>· Read</span>
+              {groupLoading ? (
+                <div className="h-full flex items-center justify-center">
+                  <div className="w-5 h-5 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : bubbles.map(b => (
+                <div key={b.id} className={`flex ${b.mine ? 'justify-end' : 'justify-start'}`}>
+                  <div className="max-w-[78%]">
+                    {selected.kind === 'group' && !b.mine && (
+                      <p className="text-[11px] text-gray-500 font-medium mb-0.5 ml-1">{b.sender}</p>
+                    )}
+                    <div className={`rounded-2xl px-4 py-2.5 ${b.mine ? 'bg-green-700 text-white rounded-br-sm' : 'bg-white border border-gray-200 text-gray-800 rounded-bl-sm'}`}>
+                      <div className="text-sm whitespace-pre-wrap leading-relaxed break-words">{b.body}</div>
+                      <div className={`text-[10px] mt-1 flex items-center gap-1 ${b.mine ? 'text-green-100/80 justify-end' : 'text-gray-400'}`}>
+                        {fmtFull(b.at)}
+                        {b.mine && selected.kind === 'dm' && (b.read
+                          ? <span title={`Read ${fmtReadAt(b.read)}`}>· Read</span>
                           : <span>· Sent</span>)}
                       </div>
                     </div>
                   </div>
-                )
-              })}
+                </div>
+              ))}
               <div ref={threadEndRef} />
             </div>
 
@@ -340,7 +389,7 @@ export default function Messages() {
               <div className="flex items-end gap-2">
                 <textarea value={replyBody} onChange={e => setReplyBody(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendReply() } }}
-                  placeholder={`Message ${selected.other.name.split(' ')[0]}…`}
+                  placeholder={`Message ${selected.kind === 'group' ? 'the group' : selected.name.split(' ')[0]}…`}
                   rows={1}
                   className="flex-1 border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none max-h-32" />
                 <button onClick={sendReply} disabled={replySending || !replyBody.trim()}
@@ -358,7 +407,7 @@ export default function Messages() {
         )}
       </div>
 
-      {/* ── New conversation modal ── */}
+      {/* ── New message modal ── */}
       {composing && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
@@ -373,42 +422,44 @@ export default function Messages() {
 
             <div className="px-5 py-4 space-y-3 overflow-y-auto flex-1">
               <div className="relative">
-                <label className="block text-xs font-medium text-gray-600 mb-1">To</label>
-                {composeRecipient ? (
-                  <div className="flex items-center gap-2 border border-green-400 rounded-xl px-3 py-2 bg-green-50">
-                    <span className="text-sm font-medium text-green-800 flex-1">
-                      {composeRecipient.first_name} {composeRecipient.last_name}
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  To {recipients.length > 1 && <span className="text-gray-400">· group of {recipients.length}</span>}
+                </label>
+                <div className="flex flex-wrap gap-1.5 border border-gray-300 rounded-xl px-2 py-1.5 min-h-[42px]">
+                  {recipients.map(r => (
+                    <span key={r.id} className="flex items-center gap-1 bg-green-100 text-green-800 text-xs font-medium px-2 py-1 rounded-lg">
+                      {r.first_name} {r.last_name}
+                      <button onClick={() => setRecipients(rs => rs.filter(x => x.id !== r.id))} className="hover:text-red-600">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                      </button>
                     </span>
-                    <button onClick={() => { setComposeRecipient(null); setMemberSearch('') }}
-                      className="text-green-600 hover:text-green-800 transition">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
+                  ))}
+                  <input value={memberSearch} onChange={e => setMemberSearch(e.target.value)}
+                    placeholder={recipients.length ? 'Add another…' : 'Search members…'}
+                    className="flex-1 min-w-[120px] outline-none text-sm bg-transparent py-0.5" />
+                </div>
+                {(memberResults.length > 0 || searching) && (
+                  <div className="absolute z-10 left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                    {searching ? (
+                      <p className="px-4 py-3 text-sm text-gray-400">Searching…</p>
+                    ) : memberResults.map(m => (
+                      <button key={m.id} onClick={() => { setRecipients(rs => [...rs, m]); setMemberSearch(''); setMemberResults([]) }}
+                        className="w-full text-left px-4 py-2.5 hover:bg-gray-50 transition border-b border-gray-100 last:border-0">
+                        <div className="text-sm font-medium text-gray-800">{m.first_name} {m.last_name}</div>
+                        <div className="text-xs text-gray-400">{m.email}</div>
+                      </button>
+                    ))}
                   </div>
-                ) : (
-                  <>
-                    <input value={memberSearch} onChange={e => setMemberSearch(e.target.value)}
-                      placeholder="Search member by name or email…"
-                      className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
-                    {(memberResults.length > 0 || searching) && (
-                      <div className="absolute z-10 left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
-                        {searching ? (
-                          <p className="px-4 py-3 text-sm text-gray-400">Searching…</p>
-                        ) : memberResults.map(m => (
-                          <button key={m.id} onClick={() => {
-                            setComposeRecipient(m); setMemberSearch(`${m.first_name} ${m.last_name}`); setMemberResults([])
-                          }}
-                            className="w-full text-left px-4 py-2.5 hover:bg-gray-50 transition border-b border-gray-100 last:border-0">
-                            <div className="text-sm font-medium text-gray-800">{m.first_name} {m.last_name}</div>
-                            <div className="text-xs text-gray-400">{m.email}</div>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </>
                 )}
               </div>
+
+              {recipients.length > 1 && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Group name <span className="text-gray-400">(optional)</span></label>
+                  <input value={composeTitle} onChange={e => setComposeTitle(e.target.value)} placeholder="e.g. Tennis Committee"
+                    className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Message</label>
@@ -421,32 +472,33 @@ export default function Messages() {
             </div>
 
             <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 shrink-0">
-              <button onClick={closeCompose}
-                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition">Cancel</button>
-              <button onClick={handleSendNew} disabled={sending || !composeRecipient || !composeBody.trim()}
+              <button onClick={closeCompose} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition">Cancel</button>
+              <button onClick={handleSendNew} disabled={sending || recipients.length === 0 || !composeBody.trim()}
                 className="bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-5 py-2 rounded-xl transition disabled:opacity-50 flex items-center gap-2">
-                {sending
-                  ? <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>Sending…</>
-                  : <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>Send</>}
+                {sending ? 'Sending…' : recipients.length > 1 ? 'Create group' : 'Send'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── Delete conversation confirm ── */}
-      {deletingId && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setDeletingId(null)}>
+      {/* ── Delete / leave confirm ── */}
+      {deletingKey && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setDeletingKey(null)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
-            <h3 className="text-base font-semibold text-gray-900 mb-2">Delete conversation?</h3>
+            <h3 className="text-base font-semibold text-gray-900 mb-2">
+              {deletingKey.startsWith('grp:') ? 'Leave conversation?' : 'Delete conversation?'}
+            </h3>
             <p className="text-sm text-gray-500 mb-5">
-              This removes the whole conversation from your view. The other member keeps their copy.
+              {deletingKey.startsWith('grp:')
+                ? 'It disappears from your list. A new message in the group brings it back.'
+                : 'This removes the whole conversation from your view. The other member keeps their copy.'}
             </p>
             <div className="flex justify-end gap-2">
-              <button onClick={() => setDeletingId(null)}
-                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-xl transition">Cancel</button>
-              <button onClick={handleDeleteConversation}
-                className="px-5 py-2 bg-red-600 text-white text-sm font-semibold rounded-xl hover:bg-red-700 transition">Delete</button>
+              <button onClick={() => setDeletingKey(null)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-xl transition">Cancel</button>
+              <button onClick={handleDelete} className="px-5 py-2 bg-red-600 text-white text-sm font-semibold rounded-xl hover:bg-red-700 transition">
+                {deletingKey.startsWith('grp:') ? 'Leave' : 'Delete'}
+              </button>
             </div>
           </div>
         </div>
