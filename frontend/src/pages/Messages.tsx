@@ -45,12 +45,11 @@ function nameInitials(name: string) {
 
 interface Member { id: string; first_name: string; last_name: string; email: string }
 
-// A conversation: a reply chain rooted at one message, between the current user
-// and one other member, with its messages in chronological order.
-type Thread = {
-  rootId: string
+// One running conversation per other member — every message between the current
+// user and that person, in chronological order (Slack-style DM).
+type Conversation = {
+  otherId: string
   other: { id: string; name: string }
-  subject: string
   messages: MemberMessage[]
   last: MemberMessage
   unread: number
@@ -62,18 +61,17 @@ export default function Messages() {
   const [inbox, setInbox] = useState<MemberMessage[]>([])
   const [sent, setSent] = useState<MemberMessage[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedRoot, setSelectedRoot] = useState<string | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
 
-  // Reply (within the open thread)
+  // Reply (within the open conversation)
   const [replyBody, setReplyBody] = useState('')
   const [replySending, setReplySending] = useState(false)
   const [replyError, setReplyError] = useState('')
   const threadEndRef = useRef<HTMLDivElement | null>(null)
 
-  // New conversation compose
+  // New conversation
   const [composing, setComposing] = useState(false)
   const [composeRecipient, setComposeRecipient] = useState<Member | null>(null)
-  const [composeSubject, setComposeSubject] = useState('')
   const [composeBody, setComposeBody] = useState('')
   const [memberSearch, setMemberSearch] = useState('')
   const [memberResults, setMemberResults] = useState<Member[]>([])
@@ -83,7 +81,7 @@ export default function Messages() {
   const searchRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Delete conversation confirm
-  const [deletingRoot, setDeletingRoot] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -95,44 +93,31 @@ export default function Messages() {
 
   useEffect(() => { load() }, [load])
 
-  // ── Build threads from inbox + sent ──
-  const threads = useMemo<Thread[]>(() => {
+  // ── Group all messages into one conversation per other person ──
+  const conversations = useMemo<Conversation[]>(() => {
     if (!me) return []
-    const byId = new Map<string, MemberMessage>()
-    for (const m of [...inbox, ...sent]) byId.set(m.id, m)
-
-    // Walk reply_to up to the highest ancestor we still have.
-    const rootOf = (m: MemberMessage) => {
-      let cur = m
-      const seen = new Set<string>()
-      while (cur.reply_to_id && byId.has(cur.reply_to_id) && !seen.has(cur.id)) {
-        seen.add(cur.id)
-        cur = byId.get(cur.reply_to_id)!
-      }
-      return cur.id
-    }
-
-    const groups = new Map<string, MemberMessage[]>()
-    for (const m of byId.values()) {
-      const r = rootOf(m)
-      const arr = groups.get(r) ?? []
-      arr.push(m)
-      groups.set(r, arr)
-    }
-
     const other = (m: MemberMessage) =>
       m.sender_id === me ? { id: m.recipient_id, name: m.recipient_name }
                          : { id: m.sender_id, name: m.sender_name }
 
-    const out: Thread[] = []
-    for (const [rootId, msgs] of groups) {
+    const groups = new Map<string, MemberMessage[]>()
+    const seen = new Set<string>()
+    for (const m of [...inbox, ...sent]) {
+      if (seen.has(m.id)) continue
+      seen.add(m.id)
+      const o = other(m)
+      const arr = groups.get(o.id) ?? []
+      arr.push(m)
+      groups.set(o.id, arr)
+    }
+
+    const out: Conversation[] = []
+    for (const [otherId, msgs] of groups) {
       msgs.sort((a, b) => parseDate(a.created_at).getTime() - parseDate(b.created_at).getTime())
-      const root = byId.get(rootId) ?? msgs[0]
       const last = msgs[msgs.length - 1]
       out.push({
-        rootId,
+        otherId,
         other: other(last),
-        subject: root.subject,
         messages: msgs,
         last,
         unread: msgs.filter(m => m.recipient_id === me && !m.read_at).length,
@@ -142,20 +127,18 @@ export default function Messages() {
     return out
   }, [inbox, sent, me])
 
-  const selectedThread = threads.find(t => t.rootId === selectedRoot) ?? null
-  const totalUnread = threads.reduce((n, t) => n + t.unread, 0)
+  const selected = conversations.find(c => c.otherId === selectedId) ?? null
+  const totalUnread = conversations.reduce((n, c) => n + c.unread, 0)
 
-  // Scroll the thread to the newest message when it opens or grows.
   useEffect(() => {
     threadEndRef.current?.scrollIntoView({ block: 'end' })
-  }, [selectedRoot, selectedThread?.messages.length])
+  }, [selectedId, selected?.messages.length])
 
-  async function openThread(t: Thread) {
-    setSelectedRoot(t.rootId)
+  async function openConversation(c: Conversation) {
+    setSelectedId(c.otherId)
     setReplyBody(''); setReplyError('')
-    const unread = t.messages.filter(m => m.recipient_id === me && !m.read_at)
+    const unread = c.messages.filter(m => m.recipient_id === me && !m.read_at)
     if (unread.length) {
-      // get() marks each as read server-side; update local state optimistically.
       await Promise.all(unread.map(m => api.messages.get(m.id).catch(() => {})))
       const now = new Date().toISOString()
       const ids = new Set(unread.map(m => m.id))
@@ -164,21 +147,18 @@ export default function Messages() {
   }
 
   async function sendReply() {
-    if (!selectedThread || !replyBody.trim()) return
+    if (!selected || !replyBody.trim()) return
     setReplySending(true); setReplyError('')
     try {
-      const subject = selectedThread.subject.startsWith('Re:')
-        ? selectedThread.subject : `Re: ${selectedThread.subject}`
       await api.messages.send({
-        recipient_id: selectedThread.other.id,
-        subject,
+        recipient_id: selected.other.id,
+        subject: '(no subject)',
         body: replyBody.trim(),
-        reply_to: selectedThread.last.id,
       })
       setReplyBody('')
       await load()
     } catch (e: any) {
-      setReplyError(e.message || 'Could not send reply.')
+      setReplyError(e.message || 'Could not send message.')
     } finally { setReplySending(false) }
   }
 
@@ -199,38 +179,39 @@ export default function Messages() {
   function startCompose() {
     setComposing(true)
     setComposeRecipient(null); setMemberSearch(''); setMemberResults([])
-    setComposeSubject(''); setComposeBody(''); setSendError('')
+    setComposeBody(''); setSendError('')
   }
   function closeCompose() {
     setComposing(false); setComposeRecipient(null); setMemberSearch('')
-    setMemberResults([]); setComposeSubject(''); setComposeBody(''); setSendError('')
+    setMemberResults([]); setComposeBody(''); setSendError('')
   }
 
   async function handleSendNew() {
     if (!composeRecipient || !composeBody.trim()) {
-      setSendError('Recipient and message are required.'); return
+      setSendError('Pick a member and write a message.'); return
     }
+    const recipientId = composeRecipient.id
     setSending(true); setSendError('')
     try {
-      const created = await api.messages.send({
-        recipient_id: composeRecipient.id,
-        subject: composeSubject.trim() || '(no subject)',
+      await api.messages.send({
+        recipient_id: recipientId,
+        subject: '(no subject)',
         body: composeBody.trim(),
       })
       closeCompose()
       await load()
-      if (created?.id) setSelectedRoot(created.id)
+      setSelectedId(recipientId)
     } catch (e: any) {
       setSendError(e.message || 'Could not send message.')
     } finally { setSending(false) }
   }
 
-  async function handleDeleteThread() {
-    const t = threads.find(x => x.rootId === deletingRoot)
-    if (!t) { setDeletingRoot(null); return }
-    await Promise.all(t.messages.map(m => api.messages.delete(m.id).catch(() => {})))
-    setDeletingRoot(null)
-    if (selectedRoot === t.rootId) setSelectedRoot(null)
+  async function handleDeleteConversation() {
+    const c = conversations.find(x => x.otherId === deletingId)
+    if (!c) { setDeletingId(null); return }
+    await Promise.all(c.messages.map(m => api.messages.delete(m.id).catch(() => {})))
+    setDeletingId(null)
+    if (selectedId === c.otherId) setSelectedId(null)
     await load()
   }
 
@@ -241,7 +222,7 @@ export default function Messages() {
       <div className="flex items-center justify-between gap-3 mb-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-800 leading-none">Messages</h1>
-          <p className="text-sm text-gray-500 mt-1">Conversations with other members</p>
+          <p className="text-sm text-gray-500 mt-1">Direct messages with other members</p>
         </div>
         <button onClick={startCompose}
           className="bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-4 py-2 rounded-xl transition flex items-center gap-2 shrink-0">
@@ -256,7 +237,7 @@ export default function Messages() {
 
         {/* ── Conversation list ── */}
         <div className={`flex flex-col rounded-2xl overflow-hidden bg-white border border-gray-200 shadow-sm
-          ${selectedThread ? 'hidden lg:flex lg:w-80 shrink-0' : 'flex-1'}`}>
+          ${selected ? 'hidden lg:flex lg:w-80 shrink-0' : 'flex-1'}`}>
           <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
             <span className="text-sm font-semibold text-gray-700">
               Conversations{totalUnread > 0 && <span className="ml-1.5 text-green-700">· {totalUnread} unread</span>}
@@ -267,7 +248,7 @@ export default function Messages() {
             <div className="flex-1 flex items-center justify-center">
               <div className="w-5 h-5 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
             </div>
-          ) : threads.length === 0 ? (
+          ) : conversations.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center text-gray-400 text-sm gap-2 px-6 text-center">
               <svg className="w-10 h-10 opacity-15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
@@ -277,33 +258,29 @@ export default function Messages() {
             </div>
           ) : (
             <div className="flex-1 overflow-y-auto divide-y divide-gray-100">
-              {threads.map(t => {
-                const active = t.rootId === selectedRoot
+              {conversations.map(c => {
+                const active = c.otherId === selectedId
                 return (
-                  <button key={t.rootId} onClick={() => openThread(t)}
+                  <button key={c.otherId} onClick={() => openConversation(c)}
                     className={`w-full text-left px-4 py-3 transition flex items-start gap-3
                       ${active ? 'bg-green-50' : 'hover:bg-gray-50'}`}>
-                    <div className={`w-9 h-9 rounded-full shrink-0 flex items-center justify-center text-xs font-bold ${avatarColor(t.other.name)}`}>
-                      {nameInitials(t.other.name)}
+                    <div className={`w-9 h-9 rounded-full shrink-0 flex items-center justify-center text-xs font-bold ${avatarColor(c.other.name)}`}>
+                      {nameInitials(c.other.name)}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
-                        <span className={`text-sm truncate ${t.unread ? 'font-bold text-gray-900' : 'font-medium text-gray-700'}`}>
-                          {t.other.name}
+                        <span className={`text-sm truncate ${c.unread ? 'font-bold text-gray-900' : 'font-medium text-gray-700'}`}>
+                          {c.other.name}
                         </span>
-                        <span className="text-[11px] text-gray-400 shrink-0">{timeAgo(t.last.created_at)}</span>
+                        <span className="text-[11px] text-gray-400 shrink-0">{timeAgo(c.last.created_at)}</span>
                       </div>
-                      <div className="text-xs text-gray-500 truncate mt-0.5">{t.subject || '(no subject)'}</div>
                       <div className="flex items-center gap-1.5 mt-0.5">
-                        {t.unread > 0 && <span className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />}
-                        <span className={`text-xs truncate ${t.unread ? 'text-gray-700' : 'text-gray-400'}`}>
-                          {t.last.sender_id === me ? 'You: ' : ''}{t.last.body.slice(0, 50)}{t.last.body.length > 50 ? '…' : ''}
+                        {c.unread > 0 && <span className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />}
+                        <span className={`text-xs truncate ${c.unread ? 'text-gray-700' : 'text-gray-400'}`}>
+                          {c.last.sender_id === me ? 'You: ' : ''}{c.last.body.slice(0, 56)}{c.last.body.length > 56 ? '…' : ''}
                         </span>
                       </div>
                     </div>
-                    {t.messages.length > 1 && (
-                      <span className="text-[10px] text-gray-300 shrink-0 mt-0.5">{t.messages.length}</span>
-                    )}
                   </button>
                 )
               })}
@@ -311,25 +288,22 @@ export default function Messages() {
           )}
         </div>
 
-        {/* ── Thread view ── */}
-        {selectedThread ? (
+        {/* ── Conversation view ── */}
+        {selected ? (
           <div className="flex-1 flex flex-col rounded-2xl overflow-hidden bg-white border border-gray-200 shadow-sm min-h-0">
-            {/* Thread header */}
+            {/* Header */}
             <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-3">
-              <button onClick={() => setSelectedRoot(null)}
+              <button onClick={() => setSelectedId(null)}
                 className="lg:hidden p-1 -ml-1 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition shrink-0">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
               </button>
-              <div className={`w-9 h-9 rounded-full shrink-0 flex items-center justify-center text-xs font-bold ${avatarColor(selectedThread.other.name)}`}>
-                {nameInitials(selectedThread.other.name)}
+              <div className={`w-9 h-9 rounded-full shrink-0 flex items-center justify-center text-xs font-bold ${avatarColor(selected.other.name)}`}>
+                {nameInitials(selected.other.name)}
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-gray-900 truncate">{selectedThread.other.name}</p>
-                <p className="text-xs text-gray-400 truncate">{selectedThread.subject || '(no subject)'}</p>
-              </div>
-              <button onClick={() => setDeletingRoot(selectedThread.rootId)} title="Delete conversation"
+              <p className="text-sm font-semibold text-gray-900 truncate flex-1">{selected.other.name}</p>
+              <button onClick={() => setDeletingId(selected.otherId)} title="Delete conversation"
                 className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition shrink-0">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -338,9 +312,9 @@ export default function Messages() {
               </button>
             </div>
 
-            {/* Messages in order */}
+            {/* Messages */}
             <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 bg-gray-50/40">
-              {selectedThread.messages.map(m => {
+              {selected.messages.map(m => {
                 const mine = m.sender_id === me
                 return (
                   <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
@@ -365,8 +339,8 @@ export default function Messages() {
               {replyError && <p className="text-xs text-red-600 mb-1.5">{replyError}</p>}
               <div className="flex items-end gap-2">
                 <textarea value={replyBody} onChange={e => setReplyBody(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); sendReply() } }}
-                  placeholder={`Reply to ${selectedThread.other.name.split(' ')[0]}…`}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendReply() } }}
+                  placeholder={`Message ${selected.other.name.split(' ')[0]}…`}
                   rows={1}
                   className="flex-1 border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none max-h-32" />
                 <button onClick={sendReply} disabled={replySending || !replyBody.trim()}
@@ -374,6 +348,7 @@ export default function Messages() {
                   {replySending ? '…' : 'Send'}
                 </button>
               </div>
+              <p className="text-[10px] text-gray-300 mt-1">Enter to send · Shift+Enter for a new line</p>
             </div>
           </div>
         ) : (
@@ -436,15 +411,9 @@ export default function Messages() {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Subject</label>
-                <input value={composeSubject} onChange={e => setComposeSubject(e.target.value)} placeholder="(no subject)"
-                  className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
-              </div>
-
-              <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Message</label>
                 <textarea value={composeBody} onChange={e => setComposeBody(e.target.value)} placeholder="Write your message…"
-                  rows={6} spellCheck
+                  rows={5} spellCheck
                   className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none" />
               </div>
 
@@ -466,17 +435,17 @@ export default function Messages() {
       )}
 
       {/* ── Delete conversation confirm ── */}
-      {deletingRoot && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setDeletingRoot(null)}>
+      {deletingId && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setDeletingId(null)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
             <h3 className="text-base font-semibold text-gray-900 mb-2">Delete conversation?</h3>
             <p className="text-sm text-gray-500 mb-5">
               This removes the whole conversation from your view. The other member keeps their copy.
             </p>
             <div className="flex justify-end gap-2">
-              <button onClick={() => setDeletingRoot(null)}
+              <button onClick={() => setDeletingId(null)}
                 className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-xl transition">Cancel</button>
-              <button onClick={handleDeleteThread}
+              <button onClick={handleDeleteConversation}
                 className="px-5 py-2 bg-red-600 text-white text-sm font-semibold rounded-xl hover:bg-red-700 transition">Delete</button>
             </div>
           </div>

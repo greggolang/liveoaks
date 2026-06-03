@@ -11,12 +11,6 @@ type Section = { heading: string; links: LinkItem[] }
 
 const sections: Section[] = [
   {
-    heading: 'Main Site',
-    links: [
-      { to: '/admin/content', label: 'Content' },
-    ],
-  },
-  {
     heading: 'Members',
     links: [
       { to: '/admin/users', label: 'Members', section: 'members' },
@@ -88,6 +82,7 @@ const sections: Section[] = [
   {
     heading: 'System',
     links: [
+      { to: '/admin/content', label: 'Main Site Content' },
       { to: '/files', label: 'Files', section: 'files' },
       { to: '/photos', label: 'Photos', section: 'photos' },
       { to: '/admin/mail', label: 'Mail Accounts' },
