@@ -144,14 +144,6 @@ export default function Register() {
           </form>
         )}
 
-        {!submitted && (
-          <p className="text-center text-sm text-gray-500 mt-6">
-            Already a member?{' '}
-            <Link to="/login" className="text-lota-700 font-medium hover:underline">
-              Sign in
-            </Link>
-          </p>
-        )}
       </div>
     </div>
   )
