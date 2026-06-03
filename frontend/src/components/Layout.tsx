@@ -106,7 +106,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const groups: { key: string; heading?: string; items: NavEntry[] }[] = [
     {
       key: 'main', items: [
-        { to: '/dashboard', label: 'Home', icon: ICONS.home },
+        { to: '/dashboard', label: 'Dashboard', icon: ICONS.home },
         ...(hasPermission('bookings') ? [{ to: '/bookings?tab=grid', label: 'Book a Court', icon: ICONS.calendar }] : []),
         { to: '/conditions', label: 'Conditions', icon: ICONS.sun },
         ...(hasPermission('events') ? [{ to: '/events', label: 'Events', icon: ICONS.ticket }] : []),
