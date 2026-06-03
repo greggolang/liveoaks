@@ -69,20 +69,23 @@ func (h *IMAPHandler) creds(c echo.Context) (address, password, host string, err
 }
 
 func imapConnect(host, address, password string) (*imapclient.Client, error) {
+	// TLS config uses the configured hostname for certificate verification regardless
+	// of which address we actually connect to.
+	tlsCfg := &tls.Config{ServerName: host}
+
+	// Try each candidate in order: external hostname, then localhost (handles the
+	// case where the mail server is co-hosted and hairpin NAT breaks the external IP).
+	candidates := []string{host + ":993", "localhost:993"}
 	var c *imapclient.Client
 	var err error
-
-	tlsCfg := &tls.Config{ServerName: host}
-	c, err = imapclient.DialTLS(host+":993", tlsCfg)
+	for _, addr := range candidates {
+		c, err = imapclient.DialTLS(addr, tlsCfg)
+		if err == nil {
+			break
+		}
+	}
 	if err != nil {
-		c, err = imapclient.Dial(host + ":143")
-		if err != nil {
-			return nil, fmt.Errorf("cannot connect to mail server at %s: %w", host, err)
-		}
-		if err = c.StartTLS(tlsCfg); err != nil {
-			c.Logout()
-			return nil, fmt.Errorf("TLS handshake failed: %w", err)
-		}
+		return nil, fmt.Errorf("cannot connect to mail server at %s: %w", host, err)
 	}
 	if err = c.Login(address, password); err != nil {
 		c.Logout()
