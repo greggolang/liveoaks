@@ -1888,208 +1888,221 @@ export default function Bookings() {
           })()}
 
           {/* Grid */}
-          <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-x-auto">
-            <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr>
-                  <th className="w-16 py-3 px-3 text-gray-400 text-xs font-medium text-left border-b border-gray-100">Time</th>
-                  {courts.map(c => (
-                    <th key={c.id} className="py-3 px-2 text-center font-semibold text-gray-700 border-b border-gray-100">
-                      {c.name}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {HOURS.map(slot => (
-                  <tr key={slot} className={`border-b last:border-0 ${slot % 1 === 0 ? 'border-gray-100' : 'border-gray-50'}`}>
-                    <td className={`px-3 text-xs text-gray-400 font-medium whitespace-nowrap align-middle ${slot % 1 === 0 ? 'py-1.5' : 'py-0.5 text-gray-300'}`}>
-                      {fmt12(slot)}
-                    </td>
-                    {courts.map(c => {
-                      const booking = getBooking(c.id, slot)
-                      const isMe = booking?.user_id === user?.id
-                      const past = isPast(slot)
-                      const isSelectedSlot = selected?.courtId === c.id && selected?.hour === slot
-                      const block = !booking ? getBlock(c.id, slot) : null
-
-                      if (block) {
-                        return (
-                          <td key={c.id} className="px-2 py-0.5 align-top">
-                            <div title={block.reason}
-                              className="w-full h-8 rounded border bg-amber-50 border-amber-200 flex items-center justify-center">
-                              <span className="text-xs text-amber-500 font-medium truncate px-1">{block.reason}</span>
+          {(() => {
+            const now = new Date()
+            const nowSlot = date === today
+              ? (() => { const s = now.getHours() + now.getMinutes() / 60; return Math.floor(s * 2) / 2 })()
+              : null
+            return (
+              <div className="rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
+                    <thead>
+                      <tr className="bg-gray-50 border-b-2 border-gray-200">
+                        <th className="sticky left-0 z-20 bg-gray-50 w-16 py-3 px-3 text-left border-r border-gray-200">
+                          <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Time</span>
+                        </th>
+                        {courts.map(c => (
+                          <th key={c.id} className="py-3 px-2 min-w-[110px] border-r border-gray-100 last:border-r-0">
+                            <div className="flex flex-col items-center gap-1">
+                              <span className="w-6 h-6 rounded-full bg-green-700 text-white text-xs font-bold flex items-center justify-center leading-none">
+                                {c.number}
+                              </span>
+                              <span className="text-xs font-semibold text-gray-600 whitespace-nowrap">{c.name}</span>
                             </div>
-                          </td>
-                        )
-                      }
-
-                      if (booking) {
-                        // Determine if the current user is involved in this booking:
-                        // either as the host or as a confirmed roster player.
-                        const myFullName = user ? `${user.first_name} ${user.last_name}` : ''
-                        const isOnRoster = !isMe && (booking.players?.includes(myFullName) ?? false)
-                        const isInvolved = isMe || isOnRoster
-
-                        const showDetails = isFirstSlot(booking, slot)
-                        const isBallMachine = booking.match_type === 'ball_machine'
-                        const bStart = parseDate(booking.start_time)
-                        const bEnd = parseDate(booking.end_time)
-                        const timeRange = `${bStart.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} – ${bEnd.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
-                        const matchLabel = isBallMachine ? '🤖 Ball Machine'
-                          : booking.match_type === 'singles' ? 'Singles'
-                          : booking.match_type === 'doubles' ? 'Doubles'
-                          : booking.match_type === 'casual' ? 'Hit Session'
-                          : ''
-                        const extraPlayers = (booking.players ?? []).slice(1)
-
-                        // Color scheme:
-                        //   red         = Ball Machine reservation (any owner) — takes precedence
-                        //   dark green  = my booking (I'm the host)
-                        //   light green = I'm on the roster but not the host
-                        //   slate       = I'm not involved in this booking at all
-                        const cellBg = isBallMachine ? 'bg-red-600 text-white'
-                          : isMe ? 'bg-green-600 text-white'
-                          : isOnRoster ? 'bg-green-100 text-green-800'
-                          : 'bg-slate-100 text-slate-600'
-                        const subText = isBallMachine ? 'text-red-200'
-                          : isMe ? 'text-green-200'
-                          : isOnRoster ? 'text-green-600'
-                          : 'text-slate-400'
-                        const dividerColor = isBallMachine ? 'border-red-400'
-                          : isMe ? 'border-green-500'
-                          : isOnRoster ? 'border-green-200'
-                          : 'border-slate-200'
-                        const cancelBtnColor = isBallMachine ? 'text-red-200'
-                          : isMe ? 'text-green-200'
-                          : isOnRoster ? 'text-green-600'
-                          : 'text-slate-400'
-                        const compactBg = isBallMachine ? 'bg-red-600'
-                          : isMe ? 'bg-green-600'
-                          : isOnRoster ? 'bg-green-100'
-                          : 'bg-slate-200'
-
-                        const wl = waitlistSlots.find(w => w.court_id === c.id && w.start_time === booking.start_time)
-                        const wlKey = `${c.id}-${booking.start_time}`
-                        const wlLoading = waitlistLoading === wlKey
-
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {HOURS.map(slot => {
+                        const isHour = slot % 1 === 0
+                        const isNowSlot = nowSlot === slot
                         return (
-                          <td key={c.id} className="px-2 py-1 align-top">
-                            {showDetails ? (
-                              <div
-                                onClick={() => setBookingDetail(bookingDetail?.id === booking.id ? null : booking)}
-                                className={`rounded-lg px-2 py-1.5 flex flex-col gap-0.5 cursor-pointer hover:opacity-90 transition ${cellBg}`}>
-                                <div className="flex items-center justify-between gap-1">
-                                  <span className="text-xs font-semibold truncate">
-                                    {isBallMachine ? '🤖 Ball Machine'
-                                      : isMe ? 'Me'
-                                      : isOnRoster ? `${booking.user.first_name} ${booking.user.last_name[0]}.`
-                                      : `${booking.user.first_name} ${booking.user.last_name[0]}.`}
-                                  </span>
-                                  {(isMe || isBoard) && (
-                                    <button
-                                      onClick={e => { e.stopPropagation(); openCancelModal(booking.id, isMe) }}
-                                      className={`text-xs shrink-0 hover:opacity-70 transition ${cancelBtnColor}`}>
-                                      ✕
-                                    </button>
-                                  )}
-                                </div>
-                                <span className={`text-xs truncate ${subText}`}>{timeRange}</span>
-                                {matchLabel && !isBallMachine && (
-                                  <span className={`text-xs truncate ${subText}`}>{matchLabel}</span>
-                                )}
-                                {(() => {
-                                  const r = isInvolved ? rosterMap[booking.id] : null
-                                  const pending = r?.invitations.filter(i => i.status === 'pending') ?? []
-                                  const showPlayers = extraPlayers.length > 0 || pending.length > 0
-                                  if (!showPlayers) return null
-                                  return (
-                                    <div className={`text-xs mt-0.5 pt-0.5 border-t space-y-0.5 ${dividerColor}`}>
-                                      {extraPlayers.map((name, i) => (
-                                        <div key={i} className="truncate leading-tight">{name.split(' ')[0]}</div>
-                                      ))}
-                                      {pending.map(inv => (
-                                        <div key={inv.id} className="truncate leading-tight text-yellow-300">
-                                          ⏳ {inv.invitee_name.split(' ')[0]}
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )
-                                })()}
-                              </div>
-                            ) : (
-                              <div className={`rounded h-7 ${compactBg}`} />
-                            )}
-                            {/* Waitlist button — only for future slots the current user isn't part of */}
-                            {showDetails && !isInvolved && !past && (
-                              <div className="mt-1" onClick={e => e.stopPropagation()}>
-                                {wl?.is_mine && wl.my_entry_id ? (
-                                  <button
-                                    disabled={wlLoading}
-                                    onClick={() => handleLeaveWaitlist(wl.my_entry_id!, c.id, booking.start_time)}
-                                    className="w-full text-xs py-0.5 rounded bg-yellow-100 text-yellow-800 hover:bg-yellow-200 font-medium transition disabled:opacity-50">
-                                    {wlLoading ? '…' : `On waitlist (#${(wl.count)})`}
-                                  </button>
-                                ) : (
-                                  <button
-                                    disabled={wlLoading}
-                                    onClick={() => handleJoinWaitlist(c.id, booking.start_time, booking.end_time)}
-                                    className="w-full text-xs py-0.5 rounded bg-slate-200 text-slate-600 hover:bg-yellow-100 hover:text-yellow-800 font-medium transition disabled:opacity-50">
-                                    {wlLoading ? '…' : wl ? `Waitlist (${wl.count})` : 'Waitlist'}
-                                  </button>
-                                )}
-                              </div>
-                            )}
-                          </td>
-                        )
-                      }
+                          <tr key={slot}
+                            className={isHour ? 'border-t border-gray-200' : 'border-t border-gray-100'}>
+                            <td className={`sticky left-0 z-10 bg-white border-r border-gray-100 px-3 whitespace-nowrap align-middle ${isHour ? 'py-2' : 'py-1'}`}>
+                              {isHour ? (
+                                <span className={`text-xs font-semibold tabular-nums ${isNowSlot ? 'text-red-500' : 'text-gray-600'}`}>
+                                  {isNowSlot && <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500 mr-1 mb-0.5 align-middle" />}
+                                  {fmt12(slot)}
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-gray-300 tabular-nums pl-0.5">:30</span>
+                              )}
+                            </td>
+                            {courts.map(c => {
+                              const booking = getBooking(c.id, slot)
+                              const isMe = booking?.user_id === user?.id
+                              const past = isPast(slot)
+                              const isSelectedSlot = selected?.courtId === c.id && selected?.hour === slot
+                              const block = !booking ? getBlock(c.id, slot) : null
 
-                      return (
-                        <td key={c.id} className="px-2 py-0.5 align-top">
-                          <button
-                            onClick={() => !past && handleSlotClick(c.id, slot, c.name)}
-                            disabled={past}
-                            className={`w-full h-8 rounded border transition text-xs font-medium
-                              ${past ? 'bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed' :
-                                isSelectedSlot ? 'bg-green-100 border-green-400 text-green-700 ring-2 ring-green-400' :
-                                'bg-white border-gray-200 text-gray-400 hover:bg-green-50 hover:border-green-300 hover:text-green-700 cursor-pointer'
-                              }`}>
-                            {isSelectedSlot && '✓'}
-                          </button>
-                        </td>
-                      )
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                              if (block) {
+                                return (
+                                  <td key={c.id} className="px-1.5 py-1 align-top border-r border-gray-100 last:border-r-0">
+                                    <div title={block.reason}
+                                      className="w-full h-9 rounded-lg border border-amber-200 bg-amber-50 flex items-center justify-center px-1">
+                                      <span className="text-xs text-amber-600 font-medium truncate">{block.reason}</span>
+                                    </div>
+                                  </td>
+                                )
+                              }
+
+                              if (booking) {
+                                const myFullName = user ? `${user.first_name} ${user.last_name}` : ''
+                                const isOnRoster = !isMe && (booking.players?.includes(myFullName) ?? false)
+                                const isInvolved = isMe || isOnRoster
+
+                                const showDetails = isFirstSlot(booking, slot)
+                                const isBallMachine = booking.match_type === 'ball_machine'
+                                const bStart = parseDate(booking.start_time)
+                                const bEnd = parseDate(booking.end_time)
+                                const timeRange = `${bStart.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} – ${bEnd.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+                                const matchLabel = isBallMachine ? '' : booking.match_type === 'singles' ? 'Singles' : booking.match_type === 'doubles' ? 'Doubles' : booking.match_type === 'casual' ? 'Hit' : ''
+                                const extraPlayers = (booking.players ?? []).slice(1)
+
+                                const cellBg = isBallMachine ? 'bg-red-600 text-white'
+                                  : isMe ? 'bg-green-600 text-white'
+                                  : isOnRoster ? 'bg-green-100 text-green-800'
+                                  : 'bg-slate-100 text-slate-700'
+                                const accentBorder = isBallMachine ? 'border-l-4 border-red-800'
+                                  : isMe ? 'border-l-4 border-green-800'
+                                  : isOnRoster ? 'border-l-4 border-green-400'
+                                  : 'border-l-4 border-slate-400'
+                                const subText = isBallMachine ? 'text-red-200' : isMe ? 'text-green-200' : isOnRoster ? 'text-green-600' : 'text-slate-400'
+                                const dividerColor = isBallMachine ? 'border-red-400' : isMe ? 'border-green-500' : isOnRoster ? 'border-green-200' : 'border-slate-200'
+                                const cancelBtnColor = isBallMachine ? 'text-red-200' : isMe ? 'text-green-200' : isOnRoster ? 'text-green-500' : 'text-slate-400'
+                                const compactBg = isBallMachine ? 'bg-red-500/80' : isMe ? 'bg-green-500/80' : isOnRoster ? 'bg-green-200' : 'bg-slate-200'
+
+                                const wl = waitlistSlots.find(w => w.court_id === c.id && w.start_time === booking.start_time)
+                                const wlKey = `${c.id}-${booking.start_time}`
+                                const wlLoading = waitlistLoading === wlKey
+
+                                return (
+                                  <td key={c.id} className="px-1.5 py-1 align-top border-r border-gray-100 last:border-r-0">
+                                    {showDetails ? (
+                                      <div
+                                        onClick={() => setBookingDetail(bookingDetail?.id === booking.id ? null : booking)}
+                                        className={`rounded-lg px-2 py-1.5 flex flex-col gap-0.5 cursor-pointer hover:opacity-90 transition shadow-sm ${cellBg} ${accentBorder}`}>
+                                        <div className="flex items-center justify-between gap-1">
+                                          <span className="text-xs font-bold truncate leading-tight">
+                                            {isBallMachine ? '🤖 Ball Machine' : isMe ? 'Me' : `${booking.user.first_name} ${booking.user.last_name[0]}.`}
+                                          </span>
+                                          {(isMe || isBoard) && (
+                                            <button
+                                              onClick={e => { e.stopPropagation(); openCancelModal(booking.id, isMe) }}
+                                              className={`text-sm shrink-0 leading-none opacity-60 hover:opacity-100 transition ${cancelBtnColor}`}>
+                                              ✕
+                                            </button>
+                                          )}
+                                        </div>
+                                        <span className={`text-[10px] truncate leading-tight ${subText}`}>{timeRange}</span>
+                                        {matchLabel && (
+                                          <span className={`text-[10px] truncate leading-tight font-medium ${subText}`}>{matchLabel}</span>
+                                        )}
+                                        {(() => {
+                                          const r = isInvolved ? rosterMap[booking.id] : null
+                                          const pending = r?.invitations.filter(i => i.status === 'pending') ?? []
+                                          if (extraPlayers.length === 0 && pending.length === 0) return null
+                                          return (
+                                            <div className={`text-[10px] mt-0.5 pt-0.5 border-t space-y-0.5 ${dividerColor}`}>
+                                              {extraPlayers.map((name, i) => (
+                                                <div key={i} className="truncate leading-tight">{name.split(' ')[0]}</div>
+                                              ))}
+                                              {pending.map(inv => (
+                                                <div key={inv.id} className="truncate leading-tight opacity-70">
+                                                  ⏳ {inv.invitee_name.split(' ')[0]}
+                                                </div>
+                                              ))}
+                                            </div>
+                                          )
+                                        })()}
+                                      </div>
+                                    ) : (
+                                      <div className={`rounded-md h-8 opacity-70 ${compactBg}`} />
+                                    )}
+                                    {showDetails && !isInvolved && !past && (
+                                      <div className="mt-1" onClick={e => e.stopPropagation()}>
+                                        {wl?.is_mine && wl.my_entry_id ? (
+                                          <button disabled={wlLoading}
+                                            onClick={() => handleLeaveWaitlist(wl.my_entry_id!, c.id, booking.start_time)}
+                                            className="w-full text-[10px] py-0.5 rounded-md bg-amber-100 text-amber-800 hover:bg-amber-200 font-semibold transition disabled:opacity-50">
+                                            {wlLoading ? '…' : `On waitlist (#${wl.count})`}
+                                          </button>
+                                        ) : (
+                                          <button disabled={wlLoading}
+                                            onClick={() => handleJoinWaitlist(c.id, booking.start_time, booking.end_time)}
+                                            className="w-full text-[10px] py-0.5 rounded-md bg-slate-100 text-slate-500 hover:bg-amber-100 hover:text-amber-800 font-semibold transition disabled:opacity-50">
+                                            {wlLoading ? '…' : wl ? `Waitlist (${wl.count})` : 'Waitlist'}
+                                          </button>
+                                        )}
+                                      </div>
+                                    )}
+                                  </td>
+                                )
+                              }
+
+                              return (
+                                <td key={c.id} className="px-1.5 py-1 align-top border-r border-gray-100 last:border-r-0">
+                                  <button
+                                    onClick={() => !past && handleSlotClick(c.id, slot, c.name)}
+                                    disabled={past}
+                                    className={`w-full h-9 rounded-lg border transition group
+                                      ${past
+                                        ? 'bg-gray-50 border-gray-100 cursor-not-allowed'
+                                        : isSelectedSlot
+                                          ? 'bg-green-600 border-green-600 shadow-sm ring-2 ring-green-400 ring-offset-1'
+                                          : 'bg-white border-gray-200 hover:bg-green-50 hover:border-green-400 cursor-pointer'
+                                      }`}>
+                                    {isSelectedSlot
+                                      ? <span className="text-white text-sm font-bold">✓</span>
+                                      : !past
+                                        ? <span className="text-gray-200 group-hover:text-green-400 text-base font-light transition">+</span>
+                                        : null}
+                                  </button>
+                                </td>
+                              )
+                            })}
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )
+          })()}
 
           {/* Legend */}
-          <div className="mt-3 flex flex-wrap gap-4 text-xs text-gray-500">
+          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs text-gray-500">
             <span className="flex items-center gap-1.5">
-              <span className="w-4 h-4 bg-white border border-gray-200 rounded inline-block"></span>
-              Available — click to book
+              <span className="w-4 h-4 bg-white border border-gray-200 rounded-md inline-block" />
+              Available
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-4 h-4 bg-green-600 rounded inline-block"></span>
-              My booking (host)
+              <span className="w-4 h-4 bg-green-600 rounded-md inline-block" />
+              My booking
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-4 h-4 bg-green-100 rounded inline-block"></span>
-              I'm on the roster
+              <span className="w-4 h-4 bg-green-100 rounded-md inline-block" />
+              I'm on roster
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-4 h-4 bg-slate-200 rounded inline-block"></span>
-              Other member's booking
+              <span className="w-4 h-4 bg-slate-100 rounded-md inline-block" />
+              Other's booking
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-4 h-4 bg-red-600 rounded inline-block"></span>
+              <span className="w-4 h-4 bg-red-600 rounded-md inline-block" />
               🤖 Ball Machine
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-4 h-4 bg-gray-50 border border-gray-100 rounded inline-block"></span>
-              Past / unavailable
+              <span className="w-4 h-4 bg-amber-50 border border-amber-200 rounded-md inline-block" />
+              Court block
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />
+              Current time
             </span>
           </div>
         </>

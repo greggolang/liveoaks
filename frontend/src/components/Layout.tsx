@@ -175,7 +175,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 hasPermission('fantasy')   && showFantasy   && ['/fantasy', 'Fantasy Pool'],
                 hasPermission('ladder')    && showLadder    && ['/ladder', 'Ladder'],
                 isBoard                    && ['/admin', 'Admin'],
-              ].filter(Boolean).map(([to, label]) => (
+              ].filter((x): x is string[] => Boolean(x)).map(([to, label]) => (
                 <Link key={to as string} to={to as string} onClick={() => setMenuOpen(false)}
                   className="text-green-100 hover:text-white">{label as string}</Link>
               ))}
