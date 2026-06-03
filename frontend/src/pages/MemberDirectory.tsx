@@ -201,7 +201,9 @@ export default function MemberDirectory() {
                   ${e.type === 'contact' ? 'border-gray-200 border-l-4 border-l-blue-300' : 'border-gray-200'}`}>
                 <div className="min-w-0">
                   <div className="font-semibold text-gray-800 truncate">
-                    {e.first_name} {e.last_name}
+                    {e.type === 'member'
+                      ? <Link to={`/players/${e.id}`} className="hover:underline">{e.first_name} {e.last_name}</Link>
+                      : <>{e.first_name} {e.last_name}</>}
                     {e.type === 'contact' && (
                       <span className="ml-2 text-xs font-normal text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded">
                         {CATEGORY_LABEL[(e as Contact).category] ?? (e as Contact).category}

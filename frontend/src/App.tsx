@@ -10,6 +10,7 @@ import Home from './pages/Home'
 import Dashboard from './pages/Dashboard'
 import Conditions from './pages/Conditions'
 import Scores from './pages/Scores'
+import PlayerProfile from './pages/PlayerProfile'
 import Bookings from './pages/Bookings'
 import CourtGrid from './pages/CourtGrid'
 import Announcements from './pages/Announcements'
@@ -43,6 +44,7 @@ import AdminWaitlist from './pages/admin/AdminWaitlist'
 import AdminMemberRequests from './pages/admin/AdminMemberRequests'
 import AdminTestEmail from './pages/admin/AdminTestEmail'
 import AdminBoardPermissions from './pages/admin/AdminBoardPermissions'
+import AdminPageAccess from './pages/admin/AdminPageAccess'
 import AdminFeedback from './pages/admin/AdminFeedback'
 import AdminEmailTemplates from './pages/admin/AdminEmailTemplates'
 import AdminReceipts from './pages/admin/AdminReceipts'
@@ -133,6 +135,7 @@ function AppRoutes() {
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/conditions" element={<ProtectedRoute><Conditions /></ProtectedRoute>} />
       <Route path="/scores" element={<ProtectedRoute><Scores /></ProtectedRoute>} />
+      <Route path="/players/:id" element={<ProtectedRoute><PlayerProfile /></ProtectedRoute>} />
       <Route path="/bookings" element={<ProtectedRoute><Bookings /></ProtectedRoute>} />
       <Route path="/court-grid" element={<Navigate to="/dashboard" replace />} />
       <Route path="/announcements" element={<ProtectedRoute><Announcements /></ProtectedRoute>} />
@@ -171,6 +174,7 @@ function AppRoutes() {
         <Route path="communication-test" element={<AdminTestEmail />} />
         <Route path="log" element={<AdminLog />} />
         <Route path="permissions" element={<AdminBoardPermissions />} />
+        <Route path="page-access" element={<AdminPageAccess />} />
         <Route path="feedback" element={<AdminFeedback />} />
         <Route path="email-templates" element={<AdminEmailTemplates />} />
         <Route path="receipts" element={<AdminReceipts />} />

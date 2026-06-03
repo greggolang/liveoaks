@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -405,4 +407,172 @@ func (h *MatchesHandler) Create(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not save score")
 	}
 	return c.JSON(http.StatusCreated, map[string]string{"id": matchID})
+}
+
+// ── Stats: leaderboard, player profiles, head-to-head ──────────────────────
+//
+// All stats are computed from PUBLIC matches only — private results stay
+// between their participants and never feed the club-wide tables.
+
+type leaderboardRow struct {
+	UserID string `json:"user_id"`
+	Name   string `json:"name"`
+	Wins   int    `json:"wins"`
+	Losses int    `json:"losses"`
+	Played int    `json:"played"`
+	WinPct int    `json:"win_pct"`
+}
+
+// Leaderboard ranks every member who has played a public match by wins, then
+// total matches played.
+func (h *MatchesHandler) Leaderboard(c echo.Context) error {
+	rows, err := h.DB.Query(c.Request().Context(), `
+		SELECT mp.user_id::text, u.first_name || ' ' || u.last_name,
+		       COUNT(*) FILTER (WHERE m.winner_side = mp.side),
+		       COUNT(*) FILTER (WHERE m.winner_side <> mp.side),
+		       COUNT(*)
+		FROM match_participants mp
+		JOIN matches m ON m.id = mp.match_id AND m.visibility = 'public'
+		JOIN users u ON u.id = mp.user_id
+		WHERE mp.user_id IS NOT NULL
+		GROUP BY mp.user_id, u.first_name, u.last_name
+		ORDER BY COUNT(*) FILTER (WHERE m.winner_side = mp.side) DESC, COUNT(*) DESC`)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not load leaderboard")
+	}
+	defer rows.Close()
+	out := []leaderboardRow{}
+	for rows.Next() {
+		var r leaderboardRow
+		if err := rows.Scan(&r.UserID, &r.Name, &r.Wins, &r.Losses, &r.Played); err != nil {
+			continue
+		}
+		if r.Played > 0 {
+			r.WinPct = int(math.Round(float64(r.Wins) / float64(r.Played) * 100))
+		}
+		out = append(out, r)
+	}
+	return c.JSON(http.StatusOK, out)
+}
+
+type h2hRow struct {
+	UserID string `json:"user_id"`
+	Name   string `json:"name"`
+	Wins   int    `json:"wins"`
+	Losses int    `json:"losses"`
+	Played int    `json:"played"`
+}
+
+type playerStats struct {
+	ID         string     `json:"id"`
+	Name       string     `json:"name"`
+	Wins       int        `json:"wins"`
+	Losses     int        `json:"losses"`
+	Played     int        `json:"played"`
+	WinPct     int        `json:"win_pct"`
+	SetsWon    int        `json:"sets_won"`
+	SetsLost   int        `json:"sets_lost"`
+	GamesWon   int        `json:"games_won"`
+	GamesLost  int        `json:"games_lost"`
+	Form       []string   `json:"form"` // most recent first, "W"/"L"
+	HeadToHead []h2hRow   `json:"head_to_head"`
+	Matches    []matchOut `json:"matches"`
+}
+
+// Player returns one member's public record, performance splits, recent form,
+// head-to-head breakdown by opponent, and recent public match history.
+func (h *MatchesHandler) Player(c echo.Context) error {
+	pid := c.Param("id")
+	ctx := c.Request().Context()
+
+	var name string
+	if err := h.DB.QueryRow(ctx,
+		`SELECT first_name || ' ' || last_name FROM users WHERE id = $1`, pid).Scan(&name); err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, "member not found")
+	}
+
+	out, err := h.loadMatches(c, matchSelect+`
+		WHERE m.visibility = 'public'
+		  AND m.id IN (SELECT match_id FROM match_participants WHERE user_id = $1)
+		ORDER BY m.played_at DESC, m.created_at DESC
+		LIMIT 100`, pid)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not load matches")
+	}
+
+	stats := playerStats{ID: pid, Name: name, Form: []string{}, HeadToHead: []h2hRow{}, Matches: out}
+	h2h := map[string]*h2hRow{}
+	var h2hOrder []string
+
+	for _, m := range out {
+		side := 0
+		for _, p := range m.Participants {
+			if p.UserID != nil && *p.UserID == pid {
+				side = p.Side
+				break
+			}
+		}
+		if side == 0 {
+			continue
+		}
+		won := m.WinnerSide == side
+		stats.Played++
+		if won {
+			stats.Wins++
+		} else {
+			stats.Losses++
+		}
+		if len(stats.Form) < 10 {
+			if won {
+				stats.Form = append(stats.Form, "W")
+			} else {
+				stats.Form = append(stats.Form, "L")
+			}
+		}
+
+		var ss []setScore
+		json.Unmarshal(m.Sets, &ss)
+		for _, s := range ss {
+			pg, og := s.A, s.B
+			if side == 2 {
+				pg, og = s.B, s.A
+			}
+			if pg > og {
+				stats.SetsWon++
+			} else {
+				stats.SetsLost++
+			}
+			stats.GamesWon += pg
+			stats.GamesLost += og
+		}
+
+		for _, p := range m.Participants {
+			if p.Side == side || p.UserID == nil {
+				continue
+			}
+			r, ok := h2h[*p.UserID]
+			if !ok {
+				r = &h2hRow{UserID: *p.UserID, Name: p.Name}
+				h2h[*p.UserID] = r
+				h2hOrder = append(h2hOrder, *p.UserID)
+			}
+			r.Played++
+			if won {
+				r.Wins++
+			} else {
+				r.Losses++
+			}
+		}
+	}
+
+	if stats.Played > 0 {
+		stats.WinPct = int(math.Round(float64(stats.Wins) / float64(stats.Played) * 100))
+	}
+	for _, k := range h2hOrder {
+		stats.HeadToHead = append(stats.HeadToHead, *h2h[k])
+	}
+	sort.Slice(stats.HeadToHead, func(i, j int) bool {
+		return stats.HeadToHead[i].Played > stats.HeadToHead[j].Played
+	})
+	return c.JSON(http.StatusOK, stats)
 }

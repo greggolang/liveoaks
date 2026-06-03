@@ -228,6 +228,8 @@ func main() {
 	authed.GET("/matches/pending", matches.Pending)
 	authed.GET("/matches/recent", matches.Recent)
 	authed.GET("/matches/mine", matches.Mine)
+	authed.GET("/matches/leaderboard", matches.Leaderboard)
+	authed.GET("/matches/player/:id", matches.Player)
 	authed.POST("/matches", matches.Create)
 	authed.GET("/matches/:id", matches.Get)
 

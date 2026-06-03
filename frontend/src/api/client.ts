@@ -104,6 +104,14 @@ export interface MatchInput {
   teams: { user_id: string | null; name: string; is_guest: boolean }[][]
   sets: MatchSet[]
 }
+export interface LeaderboardRow { user_id: string; name: string; wins: number; losses: number; played: number; win_pct: number }
+export interface HeadToHeadRow { user_id: string; name: string; wins: number; losses: number; played: number }
+export interface PlayerStats {
+  id: string; name: string
+  wins: number; losses: number; played: number; win_pct: number
+  sets_won: number; sets_lost: number; games_won: number; games_lost: number
+  form: string[]; head_to_head: HeadToHeadRow[]; matches: MatchResult[]
+}
 
 export type MailFilterInput = {
   name: string
@@ -526,6 +534,12 @@ export const api = {
     toggle: (page: string, role: string, allowed: boolean) =>
       request(`/admin/permissions/${encodeURIComponent(page)}/${encodeURIComponent(role)}`,
         { method: 'PUT', body: JSON.stringify({ allowed }) }),
+    userPerms: (userId: string) =>
+      request<{ role: string; roles: string[]; role_pages: string[]; overrides: Record<string, boolean> }>(
+        `/admin/user-permissions/${userId}`),
+    setUserPerm: (userId: string, page: string, state: 'on' | 'off' | 'inherit') =>
+      request(`/admin/user-permissions/${userId}/${encodeURIComponent(page)}`,
+        { method: 'PUT', body: JSON.stringify({ state }) }),
   },
   adminPermissions: {
     sections: () => request<{ key: string; label: string; group: string; desc: string }[]>('/admin/admin-permissions/sections'),
@@ -826,6 +840,8 @@ export const api = {
     get: (id: string) => request<MatchResult>(`/matches/${id}`),
     create: (data: MatchInput) =>
       request<{ id: string }>('/matches', { method: 'POST', body: JSON.stringify(data) }),
+    leaderboard: () => request<LeaderboardRow[]>('/matches/leaderboard'),
+    player: (id: string) => request<PlayerStats>(`/matches/player/${id}`),
   },
   kiosk: {
     members: () => request<{ id: string; name: string; member_number: number }[]>('/kiosk/members'),

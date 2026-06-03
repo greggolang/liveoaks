@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { api, PendingMatch, MatchResult } from '../api/client'
+import { Link } from 'react-router-dom'
+import { api, PendingMatch, MatchResult, LeaderboardRow } from '../api/client'
 import ScorecardModal from '../components/ScorecardModal'
 import MatchCard from '../components/MatchCard'
 
@@ -7,19 +8,21 @@ export default function Scores() {
   const [pending, setPending] = useState<PendingMatch[]>([])
   const [recent, setRecent] = useState<MatchResult[]>([])
   const [mine, setMine] = useState<MatchResult[]>([])
-  const [tab, setTab] = useState<'club' | 'mine'>('club')
+  const [leaders, setLeaders] = useState<LeaderboardRow[]>([])
+  const [tab, setTab] = useState<'club' | 'mine' | 'leaderboard'>('club')
   const [loading, setLoading] = useState(true)
   const [scoreFor, setScoreFor] = useState<PendingMatch | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [p, r, m] = await Promise.all([
+      const [p, r, m, l] = await Promise.all([
         api.matches.pending().catch(() => []),
         api.matches.recent(40).catch(() => []),
         api.matches.mine().catch(() => []),
+        api.matches.leaderboard().catch(() => []),
       ])
-      setPending(p); setRecent(r); setMine(m)
+      setPending(p); setRecent(r); setMine(m); setLeaders(l)
     } finally { setLoading(false) }
   }, [])
   useEffect(() => { load() }, [load])
@@ -55,10 +58,10 @@ export default function Scores() {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-200">
-        {(['club', 'mine'] as const).map(t => (
+        {([['club', 'Club Scoreboard'], ['mine', 'My Matches'], ['leaderboard', 'Leaderboard']] as const).map(([t, label]) => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm font-medium -mb-px border-b-2 transition ${tab === t ? 'border-green-700 text-green-800' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>
-            {t === 'club' ? 'Club Scoreboard' : 'My Matches'}
+            {label}
           </button>
         ))}
       </div>
@@ -67,6 +70,27 @@ export default function Scores() {
         <div className="flex justify-center py-16">
           <div className="w-6 h-6 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
         </div>
+      ) : tab === 'leaderboard' ? (
+        leaders.length === 0 ? (
+          <p className="text-center text-gray-400 text-sm py-16">No public match results yet.</p>
+        ) : (
+          <div className="border border-gray-200 rounded-xl overflow-hidden bg-white">
+            <div className="grid grid-cols-[2rem_1fr_3rem_3rem_3.5rem] gap-2 px-4 py-2 text-[11px] font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-100">
+              <span>#</span><span>Member</span><span className="text-right">W</span><span className="text-right">L</span><span className="text-right">Win%</span>
+            </div>
+            <div className="divide-y divide-gray-100">
+              {leaders.map((r, i) => (
+                <div key={r.user_id} className="grid grid-cols-[2rem_1fr_3rem_3rem_3.5rem] gap-2 px-4 py-2.5 items-center text-sm">
+                  <span className="text-gray-400 tabular-nums">{i + 1}</span>
+                  <Link to={`/players/${r.user_id}`} className="text-gray-800 hover:underline truncate">{r.name}</Link>
+                  <span className="text-right tabular-nums font-semibold text-green-700">{r.wins}</span>
+                  <span className="text-right tabular-nums text-gray-500">{r.losses}</span>
+                  <span className="text-right tabular-nums text-gray-700">{r.win_pct}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
       ) : list.length === 0 ? (
         <p className="text-center text-gray-400 text-sm py-16">
           {tab === 'club' ? 'No public match results yet. Played a match? Score it above.' : 'You have no recorded matches yet.'}
