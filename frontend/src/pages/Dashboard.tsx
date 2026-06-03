@@ -332,6 +332,80 @@ export default function Dashboard() {
         <p className="text-gray-500 text-sm mt-0.5">Here's what's happening at the club.</p>
       </div>
 
+      {/* Member polls — unvoted full-width, voted shrinks to compact right-side cards */}
+      {polls.length > 0 && (() => {
+        const unvoted = polls.filter(p => !p.has_voted)
+        const voted   = polls.filter(p => p.has_voted)
+        const pct = (poll: Poll, opt: string) =>
+          poll.total_votes === 0 ? 0 : Math.round(((poll.results[opt] ?? 0) / poll.total_votes) * 100)
+
+        const vote = async (pollId: string, option: string) => {
+          setPollVoting(pollId)
+          try {
+            await api.polls.vote(pollId, option)
+            api.polls.list().then(setPolls).catch(() => {})
+          } catch {}
+          setPollVoting(null)
+        }
+
+        return (
+          <div className="space-y-3">
+            {/* Unvoted: full-width vote cards */}
+            {unvoted.map(poll => (
+              <div key={poll.id} className="bg-white border border-lota-200 rounded-xl shadow-sm px-5 py-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-lota-600">Member Poll</span>
+                  <span className="text-xs text-gray-400">· {poll.total_votes} vote{poll.total_votes !== 1 ? 's' : ''} so far · Anonymous</span>
+                </div>
+                <p className="font-semibold text-gray-800 mb-3">{poll.question}</p>
+                <div className="space-y-2">
+                  {poll.options.map(opt => (
+                    <button key={opt}
+                      onClick={() => vote(poll.id, opt)}
+                      disabled={pollVoting === poll.id}
+                      className="w-full text-left border border-gray-200 hover:border-lota-400 hover:bg-lota-50 rounded-lg px-4 py-2.5 text-sm text-gray-700 transition disabled:opacity-50"
+                    >{opt}</button>
+                  ))}
+                </div>
+              </div>
+            ))}
+
+            {/* Voted: compact mini-cards aligned to the right */}
+            {voted.length > 0 && (
+              <div className="flex flex-wrap justify-end gap-2">
+                {voted.map(poll => (
+                  <div key={poll.id} className="bg-white border border-gray-200 rounded-xl shadow-sm px-3 py-2.5 w-52 shrink-0">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className="text-xs font-semibold text-lota-600">Poll</span>
+                      <span className="text-xs text-green-600 font-medium">· Voted ✓</span>
+                    </div>
+                    <p className="text-xs font-medium text-gray-700 leading-snug line-clamp-2 mb-2">{poll.question}</p>
+                    <div className="space-y-1">
+                      {poll.options.map(opt => (
+                        <div key={opt}>
+                          <div className="flex justify-between text-xs mb-0.5">
+                            <span className={`truncate ${poll.my_vote === opt ? 'font-semibold text-lota-700' : 'text-gray-500'}`}>
+                              {poll.my_vote === opt ? '✓ ' : ''}{opt}
+                            </span>
+                            <span className="text-gray-400 ml-1 shrink-0">{pct(poll, opt)}%</span>
+                          </div>
+                          <div className="w-full bg-gray-100 rounded-full h-1">
+                            <div
+                              className={`h-1 rounded-full ${poll.my_vote === opt ? 'bg-lota-500' : 'bg-gray-300'}`}
+                              style={{ width: `${pct(poll, opt)}%` }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1.5">{poll.total_votes} vote{poll.total_votes !== 1 ? 's' : ''}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {/* Account balance — click to view full statement */}
       {myBalance && myBalance.total > 0 && (
@@ -440,73 +514,6 @@ export default function Dashboard() {
                   className="shrink-0 opacity-40 hover:opacity-70 transition text-lg leading-none"
                   title="Dismiss"
                 >✕</button>
-              </div>
-            )
-          })}
-        </div>
-      )}
-
-      {/* Active member polls */}
-      {polls.length > 0 && (
-        <div className="space-y-4">
-          {polls.map(poll => {
-            const voted = poll.has_voted
-            const total = poll.total_votes
-            const pct = (opt: string) =>
-              total === 0 ? 0 : Math.round(((poll.results[opt] ?? 0) / total) * 100)
-
-            const vote = async (option: string) => {
-              setPollVoting(poll.id)
-              try {
-                await api.polls.vote(poll.id, option)
-                api.polls.list().then(setPolls).catch(() => {})
-              } catch {}
-              setPollVoting(null)
-            }
-
-            return (
-              <div key={poll.id} className="bg-white border border-lota-200 rounded-xl shadow-sm px-5 py-4">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-lota-600">Member Poll</span>
-                  {voted && <span className="text-xs text-gray-400">· You voted</span>}
-                </div>
-                <p className="font-semibold text-gray-800 mb-3">{poll.question}</p>
-                <div className="space-y-2">
-                  {poll.options.map(opt => (
-                    <div key={opt}>
-                      {voted ? (
-                        <div>
-                          <div className="flex justify-between text-sm mb-0.5">
-                            <span className={`text-gray-700 ${poll.my_vote === opt ? 'font-semibold' : ''}`}>
-                              {opt} {poll.my_vote === opt && '✓'}
-                            </span>
-                            <span className="text-gray-500">{poll.results[opt] ?? 0} ({pct(opt)}%)</span>
-                          </div>
-                          <div className="w-full bg-gray-100 rounded-full h-2">
-                            <div
-                              className={`h-2 rounded-full transition-all ${poll.my_vote === opt ? 'bg-lota-600' : 'bg-gray-300'}`}
-                              style={{ width: `${pct(opt)}%` }}
-                            />
-                          </div>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => vote(opt)}
-                          disabled={pollVoting === poll.id}
-                          className="w-full text-left border border-gray-200 hover:border-lota-400 hover:bg-lota-50 rounded-lg px-4 py-2.5 text-sm text-gray-700 transition disabled:opacity-50"
-                        >
-                          {opt}
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                {voted && (
-                  <p className="text-xs text-gray-400 mt-2">{total} vote{total !== 1 ? 's' : ''} · Anonymous</p>
-                )}
-                {!voted && (
-                  <p className="text-xs text-gray-400 mt-2">Anonymous · {total} vote{total !== 1 ? 's' : ''} so far</p>
-                )}
               </div>
             )
           })}
