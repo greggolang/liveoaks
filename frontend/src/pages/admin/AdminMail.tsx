@@ -104,6 +104,12 @@ export default function AdminMail() {
   const [importResult, setImportResult] = useState<{ imported: number; failed: number; by_folder: Record<string, number> } | null>(null)
   const [importError, setImportError] = useState('')
 
+  const [emptyTarget, setEmptyTarget] = useState<MailAccount | null>(null)
+  const [emptyConfirm, setEmptyConfirm] = useState('')
+  const [emptyLoading, setEmptyLoading] = useState(false)
+  const [emptyResult, setEmptyResult] = useState<{ deleted: number } | null>(null)
+  const [emptyError, setEmptyError] = useState('')
+
   async function load() {
     try {
       const [accs, users] = await Promise.all([api.mail.list(), api.admin.users() as Promise<BoardMember[]>])
@@ -197,6 +203,20 @@ export default function AdminMail() {
   function openImport(a: MailAccount) {
     setImportTarget(a); setImportFile(null); setImportFolder('INBOX')
     setImportProgress(0); setImportResult(null); setImportError('')
+  }
+
+  function openEmpty(a: MailAccount) {
+    setEmptyTarget(a); setEmptyConfirm(''); setEmptyResult(null); setEmptyError('')
+  }
+
+  async function handleEmpty() {
+    if (!emptyTarget || emptyConfirm.trim().toLowerCase() !== emptyTarget.address.toLowerCase()) return
+    setEmptyLoading(true); setEmptyError('')
+    try {
+      const res = await api.mail.emptyMailbox(emptyTarget.id)
+      setEmptyResult({ deleted: res.deleted })
+    } catch (e: any) { setEmptyError(e.message) }
+    finally { setEmptyLoading(false) }
   }
 
   async function handleImport(e: React.FormEvent) {
@@ -373,6 +393,17 @@ export default function AdminMail() {
                   </svg>
                 </button>
               </div>
+
+              {/* Empty mailbox — wipe all email but keep the account (reset before re-import) */}
+              <button
+                onClick={() => openEmpty(a)}
+                className="mt-2 w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium text-red-600 hover:bg-red-50 transition">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                </svg>
+                Empty mailbox — delete all email
+              </button>
             </div>
           ))}
         </div>
@@ -631,6 +662,61 @@ query = SELECT address FROM mail_accounts WHERE address='%s' AND active = true`,
                 Done
               </button>
             </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Empty Mailbox Modal ── */}
+      {emptyTarget && (
+        <Modal onClose={emptyLoading ? undefined : () => setEmptyTarget(null)}>
+          <ModalHeader title="Empty Mailbox" sub={emptyTarget.address}
+            onClose={() => { if (!emptyLoading) setEmptyTarget(null) }} />
+          <div className="px-6 py-5 space-y-4">
+            {emptyResult ? (
+              <>
+                <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm text-green-800">
+                  Deleted <strong>{emptyResult.deleted}</strong> message{emptyResult.deleted === 1 ? '' : 's'} from
+                  every folder. The mailbox is now empty.
+                </div>
+                <div className="flex justify-end">
+                  <button onClick={() => { setEmptyTarget(null); load() }}
+                    className="px-5 py-2 text-sm font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition">
+                    Done
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 space-y-1">
+                  <p className="font-semibold">This permanently deletes every email in this mailbox.</p>
+                  <p className="text-red-600">
+                    All folders — Inbox, Archive, Sent, Drafts, Trash, Spam — are wiped. The account itself,
+                    its password and assignment are kept. <strong>This cannot be undone.</strong>
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                    Type <span className="font-mono text-gray-800">{emptyTarget.address}</span> to confirm
+                  </label>
+                  <input autoFocus value={emptyConfirm} onChange={e => setEmptyConfirm(e.target.value)}
+                    disabled={emptyLoading}
+                    className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-500"
+                    placeholder={emptyTarget.address} />
+                </div>
+                {emptyError && <p className="text-red-600 text-xs bg-red-50 px-3 py-2 rounded-lg">{emptyError}</p>}
+                <div className="flex justify-end gap-2 pt-1">
+                  <button onClick={() => setEmptyTarget(null)} disabled={emptyLoading}
+                    className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-xl transition disabled:opacity-50">
+                    Cancel
+                  </button>
+                  <button onClick={handleEmpty}
+                    disabled={emptyLoading || emptyConfirm.trim().toLowerCase() !== emptyTarget.address.toLowerCase()}
+                    className="px-5 py-2 bg-red-600 text-white text-sm font-semibold rounded-xl hover:bg-red-700 disabled:opacity-50 transition">
+                    {emptyLoading ? 'Deleting…' : 'Delete all email'}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </Modal>
       )}

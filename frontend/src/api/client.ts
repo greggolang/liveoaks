@@ -797,6 +797,8 @@ export const api = {
       return uploadWithProgress<{ imported: number; failed: number; mailbox: string; by_folder: Record<string, number> }>(
         `/admin/mail/accounts/${id}/import`, form, onProgress)
     },
+    emptyMailbox: (id: string) =>
+      request<{ deleted: number; mailbox: string }>(`/admin/mail/accounts/${id}/empty`, { method: 'POST' }),
     delete: (id: string) => request(`/admin/mail/accounts/${id}`, { method: 'DELETE' }),
   },
   imap: {

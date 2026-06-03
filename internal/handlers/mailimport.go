@@ -3,6 +3,8 @@ package handlers
 import (
 	"bufio"
 	"bytes"
+	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/mail"
@@ -13,6 +15,26 @@ import (
 	imapclient "github.com/emersion/go-imap/client"
 	"github.com/labstack/echo/v4"
 )
+
+// mailboxCreds looks up the IMAP address, password and server host for a mail
+// account so the app can log into that mailbox on the holder's behalf (used by
+// the importer and the empty-mailbox tool). The returned error carries a
+// user-facing message suitable for a 400 response.
+func (h *MailHandler) mailboxCreds(ctx context.Context, id string) (address, password, host string, err error) {
+	if e := h.DB.QueryRow(ctx, `
+		SELECT address, imap_password FROM mail_accounts WHERE id = $1 AND active = true
+	`, id).Scan(&address, &password); e != nil || address == "" {
+		return "", "", "", fmt.Errorf("mail account not found")
+	}
+	if password == "" {
+		return "", "", "", fmt.Errorf("this mailbox has no password yet — click Reset Password first so the app can log in")
+	}
+	h.DB.QueryRow(ctx, `SELECT value FROM settings WHERE key = 'imap_host'`).Scan(&host)
+	if host == "" {
+		host = "mail.webgoserver.com"
+	}
+	return address, password, host, nil
+}
 
 // autoFolder is the sentinel folder value that turns on Gmail-label routing:
 // each message is filed by its X-Gmail-Labels header instead of all going to
@@ -33,24 +55,9 @@ const autoFolder = "__auto__"
 // their folders), faithfully rebuilding the original mailbox layout from the
 // single Takeout file. Otherwise every message lands in the one chosen folder.
 func (h *MailHandler) ImportMbox(c echo.Context) error {
-	id := c.Param("id")
-	ctx := c.Request().Context()
-
-	var address, password string
-	if err := h.DB.QueryRow(ctx, `
-		SELECT address, imap_password FROM mail_accounts WHERE id = $1 AND active = true
-	`, id).Scan(&address, &password); err != nil || address == "" {
-		return echo.NewHTTPError(http.StatusBadRequest, "mail account not found")
-	}
-	if password == "" {
-		return echo.NewHTTPError(http.StatusBadRequest,
-			"this mailbox has no password yet — click Reset Password first so the importer can log in")
-	}
-
-	var host string
-	h.DB.QueryRow(ctx, `SELECT value FROM settings WHERE key = 'imap_host'`).Scan(&host)
-	if host == "" {
-		host = "mail.webgoserver.com"
+	address, password, host, err := h.mailboxCreds(c.Request().Context(), c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
 	folder := c.FormValue("folder")
@@ -124,6 +131,69 @@ func (h *MailHandler) ImportMbox(c echo.Context) error {
 		"failed":    failed,
 		"mailbox":   address,
 		"by_folder": byFolder,
+	})
+}
+
+// EmptyMailbox permanently deletes every message in every folder of a mail
+// account's mailbox over IMAP. It's the reset used before re-running an import
+// (the importer doesn't dedupe, so re-importing into a non-empty mailbox would
+// create duplicates). The account record, password and folders are kept — only
+// the messages are expunged.
+func (h *MailHandler) EmptyMailbox(c echo.Context) error {
+	address, password, host, err := h.mailboxCreds(c.Request().Context(), c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
+	ic, err := imapConnect(host, address, password)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusServiceUnavailable, err.Error())
+	}
+	defer ic.Logout()
+
+	// Collect every selectable mailbox first; \Noselect entries are containers,
+	// not real folders, and can't be opened.
+	listCh := make(chan *imap.MailboxInfo, 32)
+	listDone := make(chan error, 1)
+	go func() { listDone <- ic.List("", "*", listCh) }()
+	var folders []string
+	for mb := range listCh {
+		selectable := true
+		for _, attr := range mb.Attributes {
+			if attr == imap.NoSelectAttr {
+				selectable = false
+				break
+			}
+		}
+		if selectable {
+			folders = append(folders, mb.Name)
+		}
+	}
+	if err := <-listDone; err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not list folders: "+err.Error())
+	}
+
+	deleted := 0
+	for _, folder := range folders {
+		mbox, err := ic.Select(folder, false)
+		if err != nil || mbox.Messages == 0 {
+			continue
+		}
+		seqset := new(imap.SeqSet)
+		seqset.AddRange(1, mbox.Messages)
+		if err := ic.Store(seqset, imap.FormatFlagsOp(imap.AddFlags, true),
+			[]interface{}{imap.DeletedFlag}, nil); err != nil {
+			continue
+		}
+		if err := ic.Expunge(nil); err != nil {
+			continue
+		}
+		deleted += int(mbox.Messages)
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"deleted": deleted,
+		"mailbox": address,
 	})
 }
 
