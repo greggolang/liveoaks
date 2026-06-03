@@ -217,6 +217,7 @@ func main() {
 	authed.GET("/conversations", conversations.List)
 	authed.POST("/conversations", conversations.Create)
 	authed.GET("/conversations/:id", conversations.Get)
+	authed.POST("/conversations/:id/participants", conversations.AddParticipants)
 	authed.POST("/conversations/:id/messages", conversations.Send)
 	authed.POST("/conversations/:id/read", conversations.MarkRead)
 	authed.POST("/conversations/:id/mute", conversations.Mute)

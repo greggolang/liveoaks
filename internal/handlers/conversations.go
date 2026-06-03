@@ -212,6 +212,43 @@ func (h *ConversationsHandler) Create(c echo.Context) error {
 	return c.JSON(http.StatusCreated, map[string]string{"id": convID})
 }
 
+// AddParticipants adds one or more members to an existing group conversation.
+// Any current participant may add others. New members can read the full history
+// (their read marker starts empty, so prior messages surface as unread) and the
+// conversation appears in their list. Members already in the group are ignored.
+func (h *ConversationsHandler) AddParticipants(c echo.Context) error {
+	userID := c.Get("user_id").(string)
+	convID := c.Param("id")
+	if !h.isParticipant(c, convID, userID) {
+		return echo.NewHTTPError(http.StatusForbidden, "not in this conversation")
+	}
+	var req struct {
+		ParticipantIDs []string `json:"participant_ids"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
+	}
+	ctx := c.Request().Context()
+
+	added := 0
+	for _, uid := range req.ParticipantIDs {
+		if uid == "" || uid == userID {
+			continue
+		}
+		ct, err := h.DB.Exec(ctx,
+			`INSERT INTO conversation_participants (conversation_id, user_id)
+			 VALUES ($1, $2) ON CONFLICT DO NOTHING`, convID, uid)
+		if err == nil && ct.RowsAffected() > 0 {
+			added++
+		}
+	}
+	if added > 0 {
+		// Resurface the conversation (sorting is by updated_at).
+		h.DB.Exec(ctx, `UPDATE conversations SET updated_at = NOW() WHERE id = $1`, convID)
+	}
+	return c.JSON(http.StatusOK, map[string]int{"added": added})
+}
+
 // Send posts a message to a conversation. Any participant who had hidden the
 // conversation gets it back (a new message resurfaces it for everyone).
 func (h *ConversationsHandler) Send(c echo.Context) error {

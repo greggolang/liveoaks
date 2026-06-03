@@ -793,6 +793,8 @@ export const api = {
       request<{ id: string }>('/conversations', { method: 'POST', body: JSON.stringify(data) }),
     send: (id: string, body: string) =>
       request(`/conversations/${id}/messages`, { method: 'POST', body: JSON.stringify({ body }) }),
+    addParticipants: (id: string, participantIds: string[]) =>
+      request<{ added: number }>(`/conversations/${id}/participants`, { method: 'POST', body: JSON.stringify({ participant_ids: participantIds }) }),
     markRead: (id: string) => request(`/conversations/${id}/read`, { method: 'POST' }),
     mute: (id: string, muted: boolean) =>
       request(`/conversations/${id}/mute`, { method: 'POST', body: JSON.stringify({ muted }) }),

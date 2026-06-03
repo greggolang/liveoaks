@@ -81,6 +81,16 @@ export default function Messages() {
 
   const [deletingKey, setDeletingKey] = useState<string | null>(null)
 
+  // Add-members (to an existing group)
+  const [addOpen, setAddOpen] = useState(false)
+  const [addSelected, setAddSelected] = useState<Member[]>([])
+  const [addSearch, setAddSearch] = useState('')
+  const [addResults, setAddResults] = useState<Member[]>([])
+  const [addSearching, setAddSearching] = useState(false)
+  const [addSaving, setAddSaving] = useState(false)
+  const [addError, setAddError] = useState('')
+  const addSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   const load = useCallback(async () => {
     setLoading(true)
     try {
@@ -209,6 +219,46 @@ export default function Messages() {
   function closeCompose() {
     setComposing(false); setRecipients([]); setMemberSearch(''); setMemberResults([])
     setComposeTitle(''); setComposeBody(''); setSendError('')
+  }
+
+  // Member search for adding to an existing group (excludes current members).
+  useEffect(() => {
+    if (addSearchRef.current) clearTimeout(addSearchRef.current)
+    if (addSearch.length < 2) { setAddResults([]); return }
+    addSearchRef.current = setTimeout(async () => {
+      setAddSearching(true)
+      try {
+        const results = await api.friends.searchMembers(addSearch) as Member[]
+        const taken = new Set<string>([
+          me ?? '',
+          ...(groupDetail?.participants.map(p => p.id) ?? []),
+          ...addSelected.map(r => r.id),
+        ])
+        setAddResults(results.filter(m => !taken.has(m.id)))
+      } finally { setAddSearching(false) }
+    }, 300)
+    return () => { if (addSearchRef.current) clearTimeout(addSearchRef.current) }
+  }, [addSearch, me, groupDetail, addSelected])
+
+  function openAddMembers() {
+    setAddOpen(true); setAddSelected([]); setAddSearch(''); setAddResults([]); setAddError('')
+  }
+  function closeAddMembers() {
+    setAddOpen(false); setAddSelected([]); setAddSearch(''); setAddResults([]); setAddError('')
+  }
+
+  async function handleAddMembers() {
+    if (selected?.kind !== 'group' || addSelected.length === 0) return
+    setAddSaving(true); setAddError('')
+    try {
+      await api.conversations.addParticipants(selected.convId, addSelected.map(m => m.id))
+      closeAddMembers()
+      const detail = await api.conversations.get(selected.convId).catch(() => null)
+      if (detail) setGroupDetail(detail)
+      await load()
+    } catch (e: any) {
+      setAddError(e.message || 'Could not add members.')
+    } finally { setAddSaving(false) }
   }
 
   async function handleSendNew() {
@@ -358,6 +408,15 @@ export default function Messages() {
                 )}
               </div>
               {selected.kind === 'group' && groupDetail && (
+                <button onClick={openAddMembers} title="Add members"
+                  className="p-1.5 rounded-lg transition shrink-0 text-gray-400 hover:text-gray-700 hover:bg-gray-100">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                  </svg>
+                </button>
+              )}
+              {selected.kind === 'group' && groupDetail && (
                 <button onClick={toggleMute} title={groupDetail.muted ? 'Muted — tap to unmute' : 'Mute notifications'}
                   className={`p-1.5 rounded-lg transition shrink-0 ${groupDetail.muted ? 'text-amber-600 hover:bg-amber-100' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'}`}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -495,6 +554,71 @@ export default function Messages() {
               <button onClick={handleSendNew} disabled={sending || recipients.length === 0 || !composeBody.trim()}
                 className="bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-5 py-2 rounded-xl transition disabled:opacity-50 flex items-center gap-2">
                 {sending ? 'Sending…' : recipients.length > 1 ? 'Create group' : 'Send'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Add members modal ── */}
+      {addOpen && selected?.kind === 'group' && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
+              <h3 className="font-semibold text-gray-800">Add members</h3>
+              <button onClick={closeAddMembers} className="text-gray-400 hover:text-gray-600 transition">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="px-5 py-4 space-y-3 overflow-y-auto flex-1">
+              {groupDetail && (
+                <p className="text-xs text-gray-500">
+                  Already in this group: {groupDetail.participants.map(p => p.name.split(' ')[0]).join(', ')}
+                </p>
+              )}
+              <div className="relative">
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Add {addSelected.length > 0 && <span className="text-gray-400">· {addSelected.length} selected</span>}
+                </label>
+                <div className="flex flex-wrap gap-1.5 border border-gray-300 rounded-xl px-2 py-1.5 min-h-[42px]">
+                  {addSelected.map(r => (
+                    <span key={r.id} className="flex items-center gap-1 bg-green-100 text-green-800 text-xs font-medium px-2 py-1 rounded-lg">
+                      {r.first_name} {r.last_name}
+                      <button onClick={() => setAddSelected(rs => rs.filter(x => x.id !== r.id))} className="hover:text-red-600">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                      </button>
+                    </span>
+                  ))}
+                  <input value={addSearch} onChange={e => setAddSearch(e.target.value)}
+                    placeholder={addSelected.length ? 'Add another…' : 'Search members…'}
+                    className="flex-1 min-w-[120px] outline-none text-sm bg-transparent py-0.5" />
+                </div>
+                {(addResults.length > 0 || addSearching) && (
+                  <div className="absolute z-10 left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                    {addSearching ? (
+                      <p className="px-4 py-3 text-sm text-gray-400">Searching…</p>
+                    ) : addResults.map(m => (
+                      <button key={m.id} onClick={() => { setAddSelected(rs => [...rs, m]); setAddSearch(''); setAddResults([]) }}
+                        className="w-full text-left px-4 py-2.5 hover:bg-gray-50 transition border-b border-gray-100 last:border-0">
+                        <div className="text-sm font-medium text-gray-800">{m.first_name} {m.last_name}</div>
+                        <div className="text-xs text-gray-400">{m.email}</div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {addError && <p className="text-sm text-red-600">{addError}</p>}
+            </div>
+
+            <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 shrink-0">
+              <button onClick={closeAddMembers} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition">Cancel</button>
+              <button onClick={handleAddMembers} disabled={addSaving || addSelected.length === 0}
+                className="bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-5 py-2 rounded-xl transition disabled:opacity-50">
+                {addSaving ? 'Adding…' : addSelected.length > 1 ? `Add ${addSelected.length} members` : 'Add member'}
               </button>
             </div>
           </div>
