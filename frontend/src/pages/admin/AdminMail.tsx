@@ -131,6 +131,8 @@ export default function AdminMail() {
   const [filterError, setFilterError] = useState('')
   const [filterRunning, setFilterRunning] = useState(false)
   const [filterRunMsg, setFilterRunMsg] = useState('')
+  const [filterTest, setFilterTest] = useState<{ matched: number; by_field: Record<string, number> } | null>(null)
+  const [filterTesting, setFilterTesting] = useState(false)
 
   async function load() {
     try {
@@ -285,7 +287,20 @@ export default function AdminMail() {
   }
 
   function resetFilterForm() {
-    setEditingFilterId(null); setFilterForm(emptyFilterForm); setFilterError('')
+    setEditingFilterId(null); setFilterForm(emptyFilterForm); setFilterError(''); setFilterTest(null)
+  }
+
+  async function handleTestFilter() {
+    if (!filtersTarget || !filterForm.pattern.trim()) { setFilterError('Enter a pattern to test'); return }
+    setFilterTesting(true); setFilterError(''); setFilterTest(null)
+    try {
+      setFilterTest(await api.mail.testFilter(filtersTarget.id, {
+        match_field: filterForm.match_field,
+        pattern: filterForm.pattern,
+        source_folder: filterForm.source_folder,
+      }))
+    } catch (e: any) { setFilterError(e.message) }
+    finally { setFilterTesting(false) }
   }
 
   function editFilter(f: MailFilter) {
@@ -1127,7 +1142,7 @@ query = SELECT address FROM mail_accounts WHERE address='%s' AND active = true`,
                       className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
                       placeholder="newsletter@…  or  text"
                       value={filterForm.pattern}
-                      onChange={e => setFilterForm(f => ({ ...f, pattern: e.target.value }))} required />
+                      onChange={e => { setFilterForm(f => ({ ...f, pattern: e.target.value })); setFilterTest(null) }} required />
                   </div>
                   <div>
                     <label className="block text-[11px] font-semibold text-gray-500 mb-1">In folder</label>
@@ -1135,7 +1150,7 @@ query = SELECT address FROM mail_accounts WHERE address='%s' AND active = true`,
                       className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
                       placeholder="INBOX"
                       value={filterForm.source_folder}
-                      onChange={e => setFilterForm(f => ({ ...f, source_folder: e.target.value }))} />
+                      onChange={e => { setFilterForm(f => ({ ...f, source_folder: e.target.value })); setFilterTest(null) }} />
                   </div>
                   <div>
                     <label className="block text-[11px] font-semibold text-gray-500 mb-1">Then</label>
@@ -1166,15 +1181,45 @@ query = SELECT address FROM mail_accounts WHERE address='%s' AND active = true`,
                   Enabled
                 </label>
                 {filterError && <p className="text-red-600 text-xs bg-red-50 px-3 py-2 rounded-lg">{filterError}</p>}
-                <div className="flex justify-end gap-2">
-                  {editingFilterId && (
-                    <button type="button" onClick={resetFilterForm}
-                      className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-xl transition">Cancel edit</button>
-                  )}
-                  <button type="submit" disabled={filterSaving}
-                    className="px-5 py-2 bg-teal-600 text-white text-sm font-semibold rounded-xl hover:bg-teal-700 disabled:opacity-50 transition">
-                    {filterSaving ? 'Saving…' : editingFilterId ? 'Save rule' : 'Add rule'}
+
+                {filterTest && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl px-3 py-2.5 text-xs space-y-1.5">
+                    <p className="text-blue-900">
+                      Matches <strong>{filterTest.matched}</strong> message{filterTest.matched === 1 ? '' : 's'} in {filterForm.source_folder || 'INBOX'} right now
+                      <span className="text-blue-500"> (using {MATCH_FIELD_LABELS[filterForm.match_field]})</span>.
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(['from', 'to_cc', 'subject', 'body'] as const).map(f => (
+                        <span key={f}
+                          className={`px-2 py-0.5 rounded-full ${f === filterForm.match_field ? 'bg-blue-600 text-white font-semibold' : 'bg-white border border-blue-200 text-blue-700'}`}>
+                          {MATCH_FIELD_LABELS[f]}: {filterTest.by_field[f] ?? 0}
+                        </span>
+                      ))}
+                    </div>
+                    {filterTest.matched === 0 && (() => {
+                      const best = (['from', 'subject', 'to_cc', 'body'] as const).find(f => (filterTest.by_field[f] ?? 0) > 0)
+                      return best
+                        ? <p className="text-blue-700">Tip: “{MATCH_FIELD_LABELS[best]}” matches {filterTest.by_field[best]} — switch the field to that.</p>
+                        : <p className="text-blue-700">Nothing matches that pattern in any field.</p>
+                    })()}
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between gap-2">
+                  <button type="button" onClick={handleTestFilter} disabled={filterTesting || !filterForm.pattern.trim()}
+                    className="px-4 py-2 text-sm font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-xl transition disabled:opacity-50">
+                    {filterTesting ? 'Testing…' : 'Test'}
                   </button>
+                  <div className="flex gap-2">
+                    {editingFilterId && (
+                      <button type="button" onClick={resetFilterForm}
+                        className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-xl transition">Cancel edit</button>
+                    )}
+                    <button type="submit" disabled={filterSaving}
+                      className="px-5 py-2 bg-teal-600 text-white text-sm font-semibold rounded-xl hover:bg-teal-700 disabled:opacity-50 transition">
+                      {filterSaving ? 'Saving…' : editingFilterId ? 'Save rule' : 'Add rule'}
+                    </button>
+                  </div>
                 </div>
               </form>
             </div>

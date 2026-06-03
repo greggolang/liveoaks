@@ -188,6 +188,79 @@ func (h *MailFilterHandler) Delete(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
+// testForAccount previews how many messages a draft rule would match — per
+// field — without taking any action. The per-field breakdown makes a wrong
+// field choice (e.g. Subject vs From) obvious before the rule is saved.
+func (h *MailFilterHandler) testForAccount(c echo.Context, accountID string) error {
+	var in struct {
+		MatchField   string `json:"match_field"`
+		Pattern      string `json:"pattern"`
+		SourceFolder string `json:"source_folder"`
+	}
+	if err := c.Bind(&in); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
+	}
+	if in.Pattern == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "enter a pattern to test")
+	}
+	if in.SourceFolder == "" {
+		in.SourceFolder = "INBOX"
+	}
+
+	address, password, host := h.accountCreds(c.Request().Context(), accountID)
+	if address == "" {
+		return echo.NewHTTPError(http.StatusBadRequest,
+			"this mailbox has no stored password yet — reset it in Admin → Mail first")
+	}
+
+	ic, err := imapConnect(host, address, password)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusServiceUnavailable, err.Error())
+	}
+	defer ic.Logout()
+
+	folder := resolveFolder(ic, in.SourceFolder)
+	if _, err := ic.Select(folder, true); err != nil { // read-only — never mutates the mailbox
+		return echo.NewHTTPError(http.StatusBadRequest, "folder not found: "+in.SourceFolder)
+	}
+
+	count := func(field string) int {
+		uids, err := ic.UidSearch(searchCriteria(field, in.Pattern))
+		if err != nil {
+			return 0
+		}
+		return len(uids)
+	}
+
+	field := in.MatchField
+	if !validMatchField(field) {
+		field = "from"
+	}
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"matched": count(field),
+		"by_field": map[string]int{
+			"from":    count("from"),
+			"to_cc":   count("to_cc"),
+			"subject": count("subject"),
+			"body":    count("body"),
+		},
+	})
+}
+
+// Test previews a rule for the account named in the :id path param (admin).
+func (h *MailFilterHandler) Test(c echo.Context) error {
+	return h.testForAccount(c, c.Param("id"))
+}
+
+// MyTest previews a rule for the current user's own mailbox.
+func (h *MailFilterHandler) MyTest(c echo.Context) error {
+	id, err := h.userAccountID(c)
+	if err != nil {
+		return err
+	}
+	return h.testForAccount(c, id)
+}
+
 // RunNow applies every enabled rule for one account immediately and reports how
 // many messages were acted on plus any per-rule errors.
 func (h *MailFilterHandler) RunNow(c echo.Context) error {

@@ -830,6 +830,9 @@ export const api = {
       request(`/admin/mail/filters/${fid}`, { method: 'DELETE' }),
     runFilters: (id: string) =>
       request<{ matched: number; errors: string[] }>(`/admin/mail/accounts/${id}/run-filters`, { method: 'POST' }),
+    testFilter: (id: string, data: { match_field: string; pattern: string; source_folder: string }) =>
+      request<{ matched: number; by_field: Record<string, number> }>(
+        `/admin/mail/accounts/${id}/filters/test`, { method: 'POST', body: JSON.stringify(data) }),
   },
   imap: {
     listMessages: (folder = 'INBOX') =>
@@ -883,6 +886,8 @@ export const api = {
         request(`/imap/filters/${fid}`, { method: 'PUT', body: JSON.stringify(data) }),
       delete: (fid: string) => request(`/imap/filters/${fid}`, { method: 'DELETE' }),
       run: () => request<{ matched: number; errors: string[] }>('/imap/filters/run', { method: 'POST' }),
+      test: (data: { match_field: string; pattern: string; source_folder: string }) =>
+        request<{ matched: number; by_field: Record<string, number> }>('/imap/filters/test', { method: 'POST', body: JSON.stringify(data) }),
     },
   },
   notificationPrefs: {

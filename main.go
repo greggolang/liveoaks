@@ -435,6 +435,7 @@ func main() {
 	authed.PUT("/imap/filters/:fid", mailFilters.MyUpdate)
 	authed.DELETE("/imap/filters/:fid", mailFilters.MyDelete)
 	authed.POST("/imap/filters/run", mailFilters.MyRunNow)
+	authed.POST("/imap/filters/test", mailFilters.MyTest)
 
 	// Mail contacts (personal address book per user)
 	authed.GET("/imap/contacts", mailContacts.List)
@@ -457,6 +458,7 @@ func main() {
 	adminOnly.PUT("/mail/filters/:fid", mailFilters.Update)
 	adminOnly.DELETE("/mail/filters/:fid", mailFilters.Delete)
 	adminOnly.POST("/mail/accounts/:id/run-filters", mailFilters.RunNow)
+	adminOnly.POST("/mail/accounts/:id/filters/test", mailFilters.Test)
 
 	// Broadcast email (admin only)
 	adminOnly.GET("/broadcast/recipients", broadcast.PreviewRecipients)
