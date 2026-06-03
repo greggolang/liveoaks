@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -49,6 +50,8 @@ func (h *AuthHandler) Register(c echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
 	}
+	// Normalise email so the same address can't register twice in different case.
+	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
 	if req.Email == "" || req.Password == "" || req.FirstName == "" || req.LastName == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "all fields required")
 	}
@@ -77,13 +80,14 @@ func (h *AuthHandler) Login(c echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
 	}
+	req.Email = strings.ToLower(strings.TrimSpace(req.Email)) // case-insensitive login
 
 	var user models.User
 	var role, status string
 	err := h.DB.QueryRow(c.Request().Context(),
 		`SELECT id, first_name, last_name, email, password_hash, role::text, status::text,
 		        COALESCE(extra_roles, ARRAY[]::text[])
-		 FROM users WHERE email = $1`,
+		 FROM users WHERE lower(email) = $1`,
 		req.Email,
 	).Scan(&user.ID, &user.FirstName, &user.LastName, &user.Email, &user.PasswordHash, &role, &status, &user.ExtraRoles)
 	if err != nil {
@@ -244,10 +248,11 @@ func (h *AuthHandler) ForgotPassword(c echo.Context) error {
 	if err := c.Bind(&req); err != nil || req.Email == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "email required")
 	}
+	req.Email = strings.ToLower(strings.TrimSpace(req.Email)) // match how emails are stored
 
 	var userID, firstName string
 	err := h.DB.QueryRow(c.Request().Context(),
-		`SELECT id, first_name FROM users WHERE email = $1 AND status = 'active'`, req.Email,
+		`SELECT id, first_name FROM users WHERE lower(email) = $1 AND status = 'active'`, req.Email,
 	).Scan(&userID, &firstName)
 	if err != nil {
 		return c.JSON(http.StatusOK, map[string]string{"message": "If that email is registered, you'll receive a reset link shortly."})

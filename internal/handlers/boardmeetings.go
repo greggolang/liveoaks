@@ -135,11 +135,14 @@ func (h *BoardMeetingsHandler) Create(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not create board meeting")
 	}
 
-	// Find all active board members (primary role OR extra_roles)
+	// Invite active board members by their PRIMARY role only. extra_roles grant
+	// admin-section access to volunteers (e.g. a member who helps run entertainment
+	// events) and do NOT make someone a board member — including them here sent
+	// board meeting invites to regular members.
 	memberRows, err := h.DB.Query(c.Request().Context(), `
 		SELECT id, first_name, last_name, email FROM users
 		WHERE status = 'active'
-		  AND (role = ANY($1) OR extra_roles && $1)
+		  AND role = ANY($1)
 		ORDER BY last_name, first_name`,
 		boardMeetingRoles,
 	)
