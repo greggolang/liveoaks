@@ -59,12 +59,15 @@ func (h *PermissionsHandler) GetForRole(c echo.Context) error {
 // Admin access is handled client-side (admins always have everything).
 // The 'pro' role implicitly has teaching_pro_booking even without a DB row.
 func (h *PermissionsHandler) MyPages(c echo.Context) error {
+	userID, _ := c.Get("user_id").(string)
 	role, _ := c.Get("role").(string)
 	roles := []string{role}
 	if extra, ok := c.Get("extra_roles").([]string); ok {
 		roles = append(roles, extra...)
 	}
-	rows, err := h.DB.Query(c.Request().Context(),
+	ctx := c.Request().Context()
+
+	rows, err := h.DB.Query(ctx,
 		`SELECT DISTINCT page FROM page_permissions WHERE role = ANY($1)`, roles)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch permissions")
@@ -84,11 +87,102 @@ func (h *PermissionsHandler) MyPages(c echo.Context) error {
 			break
 		}
 	}
+	// Apply per-member overrides: allow adds a page, deny removes one.
+	if userID != "" {
+		orows, oerr := h.DB.Query(ctx, `SELECT page, allow FROM user_page_permissions WHERE user_id=$1`, userID)
+		if oerr == nil {
+			for orows.Next() {
+				var page string
+				var allow bool
+				if orows.Scan(&page, &allow) == nil {
+					if allow {
+						pageSet[page] = struct{}{}
+					} else {
+						delete(pageSet, page)
+					}
+				}
+			}
+			orows.Close()
+		}
+	}
+
 	pages := make([]string, 0, len(pageSet))
 	for p := range pageSet {
 		pages = append(pages, p)
 	}
 	return c.JSON(http.StatusOK, pages)
+}
+
+// GetUserPerms returns, for one member, the pages granted by their role(s) and
+// any explicit per-member overrides, so the admin UI can show inherit/on/off.
+func (h *PermissionsHandler) GetUserPerms(c echo.Context) error {
+	userID := c.Param("userId")
+	ctx := c.Request().Context()
+
+	var role string
+	var extra []string
+	if err := h.DB.QueryRow(ctx,
+		`SELECT role::text, COALESCE(extra_roles, '{}') FROM users WHERE id=$1`, userID).Scan(&role, &extra); err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, "member not found")
+	}
+	roles := append([]string{role}, extra...)
+
+	rolePages := []string{}
+	if rows, err := h.DB.Query(ctx, `SELECT DISTINCT page FROM page_permissions WHERE role = ANY($1)`, roles); err == nil {
+		for rows.Next() {
+			var p string
+			if rows.Scan(&p) == nil {
+				rolePages = append(rolePages, p)
+			}
+		}
+		rows.Close()
+	}
+
+	overrides := map[string]bool{}
+	if rows, err := h.DB.Query(ctx, `SELECT page, allow FROM user_page_permissions WHERE user_id=$1`, userID); err == nil {
+		for rows.Next() {
+			var p string
+			var a bool
+			if rows.Scan(&p, &a) == nil {
+				overrides[p] = a
+			}
+		}
+		rows.Close()
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"role":       role,
+		"roles":      roles,
+		"role_pages": rolePages,
+		"overrides":  overrides,
+	})
+}
+
+// SetUserPerm sets a per-member override for one page: "on" (always allow),
+// "off" (always deny), or "inherit" (clear the override, fall back to role).
+func (h *PermissionsHandler) SetUserPerm(c echo.Context) error {
+	userID := c.Param("userId")
+	page := c.Param("page")
+	var body struct {
+		State string `json:"state"`
+	}
+	if err := c.Bind(&body); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
+	}
+	ctx := c.Request().Context()
+	switch body.State {
+	case "inherit":
+		h.DB.Exec(ctx, `DELETE FROM user_page_permissions WHERE user_id=$1 AND page=$2`, userID, page)
+	case "on":
+		h.DB.Exec(ctx, `INSERT INTO user_page_permissions (user_id, page, allow) VALUES ($1,$2,true)
+			ON CONFLICT (user_id, page) DO UPDATE SET allow=true`, userID, page)
+	case "off":
+		h.DB.Exec(ctx, `INSERT INTO user_page_permissions (user_id, page, allow) VALUES ($1,$2,false)
+			ON CONFLICT (user_id, page) DO UPDATE SET allow=false`, userID, page)
+	default:
+		return echo.NewHTTPError(http.StatusBadRequest, "state must be on, off or inherit")
+	}
+	return c.JSON(http.StatusOK, map[string]string{"page": page, "state": body.State})
 }
 
 // Toggle grants or revokes a role's access to a page

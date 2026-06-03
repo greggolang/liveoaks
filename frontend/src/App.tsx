@@ -162,6 +162,9 @@ function AppRoutes() {
         <Route path="settings" element={<AdminSettings />} />
         <Route path="content" element={<AdminContent />} />
         <Route path="resets" element={<AdminResets />} />
+        <Route path="events" element={<Events />} />
+        <Route path="usta-teams" element={<USTATeams />} />
+        <Route path="announcements" element={<Announcements />} />
         <Route path="events/:id/signups" element={<AdminEventSignups />} />
         <Route path="communication-test" element={<AdminTestEmail />} />
         <Route path="log" element={<AdminLog />} />

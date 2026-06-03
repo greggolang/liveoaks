@@ -353,6 +353,8 @@ func main() {
 	adminOnly.POST("/test-sms", admin.TestSMS)
 	adminOnly.GET("/permissions", perms.GetAll)
 	adminOnly.PUT("/permissions/:page/:role", perms.Toggle)
+	adminOnly.GET("/user-permissions/:userId", perms.GetUserPerms)
+	adminOnly.PUT("/user-permissions/:userId/:page", perms.SetUserPerm)
 	authed.GET("/my-permissions", perms.MyPages)
 	// Admin-panel section access (Board Access page) — admin only
 	adminOnly.GET("/admin-permissions/sections", adminPerms.Sections)
