@@ -543,23 +543,41 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Unvoted polls — full-width at top */}
-      {polls.some(p => !p.has_voted) && (
-        <div className="space-y-4">
+      {/* Unvoted polls — full-width at top, stays until poll closes or expires */}
+      {polls.filter(p => !p.has_voted).length > 0 && (
+        <div className="space-y-3">
           {polls.filter(p => !p.has_voted).map(poll => {
             const total = poll.total_votes
             const vote = async (option: string) => {
               setPollVoting(poll.id)
               try {
                 await api.polls.vote(poll.id, option)
+                // Optimistically move the poll to the voted section immediately
+                // so it never appears to disappear — background refresh updates counts
+                setPolls(prev => prev.map(p =>
+                  p.id === poll.id
+                    ? { ...p, has_voted: true, my_vote: option, total_votes: p.total_votes + 1,
+                        results: { ...p.results, [option]: (p.results[option] ?? 0) + 1 } }
+                    : p
+                ))
                 api.polls.list().then(setPolls).catch(() => {})
-              } catch {}
-              setPollVoting(null)
+              } catch {
+                // vote failed — leave buttons enabled so member can retry
+              } finally {
+                setPollVoting(null)
+              }
             }
             return (
-              <div key={poll.id} className="bg-white border border-lota-200 rounded-xl shadow-sm px-5 py-4">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-lota-600">Member Poll</span>
+              <div key={poll.id} className="bg-white border-2 border-lota-200 rounded-xl shadow-sm px-5 py-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-lota-700 bg-lota-50 px-2.5 py-1 rounded-full">
+                    🗳️ Member Poll
+                  </span>
+                  {poll.deadline_at && (
+                    <span className="text-xs text-gray-400">
+                      Closes {parseDate(poll.deadline_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </span>
+                  )}
                 </div>
                 <p className="font-semibold text-gray-800 mb-3">{poll.question}</p>
                 <div className="space-y-2">
@@ -567,11 +585,11 @@ export default function Dashboard() {
                     <button key={opt}
                       onClick={() => vote(opt)}
                       disabled={pollVoting === poll.id}
-                      className="w-full text-left border border-gray-200 hover:border-lota-400 hover:bg-lota-50 rounded-lg px-4 py-2.5 text-sm text-gray-700 transition disabled:opacity-50"
+                      className="w-full text-left border border-gray-200 hover:border-lota-500 hover:bg-lota-50 rounded-lg px-4 py-2.5 text-sm text-gray-700 font-medium transition disabled:opacity-50"
                     >{opt}</button>
                   ))}
                 </div>
-                <p className="text-xs text-gray-400 mt-2">Anonymous · {total} vote{total !== 1 ? 's' : ''} so far</p>
+                <p className="text-xs text-gray-400 mt-3">Anonymous · {total} vote{total !== 1 ? 's' : ''} so far</p>
               </div>
             )
           })}
@@ -1276,39 +1294,55 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* Voted polls — results shown just above weather */}
-      {polls.some(p => p.has_voted) && (
-        <div className="space-y-4">
+      {/* Voted polls — results shown just above weather, stays until poll closes or expires */}
+      {polls.filter(p => p.has_voted).length > 0 && (
+        <div className="space-y-3">
           {polls.filter(p => p.has_voted).map(poll => {
             const total = poll.total_votes
             const pct = (opt: string) =>
               total === 0 ? 0 : Math.round(((poll.results[opt] ?? 0) / total) * 100)
+            const winner = poll.options.reduce((a, b) =>
+              (poll.results[a] ?? 0) >= (poll.results[b] ?? 0) ? a : b, poll.options[0])
             return (
               <div key={poll.id} className="bg-white border border-gray-200 rounded-xl shadow-sm px-5 py-4">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-lota-600">Member Poll</span>
-                  <span className="text-xs text-green-600 font-medium">· You voted</span>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-green-700 bg-green-50 px-2.5 py-1 rounded-full">
+                    ✓ You voted
+                  </span>
+                  <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Member Poll</span>
+                  {poll.deadline_at && (
+                    <span className="text-xs text-gray-400 ml-auto">
+                      Closes {parseDate(poll.deadline_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </span>
+                  )}
                 </div>
                 <p className="font-semibold text-gray-800 mb-3">{poll.question}</p>
-                <div className="space-y-2">
-                  {poll.options.map(opt => (
-                    <div key={opt}>
-                      <div className="flex justify-between text-sm mb-0.5">
-                        <span className={`text-gray-700 ${poll.my_vote === opt ? 'font-semibold' : ''}`}>
-                          {poll.my_vote === opt && '✓ '}{opt}
-                        </span>
-                        <span className="text-gray-500">{poll.results[opt] ?? 0} ({pct(opt)}%)</span>
+                <div className="space-y-2.5">
+                  {poll.options.map(opt => {
+                    const isMyVote = poll.my_vote === opt
+                    const isLeading = opt === winner && total > 0
+                    return (
+                      <div key={opt}>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span className={`${isMyVote ? 'font-semibold text-lota-700' : 'text-gray-600'}`}>
+                            {isMyVote && <span className="mr-1">✓</span>}{opt}
+                            {isLeading && total > 0 && <span className="ml-1.5 text-xs text-amber-600 font-medium">leading</span>}
+                          </span>
+                          <span className={`font-medium ${isMyVote ? 'text-lota-600' : 'text-gray-400'}`}>
+                            {pct(opt)}%
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-100 rounded-full h-2">
+                          <div
+                            className={`h-2 rounded-full transition-all duration-500 ${isMyVote ? 'bg-lota-600' : 'bg-gray-300'}`}
+                            style={{ width: `${pct(opt)}%` }}
+                          />
+                        </div>
                       </div>
-                      <div className="w-full bg-gray-100 rounded-full h-2">
-                        <div
-                          className={`h-2 rounded-full transition-all ${poll.my_vote === opt ? 'bg-lota-600' : 'bg-gray-300'}`}
-                          style={{ width: `${pct(opt)}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
-                <p className="text-xs text-gray-400 mt-2">{total} vote{total !== 1 ? 's' : ''} · Anonymous</p>
+                <p className="text-xs text-gray-400 mt-3">{total} vote{total !== 1 ? 's' : ''} · Results are anonymous</p>
               </div>
             )
           })}
