@@ -314,13 +314,6 @@ export default function AdminBoardMeetings() {
 }
 
 type MfFn = (field: keyof typeof emptyMinutes) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void
-const emptyMinutes = {
-  called_to_order: '', adjourned_at: '',
-  attendees_present: '', attendees_absent: '',
-  prev_minutes_approved: false,
-  treasurer_report: '', old_business: '', new_business: '',
-  action_items: '', additional_notes: '', submitted_by: '',
-}
 
 function MeetingCard({ meeting: m, past, onRoster, onDelete, onMinutes,
   rosterOpen, roster, rosterLoading,
