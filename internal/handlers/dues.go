@@ -110,3 +110,21 @@ func (h *DuesHandler) Generate(c echo.Context) error {
 	}
 	return c.JSON(http.StatusOK, map[string]interface{}{"created": tag.RowsAffected()})
 }
+
+func (h *DuesHandler) GenerateForUser(c echo.Context) error {
+	var body struct {
+		UserID  string  `json:"user_id"`
+		Amount  float64 `json:"amount"`
+		DueDate string  `json:"due_date"`
+	}
+	if err := c.Bind(&body); err != nil || body.UserID == "" || body.Amount == 0 || body.DueDate == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "user_id, amount, and due_date required")
+	}
+	tag, err := h.DB.Exec(c.Request().Context(),
+		`INSERT INTO dues (user_id, amount, due_date) VALUES ($1, $2, $3::date)
+		 ON CONFLICT DO NOTHING`, body.UserID, body.Amount, body.DueDate)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not generate dues")
+	}
+	return c.JSON(http.StatusOK, map[string]interface{}{"created": tag.RowsAffected()})
+}

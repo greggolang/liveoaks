@@ -1,17 +1,26 @@
 import { useEffect, useState } from 'react'
 import { api } from '../../api/client'
 
-interface Due { id: string; first_name: string; last_name: string; email: string; amount: number; due_date: string; paid_at?: string; status: string }
+interface Due { id: string; user_id: string; first_name: string; last_name: string; email: string; amount: number; due_date: string; paid_at?: string; status: string }
+interface Member { id: string; first_name: string; last_name: string; email: string }
 
 export default function AdminDues() {
   const [dues, setDues] = useState<Due[]>([])
+  const [members, setMembers] = useState<Member[]>([])
   const [filter, setFilter] = useState('all')
   const [genAmount, setGenAmount] = useState('100')
   const [genDate, setGenDate] = useState('')
   const [generating, setGenerating] = useState(false)
+  const [singleUser, setSingleUser] = useState('')
+  const [singleAmount, setSingleAmount] = useState('100')
+  const [singleDate, setSingleDate] = useState('')
+  const [generatingSingle, setGeneratingSingle] = useState(false)
 
   const load = () => api.dues.adminList().then(d => setDues(d as Due[]))
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+    api.members.directory().then((m: any) => setMembers(m as Member[])).catch(() => {})
+  }, [])
 
   const filtered = filter === 'all' ? dues : dues.filter(d => d.status === filter)
 
@@ -31,6 +40,19 @@ export default function AdminDues() {
     } finally { setGenerating(false) }
   }
 
+  const handleGenerateSingle = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!singleUser) return
+    setGeneratingSingle(true)
+    try {
+      const res = await api.dues.generateForUser(singleUser, parseFloat(singleAmount), singleDate) as any
+      const m = members.find(x => x.id === singleUser)
+      const name = m ? `${m.first_name} ${m.last_name}` : 'member'
+      alert(res.created ? `Due generated for ${name}` : `${name} already has a due for that date`)
+      load()
+    } finally { setGeneratingSingle(false) }
+  }
+
   const summary = { total: dues.length, paid: dues.filter(d => d.status === 'paid').length, unpaid: dues.filter(d => d.status === 'unpaid').length }
 
   return (
@@ -46,7 +68,7 @@ export default function AdminDues() {
         ))}
       </div>
 
-      <form onSubmit={handleGenerate} className="bg-white border border-gray-200 rounded-xl p-4 mb-6 flex flex-col sm:flex-row gap-3 sm:items-end shadow-sm">
+      <form onSubmit={handleGenerate} className="bg-white border border-gray-200 rounded-xl p-4 mb-4 flex flex-col sm:flex-row gap-3 sm:items-end shadow-sm">
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Amount ($)</label>
           <input type="number" value={genAmount} onChange={e => setGenAmount(e.target.value)} required
@@ -60,6 +82,33 @@ export default function AdminDues() {
         <button type="submit" disabled={generating}
           className="bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-800 transition disabled:opacity-50">
           {generating ? 'Generating...' : 'Generate for All Active Members'}
+        </button>
+      </form>
+
+      <form onSubmit={handleGenerateSingle} className="bg-white border border-gray-200 rounded-xl p-4 mb-6 flex flex-col sm:flex-row gap-3 sm:items-end shadow-sm">
+        <div className="flex-1">
+          <label className="block text-xs font-medium text-gray-600 mb-1">Single Member</label>
+          <select value={singleUser} onChange={e => setSingleUser(e.target.value)} required
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500">
+            <option value="">Choose a member…</option>
+            {members.map(m => (
+              <option key={m.id} value={m.id}>{m.first_name} {m.last_name} ({m.email})</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Amount ($)</label>
+          <input type="number" value={singleAmount} onChange={e => setSingleAmount(e.target.value)} required
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-28 focus:outline-none focus:ring-2 focus:ring-green-500" />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Due Date</label>
+          <input type="date" value={singleDate} onChange={e => setSingleDate(e.target.value)} required
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+        </div>
+        <button type="submit" disabled={generatingSingle || !singleUser}
+          className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition disabled:opacity-50 whitespace-nowrap">
+          {generatingSingle ? 'Generating...' : 'Generate for One Member'}
         </button>
       </form>
 

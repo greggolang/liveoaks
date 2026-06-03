@@ -320,6 +320,8 @@ export const api = {
       request(`/admin/dues/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),
     generate: (amount: number, due_date: string) =>
       request('/admin/dues/generate', { method: 'POST', body: JSON.stringify({ amount, due_date }) }),
+    generateForUser: (user_id: string, amount: number, due_date: string) =>
+      request('/admin/dues/generate-for-user', { method: 'POST', body: JSON.stringify({ user_id, amount, due_date }) }),
   },
   stripe: {
     getConfig: () => request<{ publishable_key: string }>('/stripe/config'),

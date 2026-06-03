@@ -287,6 +287,7 @@ func main() {
 	adminOnly.GET("/dues", dues.AdminList)
 	adminOnly.PUT("/dues/:id/status", dues.UpdateStatus)
 	adminOnly.POST("/dues/generate", dues.Generate)
+	adminOnly.POST("/dues/generate-for-user", dues.GenerateForUser)
 	// Financial rules, balances, charges, P&L
 	adminOnly.GET("/finance/rules", finance.ListRules)
 	adminOnly.POST("/finance/rules", finance.CreateRule)
