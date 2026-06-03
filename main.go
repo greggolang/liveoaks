@@ -433,6 +433,7 @@ func main() {
 	adminOnly.PUT("/mail/accounts/:id", mail.Update)
 	adminOnly.POST("/mail/accounts/:id/reset-password", mail.ResetPassword)
 	adminOnly.POST("/mail/accounts/:id/assign", mail.Assign)
+	adminOnly.POST("/mail/accounts/:id/import", mail.ImportMbox)
 	adminOnly.DELETE("/mail/accounts/:id", mail.Delete)
 
 	// Broadcast email (admin only)

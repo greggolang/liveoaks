@@ -96,6 +96,14 @@ export default function AdminMail() {
   const [deleteTarget, setDeleteTarget] = useState<MailAccount | null>(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
 
+  const [importTarget, setImportTarget] = useState<MailAccount | null>(null)
+  const [importFile, setImportFile] = useState<File | null>(null)
+  const [importFolder, setImportFolder] = useState('INBOX')
+  const [importing, setImporting] = useState(false)
+  const [importProgress, setImportProgress] = useState(0)
+  const [importResult, setImportResult] = useState<{ imported: number; failed: number } | null>(null)
+  const [importError, setImportError] = useState('')
+
   async function load() {
     try {
       const [accs, users] = await Promise.all([api.mail.list(), api.admin.users() as Promise<BoardMember[]>])
@@ -184,6 +192,22 @@ export default function AdminMail() {
     try { await api.mail.delete(deleteTarget.id); setDeleteTarget(null); await load() }
     catch { /* ignore */ }
     finally { setDeleteLoading(false) }
+  }
+
+  function openImport(a: MailAccount) {
+    setImportTarget(a); setImportFile(null); setImportFolder('INBOX')
+    setImportProgress(0); setImportResult(null); setImportError('')
+  }
+
+  async function handleImport(e: React.FormEvent) {
+    e.preventDefault()
+    if (!importTarget || !importFile) return
+    setImporting(true); setImportError(''); setImportResult(null); setImportProgress(0)
+    try {
+      const res = await api.mail.importMbox(importTarget.id, importFile, importFolder, setImportProgress)
+      setImportResult({ imported: res.imported, failed: res.failed })
+    } catch (e: any) { setImportError(e.message) }
+    finally { setImporting(false) }
   }
 
   const assigned  = accounts.filter(a => a.assigned_user_id).length
@@ -320,6 +344,15 @@ export default function AdminMail() {
                       d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
                   Assign
+                </button>
+                <button
+                  onClick={() => openImport(a)}
+                  title="Import email from MBOX file"
+                  className="p-2 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-600 hover:text-amber-700 transition">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
                 </button>
                 <button
                   onClick={() => openEdit(a)}
@@ -599,6 +632,83 @@ query = SELECT address FROM mail_accounts WHERE address='%s' AND active = true`,
               </button>
             </div>
           </div>
+        </Modal>
+      )}
+
+      {/* ── Import MBOX Modal ── */}
+      {importTarget && (
+        <Modal onClose={importing ? undefined : () => setImportTarget(null)}>
+          <ModalHeader title="Import Email" sub={importTarget.address}
+            onClose={() => { if (!importing) setImportTarget(null) }} />
+          <form onSubmit={handleImport} className="px-6 py-5 space-y-4">
+            <p className="text-xs text-gray-500 leading-relaxed">
+              Upload an <strong>.mbox</strong> file exported from Google Workspace (Google Takeout → Mail).
+              Every message in the file is copied into this mailbox over IMAP, so the archive survives after
+              the Workspace account is cancelled.
+            </p>
+
+            {!importTarget.has_password && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 text-xs text-amber-800">
+                This mailbox has no password yet. Click <strong>Password</strong> on the account first —
+                the importer needs to log in to deliver the mail.
+              </div>
+            )}
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1.5">MBOX File</label>
+              <input type="file" accept=".mbox,.mbx,application/mbox"
+                disabled={importing}
+                onChange={e => { setImportFile(e.target.files?.[0] ?? null); setImportResult(null); setImportError('') }}
+                className="w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100" />
+              {importFile && (
+                <p className="text-xs text-gray-400 mt-1.5">
+                  {importFile.name} — {(importFile.size / 1048576).toFixed(1)} MB
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1.5">Import Into Folder</label>
+              <select value={importFolder} onChange={e => setImportFolder(e.target.value)}
+                disabled={importing}
+                className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500">
+                <option value="INBOX">Inbox</option>
+                <option value="Archive">Archive</option>
+                <option value="Sent">Sent</option>
+              </select>
+            </div>
+
+            {importing && (
+              <div>
+                <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
+                  <span>{importProgress < 100 ? 'Uploading…' : 'Importing messages — this can take a minute…'}</span>
+                  <span>{importProgress}%</span>
+                </div>
+                <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-green-600 transition-all" style={{ width: `${importProgress}%` }} />
+                </div>
+              </div>
+            )}
+
+            {importResult && (
+              <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm text-green-800">
+                Imported <strong>{importResult.imported}</strong> message{importResult.imported === 1 ? '' : 's'}
+                {importResult.failed > 0 && <> — <span className="text-amber-700">{importResult.failed} failed</span></>}.
+              </div>
+            )}
+            {importError && <p className="text-red-600 text-xs bg-red-50 px-3 py-2 rounded-lg">{importError}</p>}
+
+            <div className="flex justify-end gap-2 pt-1">
+              <button type="button" onClick={() => setImportTarget(null)} disabled={importing}
+                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-xl transition disabled:opacity-50">
+                {importResult ? 'Close' : 'Cancel'}
+              </button>
+              <button type="submit" disabled={importing || !importFile || !importTarget.has_password}
+                className="px-5 py-2 bg-green-700 text-white text-sm font-semibold rounded-xl hover:bg-green-800 disabled:opacity-50 transition">
+                {importing ? 'Importing…' : 'Import'}
+              </button>
+            </div>
+          </form>
         </Modal>
       )}
 
