@@ -71,6 +71,10 @@ func main() {
 	reminderSvc := &reminder.Service{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	reminderSvc.Start(context.Background())
 
+	// Start per-mailbox email filter runner (applies move/delete/mark rules every 5 min)
+	mailFilterSvc := &handlers.MailFilterService{DB: pool}
+	mailFilterSvc.Start(context.Background())
+
 	// Start YoLink sensor service (connects to MQTT if credentials are configured)
 	yolinkSvc := &yolink.Service{DB: pool, Mailer: mailer, SMS: smsSender}
 	yolinkSvc.Start(context.Background())
@@ -129,6 +133,7 @@ func main() {
 	messages := &handlers.MessagesHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	kiosk := &handlers.KioskHandler{DB: pool}
 	mail := &handlers.MailHandler{DB: pool}
+	mailFilters := &handlers.MailFilterHandler{DB: pool}
 	imapH := &handlers.IMAPHandler{DB: pool, UploadDir: uploadDir}
 	mailContacts := &handlers.MailContactsHandler{DB: pool}
 	courtWaitlist := &handlers.CourtWaitlistHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
@@ -442,6 +447,11 @@ func main() {
 	adminOnly.POST("/mail/accounts/:id/import", mail.ImportMbox)
 	adminOnly.POST("/mail/accounts/:id/empty", mail.EmptyMailbox)
 	adminOnly.DELETE("/mail/accounts/:id", mail.Delete)
+	adminOnly.GET("/mail/accounts/:id/filters", mailFilters.List)
+	adminOnly.POST("/mail/accounts/:id/filters", mailFilters.Create)
+	adminOnly.PUT("/mail/filters/:fid", mailFilters.Update)
+	adminOnly.DELETE("/mail/filters/:fid", mailFilters.Delete)
+	adminOnly.POST("/mail/accounts/:id/run-filters", mailFilters.RunNow)
 
 	// Broadcast email (admin only)
 	adminOnly.GET("/broadcast/recipients", broadcast.PreviewRecipients)

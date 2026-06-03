@@ -78,6 +78,25 @@ export interface IMAPMessage {
   uid: number; subject: string; from: string; date: string; unread: boolean
 }
 
+export type MailFilterInput = {
+  name: string
+  enabled: boolean
+  match_field: 'from' | 'to_cc' | 'subject' | 'body'
+  pattern: string
+  source_folder: string
+  action: 'move' | 'delete' | 'mark_read'
+  dest_folder: string
+}
+export interface MailFilter extends MailFilterInput {
+  id: string
+  account_id: string
+  matched_count: number
+  last_run_at: string | null
+  last_error: string
+  created_at: string
+  updated_at: string
+}
+
 export interface TaxDocument {
   id: string; category: string; label: string; tax_year: number | null
   filename: string; original_name: string; uploaded_by_name: string | null; created_at: string
@@ -802,6 +821,15 @@ export const api = {
     emptyMailbox: (id: string) =>
       request<{ deleted: number; mailbox: string }>(`/admin/mail/accounts/${id}/empty`, { method: 'POST' }),
     delete: (id: string) => request(`/admin/mail/accounts/${id}`, { method: 'DELETE' }),
+    filters: (id: string) => request<MailFilter[]>(`/admin/mail/accounts/${id}/filters`),
+    createFilter: (id: string, data: MailFilterInput) =>
+      request<{ id: string }>(`/admin/mail/accounts/${id}/filters`, { method: 'POST', body: JSON.stringify(data) }),
+    updateFilter: (fid: string, data: MailFilterInput) =>
+      request(`/admin/mail/filters/${fid}`, { method: 'PUT', body: JSON.stringify(data) }),
+    deleteFilter: (fid: string) =>
+      request(`/admin/mail/filters/${fid}`, { method: 'DELETE' }),
+    runFilters: (id: string) =>
+      request<{ matched: number; errors: string[] }>(`/admin/mail/accounts/${id}/run-filters`, { method: 'POST' }),
   },
   imap: {
     listMessages: (folder = 'INBOX') =>

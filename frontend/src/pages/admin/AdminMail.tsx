@@ -1,6 +1,15 @@
 import { useEffect, useState } from 'react'
-import { api } from '../../api/client'
+import { api, type MailFilter, type MailFilterInput } from '../../api/client'
 import { useAuth } from '../../contexts/AuthContext'
+
+const emptyFilterForm: MailFilterInput = {
+  name: '', enabled: true, match_field: 'from', pattern: '',
+  source_folder: 'INBOX', action: 'move', dest_folder: '',
+}
+
+const MATCH_FIELD_LABELS: Record<MailFilterInput['match_field'], string> = {
+  from: 'From', to_cc: 'To / Cc', subject: 'Subject', body: 'Body',
+}
 
 interface MailAccount {
   id: string
@@ -112,6 +121,16 @@ export default function AdminMail() {
   const [emptyLoading, setEmptyLoading] = useState(false)
   const [emptyResult, setEmptyResult] = useState<{ deleted: number } | null>(null)
   const [emptyError, setEmptyError] = useState('')
+
+  const [filtersTarget, setFiltersTarget] = useState<MailAccount | null>(null)
+  const [filters, setFilters] = useState<MailFilter[]>([])
+  const [filtersLoading, setFiltersLoading] = useState(false)
+  const [filterForm, setFilterForm] = useState<MailFilterInput>(emptyFilterForm)
+  const [editingFilterId, setEditingFilterId] = useState<string | null>(null)
+  const [filterSaving, setFilterSaving] = useState(false)
+  const [filterError, setFilterError] = useState('')
+  const [filterRunning, setFilterRunning] = useState(false)
+  const [filterRunMsg, setFilterRunMsg] = useState('')
 
   async function load() {
     try {
@@ -250,6 +269,79 @@ export default function AdminMail() {
       refreshStat(importTarget.id)
     } catch (e: any) { setImportError(e.message) }
     finally { setImporting(false) }
+  }
+
+  async function openFilters(a: MailAccount) {
+    setFiltersTarget(a); setFilters([]); resetFilterForm()
+    setFilterRunMsg(''); setFiltersLoading(true)
+    try { setFilters(await api.mail.filters(a.id)) }
+    catch (e: any) { setFilterError(e.message) }
+    finally { setFiltersLoading(false) }
+  }
+
+  async function reloadFilters() {
+    if (!filtersTarget) return
+    try { setFilters(await api.mail.filters(filtersTarget.id)) } catch { /* ignore */ }
+  }
+
+  function resetFilterForm() {
+    setEditingFilterId(null); setFilterForm(emptyFilterForm); setFilterError('')
+  }
+
+  function editFilter(f: MailFilter) {
+    setEditingFilterId(f.id)
+    setFilterForm({
+      name: f.name, enabled: f.enabled, match_field: f.match_field, pattern: f.pattern,
+      source_folder: f.source_folder, action: f.action, dest_folder: f.dest_folder,
+    })
+    setFilterError('')
+  }
+
+  async function handleSaveFilter(e: React.FormEvent) {
+    e.preventDefault()
+    if (!filtersTarget) return
+    setFilterSaving(true); setFilterError('')
+    try {
+      if (editingFilterId) await api.mail.updateFilter(editingFilterId, filterForm)
+      else await api.mail.createFilter(filtersTarget.id, filterForm)
+      resetFilterForm(); await reloadFilters()
+    } catch (e: any) { setFilterError(e.message) }
+    finally { setFilterSaving(false) }
+  }
+
+  async function toggleFilter(f: MailFilter) {
+    try { await api.mail.updateFilter(f.id, { ...f, enabled: !f.enabled }); await reloadFilters() }
+    catch { /* ignore */ }
+  }
+
+  async function handleDeleteFilter(id: string) {
+    try {
+      await api.mail.deleteFilter(id)
+      if (editingFilterId === id) resetFilterForm()
+      await reloadFilters()
+    } catch { /* ignore */ }
+  }
+
+  async function handleRunFilters() {
+    if (!filtersTarget) return
+    setFilterRunning(true); setFilterRunMsg('')
+    try {
+      const res = await api.mail.runFilters(filtersTarget.id)
+      setFilterRunMsg(
+        res.errors.length
+          ? `Acted on ${res.matched} · ${res.errors.length} error${res.errors.length === 1 ? '' : 's'}: ${res.errors[0]}`
+          : `Acted on ${res.matched} message${res.matched === 1 ? '' : 's'}`
+      )
+      await reloadFilters()
+    } catch (e: any) { setFilterRunMsg(e.message) }
+    finally { setFilterRunning(false) }
+  }
+
+  function filterSummary(f: MailFilter) {
+    const where = `${MATCH_FIELD_LABELS[f.match_field]} contains “${f.pattern}” in ${f.source_folder}`
+    const what = f.action === 'move' ? `move to ${f.dest_folder}`
+      : f.action === 'delete' ? 'move to Trash' : 'mark read'
+    return `${where} → ${what}`
   }
 
   const assigned  = accounts.filter(a => a.assigned_user_id).length
@@ -434,6 +526,15 @@ export default function AdminMail() {
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                       d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => openFilters(a)}
+                  title="Email filters — auto-move/delete rules"
+                  className="p-2 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-600 hover:text-teal-700 transition">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L14 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 018 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
                   </svg>
                 </button>
                 <button
@@ -907,6 +1008,177 @@ query = SELECT address FROM mail_accounts WHERE address='%s' AND active = true`,
             </div>
           </div>
         </Modal>
+      )}
+
+      {/* ── Filters Modal ── */}
+      {filtersTarget && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          onClick={() => setFiltersTarget(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-start justify-between px-6 py-5 border-b border-gray-100 sticky top-0 bg-white z-10">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900">Email Filters</h3>
+                <p className="text-xs text-gray-400 font-mono mt-0.5">{filtersTarget.address}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={handleRunFilters} disabled={filterRunning || !filtersTarget.has_password}
+                  title={filtersTarget.has_password ? 'Run all rules now' : 'Set a mailbox password first'}
+                  className="px-3 py-1.5 bg-teal-600 text-white text-xs font-semibold rounded-lg hover:bg-teal-700 disabled:opacity-50 transition">
+                  {filterRunning ? 'Running…' : 'Run now'}
+                </button>
+                <button onClick={() => setFiltersTarget(null)} className="text-gray-400 hover:text-gray-600 transition mt-0.5">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="px-6 py-5 space-y-4">
+              <p className="text-xs text-gray-500 leading-relaxed">
+                Rules run automatically every 5 minutes and check the matched messages, case-insensitive.
+                Each rule matches one field and moves, deletes, or marks them read.
+              </p>
+              {!filtersTarget.has_password && (
+                <p className="text-xs text-amber-700 bg-amber-50 px-3 py-2 rounded-lg">
+                  This mailbox has no password yet — rules are saved but can't run until you click “Password”.
+                </p>
+              )}
+              {filterRunMsg && <p className="text-xs text-gray-700 bg-gray-50 px-3 py-2 rounded-lg">{filterRunMsg}</p>}
+
+              {/* Existing rules */}
+              {filtersLoading ? (
+                <div className="flex items-center justify-center py-6">
+                  <div className="w-5 h-5 border-2 border-teal-600 border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : filters.length === 0 ? (
+                <p className="text-xs text-gray-400 text-center py-4 border-2 border-dashed border-gray-200 rounded-xl">
+                  No rules yet. Add one below.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {filters.map(f => (
+                    <div key={f.id} className="border border-gray-200 rounded-xl px-3 py-2.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          {f.name && <p className="text-xs font-semibold text-gray-800 truncate">{f.name}</p>}
+                          <p className="text-xs text-gray-600">{filterSummary(f)}</p>
+                          <p className="text-[11px] text-gray-400 mt-0.5">
+                            Matched {f.matched_count.toLocaleString()}
+                            {f.last_run_at && <> · last run {new Date(f.last_run_at).toLocaleString()}</>}
+                          </p>
+                          {f.last_error && <p className="text-[11px] text-red-600 mt-0.5">⚠ {f.last_error}</p>}
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button onClick={() => toggleFilter(f)}
+                            title={f.enabled ? 'Disable' : 'Enable'}
+                            className={`text-[10px] font-semibold px-2 py-0.5 rounded-full transition ${
+                              f.enabled ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                            {f.enabled ? 'On' : 'Off'}
+                          </button>
+                          <button onClick={() => editFilter(f)} title="Edit"
+                            className="p-1 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          </button>
+                          <button onClick={() => handleDeleteFilter(f.id)} title="Delete"
+                            className="p-1 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Add / edit form */}
+              <form onSubmit={handleSaveFilter} className="border-t border-gray-100 pt-4 space-y-3">
+                <p className="text-xs font-semibold text-gray-700">{editingFilterId ? 'Edit rule' : 'Add a rule'}</p>
+                <input
+                  className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  placeholder="Rule name (optional)"
+                  value={filterForm.name}
+                  onChange={e => setFilterForm(f => ({ ...f, name: e.target.value }))} />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-500 mb-1">When field</label>
+                    <select
+                      className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                      value={filterForm.match_field}
+                      onChange={e => setFilterForm(f => ({ ...f, match_field: e.target.value as MailFilterInput['match_field'] }))}>
+                      <option value="from">From</option>
+                      <option value="to_cc">To / Cc</option>
+                      <option value="subject">Subject</option>
+                      <option value="body">Body</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-500 mb-1">Contains</label>
+                    <input
+                      className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                      placeholder="newsletter@…  or  text"
+                      value={filterForm.pattern}
+                      onChange={e => setFilterForm(f => ({ ...f, pattern: e.target.value }))} required />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-500 mb-1">In folder</label>
+                    <input
+                      className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                      placeholder="INBOX"
+                      value={filterForm.source_folder}
+                      onChange={e => setFilterForm(f => ({ ...f, source_folder: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-500 mb-1">Then</label>
+                    <select
+                      className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                      value={filterForm.action}
+                      onChange={e => setFilterForm(f => ({ ...f, action: e.target.value as MailFilterInput['action'] }))}>
+                      <option value="move">Move to folder</option>
+                      <option value="delete">Delete (to Trash)</option>
+                      <option value="mark_read">Mark as read</option>
+                    </select>
+                  </div>
+                  {filterForm.action === 'move' && (
+                    <div className="col-span-2">
+                      <label className="block text-[11px] font-semibold text-gray-500 mb-1">Destination folder</label>
+                      <input
+                        className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                        placeholder="Newsletters"
+                        value={filterForm.dest_folder}
+                        onChange={e => setFilterForm(f => ({ ...f, dest_folder: e.target.value }))}
+                        required={filterForm.action === 'move'} />
+                    </div>
+                  )}
+                </div>
+                <label className="flex items-center gap-2 text-xs text-gray-600">
+                  <input type="checkbox" checked={filterForm.enabled}
+                    onChange={e => setFilterForm(f => ({ ...f, enabled: e.target.checked }))} />
+                  Enabled
+                </label>
+                {filterError && <p className="text-red-600 text-xs bg-red-50 px-3 py-2 rounded-lg">{filterError}</p>}
+                <div className="flex justify-end gap-2">
+                  {editingFilterId && (
+                    <button type="button" onClick={resetFilterForm}
+                      className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-xl transition">Cancel edit</button>
+                  )}
+                  <button type="submit" disabled={filterSaving}
+                    className="px-5 py-2 bg-teal-600 text-white text-sm font-semibold rounded-xl hover:bg-teal-700 disabled:opacity-50 transition">
+                    {filterSaving ? 'Saving…' : editingFilterId ? 'Save rule' : 'Add rule'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
