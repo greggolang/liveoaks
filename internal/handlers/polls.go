@@ -168,10 +168,10 @@ func (h *PollsHandler) AdminList(c echo.Context) error {
 func (h *PollsHandler) AdminCreate(c echo.Context) error {
 	adminID := c.Get("user_id").(string)
 	var req struct {
-		Title      string     `json:"title"`
-		Question   string     `json:"question"`
-		Options    []string   `json:"options"`
-		DeadlineAt *time.Time `json:"deadline_at"`
+		Title      string   `json:"title"`
+		Question   string   `json:"question"`
+		Options    []string `json:"options"`
+		DeadlineAt *string  `json:"deadline_at"`
 	}
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
@@ -180,13 +180,23 @@ func (h *PollsHandler) AdminCreate(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "title, question, and at least 2 options are required")
 	}
 
+	var deadlineAt *time.Time
+	if req.DeadlineAt != nil && *req.DeadlineAt != "" {
+		for _, layout := range []string{time.RFC3339, "2006-01-02T15:04", "2006-01-02T15:04:05"} {
+			if t, err := time.ParseInLocation(layout, *req.DeadlineAt, time.Local); err == nil {
+				deadlineAt = &t
+				break
+			}
+		}
+	}
+
 	optionsJSON, _ := json.Marshal(req.Options)
 	var id string
 	err := h.DB.QueryRow(c.Request().Context(), `
 		INSERT INTO polls (title, question, options, created_by, deadline_at)
 		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id`,
-		req.Title, req.Question, optionsJSON, adminID, req.DeadlineAt,
+		req.Title, req.Question, optionsJSON, adminID, deadlineAt,
 	).Scan(&id)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not create poll")
