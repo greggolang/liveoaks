@@ -1,10 +1,12 @@
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react'
 import { api } from '../api/client'
 
+// Roles that count as "board" for showing the Admin menu and entering /admin.
+// 'games' and 'pro' are intentionally excluded — they are "Special" roles, not
+// board members, so they do not get the Admin menu.
 const BOARD_ROLES = [
   'admin', 'president', 'vice_president', 'secretary', 'treasurer',
   'billing', 'membership', 'usta', 'entertainment', 'house_grounds',
-  'games', 'pro',
 ]
 
 interface User {
