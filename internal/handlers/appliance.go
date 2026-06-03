@@ -34,6 +34,7 @@ type Appliance struct {
 	ManualOriginalName *string  `json:"manual_original_name,omitempty"`
 	CreatedAt          string   `json:"created_at"`
 	UpdatedAt          string   `json:"updated_at"`
+	UpdatedByName      *string  `json:"updated_by_name,omitempty"`
 }
 
 type ApplianceServiceRecord struct {
@@ -67,22 +68,23 @@ func nullS(s string) interface{} {
 	return s
 }
 
-const applianceCols = `id, name, location, brand, model_number, serial_number,
-    installed_date::text, notes, manual_filename, manual_original_name,
-    to_char(created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
-    to_char(updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"')`
+const applianceCols = `a.id, a.name, a.location, a.brand, a.model_number, a.serial_number,
+    a.installed_date::text, a.notes, a.manual_filename, a.manual_original_name,
+    to_char(a.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+    to_char(a.updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+    COALESCE(u.first_name || ' ' || u.last_name, NULL)`
 
 func scanAppliance(row interface{ Scan(...any) error }) (Appliance, error) {
 	var a Appliance
 	err := row.Scan(&a.ID, &a.Name, &a.Location, &a.Brand, &a.ModelNumber,
 		&a.SerialNumber, &a.InstalledDate, &a.Notes, &a.ManualFilename,
-		&a.ManualOriginalName, &a.CreatedAt, &a.UpdatedAt)
+		&a.ManualOriginalName, &a.CreatedAt, &a.UpdatedAt, &a.UpdatedByName)
 	return a, err
 }
 
 func (h *AppliancesHandler) List(c echo.Context) error {
 	rows, err := h.DB.Query(c.Request().Context(),
-		`SELECT `+applianceCols+` FROM appliances ORDER BY name`)
+		`SELECT `+applianceCols+` FROM appliances a LEFT JOIN users u ON u.id=a.updated_by ORDER BY a.name`)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch appliances")
 	}
@@ -100,6 +102,7 @@ func (h *AppliancesHandler) List(c echo.Context) error {
 }
 
 func (h *AppliancesHandler) Create(c echo.Context) error {
+	userID := c.Get("user_id").(string)
 	var req struct {
 		Name          string `json:"name"`
 		Location      string `json:"location"`
@@ -117,11 +120,14 @@ func (h *AppliancesHandler) Create(c echo.Context) error {
 	}
 
 	a, err := scanAppliance(h.DB.QueryRow(c.Request().Context(), `
-		INSERT INTO appliances (name, location, brand, model_number, serial_number, installed_date, notes)
-		VALUES ($1, $2, $3, $4, $5, NULLIF($6,'')::date, $7)
-		RETURNING `+applianceCols,
+		WITH ins AS (
+			INSERT INTO appliances (name, location, brand, model_number, serial_number, installed_date, notes, updated_by)
+			VALUES ($1, $2, $3, $4, $5, NULLIF($6,'')::date, $7, $8)
+			RETURNING *
+		)
+		SELECT `+applianceCols+` FROM ins a LEFT JOIN users u ON u.id=a.updated_by`,
 		req.Name, nullS(req.Location), nullS(req.Brand), nullS(req.ModelNumber),
-		nullS(req.SerialNumber), req.InstalledDate, nullS(req.Notes)))
+		nullS(req.SerialNumber), req.InstalledDate, nullS(req.Notes), userID))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not create appliance")
 	}
@@ -130,6 +136,7 @@ func (h *AppliancesHandler) Create(c echo.Context) error {
 
 func (h *AppliancesHandler) Update(c echo.Context) error {
 	id := c.Param("id")
+	userID := c.Get("user_id").(string)
 	var req struct {
 		Name          string `json:"name"`
 		Location      string `json:"location"`
@@ -144,13 +151,16 @@ func (h *AppliancesHandler) Update(c echo.Context) error {
 	}
 
 	a, err := scanAppliance(h.DB.QueryRow(c.Request().Context(), `
-		UPDATE appliances
-		SET name=$1, location=$2, brand=$3, model_number=$4, serial_number=$5,
-		    installed_date=NULLIF($6,'')::date, notes=$7, updated_at=NOW()
-		WHERE id=$8
-		RETURNING `+applianceCols,
+		WITH upd AS (
+			UPDATE appliances
+			SET name=$1, location=$2, brand=$3, model_number=$4, serial_number=$5,
+			    installed_date=NULLIF($6,'')::date, notes=$7, updated_at=NOW(), updated_by=$8
+			WHERE id=$9
+			RETURNING *
+		)
+		SELECT `+applianceCols+` FROM upd a LEFT JOIN users u ON u.id=a.updated_by`,
 		req.Name, nullS(req.Location), nullS(req.Brand), nullS(req.ModelNumber),
-		nullS(req.SerialNumber), req.InstalledDate, nullS(req.Notes), id))
+		nullS(req.SerialNumber), req.InstalledDate, nullS(req.Notes), userID, id))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "appliance not found")
 	}
@@ -214,10 +224,14 @@ func (h *AppliancesHandler) UploadManual(c echo.Context) error {
 		os.Remove(filepath.Join(h.UploadDir, "appliance-manuals", *old))
 	}
 
+	userID, _ := c.Get("user_id").(string)
 	a, err := scanAppliance(h.DB.QueryRow(c.Request().Context(), `
-		UPDATE appliances SET manual_filename=$1, manual_original_name=$2, updated_at=NOW()
-		WHERE id=$3 RETURNING `+applianceCols,
-		filename, header.Filename, id))
+		WITH upd AS (
+			UPDATE appliances SET manual_filename=$1, manual_original_name=$2, updated_at=NOW(), updated_by=$3
+			WHERE id=$4 RETURNING *
+		)
+		SELECT `+applianceCols+` FROM upd a LEFT JOIN users u ON u.id=a.updated_by`,
+		filename, header.Filename, userID, id))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "appliance not found")
 	}

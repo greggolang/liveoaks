@@ -145,6 +145,7 @@ function FileRow({ doc, isBoard, onDelete, subtitle }: {
           </span>
           <p className="text-xs text-gray-400 mt-0.5">
             {subtitle ? `${subtitle} · ` : ''}{relativeDate(doc.created_at)}
+            {doc.uploaded_by_name && ` · ${doc.uploaded_by_name}`}
           </p>
         </div>
         <svg className="w-4 h-4 shrink-0 text-gray-300 group-hover:text-green-600 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">

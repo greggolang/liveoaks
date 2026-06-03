@@ -20,6 +20,15 @@ function fmt(date?: string) {
   return `${m}/${d}/${y}`
 }
 
+function timeAgo(iso: string) {
+  const diff = Date.now() - parseDate(iso).getTime()
+  const d = Math.floor(diff / 86400000)
+  if (d === 0) return 'today'
+  if (d === 1) return 'yesterday'
+  if (d < 7) return `${d} days ago`
+  return parseDate(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
 function isOverdue(due: string) {
   return parseDate(due) < new Date(new Date().toDateString())
 }
@@ -293,6 +302,9 @@ export default function AdminAppliances() {
                   {selected.installed_date && <span>Installed: {fmt(selected.installed_date)}</span>}
                 </div>
                 {selected.notes && <p className="text-xs text-gray-400 mt-1">{selected.notes}</p>}
+                <p className="text-xs text-gray-400 mt-1">
+                  Updated {timeAgo(selected.updated_at)}{selected.updated_by_name ? ` by ${selected.updated_by_name}` : ''}
+                </p>
               </div>
               <div className="flex gap-2 shrink-0">
                 <button onClick={() => openEditAppliance(selected)}

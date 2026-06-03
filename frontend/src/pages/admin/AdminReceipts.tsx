@@ -5,7 +5,7 @@ import { api } from '../../api/client'
 interface Receipt {
   id: string; title: string; filename: string; original_name: string
   amount?: string; receipt_date?: string; category: string
-  notes?: string; created_at: string
+  notes?: string; created_at: string; uploaded_by_name?: string
 }
 
 const CATEGORIES: { value: string; label: string }[] = [
@@ -175,6 +175,7 @@ export default function AdminReceipts() {
                   <td className="px-4 py-3">
                     <div className="font-medium text-gray-800">{r.title}</div>
                     {r.notes && <div className="text-xs text-gray-400 mt-0.5">{r.notes}</div>}
+                    {r.uploaded_by_name && <div className="text-xs text-gray-400 mt-0.5">by {r.uploaded_by_name}</div>}
                   </td>
                   <td className="px-4 py-3 text-gray-600 text-xs">{catLabel(r.category)}</td>
                   <td className="px-4 py-3 text-gray-500 text-xs">

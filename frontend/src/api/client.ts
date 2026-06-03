@@ -11,7 +11,7 @@ export interface ApplianceItem {
   id: string; name: string; location?: string; brand?: string
   model_number?: string; serial_number?: string; installed_date?: string
   notes?: string; manual_filename?: string; manual_original_name?: string
-  created_at: string; updated_at: string
+  created_at: string; updated_at: string; updated_by_name?: string
 }
 export interface ApplianceServiceRecord {
   id: string; appliance_id: string; service_date: string; service_type: string
@@ -48,6 +48,7 @@ export interface MemberRequest {
 
 export interface DocFile {
   id: string; title: string; filename: string; original_name: string; created_at: string
+  uploaded_by_name?: string
 }
 export interface DocFolder {
   id: string; name: string; sort_order: number; roles: string[]

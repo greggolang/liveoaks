@@ -21,14 +21,15 @@ type UploadsHandler struct {
 }
 
 type Document struct {
-	ID           string  `json:"id"`
-	Title        string  `json:"title"`
-	Filename     string  `json:"filename"`
-	OriginalName string  `json:"original_name"`
-	Category     string  `json:"category"`
-	FolderID     *string `json:"folder_id,omitempty"`
-	UploadedBy   *string `json:"uploaded_by,omitempty"`
-	CreatedAt    string  `json:"created_at"`
+	ID             string  `json:"id"`
+	Title          string  `json:"title"`
+	Filename       string  `json:"filename"`
+	OriginalName   string  `json:"original_name"`
+	Category       string  `json:"category"`
+	FolderID       *string `json:"folder_id,omitempty"`
+	UploadedBy     *string `json:"uploaded_by,omitempty"`
+	UploadedByName *string `json:"uploaded_by_name,omitempty"`
+	CreatedAt      string  `json:"created_at"`
 }
 
 type DocumentFolder struct {
@@ -153,12 +154,15 @@ func (h *UploadsHandler) ListDocuments(c echo.Context) error {
 	// Fetch documents for each folder
 	for i, f := range folders {
 		dRows, err := h.DB.Query(ctx,
-			`SELECT id, title, filename, original_name, created_at
-			 FROM documents WHERE folder_id = $1 ORDER BY created_at DESC`, f.ID)
+			`SELECT d.id, d.title, d.filename, d.original_name, d.created_at,
+			        COALESCE(u.first_name || ' ' || u.last_name, NULL)
+			 FROM documents d
+			 LEFT JOIN users u ON u.id = d.uploaded_by
+			 WHERE d.folder_id = $1 ORDER BY d.created_at DESC`, f.ID)
 		if err != nil { continue }
 		for dRows.Next() {
 			var d Document
-			if err := dRows.Scan(&d.ID, &d.Title, &d.Filename, &d.OriginalName, &d.CreatedAt); err != nil { continue }
+			if err := dRows.Scan(&d.ID, &d.Title, &d.Filename, &d.OriginalName, &d.CreatedAt, &d.UploadedByName); err != nil { continue }
 			folders[i].Docs = append(folders[i].Docs, d)
 		}
 		dRows.Close()
@@ -471,23 +475,27 @@ func (h *UploadsHandler) ServePhoto(c echo.Context) error {
 }
 
 type Receipt struct {
-	ID           string    `json:"id"`
-	Title        string    `json:"title"`
-	Filename     string    `json:"filename"`
-	OriginalName string    `json:"original_name"`
-	Amount       *string   `json:"amount,omitempty"`
-	ReceiptDate  *string   `json:"receipt_date,omitempty"`
-	Category     string    `json:"category"`
-	Notes        *string   `json:"notes,omitempty"`
-	UploadedBy   *string   `json:"uploaded_by,omitempty"`
-	CreatedAt    time.Time `json:"created_at"`
+	ID             string    `json:"id"`
+	Title          string    `json:"title"`
+	Filename       string    `json:"filename"`
+	OriginalName   string    `json:"original_name"`
+	Amount         *string   `json:"amount,omitempty"`
+	ReceiptDate    *string   `json:"receipt_date,omitempty"`
+	Category       string    `json:"category"`
+	Notes          *string   `json:"notes,omitempty"`
+	UploadedBy     *string   `json:"uploaded_by,omitempty"`
+	UploadedByName *string   `json:"uploaded_by_name,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
 }
 
 func (h *UploadsHandler) ListReceipts(c echo.Context) error {
 	rows, err := h.DB.Query(c.Request().Context(),
-		`SELECT id, title, filename, original_name, amount::text, receipt_date::text,
-		        category, notes, uploaded_by, created_at
-		 FROM billing_receipts ORDER BY receipt_date DESC NULLS LAST, created_at DESC`)
+		`SELECT r.id, r.title, r.filename, r.original_name, r.amount::text, r.receipt_date::text,
+		        r.category, r.notes, r.uploaded_by, r.created_at,
+		        COALESCE(u.first_name || ' ' || u.last_name, NULL)
+		 FROM billing_receipts r
+		 LEFT JOIN users u ON u.id = r.uploaded_by
+		 ORDER BY r.receipt_date DESC NULLS LAST, r.created_at DESC`)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch receipts")
 	}
@@ -496,7 +504,7 @@ func (h *UploadsHandler) ListReceipts(c echo.Context) error {
 	for rows.Next() {
 		var r Receipt
 		if err := rows.Scan(&r.ID, &r.Title, &r.Filename, &r.OriginalName,
-			&r.Amount, &r.ReceiptDate, &r.Category, &r.Notes, &r.UploadedBy, &r.CreatedAt); err != nil {
+			&r.Amount, &r.ReceiptDate, &r.Category, &r.Notes, &r.UploadedBy, &r.CreatedAt, &r.UploadedByName); err != nil {
 			continue
 		}
 		receipts = append(receipts, r)
