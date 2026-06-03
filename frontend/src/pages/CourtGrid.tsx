@@ -44,8 +44,8 @@ export default function CourtGrid() {
         return hour >= bSH && hour < bEH
       }
       if (b.block_type === 'one_time' && b.one_time_start && b.one_time_end) {
-        const start = new Date(b.one_time_start).getHours()
-        const end = new Date(b.one_time_end).getHours()
+        const start = parseDate(b.one_time_start).getHours()
+        const end = parseDate(b.one_time_end).getHours()
         return hour >= start && hour < end
       }
       return false

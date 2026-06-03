@@ -279,7 +279,7 @@ export default function Dashboard() {
       const dateStr = `${orig.getFullYear()}-${String(orig.getMonth()+1).padStart(2,'0')}-${String(orig.getDate()).padStart(2,'0')}`
       const h = Math.floor(editForm.startSlot)
       const m = editForm.startSlot % 1 === 0.5 ? '30' : '00'
-      const newStart = new Date(`${dateStr}T${String(h).padStart(2,'0')}:${m}:00`)
+      const newStart = parseDate(`${dateStr}T${String(h).padStart(2,'0')}:${m}:00`)
       const newEnd = new Date(newStart.getTime() + editForm.duration * 3600000)
       await api.bookings.update(b.id, {
         match_type: editForm.matchType,
@@ -824,7 +824,7 @@ export default function Dashboard() {
         })
 
         if (soonBooking) {
-          const start = new Date(soonBooking.start_time)
+          const start = parseDate(soonBooking.start_time)
           const totalMins = Math.round((start.getTime() - Date.now()) / 60000)
           const hrs = Math.floor(totalMins / 60)
           const mins = totalMins % 60
@@ -867,7 +867,7 @@ export default function Dashboard() {
         })
 
         openSpotBookings.forEach(osb => {
-          const start = new Date(osb.start_time)
+          const start = parseDate(osb.start_time)
           const totalSlots = (osb.players_needed ?? 0) + 1
           const confirmedCount = (osb.players ?? []).length
           const openCount = totalSlots - confirmedCount
@@ -913,7 +913,7 @@ export default function Dashboard() {
         })
 
         unpaidDues.forEach(d => {
-          const overdue = new Date(d.due_date) < new Date()
+          const overdue = parseDate(d.due_date) < new Date()
           alerts.push(
             <div key={d.id} className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
               <span className="text-xl shrink-0">💳</span>
@@ -922,7 +922,7 @@ export default function Dashboard() {
                   {overdue ? 'Overdue dues balance' : 'Dues payment due'} — ${d.amount.toFixed(2)}
                 </p>
                 <p className="text-xs text-red-600 mt-0.5">
-                  {overdue ? 'Was due' : 'Due'} {new Date(d.due_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                  {overdue ? 'Was due' : 'Due'} {parseDate(d.due_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                 </p>
               </div>
               <Link to="/dues" className="text-xs font-semibold text-red-700 hover:underline shrink-0 self-center">
@@ -967,7 +967,7 @@ export default function Dashboard() {
                         </div>
                         <p className="font-semibold text-gray-800 mt-0.5 truncate">{m.subject}</p>
                         <p className="text-gray-500 text-sm mt-1 line-clamp-2">{m.body}</p>
-                        <p className="text-gray-400 text-xs mt-2">{new Date(m.created_at).toLocaleDateString()}</p>
+                        <p className="text-gray-400 text-xs mt-2">{parseDate(m.created_at).toLocaleDateString()}</p>
                       </div>
                       <span className="shrink-0 self-center bg-blue-100 text-blue-700 text-xs font-medium px-2 py-0.5 rounded-full">
                         Unread
@@ -982,7 +982,7 @@ export default function Dashboard() {
                       <h3 className="font-semibold text-gray-800">{a.title}</h3>
                       <p className="text-gray-600 text-sm mt-1">{a.body}</p>
                       <p className="text-gray-400 text-xs mt-2">
-                        {a.author_first_name} {a.author_last_name} · {new Date(a.created_at).toLocaleDateString()}
+                        {a.author_first_name} {a.author_last_name} · {parseDate(a.created_at).toLocaleDateString()}
                       </p>
                     </div>
                     {a.require_confirmation ? (

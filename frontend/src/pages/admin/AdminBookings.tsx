@@ -73,7 +73,7 @@ export default function AdminBookings() {
     try {
       const durationHrs = parseFloat(createForm.duration)
       const [h, m] = createForm.start.split(':').map(Number)
-      const start = new Date(`${createForm.date}T${createForm.start}:00`)
+      const start = parseDate(`${createForm.date}T${createForm.start}:00`)
       const end = new Date(start.getTime() + durationHrs * 3600000)
       await api.bookings.adminCreate({
         user_id: createForm.user_id,
