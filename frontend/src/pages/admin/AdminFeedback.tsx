@@ -19,11 +19,9 @@ interface FeedbackItem {
 
 const STATUSES = [
   { value: 'new',             label: 'New',             color: 'bg-blue-100 text-blue-700' },
+  { value: 'planned',         label: 'Planned',         color: 'bg-purple-100 text-purple-700' },
   { value: 'need_validation', label: 'Need Validation', color: 'bg-orange-100 text-orange-700' },
   { value: 'validated',       label: 'Validated',       color: 'bg-teal-100 text-teal-700' },
-  { value: 'reviewing',       label: 'Reviewing',       color: 'bg-yellow-100 text-yellow-700' },
-  { value: 'planned',         label: 'Planned',         color: 'bg-purple-100 text-purple-700' },
-  { value: 'done',            label: 'Done',            color: 'bg-green-100 text-green-700' },
   { value: 'declined',        label: 'Declined',        color: 'bg-gray-100 text-gray-500' },
 ]
 
