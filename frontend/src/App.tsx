@@ -22,6 +22,7 @@ import MemberDirectory from './pages/MemberDirectory'
 import GuestPasses from './pages/GuestPasses'
 import MyDues from './pages/MyDues'
 import ClubInfo from './pages/ClubInfo'
+import AskTheClub from './pages/AskTheClub'
 import Bylaws from './pages/Bylaws'
 import ProShop from './pages/ProShop'
 import MailInbox from './pages/MailInbox'
@@ -148,6 +149,7 @@ function AppRoutes() {
       <Route path="/guests" element={<ProtectedRoute><GuestPasses /></ProtectedRoute>} />
       <Route path="/dues" element={<ProtectedRoute><MyDues /></ProtectedRoute>} />
       <Route path="/club-info" element={<ProtectedRoute><ClubInfo /></ProtectedRoute>} />
+      <Route path="/ask" element={<ProtectedRoute><AskTheClub /></ProtectedRoute>} />
       <Route path="/bylaws" element={<ProtectedRoute><Bylaws /></ProtectedRoute>} />
       <Route path="/pro-shop" element={<ProtectedRoute><ProShop /></ProtectedRoute>} />
       <Route path="/email" element={<ProtectedRoute><MailInbox /></ProtectedRoute>} />

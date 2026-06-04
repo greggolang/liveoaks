@@ -38,6 +38,43 @@ export default function ScorecardModal({ match, onClose, onSubmitted }: {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
+  // Natural-language score entry ("beat Mark 6-4 6-3").
+  const [nlText, setNlText] = useState('')
+  const [nlParsing, setNlParsing] = useState(false)
+  const [nlError, setNlError] = useState('')
+
+  const parseNl = async () => {
+    if (!nlText.trim()) return
+    setNlParsing(true); setNlError('')
+    try {
+      const roster = [...teamA, ...teamB]
+        .filter(s => s.user_id)
+        .map(s => ({ id: s.user_id as string, name: s.name }))
+      const parsed = await api.ai.parseScore({ text: nlText, roster, reporter_name: teamA[0]?.name })
+      if (parsed.sets?.length) {
+        const next: SetRow[] = parsed.sets.slice(0, 3).map(s => ({
+          a: s.a ?? null, b: s.b ?? null, tba: s.tba ?? null, tbb: s.tbb ?? null,
+        }))
+        while (next.length < 2) next.push({ a: null, b: null, tba: null, tbb: null })
+        setSets(next)
+      }
+      // Fill any still-empty player slots from the parse (guests, last-minute subs).
+      if (parsed.teams?.length === 2) {
+        setTeams(prev => {
+          const apply = (team: Slot[], parsedSide: typeof parsed.teams[number]): Slot[] =>
+            team.map((slot, i) => {
+              if (slot.name.trim() || !parsedSide?.[i]?.name) return slot
+              const p = parsedSide[i]
+              return { user_id: p.user_id, name: p.name, is_guest: p.is_guest }
+            })
+          return [apply(prev[0], parsed.teams[0]), apply(prev[1], parsed.teams[1])]
+        })
+      }
+    } catch (e: any) {
+      setNlError(e.message || 'Could not read that score.')
+    } finally { setNlParsing(false) }
+  }
+
   // Inline player picker: which slot is open + its search state.
   const [picker, setPicker] = useState<{ team: 0 | 1; pos: number } | null>(null)
   const [search, setSearch] = useState('')
@@ -119,6 +156,23 @@ export default function ScorecardModal({ match, onClose, onSubmitted }: {
 
         {step === 'edit' ? (
           <div className="px-5 py-4 space-y-5 overflow-y-auto flex-1">
+            {/* Natural-language score entry */}
+            <div className="bg-green-50 border border-green-100 rounded-xl p-3">
+              <label className="block text-xs font-medium text-green-800 mb-1.5">✨ Type the score in plain English</label>
+              <div className="flex gap-2">
+                <input value={nlText} onChange={e => setNlText(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); parseNl() } }}
+                  placeholder="e.g. beat Mark 6-4 3-6 7-6(5)"
+                  className="flex-1 border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm outline-none focus:ring-2 focus:ring-green-500" />
+                <button type="button" onClick={parseNl} disabled={nlParsing || !nlText.trim()}
+                  className="bg-green-700 hover:bg-green-800 text-white text-sm font-medium px-3 py-1.5 rounded-lg transition disabled:opacity-50">
+                  {nlParsing ? '…' : 'Fill'}
+                </button>
+              </div>
+              {nlError && <p className="text-xs text-red-600 mt-1">{nlError}</p>}
+              <p className="text-[11px] text-green-700/70 mt-1">Fills the scores below — review before submitting.</p>
+            </div>
+
             {/* Players */}
             <div className="grid grid-cols-2 gap-3">
               {([teamA, teamB] as Slot[][]).map((team, ti) => (

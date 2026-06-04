@@ -9,6 +9,7 @@ import (
 	"strings"
 	_ "time/tzdata" // embed IANA timezone data so America/Los_Angeles works on any server
 
+	"github.com/greggolang/liveoaks/internal/ai"
 	"github.com/greggolang/liveoaks/internal/config"
 	"github.com/greggolang/liveoaks/internal/db"
 	"github.com/greggolang/liveoaks/internal/email"
@@ -147,6 +148,8 @@ func main() {
 	passwords := &handlers.PasswordsHandler{DB: pool, Secret: cfg.JWTSecret}
 	polls := &handlers.PollsHandler{DB: pool}
 	matches := &handlers.MatchesHandler{DB: pool}
+	aiClient := &ai.Client{DB: pool}
+	aiH := &handlers.AIHandler{DB: pool, AI: aiClient, UploadDir: uploadDir}
 
 	api := e.Group("/api")
 
@@ -228,6 +231,10 @@ func main() {
 	authed.DELETE("/conversations/:id", conversations.Leave)
 
 	// Match scores & club scoreboard
+	// AI assistant — "Ask the Club" (members) and natural-language score entry
+	authed.POST("/ask-club", aiH.AskClub)
+	authed.POST("/matches/parse-score", aiH.ParseScore)
+
 	authed.GET("/matches/pending", matches.Pending)
 	authed.GET("/matches/recent", matches.Recent)
 	authed.GET("/matches/mine", matches.Mine)
@@ -327,6 +334,11 @@ func main() {
 	adminOnly.GET("/ai-config", admin.GetAIConfig)
 	adminOnly.PUT("/ai-config", admin.UpdateAIConfig)
 	adminOnly.POST("/ai-config/test", admin.TestAIConfig)
+	// AI-powered admin features
+	adminOnly.POST("/receipts/analyze", aiH.AnalyzeReceipt)
+	adminOnly.GET("/feedback/digest", aiH.FeedbackDigest)
+	boardPlus.POST("/admin/ai/draft-minutes", aiH.DraftMinutes)
+	boardPlus.POST("/admin/ai/improve-text", aiH.ImproveText)
 	adminOnly.GET("/password-resets", admin.PendingResets)
 	adminOnly.GET("/activity-log", admin.ActivityLog)
 	adminOnly.GET("/dues", dues.AdminList)
@@ -660,6 +672,7 @@ func main() {
 		log.Fatalf("could not load frontend: %v", err)
 	}
 	uploads.FrontendFS = distFS
+	aiH.FrontendFS = distFS
 	e.GET("/*", func(c echo.Context) error {
 		req := c.Request()
 		path := req.URL.Path

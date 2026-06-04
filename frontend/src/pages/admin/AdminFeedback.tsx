@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { parseDate } from '../../utils/dates'
-import { api } from '../../api/client'
+import { api, type FeedbackDigest } from '../../api/client'
 
 interface FeedbackItem {
   id: string
@@ -43,6 +43,20 @@ export default function AdminFeedback() {
   const [replySending, setReplySending] = useState(false)
   const [replyDone, setReplyDone] = useState<string | null>(null)
   const [replyError, setReplyError] = useState<string | null>(null)
+
+  const [digest, setDigest] = useState<FeedbackDigest | null>(null)
+  const [digestLoading, setDigestLoading] = useState(false)
+  const [digestError, setDigestError] = useState('')
+  const [showDigest, setShowDigest] = useState(false)
+
+  const runDigest = async () => {
+    setShowDigest(true); setDigestLoading(true); setDigestError('')
+    try {
+      setDigest(await api.ai.feedbackDigest())
+    } catch (e: any) {
+      setDigestError(e.message || 'Could not generate digest.')
+    } finally { setDigestLoading(false) }
+  }
 
   const load = () =>
     api.feedback.adminList()
@@ -96,8 +110,59 @@ export default function AdminFeedback() {
 
   return (
     <div>
-      <h2 className="text-xl font-bold text-gray-800 mb-1">Site Ideas & Feedback</h2>
+      <div className="flex items-start justify-between gap-4 mb-1">
+        <h2 className="text-xl font-bold text-gray-800">Site Ideas & Feedback</h2>
+        <button onClick={runDigest} disabled={digestLoading}
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-white bg-green-700 hover:bg-green-800 rounded-lg px-3 py-1.5 transition disabled:opacity-50 shrink-0">
+          {digestLoading ? 'Analyzing…' : '✨ AI Triage Digest'}
+        </button>
+      </div>
       <p className="text-sm text-gray-500 mb-5">Ideas submitted by members from the dashboard.</p>
+
+      {/* AI triage digest */}
+      {showDigest && (
+        <div className="bg-white border border-green-200 rounded-xl shadow-sm p-5 mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-gray-800 flex items-center gap-2">✨ Board-ready digest</h3>
+            <button onClick={() => setShowDigest(false)} className="text-gray-300 hover:text-gray-500 text-sm">✕</button>
+          </div>
+          {digestLoading ? (
+            <p className="text-sm text-gray-400 animate-pulse">Grouping and summarizing open feedback…</p>
+          ) : digestError ? (
+            <p className="text-sm text-red-600">{digestError}</p>
+          ) : digest ? (
+            <div className="space-y-4">
+              <p className="text-sm text-gray-700">{digest.summary}</p>
+              {digest.themes.map((t, i) => {
+                const pc = t.priority === 'high' ? 'bg-red-50 text-red-600'
+                  : t.priority === 'medium' ? 'bg-amber-50 text-amber-700' : 'bg-gray-100 text-gray-500'
+                return (
+                  <div key={i} className="border border-gray-100 rounded-lg p-3">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <span className="font-semibold text-gray-800 text-sm">{t.title}</span>
+                      <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${pc}`}>{t.priority} priority</span>
+                      <span className="text-xs text-gray-400">{t.count} item{t.count !== 1 ? 's' : ''} · {t.type}</span>
+                    </div>
+                    <p className="text-sm text-gray-600">{t.summary}</p>
+                    <p className="text-sm text-gray-700 mt-1.5"><span className="font-medium">Suggested next step:</span> {t.suggestion}</p>
+                    {t.item_numbers.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {t.item_numbers.map(n => (
+                          <button key={n} onClick={() => setSearchText(`#${n}`)}
+                            className="text-xs font-mono bg-gray-100 hover:bg-gray-200 text-gray-600 rounded px-1.5 py-0.5 transition">
+                            #{n}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+              {digest.themes.length === 0 && <p className="text-sm text-gray-400">No open feedback to triage.</p>}
+            </div>
+          ) : null}
+        </div>
+      )}
 
       {/* Type + status filters */}
       <div className="flex flex-wrap gap-4 mb-5">

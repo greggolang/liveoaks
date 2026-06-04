@@ -194,6 +194,27 @@ export interface Poll {
   has_voted: boolean; my_vote?: string
 }
 
+// --- AI assistant shapes ---
+export interface DraftedMinutes {
+  attendees_present: string; attendees_absent: string; treasurer_report: string
+  old_business: string; new_business: string; action_items: string; additional_notes: string
+}
+export interface FeedbackDigestTheme {
+  title: string; type: 'bug' | 'idea' | 'mixed'; count: number
+  item_numbers: number[]; summary: string; suggestion: string; priority: 'high' | 'medium' | 'low'
+}
+export interface FeedbackDigest { summary: string; themes: FeedbackDigestTheme[] }
+export interface ParsedScore {
+  match_type: 'singles' | 'doubles'
+  teams: { name: string; user_id: string | null; is_guest: boolean }[][]
+  sets: { a: number; b: number; tba: number | null; tbb: number | null }[]
+  winner_side: number; confidence: 'high' | 'medium' | 'low'; notes: string
+}
+export interface ReceiptAnalysis {
+  title: string; amount: string; receipt_date: string; category: string; notes: string
+  confidence: 'high' | 'medium' | 'low'
+}
+
 const BASE = '/api'
 export const IMPERSONATION_KEY = 'impersonation_jwt'
 
@@ -854,6 +875,21 @@ export const api = {
     leaderboard: () => request<LeaderboardRow[]>('/matches/leaderboard'),
     player: (id: string) => request<PlayerStats>(`/matches/player/${id}`),
     stats: () => request<MatchStat[]>('/matches/stats'),
+  },
+  ai: {
+    askClub: (question: string, history: { role: 'user' | 'assistant'; content: string }[] = []) =>
+      request<{ answer: string }>('/ask-club', { method: 'POST', body: JSON.stringify({ question, history }) }),
+    analyzeReceipt: (file: File) => {
+      const f = new FormData(); f.append('file', file)
+      return upload<ReceiptAnalysis>('/admin/receipts/analyze', f)
+    },
+    draftMinutes: (notes: string) =>
+      request<DraftedMinutes>('/admin/ai/draft-minutes', { method: 'POST', body: JSON.stringify({ notes }) }),
+    improveText: (data: { subject?: string; body: string; kind: 'announcement' | 'broadcast' | 'email' }) =>
+      request<{ subject: string; body: string }>('/admin/ai/improve-text', { method: 'POST', body: JSON.stringify(data) }),
+    feedbackDigest: () => request<FeedbackDigest>('/admin/feedback/digest'),
+    parseScore: (data: { text: string; roster?: { id: string; name: string }[]; reporter_name?: string }) =>
+      request<ParsedScore>('/matches/parse-score', { method: 'POST', body: JSON.stringify(data) }),
   },
   kiosk: {
     members: () => request<{ id: string; name: string; member_number: number }[]>('/kiosk/members'),

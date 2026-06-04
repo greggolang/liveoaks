@@ -39,6 +39,8 @@ export default function AdminReceipts() {
   const [form, setForm] = useState(emptyForm)
   const [file, setFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [analyzing, setAnalyzing] = useState(false)
+  const [aiNote, setAiNote] = useState('')
   const [error, setError] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -55,13 +57,32 @@ export default function AdminReceipts() {
     setUploading(true); setError('')
     try {
       await api.receipts.upload({ ...form, file })
-      setForm(emptyForm); setFile(null)
+      setForm(emptyForm); setFile(null); setAiNote('')
       if (fileRef.current) fileRef.current.value = ''
       setShowForm(false)
       load()
     } catch (err: any) {
       setError(err.message)
     } finally { setUploading(false) }
+  }
+
+  const autoFill = async () => {
+    if (!file) return
+    setAnalyzing(true); setError(''); setAiNote('')
+    try {
+      const r = await api.ai.analyzeReceipt(file)
+      setForm(prev => ({
+        title: r.title || prev.title,
+        amount: r.amount || prev.amount,
+        receipt_date: r.receipt_date || prev.receipt_date,
+        category: CATEGORIES.some(c => c.value === r.category) ? r.category : prev.category,
+        notes: r.notes || prev.notes,
+      }))
+      const conf = r.confidence === 'low' ? ' (low confidence — please double-check)' : ''
+      setAiNote(`✨ Pre-filled from the receipt${conf}. Review before saving.`)
+    } catch (err: any) {
+      setError(err.message)
+    } finally { setAnalyzing(false) }
   }
 
   const handleDelete = async (r: Receipt) => {
@@ -121,8 +142,15 @@ export default function AdminReceipts() {
               <label className="block text-xs font-medium text-gray-600 mb-1">File *</label>
               <input ref={fileRef} type="file"
                 accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.heic"
-                onChange={e => setFile(e.target.files?.[0] ?? null)}
+                onChange={e => { setFile(e.target.files?.[0] ?? null); setAiNote('') }}
                 className="w-full text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-green-50 file:text-green-700 hover:file:bg-green-100" />
+              {file && (
+                <button type="button" onClick={autoFill} disabled={analyzing}
+                  className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-green-700 border border-green-200 bg-green-50 hover:bg-green-100 rounded-lg px-3 py-1.5 transition disabled:opacity-50">
+                  {analyzing ? 'Reading receipt…' : '✨ Auto-fill from receipt'}
+                </button>
+              )}
+              {aiNote && <p className="text-xs text-green-700 mt-1.5">{aiNote}</p>}
             </div>
             <div className="col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>

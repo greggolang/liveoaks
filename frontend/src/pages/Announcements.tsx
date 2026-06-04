@@ -28,6 +28,18 @@ export default function Announcements() {
   const { isBoard } = useAuth()
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [form, setForm] = useState({ title: '', body: '', send_email: false, require_confirmation: false })
+  const [improving, setImproving] = useState(false)
+
+  const improveAnnouncement = async () => {
+    if (!form.body.trim()) return
+    setImproving(true)
+    try {
+      const r = await api.ai.improveText({ subject: form.title, body: form.body, kind: 'announcement' })
+      setForm(f => ({ ...f, title: r.subject || f.title, body: r.body || f.body }))
+    } catch {
+      // Non-fatal — leave the draft as-is if AI is unavailable.
+    } finally { setImproving(false) }
+  }
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [showForm, setShowForm] = useState(false)
@@ -122,7 +134,13 @@ export default function Announcements() {
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-sm font-medium text-gray-700">Message</label>
+              <button type="button" onClick={improveAnnouncement} disabled={improving || !form.body.trim()}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-green-700 border border-green-200 bg-green-50 hover:bg-green-100 rounded-lg px-2.5 py-1 transition disabled:opacity-50">
+                {improving ? 'Improving…' : '✨ Improve'}
+              </button>
+            </div>
             <textarea value={form.body} onChange={e => setForm(f => ({ ...f, body: e.target.value }))} required rows={4}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
           </div>

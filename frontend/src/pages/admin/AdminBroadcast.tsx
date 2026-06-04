@@ -30,6 +30,20 @@ export default function AdminBroadcast() {
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState<{ sent: number; message: string } | null>(null)
   const [showPreview, setShowPreview] = useState(false)
+  const [improving, setImproving] = useState(false)
+  const [improveError, setImproveError] = useState('')
+
+  const improve = async () => {
+    if (!body.trim()) return
+    setImproving(true); setImproveError('')
+    try {
+      const r = await api.ai.improveText({ subject, body, kind: 'broadcast' })
+      if (r.subject) setSubject(r.subject)
+      if (r.body) setBody(r.body)
+    } catch (e: any) {
+      setImproveError(e.message || 'Could not improve the draft.')
+    } finally { setImproving(false) }
+  }
 
   // Load recipients whenever role filter changes
   useEffect(() => {
@@ -133,7 +147,14 @@ export default function AdminBroadcast() {
 
           {/* Compose */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
-            <h3 className="font-semibold text-gray-700 text-sm">Compose</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-gray-700 text-sm">Compose</h3>
+              <button type="button" onClick={improve} disabled={improving || !body.trim()}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-green-700 border border-green-200 bg-green-50 hover:bg-green-100 rounded-lg px-3 py-1.5 transition disabled:opacity-50">
+                {improving ? 'Improving…' : '✨ Improve with AI'}
+              </button>
+            </div>
+            {improveError && <p className="text-red-500 text-xs">{improveError}</p>}
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Subject *</label>
               <input

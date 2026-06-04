@@ -55,6 +55,7 @@ export default function AdminBoardMeetings() {
   const [minutesLoading, setMinutesLoading] = useState(false)
   const [minutesSaving, setMinutesSaving] = useState(false)
   const [minutesPublishing, setMinutesPublishing] = useState(false)
+  const [minutesDrafting, setMinutesDrafting] = useState(false)
   const [minutesError, setMinutesError] = useState('')
 
   const load = () => api.boardMeetings.admin.list().then(d => setMeetings(d as Meeting[]))
@@ -143,6 +144,28 @@ export default function AdminBoardMeetings() {
       setMinutesError(err.message || 'Could not save minutes.')
     } finally {
       setMinutesSaving(false)
+    }
+  }
+
+  const draftMinutes = async (notes: string) => {
+    setMinutesDrafting(true)
+    setMinutesError('')
+    try {
+      const d = await api.ai.draftMinutes(notes)
+      setMinutesForm(f => ({
+        ...f,
+        attendees_present: d.attendees_present || f.attendees_present,
+        attendees_absent: d.attendees_absent || f.attendees_absent,
+        treasurer_report: d.treasurer_report || f.treasurer_report,
+        old_business: d.old_business || f.old_business,
+        new_business: d.new_business || f.new_business,
+        action_items: d.action_items || f.action_items,
+        additional_notes: d.additional_notes || f.additional_notes,
+      }))
+    } catch (err: any) {
+      setMinutesError(err.message || 'Could not draft minutes.')
+    } finally {
+      setMinutesDrafting(false)
     }
   }
 
@@ -266,6 +289,8 @@ export default function AdminBoardMeetings() {
                 onTogglePrevApproved={() => setMinutesForm(f => ({ ...f, prev_minutes_approved: !f.prev_minutes_approved }))}
                 onSaveMinutes={saveMinutes}
                 onPublishMinutes={publishMinutes}
+                onDraftMinutes={draftMinutes}
+                minutesDrafting={minutesDrafting}
                 fmt={fmt}
               />
             ))}
@@ -297,6 +322,8 @@ export default function AdminBoardMeetings() {
                 onTogglePrevApproved={() => setMinutesForm(f => ({ ...f, prev_minutes_approved: !f.prev_minutes_approved }))}
                 onSaveMinutes={saveMinutes}
                 onPublishMinutes={publishMinutes}
+                onDraftMinutes={draftMinutes}
+                minutesDrafting={minutesDrafting}
                 fmt={fmt}
               />
             ))}
@@ -318,7 +345,7 @@ type MfFn = (field: keyof typeof emptyMinutes) => (e: React.ChangeEvent<HTMLInpu
 function MeetingCard({ meeting: m, past, onRoster, onDelete, onMinutes,
   rosterOpen, roster, rosterLoading,
   minutesOpen, minutesData, minutesLoading, minutesForm, minutesSaving, minutesPublishing, minutesError,
-  onMf, onTogglePrevApproved, onSaveMinutes, onPublishMinutes, fmt,
+  onMf, onTogglePrevApproved, onSaveMinutes, onPublishMinutes, onDraftMinutes, minutesDrafting, fmt,
 }: {
   meeting: Meeting; past: boolean
   onRoster: () => void; onDelete: () => void; onMinutes: () => void
@@ -329,9 +356,12 @@ function MeetingCard({ meeting: m, past, onRoster, onDelete, onMinutes,
   onMf: MfFn
   onTogglePrevApproved: () => void
   onSaveMinutes: () => void; onPublishMinutes: () => void
+  onDraftMinutes: (notes: string) => void; minutesDrafting: boolean
   fmt: (iso: string) => string
 }) {
   const total = m.pending + m.accepted + m.declined
+  const [draftNotes, setDraftNotes] = useState('')
+  const [showDraft, setShowDraft] = useState(false)
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
@@ -428,6 +458,35 @@ function MeetingCard({ meeting: m, past, onRoster, onDelete, onMinutes,
                   </span>
                 )}
               </div>
+
+              {/* AI: draft polished minutes from rough notes */}
+              {!minutesData?.published_at && (
+                <div className="bg-white border border-indigo-200 rounded-lg p-3">
+                  {!showDraft ? (
+                    <button type="button" onClick={() => setShowDraft(true)}
+                      className="text-xs font-medium text-indigo-700 hover:text-indigo-900">
+                      ✨ Draft minutes from rough notes
+                    </button>
+                  ) : (
+                    <div className="space-y-2">
+                      <label className="block text-xs font-medium text-indigo-900">Paste your rough notes — AI will organize them into the fields below and extract action items.</label>
+                      <textarea value={draftNotes} onChange={e => setDraftNotes(e.target.value)} rows={4}
+                        placeholder="- John, Sue, Maria present; Tom absent&#10;- Treasurer: $4,200 balance, dues coming in&#10;- Discussed court resurfacing bids, picked AceCourts&#10;- New: summer social on Aug 12, Maria to organize"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+                      <div className="flex items-center gap-2">
+                        <button type="button" onClick={() => onDraftMinutes(draftNotes)}
+                          disabled={minutesDrafting || !draftNotes.trim()}
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition disabled:opacity-50">
+                          {minutesDrafting ? 'Drafting…' : '✨ Generate draft'}
+                        </button>
+                        <button type="button" onClick={() => setShowDraft(false)}
+                          className="text-xs text-gray-500 hover:text-gray-700">Hide</button>
+                        <span className="text-xs text-gray-400">Fills the fields below — review before saving.</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
