@@ -17,6 +17,7 @@ import (
 	"github.com/greggolang/liveoaks/internal/logger"
 	mw "github.com/greggolang/liveoaks/internal/middleware"
 	"github.com/greggolang/liveoaks/internal/reminder"
+	"github.com/greggolang/liveoaks/internal/seed"
 	"github.com/greggolang/liveoaks/internal/sms"
 	"github.com/greggolang/liveoaks/internal/yolink"
 	"github.com/labstack/echo/v4"
@@ -44,6 +45,10 @@ func main() {
 	if err := db.RunMigrations(context.Background(), pool, migrationsFS); err != nil {
 		log.Fatalf("migrations failed: %v", err)
 	}
+
+	// Ensure baseline collaborative docs (e.g. the board proposal) exist. Runs
+	// every boot, independent of the migration tracker; never clobbers edits.
+	seed.EnsureCollabDocs(context.Background(), pool)
 
 	mailer := &email.DBMailer{
 		DB: pool,
