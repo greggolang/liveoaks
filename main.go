@@ -250,6 +250,8 @@ func main() {
 	authed.GET("/matches/player/:id", matches.Player)
 	authed.POST("/matches", matches.Create)
 	authed.GET("/matches/:id", matches.Get)
+	authed.PUT("/matches/:id", matches.Update)
+	authed.DELETE("/matches/:id", matches.Delete)
 
 	// Friends
 	authed.GET("/friends", friends.List)
@@ -419,6 +421,7 @@ func main() {
 	adminOnly.GET("/feedback", feedback.AdminList)
 	adminOnly.PUT("/feedback/:id/status", feedback.UpdateStatus)
 	adminOnly.PUT("/feedback/:id/assigned", feedback.UpdateAssigned)
+	adminOnly.PUT("/feedback/:id/note", feedback.UpdateNote)
 	adminOnly.DELETE("/feedback/:id", feedback.Delete)
 	adminOnly.GET("/email-templates", emailTemplates.List)
 	adminOnly.POST("/email-templates", emailTemplates.Create)

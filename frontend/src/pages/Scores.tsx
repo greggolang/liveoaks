@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, PendingMatch, MatchResult, LeaderboardRow } from '../api/client'
+import { useAuth } from '../contexts/AuthContext'
 import ScorecardModal from '../components/ScorecardModal'
 import MatchCard from '../components/MatchCard'
 import HelpPanel from '../components/HelpPanel'
@@ -13,6 +14,7 @@ const HELP = [
 ]
 
 export default function Scores() {
+  const { user } = useAuth()
   const [pending, setPending] = useState<PendingMatch[]>([])
   const [recent, setRecent] = useState<MatchResult[]>([])
   const [mine, setMine] = useState<MatchResult[]>([])
@@ -20,6 +22,16 @@ export default function Scores() {
   const [tab, setTab] = useState<'club' | 'mine' | 'leaderboard'>('club')
   const [loading, setLoading] = useState(true)
   const [scoreFor, setScoreFor] = useState<PendingMatch | null>(null)
+  const [editing, setEditing] = useState<MatchResult | null>(null)
+
+  // Only the member who reported a score may edit or delete it.
+  const canManage = (m: MatchResult) => !!user && m.reported_by === user.id
+
+  const remove = async (m: MatchResult) => {
+    if (!confirm('Delete this score? It will be removed from the scoreboard and stats.')) return
+    await api.matches.delete(m.id)
+    load()
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -107,7 +119,19 @@ export default function Scores() {
         </p>
       ) : (
         <div className="space-y-3">
-          {list.map(m => <MatchCard key={m.id} match={m} />)}
+          {list.map(m => (
+            <div key={m.id}>
+              <MatchCard match={m} />
+              {canManage(m) && (
+                <div className="flex justify-end gap-3 mt-1 mr-1">
+                  <button onClick={() => setEditing(m)}
+                    className="text-xs font-medium text-gray-500 hover:text-green-700 transition">Edit</button>
+                  <button onClick={() => remove(m)}
+                    className="text-xs font-medium text-gray-400 hover:text-red-600 transition">Delete</button>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
 
@@ -115,6 +139,12 @@ export default function Scores() {
         <ScorecardModal match={scoreFor}
           onClose={() => setScoreFor(null)}
           onSubmitted={() => { setScoreFor(null); load() }} />
+      )}
+
+      {editing && (
+        <ScorecardModal existing={editing}
+          onClose={() => setEditing(null)}
+          onSubmitted={() => { setEditing(null); load() }} />
       )}
     </div>
   )

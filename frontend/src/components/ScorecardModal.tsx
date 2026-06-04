@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { api, PendingMatch } from '../api/client'
+import { api, PendingMatch, MatchResult } from '../api/client'
 import { TennisSet, validateTennis, isTiebreakSet } from '../utils/tennis'
 
 interface Member { id: string; first_name: string; last_name: string; email: string }
@@ -23,17 +23,41 @@ function initialTeams(match: PendingMatch): [Slot[], Slot[]] {
   return [teamA, teamB]
 }
 
-export default function ScorecardModal({ match, onClose, onSubmitted }: {
-  match: PendingMatch
+// Rebuild the two-side roster and set rows from an existing scorecard, for edits.
+function teamsFromMatch(m: MatchResult): [Slot[], Slot[]] {
+  const perSide = m.match_type === 'doubles' ? 2 : 1
+  const blank = (): Slot => ({ user_id: null, name: '', is_guest: false })
+  const side = (n: number): Slot[] => {
+    const ps = m.participants.filter(p => p.side === n).sort((a, b) => a.position - b.position)
+    const arr: Slot[] = []
+    for (let i = 0; i < perSide; i++) arr.push(ps[i] ? { user_id: ps[i].user_id, name: ps[i].name, is_guest: ps[i].is_guest } : blank())
+    return arr
+  }
+  return [side(1), side(2)]
+}
+function setsFromMatch(m: MatchResult): SetRow[] {
+  return m.sets.map(s => ({ a: s.a, b: s.b, tba: s.tba ?? null, tbb: s.tbb ?? null }))
+}
+
+export default function ScorecardModal({ match, existing, onClose, onSubmitted }: {
+  match?: PendingMatch
+  existing?: MatchResult
   onClose: () => void
   onSubmitted: () => void
 }) {
-  const [[teamA, teamB], setTeams] = useState<[Slot[], Slot[]]>(() => initialTeams(match))
-  const [sets, setSets] = useState<SetRow[]>([
-    { a: null, b: null, tba: null, tbb: null },
-    { a: null, b: null, tba: null, tbb: null },
-  ])
-  const [visibility, setVisibility] = useState<'public' | 'private'>('public')
+  const isEdit = !!existing
+  const matchType = existing ? existing.match_type : match!.match_type
+  const courtName = existing ? existing.court_name : match!.court_name
+  const playedISO = existing ? existing.played_at : match!.start_time
+
+  const [[teamA, teamB], setTeams] = useState<[Slot[], Slot[]]>(() =>
+    existing ? teamsFromMatch(existing) : initialTeams(match!))
+  const [sets, setSets] = useState<SetRow[]>(() =>
+    existing ? setsFromMatch(existing) : [
+      { a: null, b: null, tba: null, tbb: null },
+      { a: null, b: null, tba: null, tbb: null },
+    ])
+  const [visibility, setVisibility] = useState<'public' | 'private'>(existing?.visibility ?? 'public')
   const [step, setStep] = useState<'edit' | 'review'>('edit')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -119,15 +143,16 @@ export default function ScorecardModal({ match, onClose, onSubmitted }: {
   async function submit() {
     setSaving(true); setError('')
     try {
-      await api.matches.create({
-        booking_id: match.booking_id,
-        visibility,
-        teams: [
-          teamA.map(s => ({ user_id: s.user_id, name: s.name.trim(), is_guest: s.is_guest })),
-          teamB.map(s => ({ user_id: s.user_id, name: s.name.trim(), is_guest: s.is_guest })),
-        ],
-        sets: sets.map(s => ({ a: s.a as number, b: s.b as number, tba: s.tba, tbb: s.tbb })),
-      })
+      const teams = [
+        teamA.map(s => ({ user_id: s.user_id, name: s.name.trim(), is_guest: s.is_guest })),
+        teamB.map(s => ({ user_id: s.user_id, name: s.name.trim(), is_guest: s.is_guest })),
+      ]
+      const setsPayload = sets.map(s => ({ a: s.a as number, b: s.b as number, tba: s.tba, tbb: s.tbb }))
+      if (existing) {
+        await api.matches.update(existing.id, { visibility, teams, sets: setsPayload })
+      } else {
+        await api.matches.create({ booking_id: match!.booking_id, visibility, teams, sets: setsPayload })
+      }
       onSubmitted()
     } catch (e: any) {
       setError(e.message || 'Could not save the score.')
@@ -135,16 +160,16 @@ export default function ScorecardModal({ match, onClose, onSubmitted }: {
     } finally { setSaving(false) }
   }
 
-  const playedAt = new Date(match.start_time).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+  const playedAt = new Date(playedISO).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[92vh]">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
           <div>
-            <h3 className="font-semibold text-gray-800">{step === 'edit' ? 'Enter match score' : 'Review score'}</h3>
+            <h3 className="font-semibold text-gray-800">{step === 'edit' ? (isEdit ? 'Edit match score' : 'Enter match score') : 'Review score'}</h3>
             <p className="text-xs text-gray-400">
-              {match.match_type === 'doubles' ? 'Doubles' : 'Singles'} · {match.court_name} · {playedAt}
+              {matchType === 'doubles' ? 'Doubles' : 'Singles'}{courtName ? ` · ${courtName}` : ''} · {playedAt}
             </p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition">
@@ -337,7 +362,7 @@ export default function ScorecardModal({ match, onClose, onSubmitted }: {
               <button onClick={() => setStep('edit')} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition">← Back</button>
               <button onClick={submit} disabled={saving}
                 className="bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-5 py-2 rounded-xl transition disabled:opacity-50">
-                {saving ? 'Submitting…' : 'Submit score'}
+                {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Submit score'}
               </button>
             </>
           )}

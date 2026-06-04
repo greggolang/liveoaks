@@ -9,12 +9,12 @@
 
 ## 1. Executive Summary
 
-The LOTA Portal is a single, custom-built platform that replaces five separate services the club pays for today — website hosting, Google Workspace, CourtReserve, our outside billing person, and IPCamlive camera streaming. Consolidating these into one system **lowers our monthly software/services spend from $663.24 to $350**, a **net savings of $313.24/month ($3,758.88/year)** — while giving members a far better experience and giving the board more control and visibility than we have ever had.
+The LOTA Portal is a single, custom-built platform that replaces five separate services the club pays for today — website hosting, Google Workspace, CourtReserve, our outside billing person, and IPCamlive camera streaming. Consolidating these into one system brings our monthly software/services spend from $663.24 to $850 — a **net increase of $186.76/month ($2,241.12/year)** — while replacing five separate services and a manual billing process with one board-controlled platform and giving members a far better experience and the board more control and visibility than we have ever had.
 
 | | Today | With the Portal | Difference |
 |---|---|---|---|
-| **Monthly cost** | $663.24 | $350 | **−$313.24 / mo** |
-| **Annual cost** | $7,958.88 | $4,200 | **−$3,758.88 / yr** |
+| **Monthly cost** | $663.24 | $850 | **+$186.76 / mo** |
+| **Annual cost** | $7,958.88 | $10,200 | **+$2,241.12 / yr** |
 
 Beyond the dollars, the Portal replaces five separate services and several logins, plus a manual billing process, with **one system the board controls** — purpose-built for our 4 courts, our dues, our USTA teams, and our events.
 
@@ -39,10 +39,11 @@ Beyond the dollars, the Portal replaces five separate services and several login
 |---|---|---|
 | **Server hosting** | **$50 / mo** ($600/yr) | Runs the entire platform — website, email, bookings, and billing. |
 | **Portal software** | **$300 / mo** ($3,600/yr) | Ongoing license, hosting management, updates, and new features. |
+| **Accounting/Bookkeeping** | **$500 / mo** ($6,000/yr) | Ongoing bookkeeping and accounting support for the club's finances. |
 | **Support** | **Included** | No additional charge — see Section 4. |
-| **Total** | **$350 / mo ($4,200/yr)** | |
+| **Total** | **$850 / mo ($10,200/yr)** | |
 
-**Net result: $663.24/mo − $350/mo = $313.24/mo saved ($3,758.88/year), with more capability than all five services combined.**
+**Net result: $850/mo − $663.24/mo = $186.76/mo more ($2,241.12/year) than the five services it replaces — in exchange for one board-controlled platform with more capability than all five combined.**
 
 ---
 
@@ -150,11 +151,11 @@ The Portal is already built and includes the following. Features members see are
 
 ## 7. Recommendation
 
-Approve adoption of the LOTA Portal to replace our website hosting, Google Workspace, CourtReserve, outside billing service, and IPCamlive camera streaming. The change **saves the club $3,758.88 per year**, consolidates five services into one, automates dues and billing, and gives members a modern, all-in-one experience tailored to LOTA.
+Approve adoption of the LOTA Portal to replace our website hosting, Google Workspace, CourtReserve, outside billing service, and IPCamlive camera streaming. The change consolidates five services into one board-controlled platform, automates dues and billing, and gives members a modern, all-in-one experience tailored to LOTA — at a net cost of about **$186.76/month ($2,241.12/year)** more than the five services it replaces.
 
 ---
 
 *Figures in this proposal:*
 - *Replaced services: Website hosting $25/mo, Google Workspace $168.24/mo, CourtReserve $1,800/yr ($150/mo), Billing person $300/mo, IPCamlive $20/mo = **$663.24/mo / $7,958.88/yr**.*
-- *New costs: Server $50/mo, Portal $300/mo, Support included = **$350/mo / $4,200/yr**.*
-- *Net savings: **$313.24/mo / $3,758.88/yr**.*
+- *New costs: Server $50/mo, Portal $300/mo, Accounting/Bookkeeping $500/mo, Support included = **$850/mo / $10,200/yr**.*
+- *Net change: **+$186.76/mo / +$2,241.12/yr**.*

@@ -11,6 +11,7 @@ interface FeedbackItem {
   type: string
   page?: string
   assigned_to?: string
+  note?: string
   created_at: string
   first_name: string
   last_name: string
@@ -57,6 +58,10 @@ export default function AdminFeedback() {
   const [replyDone, setReplyDone] = useState<string | null>(null)
   const [replyError, setReplyError] = useState<string | null>(null)
 
+  const [noteId, setNoteId] = useState<string | null>(null)
+  const [noteDraft, setNoteDraft] = useState('')
+  const [noteSaving, setNoteSaving] = useState(false)
+
   const [digest, setDigest] = useState<FeedbackDigest | null>(null)
   const [digestLoading, setDigestLoading] = useState(false)
   const [digestError, setDigestError] = useState('')
@@ -92,6 +97,23 @@ export default function AdminFeedback() {
     if (!confirm('Delete this idea?')) return
     await api.feedback.delete(id)
     setItems(prev => prev.filter(i => i.id !== id))
+  }
+
+  const openNote = (item: FeedbackItem) => {
+    setNoteId(item.id)
+    setNoteDraft(item.note ?? '')
+  }
+
+  const saveNote = async (item: FeedbackItem) => {
+    setNoteSaving(true)
+    try {
+      const note = noteDraft.trim()
+      await api.feedback.updateNote(item.id, note)
+      setItems(prev => prev.map(i => i.id === item.id ? { ...i, note: note || undefined } : i))
+      setNoteId(null)
+    } finally {
+      setNoteSaving(false)
+    }
   }
 
   const openReply = (id: string) => {
@@ -180,6 +202,13 @@ export default function AdminFeedback() {
               </>
             )}
           </p>
+          {item.note && noteId !== item.id && (
+            <button onClick={() => openNote(item)}
+              title="Click to edit"
+              className="mt-2 block w-full text-left text-xs bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-1.5 text-amber-900 whitespace-pre-wrap hover:border-amber-300 transition">
+              <span className="font-semibold">📝 Note:</span> {item.note}
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <button
@@ -190,6 +219,15 @@ export default function AdminFeedback() {
                 ? 'bg-green-700 text-white border-green-700'
                 : 'bg-white text-green-700 border-green-300 hover:border-green-600'}`}>
             ↩ Reply
+          </button>
+          <button
+            onClick={() => noteId === item.id ? setNoteId(null) : openNote(item)}
+            title="Internal board note (not shown to the member)"
+            className={`text-xs px-2 py-1 rounded-lg border transition font-medium
+              ${noteId === item.id
+                ? 'bg-amber-500 text-white border-amber-500'
+                : `bg-white border-amber-300 hover:border-amber-500 ${item.note ? 'text-amber-700' : 'text-amber-600'}`}`}>
+            📝 Note{item.note ? ' ✓' : ''}
           </button>
           <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusStyle(item.status)}`}>
             {statusLabel(item.status)}
@@ -259,6 +297,30 @@ export default function AdminFeedback() {
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* Inline internal note editor */}
+      {noteId === item.id && (
+        <div className="mt-3 pt-3 border-t border-gray-100">
+          <p className="text-xs text-gray-500 mb-1.5">Internal note — visible only to the board, not to {item.first_name}.</p>
+          <textarea
+            value={noteDraft}
+            onChange={e => setNoteDraft(e.target.value)}
+            placeholder="Add a private note about this item…"
+            rows={3}
+            className="w-full text-sm border border-gray-200 rounded-lg p-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-amber-500 text-gray-800 placeholder-gray-400"
+          />
+          <div className="flex justify-end gap-2 mt-2">
+            <button onClick={() => setNoteId(null)}
+              className="text-xs text-gray-400 hover:text-gray-600 px-3 py-1.5">
+              Cancel
+            </button>
+            <button onClick={() => saveNote(item)} disabled={noteSaving}
+              className="text-xs bg-amber-600 text-white px-4 py-1.5 rounded-lg hover:bg-amber-700 disabled:opacity-40 font-medium transition">
+              {noteSaving ? 'Saving…' : 'Save note'}
+            </button>
+          </div>
         </div>
       )}
     </div>

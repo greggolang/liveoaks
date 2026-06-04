@@ -97,13 +97,15 @@ export interface MatchResult {
   id: string; booking_id: string | null; match_type: 'singles' | 'doubles'
   court_name: string | null; played_at: string; visibility: 'public' | 'private'
   winner_side: number; score_summary: string; sets: MatchSet[]
-  reported_by_name: string | null; created_at: string; participants: MatchParticipant[]
+  reported_by_name: string | null; reported_by: string | null
+  created_at: string; participants: MatchParticipant[]
 }
 export interface MatchInput {
   booking_id: string; visibility: 'public' | 'private'
   teams: { user_id: string | null; name: string; is_guest: boolean }[][]
   sets: MatchSet[]
 }
+export type MatchUpdateInput = Omit<MatchInput, 'booking_id'>
 export interface LeaderboardRow { user_id: string; name: string; wins: number; losses: number; played: number; win_pct: number }
 export interface HeadToHeadRow { user_id: string; name: string; wins: number; losses: number; played: number }
 export interface PlayerStats {
@@ -578,6 +580,8 @@ export const api = {
       request(`/admin/feedback/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),
     updateAssigned: (id: string, assigned_to: string) =>
       request(`/admin/feedback/${id}/assigned`, { method: 'PUT', body: JSON.stringify({ assigned_to }) }),
+    updateNote: (id: string, note: string) =>
+      request(`/admin/feedback/${id}/note`, { method: 'PUT', body: JSON.stringify({ note }) }),
     delete: (id: string) => request(`/admin/feedback/${id}`, { method: 'DELETE' }),
   },
   permissions: {
@@ -933,6 +937,9 @@ export const api = {
     get: (id: string) => request<MatchResult>(`/matches/${id}`),
     create: (data: MatchInput) =>
       request<{ id: string }>('/matches', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: MatchUpdateInput) =>
+      request<{ id: string }>(`/matches/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    delete: (id: string) => request(`/matches/${id}`, { method: 'DELETE' }),
     leaderboard: () => request<LeaderboardRow[]>('/matches/leaderboard'),
     player: (id: string) => request<PlayerStats>(`/matches/player/${id}`),
     stats: () => request<MatchStat[]>('/matches/stats'),

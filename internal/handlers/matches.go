@@ -113,6 +113,7 @@ type matchOut struct {
 	ScoreSummary string          `json:"score_summary"`
 	Sets         json.RawMessage `json:"sets"`
 	ReportedBy   *string         `json:"reported_by_name"`
+	ReportedByID *string         `json:"reported_by"`
 	CreatedAt    time.Time       `json:"created_at"`
 	Participants []participantOut `json:"participants"`
 }
@@ -133,7 +134,8 @@ func (h *MatchesHandler) loadMatches(c echo.Context, sql string, args ...any) ([
 	for rows.Next() {
 		var m matchOut
 		if err := rows.Scan(&m.ID, &m.BookingID, &m.MatchType, &m.CourtName, &m.PlayedAt,
-			&m.Visibility, &m.WinnerSide, &m.ScoreSummary, &m.Sets, &m.ReportedBy, &m.CreatedAt); err != nil {
+			&m.Visibility, &m.WinnerSide, &m.ScoreSummary, &m.Sets, &m.ReportedBy, &m.CreatedAt,
+			&m.ReportedByID); err != nil {
 			continue
 		}
 		m.Participants = []participantOut{}
@@ -169,7 +171,7 @@ func (h *MatchesHandler) loadMatches(c echo.Context, sql string, args ...any) ([
 const matchSelect = `
 	SELECT m.id, m.booking_id::text, m.match_type, m.court_name, m.played_at,
 	       m.visibility, m.winner_side, m.score_summary, m.sets,
-	       ru.first_name || ' ' || ru.last_name, m.created_at
+	       ru.first_name || ' ' || ru.last_name, m.created_at, m.reported_by::text
 	FROM matches m
 	LEFT JOIN users ru ON ru.id = m.reported_by`
 
@@ -407,6 +409,123 @@ func (h *MatchesHandler) Create(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not save score")
 	}
 	return c.JSON(http.StatusCreated, map[string]string{"id": matchID})
+}
+
+// Update edits an existing scorecard — its set scores, players, or visibility.
+// Only the member who reported the score may change it. The match type (and the
+// booking it's tied to) are fixed; the winner and summary are recomputed.
+func (h *MatchesHandler) Update(c echo.Context) error {
+	userID := c.Get("user_id").(string)
+	ctx := c.Request().Context()
+	matchID := c.Param("id")
+
+	var req struct {
+		Visibility string          `json:"visibility"`
+		Teams      [][]playerInput `json:"teams"`
+		Sets       []setScore      `json:"sets"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
+	}
+
+	// The match must exist and have been reported by the caller.
+	var matchType string
+	var reportedBy *string
+	if err := h.DB.QueryRow(ctx,
+		`SELECT match_type, reported_by::text FROM matches WHERE id = $1`, matchID).
+		Scan(&matchType, &reportedBy); err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, "match not found")
+	}
+	if reportedBy == nil || *reportedBy != userID {
+		return echo.NewHTTPError(http.StatusForbidden, "only the member who entered this score can edit it")
+	}
+
+	if req.Visibility != "private" {
+		req.Visibility = "public"
+	}
+
+	perSide := 1
+	if matchType == "doubles" {
+		perSide = 2
+	}
+	if len(req.Teams) != 2 {
+		return echo.NewHTTPError(http.StatusBadRequest, "two teams are required")
+	}
+	for s, team := range req.Teams {
+		if len(team) != perSide {
+			return echo.NewHTTPError(http.StatusBadRequest,
+				fmt.Sprintf("team %d must have %d player(s)", s+1, perSide))
+		}
+		for _, p := range team {
+			if strings.TrimSpace(p.Name) == "" {
+				return echo.NewHTTPError(http.StatusBadRequest, "every player needs a name")
+			}
+		}
+	}
+
+	winnerSide, summary, verr := validateMatch(req.Sets)
+	if verr != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, verr.Error())
+	}
+	setsJSON, _ := json.Marshal(req.Sets)
+
+	tx, err := h.DB.Begin(ctx)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not save score")
+	}
+	defer tx.Rollback(ctx)
+
+	if _, err := tx.Exec(ctx, `
+		UPDATE matches SET visibility = $1, winner_side = $2, sets = $3, score_summary = $4
+		WHERE id = $5`,
+		req.Visibility, winnerSide, setsJSON, summary, matchID); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not save score")
+	}
+
+	// Replace the participant roster (players may have been corrected).
+	if _, err := tx.Exec(ctx, `DELETE FROM match_participants WHERE match_id = $1`, matchID); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not save players")
+	}
+	for s, team := range req.Teams {
+		for pos, p := range team {
+			var uid interface{}
+			if p.UserID != nil && *p.UserID != "" {
+				uid = *p.UserID
+			}
+			if _, err := tx.Exec(ctx, `
+				INSERT INTO match_participants (match_id, side, position, user_id, name, is_guest)
+				VALUES ($1, $2, $3, $4, $5, $6)`,
+				matchID, s+1, pos+1, uid, strings.TrimSpace(p.Name), p.IsGuest && uid == nil); err != nil {
+				return echo.NewHTTPError(http.StatusInternalServerError, "could not save players")
+			}
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not save score")
+	}
+	return c.JSON(http.StatusOK, map[string]string{"id": matchID})
+}
+
+// Delete removes a scorecard (participants cascade). Only the member who
+// reported the score may delete it.
+func (h *MatchesHandler) Delete(c echo.Context) error {
+	userID := c.Get("user_id").(string)
+	ctx := c.Request().Context()
+	matchID := c.Param("id")
+
+	var reportedBy *string
+	if err := h.DB.QueryRow(ctx,
+		`SELECT reported_by::text FROM matches WHERE id = $1`, matchID).Scan(&reportedBy); err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, "match not found")
+	}
+	if reportedBy == nil || *reportedBy != userID {
+		return echo.NewHTTPError(http.StatusForbidden, "only the member who entered this score can delete it")
+	}
+	if _, err := h.DB.Exec(ctx, `DELETE FROM matches WHERE id = $1`, matchID); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not delete score")
+	}
+	return c.NoContent(http.StatusNoContent)
 }
 
 // ── Stats: leaderboard, player profiles, head-to-head ──────────────────────
