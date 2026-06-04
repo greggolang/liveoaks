@@ -90,7 +90,7 @@ const sections: Section[] = [
       { to: '/admin/broadcast', label: 'Broadcast Email', section: 'broadcast' },
       { to: '/admin/settings', label: 'Settings', section: 'settings' },
       { to: '/admin/email-templates', label: 'Email Templates', section: 'email_templates' },
-      { to: '/admin/permissions', label: 'Admin Pages' },
+      { to: '/admin/permissions', label: 'Admin Permissions' },
       { to: '/admin/passwords', label: 'Password Vault' },
       { to: '/admin/communication-test', label: 'Test Communications', section: 'communication_test' },
       { to: '/admin/log', label: 'Activity Log', section: 'activity_log' },

@@ -68,7 +68,7 @@ export default function AdminBoardPermissions() {
     <div>
       <div className="flex items-start justify-between mb-1">
         <div>
-          <h2 className="text-xl font-bold text-gray-800">Admin Pages</h2>
+          <h2 className="text-xl font-bold text-gray-800">Admin Permissions</h2>
           <p className="text-sm text-gray-500 mt-0.5">
             Control which roles — including regular members — can open each admin page.
             Granting a page lets that role into the admin area for that page only. Admins always have full access.
