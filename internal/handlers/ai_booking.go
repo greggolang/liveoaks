@@ -17,12 +17,73 @@ const courtOpenHour, courtCloseHour = 8, 20
 // The chat surfaces a Confirm button that books it via the real, fully-validated
 // /bookings endpoint — the assistant never writes bookings directly.
 type bookingProposal struct {
-	CourtID   int    `json:"court_id"`
-	CourtName string `json:"court_name"`
-	StartTime string `json:"start_time"` // RFC3339, for api.bookings.create
-	EndTime   string `json:"end_time"`
-	MatchType string `json:"match_type"`
-	Label     string `json:"label"`
+	CourtID       int               `json:"court_id"`
+	CourtName     string            `json:"court_name"`
+	StartTime     string            `json:"start_time"` // RFC3339, for api.bookings.create
+	EndTime       string            `json:"end_time"`
+	MatchType     string            `json:"match_type"`
+	PlayersNeeded int               `json:"players_needed"` // roster capacity for the match type
+	Invitees      []proposalInvitee `json:"invitees"`
+	Label         string            `json:"label"`
+}
+
+// proposalInvitee is a player the member asked to invite. Members are resolved
+// to a user_id; anyone not matched is carried as a guest by name.
+type proposalInvitee struct {
+	UserID  string `json:"user_id"` // empty for a guest
+	Name    string `json:"name"`
+	Email   string `json:"email"`
+	IsGuest bool   `json:"is_guest"`
+}
+
+// playersForMatch is the roster capacity (excluding the host) for a match type,
+// mirroring PLAYERS_BY_TYPE in the booking UI.
+func playersForMatch(mt string) int {
+	switch mt {
+	case "doubles":
+		return 3
+	case "singles", "casual":
+		return 1
+	}
+	return 1
+}
+
+// resolveInvitees turns the names the member gave into invitees: a confident
+// name match becomes a member invite; anything ambiguous or unknown is kept as
+// a guest by name (the member can fix it from My Bookings before/after).
+func (h *AIHandler) resolveInvitees(ctx context.Context, names []string, hostID string) []proposalInvitee {
+	out := []proposalInvitee{}
+	for _, raw := range names {
+		name := strings.TrimSpace(raw)
+		if name == "" {
+			continue
+		}
+		rows, err := h.DB.Query(ctx, `
+			SELECT id::text, first_name || ' ' || last_name, COALESCE(email, '')
+			FROM users
+			WHERE status = 'active' AND id <> $2
+			  AND (lower(first_name || ' ' || last_name) = lower($1) OR lower(first_name) = lower($1))
+			LIMIT 3`, name, hostID)
+		if err != nil {
+			out = append(out, proposalInvitee{Name: name, IsGuest: true})
+			continue
+		}
+		type cand struct{ id, name, email string }
+		var matches []cand
+		for rows.Next() {
+			var c cand
+			if rows.Scan(&c.id, &c.name, &c.email) == nil {
+				matches = append(matches, c)
+			}
+		}
+		rows.Close()
+		if len(matches) == 1 { // unambiguous member
+			out = append(out, proposalInvitee{UserID: matches[0].id, Name: matches[0].name, Email: matches[0].email})
+		} else { // unknown or ambiguous → guest by the typed name
+			out = append(out, proposalInvitee{Name: name, IsGuest: true})
+		}
+	}
+	return out
 }
 
 func (h *AIHandler) aiTimezone(ctx context.Context) *time.Location {
@@ -67,8 +128,8 @@ func (h *AIHandler) bookingTools(loc *time.Location, userID string, proposal **b
 			Schema: json.RawMessage(`{"type":"object","properties":{}}`)},
 		{Name: "my_bookings", Description: "The current member's own upcoming bookings.",
 			Schema: json.RawMessage(`{"type":"object","properties":{}}`)},
-		{Name: "propose_booking", Description: "Find an open court for a time and propose a booking (does NOT book it). The member confirms afterward.",
-			Schema: json.RawMessage(`{"type":"object","properties":{"date":{"type":"string","description":"YYYY-MM-DD"},"start_time":{"type":"string","description":"Start time HH:MM in 24h club local time"},"duration_hours":{"type":"number","description":"Duration in hours, e.g. 1 or 1.5"},"match_type":{"type":"string","enum":["singles","doubles","casual"],"description":"Optional; defaults to casual"}},"required":["date","start_time","duration_hours"]}`)},
+		{Name: "propose_booking", Description: "Find an open court for a time and propose a booking (does NOT book it). The member confirms afterward. Only call this once you know the duration and match type — ask the member first if you don't.",
+			Schema: json.RawMessage(`{"type":"object","properties":{"date":{"type":"string","description":"YYYY-MM-DD"},"start_time":{"type":"string","description":"Start time HH:MM in 24h club local time"},"duration_hours":{"type":"number","description":"Duration in hours: 1 or 1.5. Ask the member if unknown."},"match_type":{"type":"string","enum":["singles","doubles","casual"],"description":"singles, doubles, or casual (a hit session). Ask the member if unknown."},"invitees":{"type":"array","items":{"type":"string"},"description":"Names of members or guests the member wants to invite. Empty array if they don't want to invite anyone."}},"required":["date","start_time","duration_hours","match_type"]}`)},
 	}
 
 	handlers := map[string]ai.ToolFunc{
@@ -180,19 +241,27 @@ func (h *AIHandler) bookingTools(loc *time.Location, userID string, proposal **b
 
 		"propose_booking": func(ctx context.Context, input json.RawMessage) (string, error) {
 			var in struct {
-				Date          string  `json:"date"`
-				StartTime     string  `json:"start_time"`
-				DurationHours float64 `json:"duration_hours"`
-				MatchType     string  `json:"match_type"`
+				Date          string   `json:"date"`
+				StartTime     string   `json:"start_time"`
+				DurationHours float64  `json:"duration_hours"`
+				MatchType     string   `json:"match_type"`
+				Invitees      []string `json:"invitees"`
 			}
 			json.Unmarshal(input, &in)
 			startLocal, err := time.ParseInLocation("2006-01-02 15:04", strings.TrimSpace(in.Date)+" "+strings.TrimSpace(in.StartTime), loc)
 			if err != nil {
-				return "I couldn't read that date/time.", nil
+				return "I couldn't read that date/time. Ask the member for the day and start time before proposing.", nil
 			}
+			// Enforce that all required booking details are present and valid BEFORE
+			// a court can be proposed. Without these, no proposal is created, so the
+			// member never gets a Confirm button — they can't book on partial info.
 			dur := in.DurationHours
-			if dur <= 0 {
-				dur = 1
+			if dur != 1 && dur != 1.5 {
+				return "I don't have the duration yet. Ask the member whether they want the court for 1 hour or 1½ hours, then call propose_booking again. Do NOT propose a court yet.", nil
+			}
+			mt := strings.ToLower(strings.TrimSpace(in.MatchType))
+			if mt != "singles" && mt != "doubles" && mt != "casual" {
+				return "I don't have the match type yet. Ask the member whether it's singles, doubles, or a casual hit, then call propose_booking again. Do NOT propose a court yet.", nil
 			}
 			endLocal := startLocal.Add(time.Duration(dur * float64(time.Hour)))
 			openH := time.Date(startLocal.Year(), startLocal.Month(), startLocal.Day(), courtOpenHour, 0, 0, 0, loc)
@@ -214,17 +283,22 @@ func (h *AIHandler) bookingTools(loc *time.Location, userID string, proposal **b
 			if err != nil {
 				return "No courts are open at that time — try a different time.", nil
 			}
-			mt := strings.ToLower(strings.TrimSpace(in.MatchType))
-			if mt == "" {
-				mt = "casual"
-			}
-			label := fmt.Sprintf("%s · %s · %s", courtName, startLocal.Format("Mon, Jan 2"), fmtClock(startLocal, endLocal, loc))
+			invitees := h.resolveInvitees(ctx, in.Invitees, userID)
+			label := fmt.Sprintf("%s · %s · %s%s", courtName, startLocal.Format("Mon, Jan 2"), fmtClock(startLocal, endLocal, loc), matchSuffix(mt))
 			*proposal = &bookingProposal{
 				CourtID: courtID, CourtName: courtName,
 				StartTime: startLocal.Format(time.RFC3339), EndTime: endLocal.Format(time.RFC3339),
-				MatchType: mt, Label: label,
+				MatchType: mt, PlayersNeeded: playersForMatch(mt), Invitees: invitees, Label: label,
 			}
-			return fmt.Sprintf("%s is available. Tell the member it's ready and they can tap Confirm to book it. Do NOT say it's already booked.", label), nil
+			summary := label
+			if len(invitees) > 0 {
+				names := make([]string, len(invitees))
+				for i, inv := range invitees {
+					names[i] = inv.Name
+				}
+				summary += "; inviting " + strings.Join(names, ", ")
+			}
+			return fmt.Sprintf("%s is available. Confirm the details (duration, match type, and who's invited) with the member and tell them to tap Confirm to book — tapping Confirm also sends the invitations. Do NOT say it's already booked.", summary), nil
 		},
 	}
 	return tools, handlers

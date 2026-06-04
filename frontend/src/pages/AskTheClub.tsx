@@ -20,7 +20,11 @@ export default function AskTheClub() {
   const [escalateFor, setEscalateFor] = useState<string | null>(null)
   const [escalating, setEscalating] = useState(false)
   // A court the assistant found that the member can confirm to book.
-  type Proposal = { court_id: number; court_name: string; start_time: string; end_time: string; match_type: string; label: string }
+  type Invitee = { user_id: string; name: string; email: string; is_guest: boolean }
+  type Proposal = {
+    court_id: number; court_name: string; start_time: string; end_time: string
+    match_type: string; players_needed?: number; invitees?: Invitee[]; label: string
+  }
   const [proposal, setProposal] = useState<Proposal | null>(null)
   const [booking, setBooking] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -74,14 +78,35 @@ export default function AskTheClub() {
     if (!proposal) return
     setBooking(true)
     try {
-      await api.bookings.create({
+      const booked = await api.bookings.create({
         court_id: proposal.court_id,
         start_time: proposal.start_time,
         end_time: proposal.end_time,
         match_type: proposal.match_type,
-        players_needed: 0,
-      })
-      setMessages(m => [...m, { role: 'assistant', content: `✅ Booked! ${proposal.label}. You'll find it under My Bookings.` }])
+        players_needed: proposal.players_needed ?? 0,
+      }) as { id: string }
+
+      // Send invitations for anyone the member asked to invite.
+      const invitees = proposal.invitees ?? []
+      let invited = 0
+      for (const inv of invitees) {
+        try {
+          await api.invitations.send(booked.id, {
+            invitee_user_id: inv.is_guest ? null : inv.user_id,
+            invitee_name: inv.name,
+            invitee_email: inv.email,
+            is_guest: inv.is_guest,
+          })
+          invited++
+        } catch { /* skip an invite that doesn't fit (e.g. roster full) */ }
+      }
+
+      let msg = `✅ Booked! ${proposal.label}. You'll find it under My Bookings.`
+      if (invited > 0) {
+        const names = invitees.slice(0, invited).map(i => i.name).join(', ')
+        msg += ` I've invited ${names}.`
+      }
+      setMessages(m => [...m, { role: 'assistant', content: msg }])
       setProposal(null)
     } catch (err: any) {
       setMessages(m => [...m, { role: 'assistant', content: `I couldn't book that: ${err.message || 'please try again'}.` }])
@@ -148,6 +173,11 @@ export default function AskTheClub() {
             <div className="bg-green-50 border border-green-200 rounded-2xl rounded-bl-sm px-4 py-3 text-sm max-w-[85%]">
               <p className="text-green-900 font-medium">Book this court?</p>
               <p className="text-green-800/80 text-xs mt-0.5">{proposal.label}</p>
+              {proposal.invitees && proposal.invitees.length > 0 && (
+                <p className="text-green-800/80 text-xs mt-1">
+                  Inviting: {proposal.invitees.map(i => i.name + (i.is_guest ? ' (guest)' : '')).join(', ')}
+                </p>
+              )}
               <div className="flex gap-2 mt-2.5">
                 <button onClick={confirmBooking} disabled={booking}
                   className="bg-green-700 hover:bg-green-800 text-white text-xs font-semibold px-3.5 py-1.5 rounded-lg transition disabled:opacity-50">
