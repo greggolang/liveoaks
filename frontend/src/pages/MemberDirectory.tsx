@@ -131,16 +131,10 @@ export default function MemberDirectory() {
           ${isMember
             ? 'bg-green-50/40 border-green-200 hover:border-green-300'
             : 'bg-purple-50/60 border-purple-200'}`}>
-        {isMember ? (
+        {isMember && photo && (
           <Link to={`/players/${e.id}`} title="View profile" className="shrink-0">
-            {photo
-              ? <img src={photo} alt={fullName} className="w-10 h-10 rounded-full object-cover" />
-              : <span className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${avatarColor(fullName)}`}>{initials(e.first_name, e.last_name)}</span>}
+            <img src={photo} alt={fullName} className="w-10 h-10 rounded-full object-cover" />
           </Link>
-        ) : (
-          <div className="w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-sm font-bold bg-purple-50 text-purple-500">
-            {initials(e.first_name, e.last_name)}
-          </div>
         )}
 
         <div className="min-w-0 flex-1">
