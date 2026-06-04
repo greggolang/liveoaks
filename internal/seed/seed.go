@@ -70,22 +70,23 @@ const boardProposalBody = `<h1>Board Meeting Proposal — The LOTA Member Portal
 <strong>Prepared for:</strong> Board of Directors</p>
 <hr>
 <h2>1. Executive Summary</h2>
-<p>The LOTA Portal is a single, custom-built platform that replaces four separate services the club pays for today — website hosting, Google Workspace, CourtReserve, and our outside billing person. Consolidating these into one system <strong>lowers our monthly software/services spend from $600 to $350</strong>, a <strong>net savings of $250/month ($3,000/year)</strong> — while giving members a far better experience and giving the board more control and visibility than we have ever had.</p>
+<p>The LOTA Portal is a single, custom-built platform that replaces five separate services the club pays for today — website hosting, Google Workspace, CourtReserve, our outside billing person, and IPCamlive camera streaming. Consolidating these into one system <strong>lowers our monthly software/services spend from $663.24 to $350</strong>, a <strong>net savings of $313.24/month ($3,758.88/year)</strong> — while giving members a far better experience and giving the board more control and visibility than we have ever had.</p>
 <table>
   <tr><th></th><th>Today</th><th>With the Portal</th><th>Difference</th></tr>
-  <tr><td>Monthly cost</td><td>$600</td><td>$350</td><td>−$250 / mo</td></tr>
-  <tr><td>Annual cost</td><td>$7,200</td><td>$4,200</td><td>−$3,000 / yr</td></tr>
+  <tr><td>Monthly cost</td><td>$663.24</td><td>$350</td><td>−$313.24 / mo</td></tr>
+  <tr><td>Annual cost</td><td>$7,958.88</td><td>$4,200</td><td>−$3,758.88 / yr</td></tr>
 </table>
-<p>Beyond the dollars, the Portal replaces four logins, four vendors, and a manual billing process with <strong>one system the board controls</strong> — purpose-built for our 4 courts, our dues, our USTA teams, and our events.</p>
+<p>Beyond the dollars, the Portal replaces five separate services and several logins, plus a manual billing process, with <strong>one system the board controls</strong> — purpose-built for our 4 courts, our dues, our USTA teams, and our events.</p>
 <hr>
 <h2>2. What the Portal Replaces (and the Savings)</h2>
 <table>
   <tr><th>What we pay for today</th><th>Current cost</th><th>How the Portal replaces it</th></tr>
   <tr><td>Website hosting</td><td>$25 / mo ($300/yr)</td><td>The Portal serves our public website and the member site from the same server. The board edits the public site directly through the built-in Content editor — no separate hosting account or web developer needed.</td></tr>
-  <tr><td>Google Workspace</td><td>$125 / mo ($1,500/yr)</td><td>The Portal includes its own email system (club inboxes, member messaging, mass broadcast email, shared files, and collaborative documents), removing the need for paid Google Workspace seats.</td></tr>
+  <tr><td>Google Workspace</td><td>$168.24 / mo ($2,018.88/yr)</td><td>The Portal includes its own email system (club inboxes, member messaging, mass broadcast email, shared files, and collaborative documents), removing the need for paid Google Workspace seats.</td></tr>
   <tr><td>CourtReserve</td><td>$1,800 / yr ($150/mo)</td><td>The Portal has a complete court-reservation system — online booking, the live court grid, waitlists, cancellations, guest passes, and court blocks — purpose-built for our 4 courts.</td></tr>
   <tr><td>Billing person</td><td>$300 / mo ($3,600/yr)</td><td>The Portal automates dues and billing: it issues dues, takes member card payments through Stripe, tracks balances, generates receipts, and handles accounting and tax reporting.</td></tr>
-  <tr><td><strong>Total replaced</strong></td><td><strong>$600 / mo ($7,200/yr)</strong></td><td></td></tr>
+  <tr><td>IPCamlive (camera streaming)</td><td>$20 / mo ($240/yr)</td><td>The Portal streams the club's on-site cameras directly within the member site, replacing the third-party IPCamlive hosting service.</td></tr>
+  <tr><td><strong>Total replaced</strong></td><td><strong>$663.24 / mo ($7,958.88/yr)</strong></td><td></td></tr>
 </table>
 <hr>
 <h2>3. What the Portal Costs</h2>
@@ -96,7 +97,7 @@ const boardProposalBody = `<h1>Board Meeting Proposal — The LOTA Member Portal
   <tr><td>Support</td><td>Included</td><td>No additional charge — see Section 4.</td></tr>
   <tr><td><strong>Total</strong></td><td><strong>$350 / mo ($4,200/yr)</strong></td><td></td></tr>
 </table>
-<p><strong>Net result: $600/mo − $350/mo = $250/mo saved ($3,000/year), with more capability than all four services combined.</strong></p>
+<p><strong>Net result: $663.24/mo − $350/mo = $313.24/mo saved ($3,758.88/year), with more capability than all five services combined.</strong></p>
 <hr>
 <h2>4. How Support Works</h2>
 <p>Support is included in the $300/month — there is no separate support contract or hourly billing.</p>
@@ -130,4 +131,4 @@ const boardProposalBody = `<h1>Board Meeting Proposal — The LOTA Member Portal
 <ul><li>Full admin dashboard</li><li>User and member management; member-request approvals</li><li>Granular permissions and page-access control</li><li>Board communications, board meetings, and RSVPs</li><li><strong>AI board-minutes drafting</strong> — turns rough notes into polished minutes and extracts action items</li><li>Email templates</li><li>Activity log / audit trail</li><li>Member feedback and bug tracking</li><li><strong>AI feedback triage</strong> — groups duplicate feedback into a prioritized, board-ready digest</li><li>Password management (resets, impersonate-for-support)</li><li>Teaching-pro tools</li><li>Smart-device integration (YoLink)</li><li>On-site cameras</li><li>Ball / equipment tracking</li></ul>
 <hr>
 <h2>7. Recommendation</h2>
-<p>Approve adoption of the LOTA Portal to replace our website hosting, Google Workspace, CourtReserve, and outside billing service. The change <strong>saves the club $3,000 per year</strong>, consolidates four vendors into one, automates dues and billing, and gives members a modern, all-in-one experience tailored to LOTA.</p>`
+<p>Approve adoption of the LOTA Portal to replace our website hosting, Google Workspace, CourtReserve, outside billing service, and IPCamlive camera streaming. The change <strong>saves the club $3,758.88 per year</strong>, consolidates five services into one, automates dues and billing, and gives members a modern, all-in-one experience tailored to LOTA.</p>`
