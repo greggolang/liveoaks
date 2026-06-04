@@ -51,6 +51,14 @@ export default function CourtGrid() {
       return false
     })
 
+  const blockBounds = (blk: CourtBlock, hour: number): { start: number; end: number } => {
+    if (blk.block_type === 'recurring_weekly' && blk.start_time && blk.end_time)
+      return { start: parseInt(blk.start_time.split(':')[0]), end: parseInt(blk.end_time.split(':')[0]) }
+    if (blk.block_type === 'one_time' && blk.one_time_start && blk.one_time_end)
+      return { start: parseDate(blk.one_time_start).getHours(), end: parseDate(blk.one_time_end).getHours() }
+    return { start: hour, end: hour + 1 }
+  }
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
@@ -60,7 +68,7 @@ export default function CourtGrid() {
       </div>
 
       <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
               <th className="px-4 py-3 text-left text-gray-500 text-xs font-medium w-20">Time</th>
@@ -75,26 +83,41 @@ export default function CourtGrid() {
           <tbody>
             {HOURS.map(hour => (
               <tr key={hour} className="border-b border-gray-100 last:border-0">
-                <td className="px-4 py-2 text-gray-400 text-xs font-medium whitespace-nowrap">
+                <td className="px-4 py-2 text-gray-400 text-xs font-medium whitespace-nowrap align-top">
                   {hour % 12 || 12}{hour < 12 ? 'am' : 'pm'}
                 </td>
                 {courts.map(c => {
                   const b = getBooking(c.id, hour)
-                  const blk = !b ? getBlock(c.id, hour) : null
-                  return (
-                    <td key={c.id} className="px-2 py-1 text-center">
-                      {b ? (
-                        <div className="bg-green-100 border border-green-300 rounded px-2 py-1 text-xs text-green-800 font-medium">
+                  if (b) {
+                    const startHour = parseDate(b.start_time).getHours()
+                    if (startHour !== hour) return null
+                    const span = parseDate(b.end_time).getHours() - startHour
+                    return (
+                      <td key={c.id} rowSpan={span} className="px-2 py-1 align-middle">
+                        <div className="bg-green-100 border border-green-300 rounded px-2 py-2 text-xs text-green-800 font-medium text-center flex items-center justify-center" style={{ minHeight: `${span * 2}rem` }}>
                           {b.user.first_name} {b.user.last_name[0]}.
                         </div>
-                      ) : blk ? (
-                        <div title={blk.reason}
-                          className="bg-amber-50 border border-amber-200 rounded px-2 py-1 text-xs text-amber-500 font-medium truncate">
+                      </td>
+                    )
+                  }
+
+                  const blk = getBlock(c.id, hour)
+                  if (blk) {
+                    const { start, end } = blockBounds(blk, hour)
+                    if (start !== hour) return null
+                    const span = end - start
+                    return (
+                      <td key={c.id} rowSpan={span} className="px-2 py-1 align-middle" title={blk.reason}>
+                        <div className="bg-amber-50 border border-amber-200 rounded px-2 py-2 text-xs text-amber-500 font-medium text-center truncate flex items-center justify-center" style={{ minHeight: `${span * 2}rem` }}>
                           {blk.reason}
                         </div>
-                      ) : (
-                        <div className="text-gray-200 text-xs">—</div>
-                      )}
+                      </td>
+                    )
+                  }
+
+                  return (
+                    <td key={c.id} className="px-2 py-2 text-center">
+                      <div className="text-gray-200 text-xs">—</div>
                     </td>
                   )
                 })}

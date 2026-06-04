@@ -13,17 +13,18 @@ type MembersHandler struct {
 }
 
 type MemberContact struct {
-	ID          string    `json:"id"`
-	FirstName   string    `json:"first_name"`
-	LastName    string    `json:"last_name"`
-	Email       string    `json:"email"`
-	Phone       *string   `json:"phone,omitempty"`
-	Address     *string   `json:"address,omitempty"`
-	Family      *string   `json:"family,omitempty"`
-	USTARanking *string   `json:"usta_ranking,omitempty"`
-	CreatedAt   time.Time `json:"created_at"`
-	PhotoURL    *string   `json:"photo_url,omitempty"`
-	Household   []string  `json:"household,omitempty"`
+	ID             string    `json:"id"`
+	FirstName      string    `json:"first_name"`
+	LastName       string    `json:"last_name"`
+	Email          string    `json:"email"`
+	Phone          *string   `json:"phone,omitempty"`
+	Address        *string   `json:"address,omitempty"`
+	Family         *string   `json:"family,omitempty"`
+	USTARanking    *string   `json:"usta_ranking,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	PhotoURL       *string   `json:"photo_url,omitempty"`
+	Household      []string  `json:"household,omitempty"`
+	IsFamilyMember bool      `json:"is_family_member"`
 }
 
 func (h *MembersHandler) Directory(c echo.Context) error {
@@ -36,10 +37,12 @@ func (h *MembersHandler) Directory(c echo.Context) error {
 
 	var query string
 	if isBoard {
-		query = `SELECT id, first_name, last_name, email, phone, address, family, usta_ranking, created_at, photo_filename
+		query = `SELECT id, first_name, last_name, email, phone, address, family, usta_ranking, created_at, photo_filename,
+		                EXISTS(SELECT 1 FROM family_members WHERE linked_user_id = users.id) AS is_family_member
 		         FROM users WHERE status = 'active' ORDER BY last_name, first_name`
 	} else {
-		query = `SELECT id, first_name, last_name, email, NULL, NULL, family, usta_ranking, created_at, photo_filename
+		query = `SELECT id, first_name, last_name, email, NULL, NULL, family, usta_ranking, created_at, photo_filename,
+		                EXISTS(SELECT 1 FROM family_members WHERE linked_user_id = users.id) AS is_family_member
 		         FROM users WHERE status = 'active' ORDER BY last_name, first_name`
 	}
 
@@ -54,7 +57,7 @@ func (h *MembersHandler) Directory(c echo.Context) error {
 	for rows.Next() {
 		var m MemberContact
 		var photo *string
-		if err := rows.Scan(&m.ID, &m.FirstName, &m.LastName, &m.Email, &m.Phone, &m.Address, &m.Family, &m.USTARanking, &m.CreatedAt, &photo); err != nil {
+		if err := rows.Scan(&m.ID, &m.FirstName, &m.LastName, &m.Email, &m.Phone, &m.Address, &m.Family, &m.USTARanking, &m.CreatedAt, &photo, &m.IsFamilyMember); err != nil {
 			continue
 		}
 		if photo != nil && *photo != "" {
