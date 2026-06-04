@@ -6,7 +6,7 @@ import { formatPhone } from '../utils/phone'
 import HelpPanel from '../components/HelpPanel'
 
 const HELP = [
-  { heading: 'Members vs Family', body: 'The directory shows two types of entries: full members (white cards) and registered family members such as spouses or children (purple left border). Use the filter buttons to view each group separately.' },
+  { heading: 'Members vs Family', body: 'In the "All" view, each full member (white card) is shown with their registered family members — spouses or children (purple cards) — nested directly beneath them. Use the Members or Family buttons to view either group on its own.' },
   { heading: 'Search', body: 'The search bar filters by name or email across all entries. For family members it also searches by the primary member\'s name — so searching "Smith" finds the Smith family and their family members too.' },
   { heading: 'Contact Info', body: 'Phone numbers and addresses are only visible to board members. All members can see names and email addresses.' },
   { heading: 'Player Profiles', body: 'Click any member\'s name or avatar to visit their player profile, which shows their match history, win/loss record, and USTA rating.' },
@@ -70,27 +70,136 @@ export default function MemberDirectory() {
 
   useEffect(() => { load() }, [])
 
-  const all: Entry[] = [
-    ...members,
-    ...familyEntries,
-  ].sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name))
+  const all: Entry[] = [...members, ...familyEntries]
 
-  const filtered = all.filter(e => {
-    if (filterType === 'family' && e.type !== 'family') return false
-    if (filterType === 'member' && e.type !== 'member') return false
-    if (!search) return true
-    const q = search.toLowerCase()
+  const q = search.trim().toLowerCase()
+  const matchEntry = (e: Entry) => {
+    if (!q) return true
     const base = `${e.first_name} ${e.last_name} ${e.email ?? ''}`.toLowerCase()
     const extra = e.type === 'family' ? (e as FamilyEntry).primary_member_name.toLowerCase() : ''
     return base.includes(q) || extra.includes(q)
-  })
+  }
+  const sortByName = (a: Entry, b: Entry) =>
+    a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name)
 
-  const grouped = filtered.reduce((acc, e) => {
+  // Households: each primary member paired with the family members registered
+  // under them, so family appears nested beneath their member in the "All" view.
+  const sortedMembers = [...members].sort(sortByName)
+  type Household = { member: Member; family: FamilyEntry[] }
+  const households: Household[] = sortedMembers
+    .map(m => ({ member: m, family: familyEntries.filter(f => f.primary_member_id === m.id).sort(sortByName) }))
+    .filter(h => matchEntry(h.member) || h.family.some(matchEntry))
+
+  // Family whose primary member isn't in the directory get their own group.
+  const memberIds = new Set(members.map(m => m.id))
+  const orphanFamily = [...familyEntries].sort(sortByName)
+    .filter(f => !memberIds.has(f.primary_member_id) && matchEntry(f))
+
+  const householdGroups = households.reduce((acc, h) => {
+    const letter = h.member.last_name[0]?.toUpperCase() ?? '#'
+    if (!acc[letter]) acc[letter] = []
+    acc[letter].push(h)
+    return acc
+  }, {} as Record<string, Household[]>)
+
+  // Flat, single-type lists for the Members / Family tabs.
+  const flatList: Entry[] = filterType === 'member'
+    ? sortedMembers.filter(matchEntry)
+    : [...familyEntries].sort(sortByName).filter(matchEntry)
+  const flatGroups = flatList.reduce((acc, e) => {
     const letter = e.last_name[0]?.toUpperCase() ?? '#'
     if (!acc[letter]) acc[letter] = []
     acc[letter].push(e)
     return acc
   }, {} as Record<string, Entry[]>)
+
+  // A single member/family card. `nested` drops the card's own purple edge when
+  // it already sits inside a household's purple connector line.
+  const renderCard = (e: Entry, nested = false) => {
+    const isMember = e.type === 'member'
+    const isFamily = e.type === 'family'
+    const fullName = `${e.first_name} ${e.last_name}`
+    const rating = isMember ? (e as Member).usta_ranking : (e as FamilyEntry).usta_ranking
+    const since = isMember ? (e as Member).created_at : undefined
+    const photo = isMember ? (e as Member).photo_url : undefined
+    const household = isMember ? (e as Member).household : undefined
+    const rec = isMember ? records[e.id] : undefined
+    const recentDays = daysAgo(rec?.last_played)
+    return (
+      <div key={`${e.type}-${e.id}`}
+        className={`bg-white border rounded-xl p-3.5 shadow-sm hover:shadow-md transition flex items-start gap-3
+          ${isMember ? 'border-gray-200 hover:border-green-200' : nested ? 'border-gray-200' : 'border-gray-200 border-l-4 border-l-purple-300'}`}>
+        {isMember ? (
+          <Link to={`/players/${e.id}`} title="View profile" className="shrink-0">
+            {photo
+              ? <img src={photo} alt={fullName} className="w-10 h-10 rounded-full object-cover" />
+              : <span className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${avatarColor(fullName)}`}>{initials(e.first_name, e.last_name)}</span>}
+          </Link>
+        ) : (
+          <div className="w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-sm font-bold bg-purple-50 text-purple-500">
+            {initials(e.first_name, e.last_name)}
+          </div>
+        )}
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            {isMember
+              ? <Link to={`/players/${e.id}`} className="font-semibold text-gray-800 hover:text-green-700 transition truncate">{fullName}</Link>
+              : <span className="font-semibold text-gray-800 truncate">{fullName}</span>}
+            {rating && <span className="text-[11px] font-semibold text-green-700 bg-green-50 px-1.5 py-0.5 rounded">USTA {rating}</span>}
+            {rec && rec.played > 0 && (
+              <span className="text-[11px] font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded" title="Wins–losses (public matches)">{rec.wins}–{rec.losses}</span>
+            )}
+            {recentDays !== null && recentDays <= 21 && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-green-600" title={`Played ${recentDays === 0 ? 'today' : `${recentDays}d ago`}`}>
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500" />Active
+              </span>
+            )}
+            {isFamily && (
+              <span className="text-[11px] font-medium text-purple-500 bg-purple-50 px-1.5 py-0.5 rounded capitalize">
+                {(e as FamilyEntry).relationship}
+              </span>
+            )}
+          </div>
+
+          <div className="mt-1 space-y-0.5">
+            {e.email && (
+              <a href={`mailto:${e.email}`} className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-green-700 transition">
+                <Icon d={IC.mail} /><span className="truncate">{e.email}</span>
+              </a>
+            )}
+            {e.phone && (
+              <a href={`tel:${e.phone}`} className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-green-700 transition">
+                <Icon d={IC.phone} />{formatPhone(e.phone)}
+              </a>
+            )}
+            {(e as Member).address && (
+              <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                <Icon d={IC.pin} /><span className="truncate">{(e as Member).address}</span>
+              </div>
+            )}
+            {household && household.length > 0 && (
+              <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                <Icon d={IC.people} /><span className="truncate">Household: {household.join(', ')}</span>
+              </div>
+            )}
+            {(e as Member).family && (
+              <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                <Icon d={IC.people} /><span className="truncate">{(e as Member).family}</span>
+              </div>
+            )}
+            {isFamily && !nested && (
+              <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                <Icon d={IC.people} /><span className="truncate">{(e as FamilyEntry).primary_member_name}</span>
+              </div>
+            )}
+          </div>
+
+          {since && <div className="text-[11px] text-gray-300 mt-1.5">Member since {new Date(since).getFullYear()}</div>}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div>
@@ -132,102 +241,56 @@ export default function MemberDirectory() {
         </div>
       </div>
 
-      {/* Directory grouped by letter */}
-      {Object.keys(grouped).sort().map(letter => (
-        <div key={letter} className="mb-6">
-          <div className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 pl-1">{letter}</div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
-            {grouped[letter].map(e => {
-              const isMember = e.type === 'member'
-              const isFamily = e.type === 'family'
-              const fullName = `${e.first_name} ${e.last_name}`
-              const rating = isMember ? (e as Member).usta_ranking : (e as FamilyEntry).usta_ranking
-              const since = isMember ? (e as Member).created_at : undefined
-              const photo = isMember ? (e as Member).photo_url : undefined
-              const household = isMember ? (e as Member).household : undefined
-              const rec = isMember ? records[e.id] : undefined
-              const recentDays = daysAgo(rec?.last_played)
-              return (
-                <div key={`${e.type}-${e.id}`}
-                  className={`bg-white border rounded-xl p-3.5 shadow-sm hover:shadow-md transition flex items-start gap-3
-                    ${isMember ? 'border-gray-200 hover:border-green-200' : 'border-gray-200 border-l-4 border-l-purple-300'}`}>
-                  {isMember ? (
-                    <Link to={`/players/${e.id}`} title="View profile" className="shrink-0">
-                      {photo
-                        ? <img src={photo} alt={fullName} className="w-10 h-10 rounded-full object-cover" />
-                        : <span className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${avatarColor(fullName)}`}>{initials(e.first_name, e.last_name)}</span>}
-                    </Link>
-                  ) : (
-                    <div className="w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-sm font-bold bg-purple-50 text-purple-500">
-                      {initials(e.first_name, e.last_name)}
-                    </div>
-                  )}
-
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {isMember
-                        ? <Link to={`/players/${e.id}`} className="font-semibold text-gray-800 hover:text-green-700 transition truncate">{fullName}</Link>
-                        : <span className="font-semibold text-gray-800 truncate">{fullName}</span>}
-                      {rating && <span className="text-[11px] font-semibold text-green-700 bg-green-50 px-1.5 py-0.5 rounded">USTA {rating}</span>}
-                      {rec && rec.played > 0 && (
-                        <span className="text-[11px] font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded" title="Wins–losses (public matches)">{rec.wins}–{rec.losses}</span>
-                      )}
-                      {recentDays !== null && recentDays <= 21 && (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-green-600" title={`Played ${recentDays === 0 ? 'today' : `${recentDays}d ago`}`}>
-                          <span className="w-1.5 h-1.5 rounded-full bg-green-500" />Active
-                        </span>
-                      )}
-                      {isFamily && (
-                        <span className="text-[11px] font-medium text-purple-500 bg-purple-50 px-1.5 py-0.5 rounded capitalize">
-                          {(e as FamilyEntry).relationship}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="mt-1 space-y-0.5">
-                      {e.email && (
-                        <a href={`mailto:${e.email}`} className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-green-700 transition">
-                          <Icon d={IC.mail} /><span className="truncate">{e.email}</span>
-                        </a>
-                      )}
-                      {e.phone && (
-                        <a href={`tel:${e.phone}`} className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-green-700 transition">
-                          <Icon d={IC.phone} />{formatPhone(e.phone)}
-                        </a>
-                      )}
-                      {(e as Member).address && (
-                        <div className="flex items-center gap-1.5 text-xs text-gray-400">
-                          <Icon d={IC.pin} /><span className="truncate">{(e as Member).address}</span>
-                        </div>
-                      )}
-                      {household && household.length > 0 && (
-                        <div className="flex items-center gap-1.5 text-xs text-gray-400">
-                          <Icon d={IC.people} /><span className="truncate">Household: {household.join(', ')}</span>
-                        </div>
-                      )}
-                      {(e as Member).family && (
-                        <div className="flex items-center gap-1.5 text-xs text-gray-400">
-                          <Icon d={IC.people} /><span className="truncate">{(e as Member).family}</span>
-                        </div>
-                      )}
-                      {isFamily && (
-                        <div className="flex items-center gap-1.5 text-xs text-gray-400">
-                          <Icon d={IC.people} /><span className="truncate">{(e as FamilyEntry).primary_member_name}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {since && <div className="text-[11px] text-gray-300 mt-1.5">Member since {new Date(since).getFullYear()}</div>}
+      {/* "All" view — family members nested under their primary member */}
+      {filterType === 'all' ? (
+        <>
+          {Object.keys(householdGroups).sort().map(letter => (
+            <div key={letter} className="mb-6">
+              <div className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 pl-1">{letter}</div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-5 gap-y-4 items-start">
+                {householdGroups[letter].map(h => (
+                  <div key={h.member.id} className="space-y-2">
+                    {renderCard(h.member)}
+                    {h.family.length > 0 && (
+                      <div className="ml-5 pl-3 border-l-2 border-purple-100 space-y-2">
+                        {h.family.map(f => renderCard(f, true))}
+                      </div>
+                    )}
                   </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      ))}
+                ))}
+              </div>
+            </div>
+          ))}
 
-      {filtered.length === 0 && (
-        <p className="text-gray-400 text-sm text-center py-8">No entries match your search.</p>
+          {orphanFamily.length > 0 && (
+            <div className="mb-6">
+              <div className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 pl-1">Other family</div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                {orphanFamily.map(f => renderCard(f))}
+              </div>
+            </div>
+          )}
+
+          {households.length === 0 && orphanFamily.length === 0 && (
+            <p className="text-gray-400 text-sm text-center py-8">No entries match your search.</p>
+          )}
+        </>
+      ) : (
+        <>
+          {/* Members / Family tabs — flat list grouped by last-name letter */}
+          {Object.keys(flatGroups).sort().map(letter => (
+            <div key={letter} className="mb-6">
+              <div className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 pl-1">{letter}</div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                {flatGroups[letter].map(e => renderCard(e))}
+              </div>
+            </div>
+          ))}
+
+          {flatList.length === 0 && (
+            <p className="text-gray-400 text-sm text-center py-8">No entries match your search.</p>
+          )}
+        </>
       )}
     </div>
   )

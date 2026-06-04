@@ -13,7 +13,7 @@ const GUEST_FEE_KEYS = new Set(GUEST_FEE_SETTINGS.map(s => s.key))
 
 const LABELS: Record<string, string> = {
   club_name:   'Club Name',
-  dues_amount: 'Annual Dues Amount ($)',
+  dues_amount: 'Quarterly Dues $',
   dues_period: 'Dues Period',
 }
 
