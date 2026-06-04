@@ -1,7 +1,7 @@
 name: Install Stalwart Mail Server
 
 # Run ONCE manually: Actions → "Install Stalwart Mail Server" → Run workflow
-# Uses webgoserver.com so you can test fully before touching liveoakstennis.com DNS.
+# Uses dropshot.company so you can test fully before touching liveoakstennis.com DNS.
 on:
   workflow_dispatch:
 
@@ -58,7 +58,7 @@ jobs:
             # ── 3. Write Stalwart config ──────────────────────────────────────
             cat > /etc/stalwart/config.toml << 'TOMLEOF'
             [server]
-            hostname = "mail.webgoserver.com"
+            hostname = "mail.dropshot.company"
 
             [server.listener."smtp"]
             bind = ["[::]:25"]
@@ -131,7 +131,7 @@ jobs:
             [acme."letsencrypt"]
             provider = "letsencrypt"
             contact = ["greg@howardsmail.com"]
-            domains = ["mail.webgoserver.com"]
+            domains = ["mail.dropshot.company"]
             cache-path = "/var/db/stalwart/acme"
 
             [certificate."default"]
@@ -152,7 +152,7 @@ jobs:
             type = "system"
 
             [report]
-            domain = "webgoserver.com"
+            domain = "dropshot.company"
             TOMLEOF
 
             # ── 4. Write systemd service ──────────────────────────────────────
@@ -212,7 +212,7 @@ jobs:
             echo "============================================================"
             echo "  STALWART INSTALLED"
             echo "============================================================"
-            echo "1. Confirm DNS A record:  mail.webgoserver.com -> 172.236.228.11"
-            echo "2. Visit: https://mail.webgoserver.com"
+            echo "1. Confirm DNS A record:  mail.dropshot.company -> 172.236.228.11"
+            echo "2. Visit: https://mail.dropshot.company"
             echo "3. In admin panel -> Mail Accounts -> Assign + Reset Password"
             echo "============================================================"

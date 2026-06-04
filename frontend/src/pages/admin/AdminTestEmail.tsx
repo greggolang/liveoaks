@@ -3,11 +3,11 @@ import { useAuth } from '../../contexts/AuthContext'
 import { api } from '../../api/client'
 
 const SMTP_FIELDS = [
-  { key: 'smtp_host', label: 'SMTP Host', placeholder: 'mail.webgoserver.com', type: 'text' },
+  { key: 'smtp_host', label: 'SMTP Host', placeholder: 'mail.dropshot.company', type: 'text' },
   { key: 'smtp_port', label: 'SMTP Port', placeholder: '587', type: 'text' },
-  { key: 'smtp_user', label: 'Username', placeholder: 'admin@webgoserver.com', type: 'text' },
+  { key: 'smtp_user', label: 'Username', placeholder: 'admin@dropshot.company', type: 'text' },
   { key: 'smtp_pass', label: 'Password / App Password', placeholder: '••••••••••••••••', type: 'password' },
-  { key: 'smtp_from', label: 'From Address', placeholder: 'admin@webgoserver.com', type: 'text' },
+  { key: 'smtp_from', label: 'From Address', placeholder: 'admin@dropshot.company', type: 'text' },
 ]
 
 export default function AdminTestEmail() {

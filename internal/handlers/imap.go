@@ -51,7 +51,7 @@ func (h *IMAPHandler) creds(c echo.Context) (address, password, host string, err
 
 	h.DB.QueryRow(ctx, `SELECT value FROM settings WHERE key = 'imap_host'`).Scan(&host)
 	if host == "" {
-		host = "mail.webgoserver.com"
+		host = "mail.dropshot.company"
 	}
 
 	err = h.DB.QueryRow(ctx, `

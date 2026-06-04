@@ -152,7 +152,7 @@ func (h *MailHandler) MyAccount(c echo.Context) error {
 	h.DB.QueryRow(c.Request().Context(),
 		"SELECT value FROM settings WHERE key = 'webmail_url'").Scan(&webmailURL)
 	if webmailURL == "" {
-		webmailURL = "https://mail.webgoserver.com"
+		webmailURL = "https://mail.dropshot.company"
 	}
 
 	var address, roleLabel, displayName string

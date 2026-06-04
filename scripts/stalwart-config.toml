@@ -1,5 +1,5 @@
 [server]
-hostname = "mail.webgoserver.com"
+hostname = "mail.dropshot.company"
 
 [server.listener."smtp"]
 bind = ["[::]:25"]
@@ -76,11 +76,11 @@ query = "SELECT 1 FROM mail_accounts WHERE address LIKE '%@' || $1 AND active = 
 [directory."sql".query.secrets]
 query = "SELECT password_hash FROM mail_accounts WHERE address = $1 AND active = true"
 
-# Let's Encrypt — auto-renewing TLS cert for mail.webgoserver.com
+# Let's Encrypt — auto-renewing TLS cert for mail.dropshot.company
 [acme."letsencrypt"]
 provider = "letsencrypt"
 contact = ["greg@howardsmail.com"]
-domains = ["mail.webgoserver.com"]
+domains = ["mail.dropshot.company"]
 cache-path = "/var/db/stalwart/acme"
 
 [certificate."default"]
@@ -103,7 +103,7 @@ directory = "sql"
 # For reliable delivery from this server make sure:
 #   • Outbound TCP port 25 is open. Linode blocks it by default — open a support
 #     ticket and ask them to lift the SMTP restriction for this Linode.
-#   • Reverse DNS (PTR) for 172.236.228.11 is set to mail.webgoserver.com.
+#   • Reverse DNS (PTR) for 172.236.228.11 is set to mail.dropshot.company.
 #   • SPF is published (already done: v=spf1 ip4:172.236.228.11 ~all).
 #   • DKIM signing is configured (generate a key + selector in the Stalwart admin
 #     console, then publish the TXT record it provides) so Gmail/Outlook accept it.
@@ -114,4 +114,4 @@ directory = "sql"
 type = "system"
 
 [report]
-domain = "webgoserver.com"
+domain = "dropshot.company"

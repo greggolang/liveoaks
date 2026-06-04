@@ -388,7 +388,7 @@ func (h *MailFilterHandler) accountCreds(ctx context.Context, id string) (addres
 	}
 	h.DB.QueryRow(ctx, `SELECT value FROM settings WHERE key = 'imap_host'`).Scan(&host)
 	if host == "" {
-		host = "mail.webgoserver.com"
+		host = "mail.dropshot.company"
 	}
 	return address, password, host
 }

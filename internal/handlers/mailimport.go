@@ -31,7 +31,7 @@ func (h *MailHandler) mailboxCreds(ctx context.Context, id string) (address, pas
 	}
 	h.DB.QueryRow(ctx, `SELECT value FROM settings WHERE key = 'imap_host'`).Scan(&host)
 	if host == "" {
-		host = "mail.webgoserver.com"
+		host = "mail.dropshot.company"
 	}
 	return address, password, host, nil
 }
