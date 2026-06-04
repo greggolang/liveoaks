@@ -37,6 +37,7 @@ export default function AdminFeedback() {
   const [typeFilter, setTypeFilter] = useState<'all' | 'idea' | 'bug'>('all')
   const [filter, setFilter] = useState('all')
   const [searchText, setSearchText] = useState('')
+  const [groupByPage, setGroupByPage] = useState(false)
 
   const [replyId, setReplyId] = useState<string | null>(null)
   const [replyBody, setReplyBody] = useState('')
@@ -107,6 +108,123 @@ export default function AdminFeedback() {
       || String(i.number).includes(q)
       || i.message.toLowerCase().includes(q)
       || `${i.first_name} ${i.last_name}`.toLowerCase().includes(q))
+
+  // Bucket the visible reports by the page they were submitted from. Reports
+  // with no page fall into a trailing "(no page reported)" group; pages with the
+  // most reports come first.
+  const NO_PAGE = '(no page reported)'
+  const grouped = (() => {
+    const map = new Map<string, FeedbackItem[]>()
+    for (const it of visible) {
+      const key = it.page && it.page.trim() ? it.page : NO_PAGE
+      const arr = map.get(key) ?? []
+      arr.push(it)
+      map.set(key, arr)
+    }
+    return Array.from(map.entries()).sort((a, b) => {
+      if (a[0] === NO_PAGE) return 1
+      if (b[0] === NO_PAGE) return -1
+      return b[1].length - a[1].length
+    })
+  })()
+
+  const renderItem = (item: FeedbackItem) => (
+    <div key={item.id} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <p className="text-sm text-gray-800 whitespace-pre-wrap">{item.message}</p>
+          <p className="text-xs text-gray-400 mt-1.5 flex flex-wrap items-center gap-1.5">
+            <span className="font-mono font-bold text-gray-700">#{item.number}</span>
+            <span className={`font-medium px-1.5 py-0.5 rounded text-xs ${item.type === 'bug' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'}`}>
+              {item.type === 'bug' ? '🐛 Bug' : '💡 Idea'}
+            </span>
+            <span>{item.first_name} {item.last_name}</span>
+            <span>·</span>
+            <span>{parseDate(item.created_at).toLocaleDateString('en-US', {
+              month: 'short', day: 'numeric', year: 'numeric'
+            })}</span>
+            {item.page && (
+              <>
+                <span>·</span>
+                <span className="font-mono text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                  {item.page}
+                </span>
+              </>
+            )}
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => replyId === item.id ? setReplyId(null) : openReply(item.id)}
+            title="Reply to member"
+            className={`text-xs px-2 py-1 rounded-lg border transition font-medium
+              ${replyId === item.id
+                ? 'bg-green-700 text-white border-green-700'
+                : 'bg-white text-green-700 border-green-300 hover:border-green-600'}`}>
+            ↩ Reply
+          </button>
+          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusStyle(item.status)}`}>
+            {statusLabel(item.status)}
+          </span>
+          <select
+            value={item.status}
+            onChange={e => setStatus(item.id, e.target.value)}
+            className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-600">
+            {STATUSES.map(s => (
+              <option key={s.value} value={s.value}>{s.label}</option>
+            ))}
+          </select>
+          <button onClick={() => remove(item.id)}
+            className="text-gray-300 hover:text-red-400 transition text-sm">
+            ✕
+          </button>
+        </div>
+      </div>
+
+      {/* Inline reply compose */}
+      {replyId === item.id && (
+        <div className="mt-3 pt-3 border-t border-gray-100">
+          {replyDone === item.id ? (
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-green-700 font-medium">
+                Message sent — {item.first_name} will see it in their inbox.
+              </p>
+              <button onClick={() => { setReplyDone(null); setReplyId(null) }}
+                className="text-xs text-gray-400 hover:text-gray-600 ml-4">
+                Close
+              </button>
+            </div>
+          ) : (
+            <>
+              <p className="text-xs text-gray-500 mb-1.5">
+                Replying to <span className="font-medium text-gray-700">{item.first_name} {item.last_name}</span> — this will appear in their Messages inbox and they can reply back.
+              </p>
+              <textarea
+                value={replyBody}
+                onChange={e => setReplyBody(e.target.value)}
+                placeholder={`Write a message to ${item.first_name}…`}
+                rows={3}
+                className="w-full text-sm border border-gray-200 rounded-lg p-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-800 placeholder-gray-400"
+              />
+              {replyError && <p className="text-xs text-red-500 mt-1">{replyError}</p>}
+              <div className="flex justify-end gap-2 mt-2">
+                <button onClick={() => setReplyId(null)}
+                  className="text-xs text-gray-400 hover:text-gray-600 px-3 py-1.5">
+                  Cancel
+                </button>
+                <button
+                  onClick={() => sendReply(item)}
+                  disabled={!replyBody.trim() || replySending}
+                  className="text-xs bg-green-700 text-white px-4 py-1.5 rounded-lg hover:bg-green-800 disabled:opacity-40 font-medium transition">
+                  {replySending ? 'Sending…' : 'Send Message'}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
 
   return (
     <div>
@@ -188,6 +306,11 @@ export default function AdminFeedback() {
             </button>
           ))}
         </div>
+        <button onClick={() => setGroupByPage(g => !g)}
+          title="Group reports by the page they were submitted from"
+          className={`px-3 py-1 rounded-full text-xs font-medium transition border ${groupByPage ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-400'}`}>
+          🗂 Group by page
+        </button>
       </div>
 
       <div className="relative max-w-xs mb-4">
@@ -205,105 +328,23 @@ export default function AdminFeedback() {
         <div className="bg-white border border-gray-200 rounded-xl p-8 text-center text-gray-400 text-sm">
           No feedback yet.
         </div>
-      ) : (
-        <div className="space-y-3">
-          {visible.map(item => (
-            <div key={item.id} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-gray-800 whitespace-pre-wrap">{item.message}</p>
-                  <p className="text-xs text-gray-400 mt-1.5 flex flex-wrap items-center gap-1.5">
-                    <span className="font-mono font-bold text-gray-700">#{item.number}</span>
-                    <span className={`font-medium px-1.5 py-0.5 rounded text-xs ${item.type === 'bug' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'}`}>
-                      {item.type === 'bug' ? '🐛 Bug' : '💡 Idea'}
-                    </span>
-                    <span>{item.first_name} {item.last_name}</span>
-                    <span>·</span>
-                    <span>{parseDate(item.created_at).toLocaleDateString('en-US', {
-                      month: 'short', day: 'numeric', year: 'numeric'
-                    })}</span>
-                    {item.page && (
-                      <>
-                        <span>·</span>
-                        <span className="font-mono text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
-                          {item.page}
-                        </span>
-                      </>
-                    )}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    onClick={() => replyId === item.id ? setReplyId(null) : openReply(item.id)}
-                    title="Reply to member"
-                    className={`text-xs px-2 py-1 rounded-lg border transition font-medium
-                      ${replyId === item.id
-                        ? 'bg-green-700 text-white border-green-700'
-                        : 'bg-white text-green-700 border-green-300 hover:border-green-600'}`}>
-                    ↩ Reply
-                  </button>
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusStyle(item.status)}`}>
-                    {statusLabel(item.status)}
-                  </span>
-                  <select
-                    value={item.status}
-                    onChange={e => setStatus(item.id, e.target.value)}
-                    className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-600">
-                    {STATUSES.map(s => (
-                      <option key={s.value} value={s.value}>{s.label}</option>
-                    ))}
-                  </select>
-                  <button onClick={() => remove(item.id)}
-                    className="text-gray-300 hover:text-red-400 transition text-sm">
-                    ✕
-                  </button>
-                </div>
+      ) : groupByPage ? (
+        <div className="space-y-6">
+          {grouped.map(([page, group]) => (
+            <div key={page}>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="font-mono text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded break-all">{page}</span>
+                <span className="text-xs text-gray-400">{group.length} report{group.length !== 1 ? 's' : ''}</span>
               </div>
-
-              {/* Inline reply compose */}
-              {replyId === item.id && (
-                <div className="mt-3 pt-3 border-t border-gray-100">
-                  {replyDone === item.id ? (
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs text-green-700 font-medium">
-                        Message sent — {item.first_name} will see it in their inbox.
-                      </p>
-                      <button onClick={() => { setReplyDone(null); setReplyId(null) }}
-                        className="text-xs text-gray-400 hover:text-gray-600 ml-4">
-                        Close
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      <p className="text-xs text-gray-500 mb-1.5">
-                        Replying to <span className="font-medium text-gray-700">{item.first_name} {item.last_name}</span> — this will appear in their Messages inbox and they can reply back.
-                      </p>
-                      <textarea
-                        value={replyBody}
-                        onChange={e => setReplyBody(e.target.value)}
-                        placeholder={`Write a message to ${item.first_name}…`}
-                        rows={3}
-                        className="w-full text-sm border border-gray-200 rounded-lg p-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-800 placeholder-gray-400"
-                      />
-                      {replyError && <p className="text-xs text-red-500 mt-1">{replyError}</p>}
-                      <div className="flex justify-end gap-2 mt-2">
-                        <button onClick={() => setReplyId(null)}
-                          className="text-xs text-gray-400 hover:text-gray-600 px-3 py-1.5">
-                          Cancel
-                        </button>
-                        <button
-                          onClick={() => sendReply(item)}
-                          disabled={!replyBody.trim() || replySending}
-                          className="text-xs bg-green-700 text-white px-4 py-1.5 rounded-lg hover:bg-green-800 disabled:opacity-40 font-medium transition">
-                          {replySending ? 'Sending…' : 'Send Message'}
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
+              <div className="space-y-3">
+                {group.map(renderItem)}
+              </div>
             </div>
           ))}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {visible.map(renderItem)}
         </div>
       )}
     </div>
