@@ -6,7 +6,7 @@ import { formatPhone } from '../utils/phone'
 import HelpPanel from '../components/HelpPanel'
 
 const HELP = [
-  { heading: 'Members vs Family', body: 'In the "All" view, each full member (white card) is shown with their registered family members — spouses or children (purple cards) — nested directly beneath them. Use the Members or Family buttons to view either group on its own.' },
+  { heading: 'Members vs Family', body: 'In the "All" view, each full member (green card) is shown with their registered family members — spouses or children (purple cards) — nested directly beneath them. Use the Members or Family buttons to view either group on its own.' },
   { heading: 'Search', body: 'The search bar filters by name or email across all entries. For family members it also searches by the primary member\'s name — so searching "Smith" finds the Smith family and their family members too.' },
   { heading: 'Contact Info', body: 'Phone numbers and addresses are only visible to board members. All members can see names and email addresses.' },
   { heading: 'Player Profiles', body: 'Click any member\'s name or avatar to visit their player profile, which shows their match history, win/loss record, and USTA rating.' },
@@ -127,8 +127,10 @@ export default function MemberDirectory() {
     const recentDays = daysAgo(rec?.last_played)
     return (
       <div key={`${e.type}-${e.id}`}
-        className={`bg-white border rounded-xl p-3.5 shadow-sm hover:shadow-md transition flex items-start gap-3
-          ${isMember ? 'border-gray-200 hover:border-green-200' : nested ? 'border-gray-200' : 'border-gray-200 border-l-4 border-l-purple-300'}`}>
+        className={`border rounded-xl p-3.5 shadow-sm hover:shadow-md transition flex items-start gap-3
+          ${isMember
+            ? 'bg-green-50/40 border-green-200 hover:border-green-300'
+            : 'bg-purple-50/60 border-purple-200'}`}>
         {isMember ? (
           <Link to={`/players/${e.id}`} title="View profile" className="shrink-0">
             {photo
