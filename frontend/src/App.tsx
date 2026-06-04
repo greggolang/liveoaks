@@ -105,6 +105,17 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <Layout>{children}</Layout>
 }
 
+// BoardRoute gates a page to board members only — non-board members are
+// redirected to their dashboard (the nav link is also hidden for them).
+function BoardRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading, isBoard } = useAuth()
+  const isImpersonating = !!sessionStorage.getItem(IMPERSONATION_KEY)
+  if (loading && !isImpersonating) return <div className="min-h-screen flex items-center justify-center text-gray-400">Loading...</div>
+  if (!user && !isImpersonating) return <Navigate to="/" replace />
+  if (!isBoard) return <Navigate to="/dashboard" replace />
+  return <Layout>{children}</Layout>
+}
+
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
   if (loading) return null
@@ -144,7 +155,7 @@ function AppRoutes() {
       <Route path="/announcements" element={<ProtectedRoute><Announcements /></ProtectedRoute>} />
       <Route path="/events" element={<ProtectedRoute><Events /></ProtectedRoute>} />
       <Route path="/files" element={<ProtectedRoute><Files /></ProtectedRoute>} />
-      <Route path="/docs" element={<ProtectedRoute><Documents /></ProtectedRoute>} />
+      <Route path="/docs" element={<BoardRoute><Documents /></BoardRoute>} />
       <Route path="/documents" element={<Navigate to="/files" replace />} />
       <Route path="/photos" element={<ProtectedRoute><PhotoGallery /></ProtectedRoute>} />
       <Route path="/usta-teams" element={<ProtectedRoute><USTATeams /></ProtectedRoute>} />

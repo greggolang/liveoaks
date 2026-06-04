@@ -231,15 +231,6 @@ func main() {
 	authed.POST("/conversations/:id/mute", conversations.Mute)
 	authed.DELETE("/conversations/:id", conversations.Leave)
 
-	// Collaborative documents — any authenticated member can view, create, and edit
-	authed.GET("/collab-docs", collabDocs.List)
-	authed.POST("/collab-docs", collabDocs.Create)
-	authed.GET("/collab-docs/:id", collabDocs.Get)
-	authed.PUT("/collab-docs/:id", collabDocs.Update)
-	authed.DELETE("/collab-docs/:id", collabDocs.Delete)
-	authed.POST("/collab-docs/:id/presence", collabDocs.Presence)
-	authed.DELETE("/collab-docs/:id/presence", collabDocs.Leave)
-
 	// Match scores & club scoreboard
 	// AI assistant — "Ask the Club" (members) and natural-language score entry
 	authed.POST("/ask-club", aiH.AskClub)
@@ -285,6 +276,14 @@ func main() {
 	// Board+ — board-shared utility routes pass with the board-role fallback;
 	// routes that map to a grantable admin section are gated by section grant.
 	boardPlus := authed.Group("", mw.RequireAdminSection(pool, mw.BoardRoleList()...))
+	// Collaborative documents — board members only (not visible to regular members)
+	boardPlus.GET("/collab-docs", collabDocs.List)
+	boardPlus.POST("/collab-docs", collabDocs.Create)
+	boardPlus.GET("/collab-docs/:id", collabDocs.Get)
+	boardPlus.PUT("/collab-docs/:id", collabDocs.Update)
+	boardPlus.DELETE("/collab-docs/:id", collabDocs.Delete)
+	boardPlus.POST("/collab-docs/:id/presence", collabDocs.Presence)
+	boardPlus.DELETE("/collab-docs/:id/presence", collabDocs.Leave)
 	boardPlus.POST("/admin/bookings", bookings.AdminCreate)
 	boardPlus.POST("/admin/booking-cancel-reasons", bookings.CreateCancelReason)
 	boardPlus.DELETE("/admin/booking-cancel-reasons/:id", bookings.DeleteCancelReason)
