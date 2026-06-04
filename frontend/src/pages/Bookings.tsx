@@ -4,6 +4,16 @@ import { useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 import { WeatherData, weatherIcon, weatherLabel, courtCondition, conditionColors } from '../utils/weather'
+import HelpPanel from '../components/HelpPanel'
+
+const HELP = [
+  { heading: 'Booking a Court', body: 'Go to the "Book a Court" tab. Click any white cell on the grid — white means available. Choose your duration (1 hr or 1.5 hrs), match type, and optional notes, then confirm. You\'ll be added as the host automatically.' },
+  { heading: 'Match Types', body: 'Hit Session and Singles seat 2 players. Doubles seats 4. Ball Machine is solo on Court 3. Teaching Pro is for lessons on Courts 3 & 4 (requires special permission).' },
+  { heading: 'Inviting Players', body: 'After booking, open it from "My Bookings" and use the invite button to send email invitations. You can also add players directly without an invite. Friends saved in your Friends List appear as quick-select options.' },
+  { heading: 'Cancelling', body: 'Open your booking from "My Bookings" and click Cancel. You\'ll be asked to choose a cancellation reason. There may be a minimum notice requirement — check with the club if you\'re unsure.' },
+  { heading: 'Daily Limits', body: 'The club limits how many courts you can book per day and how far in advance. These limits are enforced automatically — you\'ll see an error message if a booking would exceed them.' },
+  { heading: 'Grid Colors', body: 'White = available. Dark green = your booking (host). Light green = you\'re on the roster. Gray-blue = someone else\'s booking. Amber = court blocked.' },
+]
 
 interface Court { id: number; name: string; number: number; has_ball_machine?: boolean }
 interface Booking {
@@ -806,6 +816,8 @@ export default function Bookings() {
           </button>
         </div>
       </div>
+
+      <HelpPanel items={HELP} />
 
       {tab === 'grid' && (
         <>

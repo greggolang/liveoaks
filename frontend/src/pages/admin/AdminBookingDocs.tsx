@@ -10,7 +10,8 @@ export default function AdminBookingDocs() {
       <Section title="Overview">
         <p>
           Members book courts through the Bookings page, which shows a half-hour grid (8:00 AM – 7:30 PM)
-          across all courts. Each booking has a host (the member who created it), a match type, a duration,
+          across all courts. Each booking renders as a single continuous coloured block spanning its full
+          duration. Each booking has a host (the member who created it), a match type, a duration,
           an optional roster of players, and configurable admin limits enforced on the backend at save time.
         </p>
       </Section>
@@ -235,16 +236,26 @@ export default function AdminBookingDocs() {
 
       {/* Grid colors */}
       <Section title="Court Grid Colour Guide">
+        <p className="mb-3">
+          The booking grid uses a 30-minute slot layout. Reservations spanning multiple slots render as a
+          single continuous coloured block for the full duration — e.g. a 1-hour booking occupies two rows
+          merged into one cell via <Code>rowSpan</Code>.
+        </p>
         <Table
           headers={['Colour', 'Meaning']}
           rows={[
             ['White', 'Available — click to book.'],
             ['Light gray', 'Past or outside the bookable window — unavailable.'],
-            ['Dark green', 'Your own booking (you are the host).'],
-            ['Light green', 'A booking you are on the roster for (not the host).'],
-            ['Slate / gray-blue', 'Another member\'s booking you are not involved in.'],
+            ['Dark green (solid block)', 'Your own booking (you are the host).'],
+            ['Light green (solid block)', 'A booking you are on the roster for (not the host).'],
+            ['Slate / gray-blue (solid block)', 'Another member\'s booking you are not involved in.'],
+            ['Amber', 'Court blocked for maintenance, an event, or a LiveBall session.'],
           ]}
         />
+        <p className="mt-3 text-gray-500">
+          The Court Availability page (<Code>/bookings?tab=grid</Code>) uses a separate hourly read-only grid
+          where bookings and blocks also render as merged continuous blocks.
+        </p>
       </Section>
 
       {/* LiveBall */}

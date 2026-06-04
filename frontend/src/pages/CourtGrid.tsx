@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react'
 import { parseDate } from '../utils/dates'
 import { api } from '../api/client'
+import HelpPanel from '../components/HelpPanel'
+
+const HELP = [
+  { heading: 'Reading the Grid', body: 'Each column is a court, each row is an hour. Green blocks show reserved courts — the block spans the full booking duration as a single continuous bar. Amber blocks are courts closed for maintenance or events.' },
+  { heading: 'Changing the Date', body: 'Use the date picker in the top-right to see availability on any day. The grid always opens on today.' },
+  { heading: 'Making a Booking', body: 'This page is view-only. To book a court go to the Book a Court page, which has a half-hour booking grid you can click to reserve a slot.' },
+]
 
 interface Booking {
   id: string; court_id: number; start_time: string; end_time: string
@@ -61,11 +68,13 @@ export default function CourtGrid() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-center mb-3">
         <h1 className="text-2xl font-bold text-gray-800">Court Availability</h1>
         <input type="date" value={date} onChange={e => setDate(e.target.value)}
           className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
       </div>
+
+      <HelpPanel items={HELP} />
 
       <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-x-auto">
         <table className="w-full text-sm border-collapse">

@@ -1,6 +1,15 @@
 import { useEffect, useState, useCallback } from 'react'
 import { parseDate } from '../utils/dates'
 import { api } from '../api/client'
+import HelpPanel from '../components/HelpPanel'
+
+const HELP = [
+  { heading: 'What is the Friends List?', body: 'Your friends list is a quick-select roster for inviting people to court bookings. Add fellow members or regular guests here so you can invite them in one tap instead of searching each time.' },
+  { heading: 'Adding a Member', body: 'Search by name or email to find a club member and add them to your list. They appear as a blue entry. Their email is linked to their account, so booking invites go to them automatically.' },
+  { heading: 'Adding a Guest', body: 'Guests are non-members you play with regularly. Enter their name (and optionally email) and they\'ll be saved as a green guest entry. A guest fee may apply when they play.' },
+  { heading: 'Friend Groups', body: 'Create a named group (e.g. "Tuesday Doubles") to invite multiple people at once. Groups appear in the booking invite flow so you can invite the whole group in one click.' },
+  { heading: 'Inviting to a Booking', body: 'Check the boxes next to the friends you want and click "Invite to Booking" — you\'ll be taken to your upcoming bookings so you can select which one to attach the invitation to.' },
+]
 
 interface Friend {
   id: string; friend_user_id?: string; friend_name: string
@@ -212,6 +221,7 @@ export default function Friends() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-800">My Friends List</h1>
         <p className="text-sm text-gray-500 mt-0.5">Select players to invite them to a court booking.</p>
+        <div className="mt-3"><HelpPanel items={HELP} /></div>
       </div>
 
       {/* Sticky selection bar */}

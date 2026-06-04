@@ -3,6 +3,14 @@ import { Link } from 'react-router-dom'
 import { api, PendingMatch, MatchResult, LeaderboardRow } from '../api/client'
 import ScorecardModal from '../components/ScorecardModal'
 import MatchCard from '../components/MatchCard'
+import HelpPanel from '../components/HelpPanel'
+
+const HELP = [
+  { heading: 'Pending Scores', body: 'Matches you played that haven\'t been scored yet appear here. Click "Enter Score" to record the result. Both players must agree on the score — if your entry matches the other player\'s, the result is confirmed automatically.' },
+  { heading: 'Club Feed', body: 'Shows recently completed matches across all members. You can see who played, the score, and the match type. Click any match card to view the full scorecard.' },
+  { heading: 'My Matches', body: 'Filtered view of only your own match history — wins, losses, and scores in chronological order.' },
+  { heading: 'Leaderboard', body: 'Rankings by win percentage among members who have played at least a few matches. Tap any name to visit their player profile.' },
+]
 
 export default function Scores() {
   const [pending, setPending] = useState<PendingMatch[]>([])
@@ -35,6 +43,7 @@ export default function Scores() {
         <h1 className="text-2xl font-bold text-gray-800">Scores</h1>
         <p className="text-sm text-gray-500 mt-1">Club match scoreboard & recent activity</p>
       </div>
+      <HelpPanel items={HELP} />
 
       {/* Matches waiting to be scored */}
       {pending.length > 0 && (

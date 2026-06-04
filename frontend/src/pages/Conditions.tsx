@@ -2,6 +2,14 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { api } from '../api/client'
 import { WeatherData, AirQualityData, weatherIcon, weatherLabel, courtCondition, conditionColors, dayLabel, aqiLabel, aqiColor, aqiEmoji } from '../utils/weather'
+import HelpPanel from '../components/HelpPanel'
+
+const HELP = [
+  { heading: 'Current Conditions', body: 'Shows real-time temperature, wind, humidity, and an overall court playability rating based on the current weather data. Green = great, yellow = marginal, red = not recommended.' },
+  { heading: 'Court Camera', body: 'A live feed from the club camera so you can see the courts before you head over. If the camera is offline the feed will be replaced with a still or an error message.' },
+  { heading: '7-Day Forecast', body: 'Scrollable daily forecast showing high/low temperatures and conditions for the week ahead. Useful for planning bookings in advance.' },
+  { heading: 'Air Quality Index (AQI)', body: 'The AQI reflects local air quality. Values under 50 are good; 51–100 moderate; 101–150 sensitive groups should limit outdoor activity; above 150 is unhealthy for all.' },
+]
 
 export default function Conditions() {
   const { isBoard } = useAuth()
@@ -28,6 +36,7 @@ export default function Conditions() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-800">Conditions</h1>
+      <HelpPanel items={HELP} />
 
       {/* Weather */}
       {weather && <WeatherWidget weather={weather} airQuality={airQuality} />}

@@ -2,6 +2,15 @@ import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 import { parseDate } from '../utils/dates'
+import HelpPanel from '../components/HelpPanel'
+
+const HELP = [
+  { heading: 'How the Ladder Works', body: 'The Tennis Ladder is a continuous ranking competition. All registered members are ranked by position. You move up by challenging players ranked above you and winning.' },
+  { heading: 'Registering', body: 'Click "Join Ladder" to register. Your spot is pending until an admin approves your registration. Once approved you\'ll appear in the standings.' },
+  { heading: 'Sending a Challenge', body: 'You may challenge players ranked up to a set number of positions above you. Click their name and select "Challenge". They\'ll receive a notification and can accept or decline.' },
+  { heading: 'Recording Results', body: 'After your match, enter the score from the Scores page. Once both players confirm the score the ladder rankings update automatically.' },
+  { heading: 'Ranking Movement', body: 'Win a challenge and you swap positions with your opponent (or move ahead if they were ranked much higher). Losing a challenge keeps you in your current position.' },
+]
 
 interface Ladder { id: string; name: string; type: string; season_year: number; status: string; challenge_range: number; description: string }
 interface Entry { user_id: string; name: string; rank: number; wins: number; losses: number; season_points: number }
@@ -136,6 +145,7 @@ export default function TennisLadder() {
         <div>
           <h1 className="text-2xl font-bold text-gray-800">🎾 Tennis Ladder</h1>
           <p className="text-gray-500 text-sm mt-0.5">Challenge your way to the top of the rankings.</p>
+          <div className="mt-2"><HelpPanel items={HELP} /></div>
         </div>
         {myEntry?.rank ? (
           <div className="flex gap-3">

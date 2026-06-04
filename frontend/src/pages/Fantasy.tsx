@@ -1,5 +1,14 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
+import HelpPanel from '../components/HelpPanel'
+
+const HELP = [
+  { heading: 'What is Fantasy Tennis Pool?', body: 'A season-long prediction game based on Grand Slam tournaments. You pick a pool of professional players and earn points based on how far they advance in each tournament.' },
+  { heading: 'Joining a Pool', body: 'When a tournament pool is open you\'ll see a "Join" button. There may be an entry fee — pay at the clubhouse or through your member account. You must join before the tournament begins.' },
+  { heading: 'Picking Players', body: 'After joining, select your player picks before the draw closes. You can pick players from both the men\'s and women\'s draws depending on the pool format.' },
+  { heading: 'Scoring', body: 'Points are awarded for each round your picked players win. Early rounds are worth fewer points; the final and semifinal are worth the most. The member with the most total points at the end of the tournament wins.' },
+  { heading: 'Prize', body: 'The pool entry fees go into a prize pot. The winner receives the pot (minus any club fee if applicable). Winners are announced after the tournament concludes.' },
+]
 
 interface Tournament { id: string; name: string; year: number; start_date?: string; end_date?: string; status: string }
 interface Player { id: string; name: string; gender: string; country: string }
@@ -111,6 +120,7 @@ export default function Fantasy() {
         <div>
           <h1 className="text-2xl font-bold text-gray-800">🎾 Fantasy Tennis Pool</h1>
           <p className="text-gray-500 text-sm mt-0.5">Pick your players, track the scores, win the season.</p>
+          <div className="mt-2"><HelpPanel items={HELP} /></div>
         </div>
         {joined && (
           <span className={`text-xs px-3 py-1 rounded-full font-semibold ${entryPaid ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-800'}`}>

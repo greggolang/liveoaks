@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
+import HelpPanel from '../components/HelpPanel'
+
+const HELP = [
+  { heading: 'What can I buy here?', body: 'The Pro Shop lists drinks, tennis balls, and other items available for purchase at the clubhouse. Items are stocked at the kiosk — check the inventory count shown on each item.' },
+  { heading: 'How do I order?', body: 'Add items to your cart using the + button, then tap the cart to review and submit your order. Your purchase is recorded and billed to your member account.' },
+  { heading: 'Billing', body: 'Pro shop purchases are charged to your member account and will appear on your next dues statement. Contact the office if you notice a billing discrepancy.' },
+]
 
 interface Product {
   id: string
@@ -66,6 +73,7 @@ export default function ProShop() {
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Pro Shop</h1>
           <p className="text-gray-500 text-sm mt-0.5">Drinks and balls available at the clubhouse</p>
+          <div className="mt-2"><HelpPanel items={HELP} /></div>
         </div>
         {itemCount > 0 && (
           <div className="bg-green-100 text-green-800 text-sm font-semibold px-4 py-2 rounded-full">

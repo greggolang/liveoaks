@@ -1,6 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
+import HelpPanel from '../components/HelpPanel'
+
+const HELP = [
+  { heading: 'Club History', body: 'Background on the founding and history of Live Oaks Tennis Association (LOTA). Content is maintained by the club admin.' },
+  { heading: 'Contact & Location', body: 'Club address, main phone number, and general contact email. Use these for questions not covered in the portal.' },
+  { heading: 'Bylaws & Documents', body: 'Link to the official club bylaws and any other governing documents. These are updated by the board as needed.' },
+  { heading: 'Updating This Page', body: 'The text on this page is managed by admins under Admin → Settings. Contact a board member if any information needs correcting.' },
+]
 
 export default function ClubInfo() {
   const [settings, setSettings] = useState<Record<string, string>>({})
@@ -8,7 +16,8 @@ export default function ClubInfo() {
 
   return (
     <div className="max-w-3xl">
-      <h1 className="text-2xl font-bold text-gray-800 mb-6">About Liveoaks Tennis Club</h1>
+      <h1 className="text-2xl font-bold text-gray-800 mb-3">About Liveoaks Tennis Club</h1>
+      <HelpPanel items={HELP} />
 
       <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm mb-6">
         <h2 className="text-lg font-semibold text-gray-800 mb-3">Our History</h2>

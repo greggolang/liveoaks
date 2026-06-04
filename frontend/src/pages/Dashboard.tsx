@@ -6,6 +6,16 @@ import ScorecardModal from '../components/ScorecardModal'
 import MatchCard from '../components/MatchCard'
 import { parseDate } from '../utils/dates'
 import { votePercents } from '../utils/polls'
+import HelpPanel from '../components/HelpPanel'
+
+const HELP = [
+  { heading: 'Your Dashboard', body: 'This is your home page in the Live Oaks member portal. It shows your upcoming bookings, pending invitations, recent match activity, announcements, and more — all in one place.' },
+  { heading: 'Upcoming Bookings', body: 'Your next court reservations are listed here with court, time, and roster details. Click a booking to view the full details, invite players, or cancel.' },
+  { heading: 'Pending Invitations', body: 'If another member has invited you to a match, you\'ll see it here. Accept or decline directly from the dashboard.' },
+  { heading: 'Announcements', body: 'Club-wide messages from the board appear as banner cards. Dismiss them once you\'ve read them.' },
+  { heading: 'Pending Scores', body: 'Matches you\'ve played that still need a score entered show here. Enter the score so your record and the club leaderboard stay up to date.' },
+  { heading: 'Navigation', body: 'Use the sidebar (desktop) or the menu button (mobile) to reach all pages: Book a Court, Scores, Directory, Messages, and more.' },
+]
 
 interface InviteResponse {
   id: string
@@ -340,6 +350,8 @@ export default function Dashboard() {
           ))}
         </div>
       )}
+      <HelpPanel items={HELP} title="How this portal works" />
+
       {/* Header — fades out after 15 s */}
       <div className={`transition-opacity duration-1000 ${showHeader ? 'opacity-100' : 'opacity-0 pointer-events-none select-none h-0 overflow-hidden'}`}>
         <h1 className="text-2xl font-bold text-gray-800">

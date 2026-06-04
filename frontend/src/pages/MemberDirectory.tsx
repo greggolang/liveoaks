@@ -3,6 +3,15 @@ import { api, MatchStat } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 import { Link } from 'react-router-dom'
 import { formatPhone } from '../utils/phone'
+import HelpPanel from '../components/HelpPanel'
+
+const HELP = [
+  { heading: 'Members vs Family', body: 'The directory shows two types of entries: full members (white cards) and registered family members such as spouses or children (purple left border). Use the filter buttons to view each group separately.' },
+  { heading: 'Search', body: 'The search bar filters by name or email across all entries. For family members it also searches by the primary member\'s name — so searching "Smith" finds the Smith family and their family members too.' },
+  { heading: 'Contact Info', body: 'Phone numbers and addresses are only visible to board members. All members can see names and email addresses.' },
+  { heading: 'Player Profiles', body: 'Click any member\'s name or avatar to visit their player profile, which shows their match history, win/loss record, and USTA rating.' },
+  { heading: 'USTA Rating', body: 'The green USTA badge shows a member\'s self-reported NTRP rating. Ratings are managed by admins in the Members area.' },
+]
 
 interface Member { id: string; first_name: string; last_name: string; email: string; phone?: string; address?: string; family?: string; usta_ranking?: string; created_at?: string; photo_url?: string; household?: string[]; is_family_member?: boolean; type: 'member' }
 interface FamilyEntry { id: string; first_name: string; last_name: string; email?: string; phone?: string; usta_ranking?: string; relationship: string; primary_member_name: string; primary_member_id: string; type: 'family' }
@@ -99,6 +108,7 @@ export default function MemberDirectory() {
               <Link to="/profile" className="text-green-700 hover:underline">Update your own info →</Link>
             </p>
           )}
+          <div className="mt-2"><HelpPanel items={HELP} /></div>
         </div>
       </div>
 

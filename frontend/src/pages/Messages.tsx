@@ -2,6 +2,14 @@ import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { parseDate } from '../utils/dates'
 import { api, MemberMessage, ConvSummary, ConvDetail } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
+import HelpPanel from '../components/HelpPanel'
+
+const HELP = [
+  { heading: 'Direct Messages', body: 'Send private messages to any club member. Click the compose button (pencil icon), search for a member by name, and start a conversation. Messages are only visible to you and the recipient.' },
+  { heading: 'Group Conversations', body: 'You can message multiple members at once by adding more than one recipient when composing. All participants see the full conversation thread.' },
+  { heading: 'Notifications', body: 'Unread message counts appear as a badge on the Messages icon in the navigation bar. The count clears when you open the conversation.' },
+  { heading: 'Club Announcements', body: 'Announcements from the board or admin appear separately at the top of your dashboard — they are not messages and cannot be replied to here.' },
+]
 
 function timeAgo(ts: string | null) {
   if (!ts) return ''
@@ -313,6 +321,7 @@ export default function Messages() {
         <div>
           <h1 className="text-2xl font-bold text-gray-800 leading-none">Messages</h1>
           <p className="text-sm text-gray-500 mt-1">Direct & group messages with members</p>
+          <div className="mt-2"><HelpPanel items={HELP} /></div>
         </div>
         <button onClick={startCompose}
           className="bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-4 py-2 rounded-xl transition flex items-center gap-2 shrink-0">
