@@ -1992,66 +1992,95 @@ export default function Bookings() {
                                 const wlKey = `${c.id}-${booking.start_time}`
                                 const wlLoading = waitlistLoading === wlKey
 
+                                // Roster info for tooltip
+                                const rosterInfo = isInvolved ? rosterMap[booking.id] : null
+                                const pendingInvs = rosterInfo?.invitations.filter(i => i.status === 'pending') ?? []
+                                const allPlayers = booking.players ?? []
+
                                 return (
-                                  <td key={c.id} className="px-1.5 py-1 align-top border-r border-gray-100 last:border-r-0">
-                                    {showDetails ? (
+                                  <td key={c.id} className="px-1 py-0.5 align-top border-r border-gray-100 last:border-r-0">
+                                    {/* Compact block — always minimized, tooltip on hover for first slot */}
+                                    <div className={`relative ${showDetails ? 'group' : ''}`}>
                                       <div
-                                        onClick={() => setBookingDetail(bookingDetail?.id === booking.id ? null : booking)}
-                                        className={`rounded-lg px-2 py-1.5 flex flex-col gap-0.5 cursor-pointer hover:opacity-90 transition shadow-sm ${cellBg} ${accentBorder}`}>
-                                        <div className="flex items-center justify-between gap-1">
-                                          <span className="text-xs font-bold truncate leading-tight">
-                                            {isBallMachine ? '🤖 Ball Machine' : isMe ? 'Me' : `${booking.user.first_name} ${booking.user.last_name[0]}.`}
-                                          </span>
-                                          {(isMe || isBoard) && (
-                                            <button
-                                              onClick={e => { e.stopPropagation(); openCancelModal(booking.id, isMe) }}
-                                              className={`text-sm shrink-0 leading-none opacity-60 hover:opacity-100 transition ${cancelBtnColor}`}>
-                                              ✕
-                                            </button>
-                                          )}
-                                        </div>
-                                        <span className={`text-[10px] truncate leading-tight ${subText}`}>{timeRange}</span>
-                                        {matchLabel && (
-                                          <span className={`text-[10px] truncate leading-tight font-medium ${subText}`}>{matchLabel}</span>
+                                        onClick={() => showDetails && setBookingDetail(bookingDetail?.id === booking.id ? null : booking)}
+                                        className={`rounded-lg ${showDetails ? 'h-8 cursor-pointer' : 'h-8 opacity-50'} flex items-center justify-between px-1.5 transition ${cellBg} ${accentBorder}`}
+                                      >
+                                        {showDetails && (
+                                          <>
+                                            <span className="text-[11px] font-bold truncate leading-none">
+                                              {isBallMachine ? '🤖' : isMe ? '★ Me' : `${booking.user.first_name[0]}${booking.user.last_name[0]}`}
+                                            </span>
+                                            {(isMe || isBoard) && (
+                                              <button
+                                                onClick={e => { e.stopPropagation(); openCancelModal(booking.id, isMe) }}
+                                                className={`text-[11px] shrink-0 opacity-50 hover:opacity-100 transition ml-0.5 ${cancelBtnColor}`}>
+                                                ✕
+                                              </button>
+                                            )}
+                                          </>
                                         )}
-                                        {(() => {
-                                          const r = isInvolved ? rosterMap[booking.id] : null
-                                          const pending = r?.invitations.filter(i => i.status === 'pending') ?? []
-                                          if (extraPlayers.length === 0 && pending.length === 0) return null
-                                          return (
-                                            <div className={`text-[10px] mt-0.5 pt-0.5 border-t space-y-0.5 ${dividerColor}`}>
-                                              {extraPlayers.map((name, i) => (
-                                                <div key={i} className="truncate leading-tight">{name.split(' ')[0]}</div>
-                                              ))}
-                                              {pending.map(inv => (
-                                                <div key={inv.id} className="truncate leading-tight opacity-70">
-                                                  ⏳ {inv.invitee_name.split(' ')[0]}
-                                                </div>
-                                              ))}
+                                      </div>
+
+                                      {/* Hover tooltip — only on the first slot */}
+                                      {showDetails && (
+                                        <div className="absolute bottom-full left-0 z-50 mb-1.5 w-48 pointer-events-none opacity-0 group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity duration-150">
+                                          <div className={`rounded-xl shadow-xl border text-white text-xs px-3 py-2.5 space-y-1 ${
+                                            isBallMachine ? 'bg-red-700 border-red-900'
+                                            : isMe ? 'bg-green-700 border-green-900'
+                                            : isOnRoster ? 'bg-green-600 border-green-800'
+                                            : 'bg-slate-700 border-slate-900'
+                                          }`}>
+                                            {/* Name / type */}
+                                            <div className="font-bold leading-tight">
+                                              {isBallMachine ? '🤖 Ball Machine' : isMe ? 'Your booking' : `${booking.user.first_name} ${booking.user.last_name}`}
                                             </div>
-                                          )
-                                        })()}
-                                      </div>
-                                    ) : (
-                                      <div className={`rounded-md h-8 opacity-70 ${compactBg}`} />
-                                    )}
-                                    {showDetails && !isInvolved && !past && (
-                                      <div className="mt-1" onClick={e => e.stopPropagation()}>
-                                        {wl?.is_mine && wl.my_entry_id ? (
-                                          <button disabled={wlLoading}
-                                            onClick={() => handleLeaveWaitlist(wl.my_entry_id!, c.id, booking.start_time)}
-                                            className="w-full text-[10px] py-0.5 rounded-md bg-amber-100 text-amber-800 hover:bg-amber-200 font-semibold transition disabled:opacity-50">
-                                            {wlLoading ? '…' : `On waitlist (#${wl.count})`}
-                                          </button>
-                                        ) : (
-                                          <button disabled={wlLoading}
-                                            onClick={() => handleJoinWaitlist(c.id, booking.start_time, booking.end_time)}
-                                            className="w-full text-[10px] py-0.5 rounded-md bg-slate-100 text-slate-500 hover:bg-amber-100 hover:text-amber-800 font-semibold transition disabled:opacity-50">
-                                            {wlLoading ? '…' : wl ? `Waitlist (${wl.count})` : 'Waitlist'}
-                                          </button>
-                                        )}
-                                      </div>
-                                    )}
+                                            {/* Time */}
+                                            <div className="opacity-80 leading-tight">{timeRange}</div>
+                                            {/* Match type */}
+                                            {matchLabel && <div className="opacity-80 leading-tight">{matchLabel}</div>}
+                                            {/* Players */}
+                                            {allPlayers.length > 0 && (
+                                              <div className="pt-1 border-t border-white/20 space-y-0.5">
+                                                {allPlayers.map((name, i) => (
+                                                  <div key={i} className="truncate leading-tight opacity-90">
+                                                    {i === 0 ? '👤 ' : '· '}{name}
+                                                  </div>
+                                                ))}
+                                                {pendingInvs.map(inv => (
+                                                  <div key={inv.id} className="truncate leading-tight opacity-60">
+                                                    ⏳ {inv.invitee_name}
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            )}
+                                            {/* Cancel / waitlist actions */}
+                                            {(isMe || isBoard) && (
+                                              <button
+                                                onClick={e => { e.stopPropagation(); openCancelModal(booking.id, isMe) }}
+                                                className="mt-1 w-full text-center py-1 rounded-md bg-white/15 hover:bg-white/25 transition text-[11px] font-semibold">
+                                                Cancel booking
+                                              </button>
+                                            )}
+                                            {!isInvolved && !past && (
+                                              <button
+                                                onClick={e => {
+                                                  e.stopPropagation()
+                                                  if (wl?.is_mine && wl.my_entry_id) handleLeaveWaitlist(wl.my_entry_id, c.id, booking.start_time)
+                                                  else handleJoinWaitlist(c.id, booking.start_time, booking.end_time)
+                                                }}
+                                                disabled={wlLoading}
+                                                className="mt-1 w-full text-center py-1 rounded-md bg-white/15 hover:bg-white/25 transition text-[11px] font-semibold disabled:opacity-50">
+                                                {wlLoading ? '…' : wl?.is_mine ? `On waitlist (#${wl.count})` : wl ? `Waitlist (${wl.count})` : 'Join waitlist'}
+                                              </button>
+                                            )}
+                                          </div>
+                                          {/* Arrow */}
+                                          <div className={`w-2.5 h-2.5 rotate-45 mx-auto -mt-1.5 ${
+                                            isBallMachine ? 'bg-red-700' : isMe ? 'bg-green-700' : isOnRoster ? 'bg-green-600' : 'bg-slate-700'
+                                          }`} />
+                                        </div>
+                                      )}
+                                    </div>
                                   </td>
                                 )
                               }
