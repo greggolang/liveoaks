@@ -116,8 +116,8 @@ export default function AdminBoardPermissions() {
       {view === 'by-role' ? (
         /* ── Role-centric view ── */
         <div className="mt-4">
-          {/* Role selector */}
-          <div className="flex flex-wrap gap-2 mb-5">
+          {/* Role selector — pinned so you always see which role you're editing */}
+          <div className="flex flex-wrap gap-2 mb-4 md:sticky md:top-0 z-10 bg-gray-50 py-2 -mx-4 px-4 border-b border-gray-100">
             {ROLES.map(r => {
               const count = grantCount(r.key)
               const active = selectedRole === r.key
@@ -239,15 +239,15 @@ export default function AdminBoardPermissions() {
         </div>
       ) : (
         /* ── Section-centric view (compact matrix) ── */
-        <div className="mt-4 overflow-x-auto">
+        <div className="mt-4 overflow-auto max-h-[calc(100vh-180px)] border border-gray-200 rounded-lg">
           <table className="text-sm border-collapse w-full">
-            <thead>
-              <tr className="bg-gray-50">
-                <th className="text-left text-xs font-semibold text-gray-500 px-3 py-2 rounded-tl-lg min-w-[200px]">
+            <thead className="sticky top-0 z-20">
+              <tr>
+                <th className="text-left text-xs font-semibold text-gray-600 px-3 py-2 min-w-[160px] bg-gray-100 sticky left-0 z-30">
                   Section
                 </th>
-                {ROLES.map((r, i) => (
-                  <th key={r.key} className={`text-center text-xs font-medium text-gray-600 px-2 py-2 min-w-[56px] ${i === ROLES.length - 1 ? 'rounded-tr-lg' : ''}`}>
+                {ROLES.map((r) => (
+                  <th key={r.key} className="text-center text-xs font-medium text-gray-600 px-2 py-2 min-w-[56px] bg-gray-100">
                     {r.short}
                   </th>
                 ))}
@@ -264,7 +264,7 @@ export default function AdminBoardPermissions() {
                   </tr>
                   {catalog.filter(s => s.group === group).map((s, si) => (
                     <tr key={s.key} className={si % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                      <td className="px-3 py-2">
+                      <td className={`px-3 py-2 sticky left-0 z-10 ${si % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
                         <span className="font-medium text-gray-800 block text-xs">{s.label}</span>
                       </td>
                       {ROLES.map(role => {

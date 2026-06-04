@@ -68,7 +68,14 @@ const HIDDEN_KEYS = new Set([
   'kiosk_enabled',           // rendered in its own section below
   'weather_lat', 'weather_lon', 'weather_zip',
   'smtp_host','smtp_port','smtp_user','smtp_pass','smtp_from',
+  'anthropic_api_key','claude_model','ai_enabled', // managed in the AI section below
 ])
+
+const CLAUDE_MODELS = [
+  { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5 — cheapest & fast' },
+  { id: 'claude-sonnet-4-6',         label: 'Sonnet 4.6 — balanced (recommended)' },
+  { id: 'claude-opus-4-8',           label: 'Opus 4.8 — most capable' },
+]
 
 interface Photo { id: string; title: string; filename: string }
 
@@ -84,6 +91,38 @@ export default function AdminSettings() {
   const [photos, setPhotos] = useState<Photo[]>([])
   const [logoSaving, setLogoSaving] = useState(false)
   const [logoError, setLogoError] = useState('')
+
+  // AI / Claude integration
+  const [ai, setAi] = useState({ configured: false, key_preview: '', model: 'claude-sonnet-4-6', enabled: false })
+  const [aiKey, setAiKey] = useState('')
+  const [aiSaving, setAiSaving] = useState(false)
+  const [aiSaved, setAiSaved] = useState(false)
+  const [aiTest, setAiTest] = useState<{ state: 'idle' | 'testing' | 'ok' | 'fail'; msg?: string }>({ state: 'idle' })
+
+  const loadAI = () => api.admin.aiConfig().then(setAi).catch(() => {})
+  useEffect(() => { loadAI() }, [])
+
+  const saveAI = async () => {
+    setAiSaving(true)
+    try {
+      await api.admin.updateAIConfig({ api_key: aiKey ? aiKey : undefined, model: ai.model, enabled: ai.enabled })
+      setAiKey('')
+      await loadAI()
+      setAiSaved(true); setTimeout(() => setAiSaved(false), 2000)
+    } finally { setAiSaving(false) }
+  }
+  const removeAIKey = async () => {
+    if (!confirm('Remove the saved Anthropic API key?')) return
+    await api.admin.updateAIConfig({ api_key: '', model: ai.model, enabled: ai.enabled })
+    setAiKey(''); setAiTest({ state: 'idle' }); await loadAI()
+  }
+  const testAI = async () => {
+    setAiTest({ state: 'testing' })
+    try {
+      const r = await api.admin.testAIConfig(aiKey || undefined)
+      setAiTest(r.success ? { state: 'ok' } : { state: 'fail', msg: r.error })
+    } catch (e: any) { setAiTest({ state: 'fail', msg: e.message }) }
+  }
 
   const load = () => api.admin.settings().then(d => {
     const s = d as Record<string, string>
@@ -248,6 +287,76 @@ export default function AdminSettings() {
             </button>
           </div>
         ))}
+      </div>
+
+      {/* AI / Claude */}
+      <h2 className="text-xl font-bold text-gray-800 mt-8 mb-1">AI Assistant (Claude)</h2>
+      <p className="text-sm text-gray-500 mb-4">
+        Connect an Anthropic API key to power AI features. The key is stored securely and never shown again after saving.
+        Get one at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer" className="text-green-700 hover:underline">console.anthropic.com</a>.
+      </p>
+      <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 space-y-5">
+        {/* Status */}
+        <div className="flex items-center gap-2 text-sm">
+          {ai.configured ? (
+            <>
+              <span className="inline-flex items-center gap-1.5 text-green-700 font-medium">
+                <span className="w-2 h-2 rounded-full bg-green-500" /> API key configured
+              </span>
+              <span className="text-gray-400 font-mono">{ai.key_preview}</span>
+              <button onClick={removeAIKey} className="text-xs text-red-400 hover:text-red-600 ml-2">Remove</button>
+            </>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 text-gray-400 font-medium">
+              <span className="w-2 h-2 rounded-full bg-gray-300" /> No API key set
+            </span>
+          )}
+        </div>
+
+        {/* API key */}
+        <div className="flex items-center gap-4">
+          <label className="w-56 text-sm font-medium text-gray-700 shrink-0">Anthropic API Key</label>
+          <input
+            type="password" value={aiKey} onChange={e => setAiKey(e.target.value)} autoComplete="off"
+            placeholder={ai.configured ? 'Enter a new key to replace the current one' : 'sk-ant-…'}
+            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-500" />
+        </div>
+
+        {/* Model */}
+        <div className="flex items-center gap-4">
+          <label className="w-56 text-sm font-medium text-gray-700 shrink-0">Default Model</label>
+          <select value={ai.model} onChange={e => setAi(a => ({ ...a, model: e.target.value }))}
+            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500">
+            {CLAUDE_MODELS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+            {!CLAUDE_MODELS.some(m => m.id === ai.model) && <option value={ai.model}>{ai.model}</option>}
+          </select>
+        </div>
+
+        {/* Enabled */}
+        <div className="flex items-center gap-4">
+          <label className="w-56 text-sm font-medium text-gray-700 shrink-0">AI Features</label>
+          <select value={ai.enabled ? 'true' : 'false'} onChange={e => setAi(a => ({ ...a, enabled: e.target.value === 'true' }))}
+            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
+            <option value="true">Enabled</option>
+            <option value="false">Disabled</option>
+          </select>
+        </div>
+
+        <div className="flex items-center gap-3 ml-[calc(224px+1rem)]">
+          <button onClick={saveAI} disabled={aiSaving}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition disabled:opacity-50 ${aiSaved ? 'bg-green-100 text-green-700' : 'bg-green-700 text-white hover:bg-green-800'}`}>
+            {aiSaving ? 'Saving…' : aiSaved ? 'Saved!' : 'Save'}
+          </button>
+          <button onClick={testAI} disabled={aiTest.state === 'testing' || (!ai.configured && !aiKey)}
+            className="px-4 py-2 rounded-lg text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 transition disabled:opacity-50">
+            {aiTest.state === 'testing' ? 'Testing…' : 'Test connection'}
+          </button>
+          {aiTest.state === 'ok' && <span className="text-sm text-green-700 font-medium">✓ Key works</span>}
+          {aiTest.state === 'fail' && <span className="text-sm text-red-600">{aiTest.msg || 'Failed'}</span>}
+        </div>
+        <p className="text-xs text-gray-400 ml-[calc(224px+1rem)]">
+          "Test connection" checks the key against Anthropic at no token cost. Billing is pay-per-use on your Anthropic account.
+        </p>
       </div>
 
       {/* Timezone */}

@@ -93,9 +93,112 @@ func (h *AdminHandler) GetSettings(c echo.Context) error {
 		if err := rows.Scan(&k, &v); err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "could not scan setting")
 		}
+		// Never leak the raw API key to the browser; it has its own masked endpoint.
+		if k == "anthropic_api_key" {
+			continue
+		}
 		settings[k] = v
 	}
 	return c.JSON(http.StatusOK, settings)
+}
+
+// maskKey shows just enough of a secret to recognise it without revealing it.
+func maskKey(k string) string {
+	if k == "" {
+		return ""
+	}
+	if len(k) <= 12 {
+		return "••••••"
+	}
+	return k[:7] + "…" + k[len(k)-4:]
+}
+
+// GetAIConfig returns the Claude/Anthropic configuration with the API key masked.
+func (h *AdminHandler) GetAIConfig(c echo.Context) error {
+	ctx := c.Request().Context()
+	var key, model, enabled string
+	h.DB.QueryRow(ctx, `SELECT value FROM settings WHERE key = 'anthropic_api_key'`).Scan(&key)
+	h.DB.QueryRow(ctx, `SELECT value FROM settings WHERE key = 'claude_model'`).Scan(&model)
+	h.DB.QueryRow(ctx, `SELECT value FROM settings WHERE key = 'ai_enabled'`).Scan(&enabled)
+	if model == "" {
+		model = "claude-sonnet-4-6"
+	}
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"configured":  key != "",
+		"key_preview": maskKey(key),
+		"model":       model,
+		"enabled":     enabled == "true",
+	})
+}
+
+// UpdateAIConfig saves the Claude model and enabled flag, and (only when a new
+// key is supplied) replaces the stored API key. An empty api_key string clears it.
+func (h *AdminHandler) UpdateAIConfig(c echo.Context) error {
+	var req struct {
+		APIKey  *string `json:"api_key"`
+		Model   string  `json:"model"`
+		Enabled bool    `json:"enabled"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
+	}
+	ctx := c.Request().Context()
+	upsert := func(k, v string) {
+		h.DB.Exec(ctx, `INSERT INTO settings (key, value) VALUES ($1, $2)
+		                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`, k, v)
+	}
+	if req.APIKey != nil {
+		if k := strings.TrimSpace(*req.APIKey); k == "" {
+			h.DB.Exec(ctx, `DELETE FROM settings WHERE key = 'anthropic_api_key'`)
+		} else {
+			upsert("anthropic_api_key", k)
+		}
+	}
+	if req.Model != "" {
+		upsert("claude_model", req.Model)
+	}
+	if req.Enabled {
+		upsert("ai_enabled", "true")
+	} else {
+		upsert("ai_enabled", "false")
+	}
+	return c.NoContent(http.StatusNoContent)
+}
+
+// TestAIConfig verifies an API key against Anthropic's models endpoint (a free
+// call that spends no tokens). It tests the supplied key if given, otherwise the
+// stored one.
+func (h *AdminHandler) TestAIConfig(c echo.Context) error {
+	ctx := c.Request().Context()
+	var req struct {
+		APIKey string `json:"api_key"`
+	}
+	c.Bind(&req)
+	key := strings.TrimSpace(req.APIKey)
+	if key == "" {
+		h.DB.QueryRow(ctx, `SELECT value FROM settings WHERE key = 'anthropic_api_key'`).Scan(&key)
+	}
+	if key == "" {
+		return c.JSON(http.StatusOK, map[string]interface{}{"success": false, "error": "No API key configured."})
+	}
+
+	httpReq, _ := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.anthropic.com/v1/models", nil)
+	httpReq.Header.Set("x-api-key", key)
+	httpReq.Header.Set("anthropic-version", "2023-06-01")
+	resp, err := (&http.Client{Timeout: 15 * time.Second}).Do(httpReq)
+	if err != nil {
+		return c.JSON(http.StatusOK, map[string]interface{}{"success": false, "error": "Could not reach Anthropic: " + err.Error()})
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusOK {
+		return c.JSON(http.StatusOK, map[string]interface{}{"success": true})
+	}
+	io.Copy(io.Discard, io.LimitReader(resp.Body, 1024))
+	msg := fmt.Sprintf("Anthropic returned HTTP %d.", resp.StatusCode)
+	if resp.StatusCode == http.StatusUnauthorized {
+		msg = "Invalid API key (401 Unauthorized)."
+	}
+	return c.JSON(http.StatusOK, map[string]interface{}{"success": false, "error": msg})
 }
 
 func (h *AdminHandler) PendingResets(c echo.Context) error {

@@ -570,6 +570,11 @@ export const api = {
     settings: () => request('/admin/settings'),
     updateSetting: (key: string, value: string) =>
       request(`/admin/settings/${key}`, { method: 'PUT', body: JSON.stringify({ value }) }),
+    aiConfig: () => request<{ configured: boolean; key_preview: string; model: string; enabled: boolean }>('/admin/ai-config'),
+    updateAIConfig: (data: { api_key?: string | null; model: string; enabled: boolean }) =>
+      request('/admin/ai-config', { method: 'PUT', body: JSON.stringify(data) }),
+    testAIConfig: (api_key?: string) =>
+      request<{ success: boolean; error?: string }>('/admin/ai-config/test', { method: 'POST', body: JSON.stringify({ api_key: api_key ?? '' }) }),
     passwordResets: () => request('/admin/password-resets'),
     activityLog: () => request('/admin/activity-log'),
     testEmail: (to: string) =>
