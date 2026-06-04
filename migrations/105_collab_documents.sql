@@ -25,7 +25,8 @@ CREATE TABLE IF NOT EXISTS collab_document_presence (
 CREATE INDEX IF NOT EXISTS idx_collab_documents_updated_at ON collab_documents (updated_at DESC);
 
 -- Seed the board-meeting proposal so it can be opened and edited right away.
--- Fixed id + ON CONFLICT keeps this a one-time insert that is safe to re-run.
+-- Fixed id + ON CONFLICT keeps this a one-time insert that is safe to re-run and
+-- never overwrites edits members have made to the document in the Portal.
 INSERT INTO collab_documents (id, title, body)
 VALUES (
     '00000000-0000-0000-0000-0000000000aa',
@@ -41,12 +42,13 @@ VALUES (
   <tr><td>Monthly cost</td><td>$600</td><td>$350</td><td>−$250 / mo</td></tr>
   <tr><td>Annual cost</td><td>$7,200</td><td>$4,200</td><td>−$3,000 / yr</td></tr>
 </table>
+<p>Beyond the dollars, the Portal replaces four logins, four vendors, and a manual billing process with <strong>one system the board controls</strong> — purpose-built for our 4 courts, our dues, our USTA teams, and our events.</p>
 <hr>
 <h2>2. What the Portal Replaces (and the Savings)</h2>
 <table>
   <tr><th>What we pay for today</th><th>Current cost</th><th>How the Portal replaces it</th></tr>
   <tr><td>Website hosting</td><td>$25 / mo ($300/yr)</td><td>The Portal serves our public website and the member site from the same server. The board edits the public site directly through the built-in Content editor — no separate hosting account or web developer needed.</td></tr>
-  <tr><td>Google Workspace</td><td>$125 / mo ($1,500/yr)</td><td>The Portal includes its own email system (club inboxes, member messaging, mass broadcast email, and file storage), removing the need for paid Google Workspace seats.</td></tr>
+  <tr><td>Google Workspace</td><td>$125 / mo ($1,500/yr)</td><td>The Portal includes its own email system (club inboxes, member messaging, mass broadcast email, shared files, and collaborative documents), removing the need for paid Google Workspace seats.</td></tr>
   <tr><td>CourtReserve</td><td>$1,800 / yr ($150/mo)</td><td>The Portal has a complete court-reservation system — online booking, the live court grid, waitlists, cancellations, guest passes, and court blocks — purpose-built for our 4 courts.</td></tr>
   <tr><td>Billing person</td><td>$300 / mo ($3,600/yr)</td><td>The Portal automates dues and billing: it issues dues, takes member card payments through Stripe, tracks balances, generates receipts, and handles accounting and tax reporting.</td></tr>
   <tr><td><strong>Total replaced</strong></td><td><strong>$600 / mo ($7,200/yr)</strong></td><td></td></tr>
@@ -79,17 +81,19 @@ VALUES (
 <h3>Court Reservations (replaces CourtReserve)</h3>
 <ul><li>Online court booking with a live, real-time court grid</li><li>Booking rules and limits</li><li>Court waitlist with automatic notifications</li><li>Cancellations and self-service booking changes</li><li>Court blocks for lessons, clinics, and events</li><li>Automatic booking reminders</li><li>Guest passes and guest tracking</li><li>Court &amp; weather conditions display</li></ul>
 <h3>Billing &amp; Payments (replaces the billing person)</h3>
-<ul><li>Automated dues issuance and tracking</li><li>Online card payments (Stripe)</li><li>Member balances and statements</li><li>Receipt generation</li><li>Accounting and financial rules</li><li>Tax reporting</li><li>Pro Shop sales and a self-service Kiosk</li></ul>
+<ul><li>Automated dues issuance and tracking</li><li>Online card payments (Stripe)</li><li>Member balances and statements</li><li>Receipt generation</li><li><strong>AI receipt scanning</strong> — auto-fills vendor, amount, date, and category from an uploaded receipt</li><li>Accounting and financial rules</li><li>Tax reporting (1099 contractors, sales-tax summaries)</li><li>Pro Shop sales and a self-service Kiosk</li></ul>
 <h3>Communication &amp; Email (replaces Google Workspace)</h3>
-<ul><li>Built-in club email inboxes</li><li>Mail filters, contacts, and import tools</li><li>Member-to-member private messaging</li><li>Club-wide broadcast email</li><li>Announcements feed</li><li>Per-member notification preferences</li></ul>
+<ul><li>Built-in club email inboxes</li><li>Mail filters, contacts, and import tools</li><li>Member-to-member messaging and group conversations</li><li>Club-wide broadcast email</li><li><strong>AI writing assistant</strong> — polishes the tone, clarity, and subject line of announcements and broadcasts</li><li>Announcements feed with read tracking</li><li>Per-member notification preferences</li></ul>
+<h3>Documents &amp; Files (replaces Google Drive / Docs)</h3>
+<ul><li>Shared file library with folders and role-based access</li><li><strong>Collaborative documents</strong> — members write and edit rich-text docs together with live sync, presence, and auto-save (this proposal lives here)</li><li>Bylaws and board-document storage</li></ul>
 <h3>Public Website (replaces website hosting)</h3>
 <ul><li>Public-facing club website</li><li>Board-editable content — no web developer required</li><li>Membership waitlist sign-up</li><li>Photo gallery</li></ul>
 <h3>Member Experience</h3>
-<ul><li>Personal dashboard</li><li>Member directory and player profiles</li><li>Friends / connections</li><li>Club info and bylaws</li><li>"Ask the Club" AI assistant</li><li>File/document library and collaborative documents</li></ul>
+<ul><li>Personal dashboard</li><li>Member directory and player profiles</li><li>Friends / connections</li><li>Club info and bylaws</li><li><strong>"Ask the Club"</strong> AI assistant — answers questions from the bylaws, booking policies, and announcements</li></ul>
 <h3>Events &amp; Programs</h3>
-<ul><li>Event listings and online sign-ups</li><li>USTA team rosters</li><li>Score tracking and match results</li><li>Tennis ladder</li><li>Fantasy pool</li><li>Liveball events</li><li>Polls and surveys</li></ul>
+<ul><li>Event listings and online sign-ups</li><li>USTA team rosters</li><li>Score tracking and match results</li><li><strong>Natural-language score entry</strong> — type "beat Mark 6-4 6-3" and the scorecard fills itself in</li><li>Tennis ladder</li><li>Fantasy pool</li><li>Liveball events</li><li>Polls and surveys</li></ul>
 <h3>Board &amp; Admin Tools</h3>
-<ul><li>Full admin dashboard</li><li>User and member management; member-request approvals</li><li>Granular permissions and page-access control</li><li>Board communications, board meetings, and RSVPs</li><li>Email templates</li><li>Activity log / audit trail</li><li>Member feedback and bug tracking</li><li>Password management (resets, impersonate-for-support)</li><li>Teaching-pro tools</li><li>Smart-device integration (YoLink)</li><li>On-site cameras</li><li>Ball / equipment tracking</li></ul>
+<ul><li>Full admin dashboard</li><li>User and member management; member-request approvals</li><li>Granular permissions and page-access control</li><li>Board communications, board meetings, and RSVPs</li><li><strong>AI board-minutes drafting</strong> — turns rough notes into polished minutes and extracts action items</li><li>Email templates</li><li>Activity log / audit trail</li><li>Member feedback and bug tracking</li><li><strong>AI feedback triage</strong> — groups duplicate feedback into a prioritized, board-ready digest</li><li>Password management (resets, impersonate-for-support)</li><li>Teaching-pro tools</li><li>Smart-device integration (YoLink)</li><li>On-site cameras</li><li>Ball / equipment tracking</li></ul>
 <hr>
 <h2>7. Recommendation</h2>
 <p>Approve adoption of the LOTA Portal to replace our website hosting, Google Workspace, CourtReserve, and outside billing service. The change <strong>saves the club $3,000 per year</strong>, consolidates four vendors into one, automates dues and billing, and gives members a modern, all-in-one experience tailored to LOTA.</p>$doc$

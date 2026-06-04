@@ -16,6 +16,8 @@ The LOTA Portal is a single, custom-built platform that replaces four separate s
 | **Monthly cost** | $600 | $350 | **−$250 / mo** |
 | **Annual cost** | $7,200 | $4,200 | **−$3,000 / yr** |
 
+Beyond the dollars, the Portal replaces four logins, four vendors, and a manual billing process with **one system the board controls** — purpose-built for our 4 courts, our dues, our USTA teams, and our events.
+
 ---
 
 ## 2. What the Portal Replaces (and the Savings)
@@ -23,7 +25,7 @@ The LOTA Portal is a single, custom-built platform that replaces four separate s
 | # | What we pay for today | Current cost | How the Portal replaces it |
 |---|---|---|---|
 | 1 | **Website hosting** | **$25 / mo** ($300/yr) | The Portal serves our public website and the member site from the same server. The board edits the public homepage, facilities, coaching, and contact info directly through the built-in **Content editor** — no separate hosting account or web developer needed. |
-| 2 | **Google Workspace** | **$125 / mo** ($1,500/yr) | The Portal includes its own **email system** (club inboxes, member messaging, mass broadcast email, and file storage), removing the need for paid Google Workspace seats. |
+| 2 | **Google Workspace** | **$125 / mo** ($1,500/yr) | The Portal includes its own **email system** (club inboxes, member messaging, mass broadcast email, shared files, and collaborative documents), removing the need for paid Google Workspace seats. |
 | 3 | **CourtReserve** | **$1,800 / yr** ($150/mo) | The Portal has a complete **court-reservation system** — online booking, the live court grid, waitlists, cancellations, guest passes, and court blocks — purpose-built for our 4 courts. |
 | 4 | **Billing person** | **$300 / mo** ($3,600/yr) | The Portal **automates dues and billing**: it issues dues, takes member card payments through Stripe, tracks balances, generates receipts, and handles accounting and tax reporting — work the billing person does by hand today. |
 | | **Total replaced** | **$600 / mo ($7,200/yr)** | |
@@ -85,17 +87,22 @@ The Portal is already built and includes the following. Features members see are
 - Receipts generation
 - **AI receipt scanning** — reads an uploaded receipt or invoice and auto-fills the vendor, amount, date, and expense category for the treasurer to confirm
 - Accounting and financial rules
-- Tax reporting
+- Tax reporting (1099 contractor tracking, sales-tax summaries)
 - Pro Shop sales and a self-service Kiosk for in-club purchases
 
 ### Communication & Email (replaces Google Workspace)
 - Built-in club email inboxes (IMAP-based)
 - Mail filters, contacts, and import tools
-- Member-to-member private messaging
+- Member-to-member private messaging and group conversations
 - Club-wide broadcast email/announcements
 - **AI writing assistant** — a "✨ Improve" button that polishes the tone, clarity, and subject line of announcements and broadcast emails before they go out
-- Announcements feed
+- Announcements feed with read tracking
 - Notification preferences per member
+
+### Documents & Files (replaces Google Drive / Docs)
+- Shared file library with folders and role-based access
+- **Collaborative documents** — members can create and edit rich-text documents together in the browser, with live sync, "who's here" presence, and automatic saving (this very proposal lives in the Portal)
+- Bylaws and board-document storage
 
 ### Public Website (replaces website hosting)
 - Public-facing club website (homepage, facilities, coaching, contact)
@@ -109,7 +116,6 @@ The Portal is already built and includes the following. Features members see are
 - Friends / connections
 - Club info and bylaws
 - **"Ask the Club"** — an AI assistant that instantly answers member questions from our official bylaws, booking policies, and announcements
-- File/document library
 
 ### Events & Programs
 - Event listings and online event sign-ups

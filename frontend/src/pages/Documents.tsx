@@ -127,9 +127,14 @@ function DocumentEditor({ docId, onClose }: { docId: string; onClose: () => void
   // Holds the loaded body until the editor div has mounted (it's hidden behind
   // the loading skeleton while the fetch is in flight, so it can't receive HTML yet).
   const pendingBodyRef = useRef<string | null>(null)
+  // Mirror of the editor's current HTML so a pending save can still persist even
+  // if the editor div has already unmounted (e.g. the user renames then navigates).
+  const bodyRef = useRef('')
 
   const setEditorHtml = (html: string) => {
-    if (editorRef.current) editorRef.current.innerHTML = sanitizeHtml(html)
+    const clean = sanitizeHtml(html)
+    bodyRef.current = clean
+    if (editorRef.current) editorRef.current.innerHTML = clean
   }
 
   // ── Load the document ──────────────────────────────────────────────────────
@@ -168,8 +173,9 @@ function DocumentEditor({ docId, onClose }: { docId: string; onClose: () => void
 
   // ── Save ───────────────────────────────────────────────────────────────────
   const save = useCallback(async () => {
-    if (!editorRef.current) return
-    const body = sanitizeHtml(editorRef.current.innerHTML)
+    // Fall back to the mirrored body so a title-only rename still saves even if
+    // the editor node has already unmounted (the early-return here used to drop it).
+    const body = sanitizeHtml(editorRef.current ? editorRef.current.innerHTML : bodyRef.current)
     const t = titleRef.current.trim() || 'Untitled document'
     setStatus('saving')
     try {
@@ -331,13 +337,22 @@ function DocumentEditor({ docId, onClose }: { docId: string; onClose: () => void
         </div>
       ) : (
         <>
-          {/* Title */}
-          <input
-            value={title}
-            onChange={e => { setTitle(e.target.value); titleRef.current = e.target.value; scheduleSave() }}
-            placeholder="Document title"
-            className="w-full text-2xl font-bold text-gray-800 border-0 border-b border-transparent focus:border-gray-200 focus:outline-none px-1 py-1 bg-transparent"
-          />
+          {/* Title — click to rename; the hover/focus border signals it's editable */}
+          <div className="flex items-center gap-1.5">
+            <input
+              value={title}
+              onChange={e => { setTitle(e.target.value); titleRef.current = e.target.value; scheduleSave() }}
+              onFocus={() => { editingRef.current = true }}
+              onBlur={() => { editingRef.current = false; saveNow() }}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur() } }}
+              placeholder="Untitled document"
+              aria-label="Document title"
+              className="flex-1 min-w-0 text-2xl font-bold text-gray-800 border border-transparent hover:border-gray-200 focus:border-green-400 rounded-lg focus:outline-none px-2 py-1 bg-transparent transition"
+            />
+            <svg className="w-4 h-4 shrink-0 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+          </div>
 
           {/* Editor */}
           <div className="bg-white border border-gray-200 rounded-xl shadow-sm">
@@ -346,7 +361,7 @@ function DocumentEditor({ docId, onClose }: { docId: string; onClose: () => void
               ref={editorRef}
               contentEditable
               suppressContentEditableWarning
-              onInput={scheduleSave}
+              onInput={() => { if (editorRef.current) bodyRef.current = editorRef.current.innerHTML; scheduleSave() }}
               onBlur={() => { editingRef.current = false; saveNow() }}
               onFocus={() => { editingRef.current = true }}
               className="prose-doc min-h-[55vh] max-w-none px-5 py-4 text-sm text-gray-800 focus:outline-none leading-relaxed"
@@ -382,6 +397,22 @@ export default function Documents() {
 
   const open = (id: string) => setParams({ doc: id })
   const close = () => { setParams({}); }
+
+  const rename = async (d: CollabDocSummary) => {
+    const name = prompt('Rename document:', d.title)?.trim()
+    if (!name || name === d.title) return
+    try {
+      // Pull the current body + version so we don't clobber content or trip the
+      // optimistic-lock check while renaming from the list.
+      const full = await api.collabDocs.get(d.id)
+      const res = await api.collabDocs.update(d.id, { title: name, body: full.body, version: full.version })
+      if (res.status !== 'ok') alert('This document was just changed by someone else — open it to rename.')
+    } catch {
+      alert('Could not rename the document.')
+    } finally {
+      load()
+    }
+  }
 
   const create = async () => {
     setCreating(true)
@@ -425,24 +456,29 @@ export default function Documents() {
       ) : (
         <div className="bg-white border border-gray-200 rounded-xl shadow-sm divide-y divide-gray-100">
           {docs.map(d => (
-            <button key={d.id} onClick={() => open(d.id)}
-              className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 transition text-left group">
-              <svg className="w-5 h-5 shrink-0 text-gray-300 group-hover:text-green-600 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-gray-800 group-hover:text-green-700 transition truncate">{d.title || 'Untitled document'}</p>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  Edited {relTime(d.updated_at)}{d.updated_by_name ? ` by ${d.updated_by_name}` : ''}
-                </p>
-              </div>
+            <div key={d.id} className="flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 transition group">
+              <button onClick={() => open(d.id)} className="flex items-center gap-3 flex-1 min-w-0 text-left">
+                <svg className="w-5 h-5 shrink-0 text-gray-300 group-hover:text-green-600 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-gray-800 group-hover:text-green-700 transition truncate">{d.title || 'Untitled document'}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Edited {relTime(d.updated_at)}{d.updated_by_name ? ` by ${d.updated_by_name}` : ''}
+                  </p>
+                </div>
+              </button>
               {d.active_editors > 0 && (
                 <span className="shrink-0 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
                   {d.active_editors} here now
                 </span>
               )}
-            </button>
+              <button onClick={() => rename(d)}
+                className="shrink-0 text-xs text-gray-400 hover:text-green-700 transition px-1 opacity-0 group-hover:opacity-100 focus:opacity-100">
+                Rename
+              </button>
+            </div>
           ))}
         </div>
       )}
