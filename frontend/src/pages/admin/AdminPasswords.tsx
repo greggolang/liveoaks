@@ -16,6 +16,14 @@ interface PasswordEntry {
   updated_at: string
 }
 
+// Open a stored site in a new tab, adding https:// if the URL has no scheme.
+function launchSite(rawUrl: string) {
+  const u = rawUrl.trim()
+  if (!u) return
+  const full = /^https?:\/\//i.test(u) ? u : `https://${u}`
+  window.open(full, '_blank', 'noopener,noreferrer')
+}
+
 function timeAgo(iso: string) {
   const diff = Date.now() - parseDate(iso).getTime()
   const m = Math.floor(diff / 60000)
@@ -178,19 +186,29 @@ export default function AdminPasswords() {
                 {items.map(entry => {
                   const active = selected?.id === entry.id && !isNew
                   return (
-                    <button key={entry.id} onClick={() => openEntry(entry)}
-                      className={`w-full text-left px-3 py-2.5 rounded-lg transition border ${
-                        active
-                          ? 'bg-green-50 border-green-300'
-                          : 'bg-white border-gray-100 hover:border-gray-200 hover:bg-gray-50'
-                      }`}>
-                      <p className={`text-sm font-medium truncate ${active ? 'text-green-800' : 'text-gray-800'}`}>
-                        {entry.label}
-                      </p>
-                      {entry.username && (
-                        <p className="text-xs text-gray-400 mt-0.5 truncate">{entry.username}</p>
+                    <div key={entry.id} className="relative group">
+                      <button onClick={() => openEntry(entry)}
+                        className={`w-full text-left px-3 py-2.5 rounded-lg transition border ${
+                          active
+                            ? 'bg-green-50 border-green-300'
+                            : 'bg-white border-gray-100 hover:border-gray-200 hover:bg-gray-50'
+                        }`}>
+                        <p className={`text-sm font-medium truncate ${active ? 'text-green-800' : 'text-gray-800'} ${entry.url ? 'pr-6' : ''}`}>
+                          {entry.label}
+                        </p>
+                        {entry.username && (
+                          <p className="text-xs text-gray-400 mt-0.5 truncate">{entry.username}</p>
+                        )}
+                      </button>
+                      {entry.url && (
+                        <button onClick={() => launchSite(entry.url)} title="Open site"
+                          className="absolute right-2 top-2.5 p-1 rounded text-gray-300 hover:text-green-700 hover:bg-white opacity-0 group-hover:opacity-100 transition">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                          </svg>
+                        </button>
                       )}
-                    </button>
+                    </div>
                   )
                 })}
               </div>
@@ -293,12 +311,21 @@ export default function AdminPasswords() {
 
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">URL</label>
-                <input
-                  value={url}
-                  onChange={e => { setUrl(e.target.value); mark() }}
-                  placeholder="https://…"
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
+                <div className="flex gap-2">
+                  <input
+                    value={url}
+                    onChange={e => { setUrl(e.target.value); mark() }}
+                    placeholder="https://…"
+                    className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                  <button type="button" onClick={() => launchSite(url)} disabled={!url.trim()}
+                    className="px-3 py-2 text-xs font-medium border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-green-400 hover:text-green-700 disabled:opacity-40 transition shrink-0 flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                    Open
+                  </button>
+                </div>
               </div>
 
               <div className="flex-1 flex flex-col">
