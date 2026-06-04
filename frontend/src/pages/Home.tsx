@@ -21,7 +21,7 @@ export default function Home() {
       {/* Nav */}
       <nav className="bg-lota-700 text-white px-4 sm:px-6 py-3">
         <div className="max-w-6xl mx-auto flex justify-between items-center">
-          <Link to="/" className="flex items-center gap-3">
+          <Link to="/login" className="flex items-center gap-3">
             <img src="/lota-logo.png" alt="Live Oaks Tennis Association crest"
                  className="h-11 w-11 rounded-full bg-white/95 p-0.5 shadow-sm" />
             <span className="font-semibold text-base sm:text-lg tracking-wide leading-tight">
@@ -50,8 +50,10 @@ export default function Home() {
       >
         <div className="absolute inset-0 bg-gradient-to-b from-lota-900/80 via-lota-900/55 to-lota-900/85" />
         <div className="relative text-center text-white py-28 px-6">
-          <img src="/lota-logo.png" alt="Live Oaks Tennis Association crest"
-               className="h-28 w-28 mx-auto mb-6 rounded-full bg-white/95 p-1 shadow-xl" />
+          <Link to="/login">
+            <img src="/lota-logo.png" alt="Live Oaks Tennis Association crest"
+                 className="h-28 w-28 mx-auto mb-6 rounded-full bg-white/95 p-1 shadow-xl hover:opacity-90 transition" />
+          </Link>
           <p className="text-lota-100 text-sm font-semibold tracking-[0.25em] uppercase mb-3">
             {hero.eyebrow}
           </p>
@@ -168,8 +170,10 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="bg-lota-900 text-lota-200 text-center py-8 text-sm">
-        <img src="/lota-logo.png" alt="Live Oaks Tennis Association crest"
-             className="h-12 w-12 mx-auto mb-3 rounded-full bg-white/95 p-0.5" />
+        <Link to="/login">
+          <img src="/lota-logo.png" alt="Live Oaks Tennis Association crest"
+               className="h-12 w-12 mx-auto mb-3 rounded-full bg-white/95 p-0.5 hover:opacity-80 transition" />
+        </Link>
         <p>© {new Date().getFullYear()} Live Oaks Tennis Association · South Pasadena, CA · Founded 1912</p>
         <div className="mt-2 flex gap-4 justify-center">
           <Link to="/login" className="hover:text-white transition">Member Login</Link>
