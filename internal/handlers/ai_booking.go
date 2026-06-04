@@ -4,14 +4,104 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/greggolang/liveoaks/internal/ai"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Club court hours used when reasoning about availability (matches the booking grid).
-const courtOpenHour, courtCloseHour = 8, 20
+// courtHours returns the club's open/close hours (24h) from settings, defaulting
+// to 8 AM–8 PM. Used by both the assistant and the real booking validation so
+// they always agree.
+func courtHours(ctx context.Context, db *pgxpool.Pool) (open, close int) {
+	open, close = 8, 20
+	var o, c string
+	db.QueryRow(ctx, `SELECT value FROM settings WHERE key = 'court_open_hour'`).Scan(&o)
+	db.QueryRow(ctx, `SELECT value FROM settings WHERE key = 'court_close_hour'`).Scan(&c)
+	if n, err := strconv.Atoi(strings.TrimSpace(o)); err == nil && n >= 0 && n < 24 {
+		open = n
+	}
+	if n, err := strconv.Atoi(strings.TrimSpace(c)); err == nil && n > open && n <= 24 {
+		close = n
+	}
+	return open, close
+}
+
+// fmtHour formats a 24h hour as "8:00 AM" / "8:00 PM".
+func fmtHour(h int) string {
+	suffix, hh := "AM", h
+	if h >= 12 {
+		suffix = "PM"
+		if h > 12 {
+			hh = h - 12
+		}
+	}
+	if h == 0 {
+		hh = 12
+	}
+	return fmt.Sprintf("%d:00 %s", hh, suffix)
+}
+
+// checkBookingLimits mirrors the main per-member limits enforced by the real
+// booking endpoint, so the assistant can warn before proposing instead of after
+// the member taps Confirm. Returns a friendly message, or "" if the slot is fine.
+// The confirm step remains authoritative.
+func (h *AIHandler) checkBookingLimits(ctx context.Context, userID string, startLocal, endLocal time.Time, loc *time.Location) string {
+	getInt := func(key string) int {
+		var v string
+		h.DB.QueryRow(ctx, `SELECT value FROM settings WHERE key = $1`, key).Scan(&v)
+		n, _ := strconv.Atoi(strings.TrimSpace(v))
+		return n
+	}
+
+	if maxDays := getInt("booking_max_days_ahead"); maxDays > 0 {
+		now := time.Now().In(loc)
+		todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
+		deadline := todayStart.AddDate(0, 0, maxDays+1)
+		if !startLocal.Before(deadline) {
+			return fmt.Sprintf("That's further ahead than the %d-day booking window allows.", maxDays)
+		}
+	}
+
+	var overlap int
+	h.DB.QueryRow(ctx,
+		`SELECT COUNT(*) FROM bookings WHERE user_id = $1 AND start_time < $2 AND end_time > $3`,
+		userID, endLocal.UTC(), startLocal.UTC()).Scan(&overlap)
+	if overlap > 0 {
+		return "You already have a booking that overlaps that time."
+	}
+
+	if maxDay := getInt("booking_max_per_day"); maxDay > 0 {
+		dayStart := time.Date(startLocal.Year(), startLocal.Month(), startLocal.Day(), 0, 0, 0, 0, loc).UTC()
+		var n int
+		h.DB.QueryRow(ctx,
+			`SELECT COUNT(*) FROM bookings WHERE user_id = $1 AND start_time >= $2 AND start_time < $3`,
+			userID, dayStart, dayStart.Add(24*time.Hour)).Scan(&n)
+		if n >= maxDay {
+			if maxDay == 1 {
+				return "You already have a booking that day (the limit is one per day)."
+			}
+			return fmt.Sprintf("You've reached the daily limit of %d bookings for that day.", maxDay)
+		}
+	}
+
+	for _, key := range []string{"booking_max_per_week", "booking_max_courts_per_week"} {
+		if maxWk := getInt(key); maxWk > 0 {
+			var n int
+			h.DB.QueryRow(ctx, `
+				SELECT COUNT(*) FROM bookings WHERE user_id = $1
+				AND DATE_TRUNC('week', start_time AT TIME ZONE 'America/Los_Angeles')
+				  = DATE_TRUNC('week', $2 AT TIME ZONE 'America/Los_Angeles')`,
+				userID, startLocal.UTC()).Scan(&n)
+			if n >= maxWk {
+				return fmt.Sprintf("You've reached your weekly limit of %d reservations.", maxWk)
+			}
+		}
+	}
+	return ""
+}
 
 // bookingProposal is a not-yet-booked court the assistant found for a member.
 // The chat surfaces a Confirm button that books it via the real, fully-validated
@@ -153,8 +243,9 @@ func (h *AIHandler) bookingTools(loc *time.Location, userID string, proposal **b
 				return "I couldn't load the schedule.", nil
 			}
 			defer rows.Close()
+			openH, closeH := courtHours(ctx, h.DB)
 			var b strings.Builder
-			fmt.Fprintf(&b, "Court hours are %d:00 AM–%d:00 PM. Booked on %s:\n", courtOpenHour, courtCloseHour-12, start.Format("Mon Jan 2"))
+			fmt.Fprintf(&b, "Court hours are %s–%s. Booked on %s:\n", fmtHour(openH), fmtHour(closeH), start.Format("Mon Jan 2"))
 			any := false
 			for rows.Next() {
 				var name, mt string
@@ -264,13 +355,18 @@ func (h *AIHandler) bookingTools(loc *time.Location, userID string, proposal **b
 				return "I don't have the match type yet. Ask the member whether it's singles, doubles, or a casual hit, then call propose_booking again. Do NOT propose a court yet.", nil
 			}
 			endLocal := startLocal.Add(time.Duration(dur * float64(time.Hour)))
-			openH := time.Date(startLocal.Year(), startLocal.Month(), startLocal.Day(), courtOpenHour, 0, 0, 0, loc)
-			closeH := time.Date(startLocal.Year(), startLocal.Month(), startLocal.Day(), courtCloseHour, 0, 0, 0, loc)
+			oh, ch := courtHours(ctx, h.DB)
+			openH := time.Date(startLocal.Year(), startLocal.Month(), startLocal.Day(), oh, 0, 0, 0, loc)
+			closeH := time.Date(startLocal.Year(), startLocal.Month(), startLocal.Day(), ch, 0, 0, 0, loc)
 			if startLocal.Before(openH) || endLocal.After(closeH) {
-				return fmt.Sprintf("That's outside court hours (%d AM–%d PM).", courtOpenHour, courtCloseHour-12), nil
+				return fmt.Sprintf("That's outside court hours (%s–%s).", fmtHour(oh), fmtHour(ch)), nil
 			}
 			if startLocal.Before(time.Now()) {
 				return "That time has already passed.", nil
+			}
+			// Warn about the member's booking limits before proposing.
+			if msg := h.checkBookingLimits(ctx, userID, startLocal, endLocal, loc); msg != "" {
+				return msg, nil
 			}
 			var courtID int
 			var courtName string

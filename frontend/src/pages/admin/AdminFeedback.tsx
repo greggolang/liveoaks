@@ -28,6 +28,14 @@ const STATUSES = [
 ]
 
 const ASSIGNEES = ['Greg', 'Sean', 'Ian']
+const ASSIGN_UNSET = '__unassigned__'
+
+function pillClass(active: boolean) {
+  return `px-3 py-1 rounded-full text-xs font-medium transition border ${active ? 'bg-green-700 text-white border-green-700' : 'bg-white text-gray-600 border-gray-200 hover:border-green-400'}`
+}
+function toggleSet(s: Set<string>, v: string) {
+  const n = new Set(s); if (n.has(v)) n.delete(v); else n.add(v); return n
+}
 
 function statusStyle(status: string) {
   return STATUSES.find(s => s.value === status)?.color ?? 'bg-gray-100 text-gray-500'
@@ -40,7 +48,8 @@ export default function AdminFeedback() {
   const [items, setItems] = useState<FeedbackItem[]>([])
   const [loading, setLoading] = useState(true)
   const [typeFilter, setTypeFilter] = useState<'all' | 'idea' | 'bug'>('all')
-  const [filter, setFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set())
+  const [assignedFilter, setAssignedFilter] = useState<Set<string>>(new Set())
   const [searchText, setSearchText] = useState('')
   const [groupByPage, setGroupByPage] = useState(false)
 
@@ -113,7 +122,8 @@ export default function AdminFeedback() {
   const q = searchText.trim().toLowerCase().replace(/^#/, '')
   const visible = items
     .filter(i => typeFilter === 'all' || i.type === typeFilter)
-    .filter(i => filter === 'all' || i.status === filter)
+    .filter(i => statusFilter.size === 0 || statusFilter.has(i.status))
+    .filter(i => assignedFilter.size === 0 || assignedFilter.has(i.assigned_to || ASSIGN_UNSET))
     .filter(i => !q
       || String(i.number).includes(q)
       || i.message.toLowerCase().includes(q)
@@ -137,6 +147,8 @@ export default function AdminFeedback() {
       return b[1].length - a[1].length
     })
   })()
+
+  const assignees = Array.from(new Set([...ASSIGNEES, ...items.map(i => i.assigned_to).filter((a): a is string => !!a)]))
 
   const renderItem = (item: FeedbackItem) => (
     <div key={item.id} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
@@ -310,35 +322,48 @@ export default function AdminFeedback() {
         </div>
       )}
 
-      {/* Type + status filters */}
-      <div className="flex flex-wrap gap-4 mb-5">
-        <div className="flex gap-2">
+      {/* Filters */}
+      <div className="space-y-2 mb-5">
+        {/* Type */}
+        <div className="flex gap-2 flex-wrap items-center">
+          <span className="text-xs font-medium text-gray-400 w-16 shrink-0">Type</span>
           {([['all', 'All Types'], ['idea', '💡 Ideas'], ['bug', '🐛 Bugs']] as const).map(([val, lbl]) => (
             <button key={val} onClick={() => setTypeFilter(val)}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition border
-                ${typeFilter === val
-                  ? 'bg-gray-800 text-white border-gray-800'
-                  : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'}`}>
+              className={`px-3 py-1 rounded-full text-xs font-medium transition border ${
+                typeFilter === val ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'}`}>
               {lbl}
             </button>
           ))}
+          <span className="w-px h-4 bg-gray-200 mx-1" />
+          <button onClick={() => setGroupByPage(g => !g)}
+            title="Group reports by the page they were submitted from"
+            className={`px-3 py-1 rounded-full text-xs font-medium transition border ${groupByPage ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-400'}`}>
+            🗂 Group by page
+          </button>
         </div>
-        <div className="flex gap-2">
-          {[{ value: 'all', label: 'All Statuses' }, ...STATUSES].map(s => (
-            <button key={s.value} onClick={() => setFilter(s.value)}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition border
-                ${filter === s.value
-                  ? 'bg-green-700 text-white border-green-700'
-                  : 'bg-white text-gray-600 border-gray-200 hover:border-green-400'}`}>
+
+        {/* Status — multiselect */}
+        <div className="flex gap-2 flex-wrap items-center">
+          <span className="text-xs font-medium text-gray-400 w-16 shrink-0">Status</span>
+          <button onClick={() => setStatusFilter(new Set<string>())} className={pillClass(statusFilter.size === 0)}>All</button>
+          {STATUSES.map(s => (
+            <button key={s.value} onClick={() => setStatusFilter(p => toggleSet(p, s.value))} className={pillClass(statusFilter.has(s.value))}>
               {s.label}
             </button>
           ))}
         </div>
-        <button onClick={() => setGroupByPage(g => !g)}
-          title="Group reports by the page they were submitted from"
-          className={`px-3 py-1 rounded-full text-xs font-medium transition border ${groupByPage ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-400'}`}>
-          🗂 Group by page
-        </button>
+
+        {/* Assigned — multiselect */}
+        <div className="flex gap-2 flex-wrap items-center">
+          <span className="text-xs font-medium text-gray-400 w-16 shrink-0">Assigned</span>
+          <button onClick={() => setAssignedFilter(new Set<string>())} className={pillClass(assignedFilter.size === 0)}>All</button>
+          <button onClick={() => setAssignedFilter(p => toggleSet(p, ASSIGN_UNSET))} className={pillClass(assignedFilter.has(ASSIGN_UNSET))}>Unassigned</button>
+          {assignees.map(a => (
+            <button key={a} onClick={() => setAssignedFilter(p => toggleSet(p, a))} className={pillClass(assignedFilter.has(a))}>
+              {a}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="relative max-w-xs mb-4">

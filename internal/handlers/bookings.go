@@ -225,11 +225,12 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 	// UTC boundaries for the local booking day — used for all per-day limit checks.
 	dayStart := time.Date(localStart.Year(), localStart.Month(), localStart.Day(), 0, 0, 0, 0, loc).UTC()
 	dayEnd := dayStart.Add(24 * time.Hour)
-	if localStart.Hour() < 8 {
-		return echo.NewHTTPError(http.StatusBadRequest, "bookings cannot start before 8:00 AM")
+	openH, closeH := courtHours(c.Request().Context(), h.DB)
+	if localStart.Hour() < openH {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("bookings cannot start before %s", fmtHour(openH)))
 	}
-	if localEnd.Hour() > 20 || (localEnd.Hour() == 20 && localEnd.Minute() > 0) {
-		return echo.NewHTTPError(http.StatusBadRequest, "bookings must end by 8:00 PM")
+	if localEnd.Hour() > closeH || (localEnd.Hour() == closeH && localEnd.Minute() > 0) {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("bookings must end by %s", fmtHour(closeH)))
 	}
 
 	// Enforce days-in-advance limit

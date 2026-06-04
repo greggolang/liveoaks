@@ -38,6 +38,8 @@ const BOOKING_SECTIONS: BookingSection[] = [
   {
     heading: 'Time Rules',
     settings: [
+      { key: 'court_open_hour',            label: 'Courts open (hour, 24h)',                       hint: 'First bookable hour. e.g. 8 = 8 AM. Default 8.',                              enforced: true },
+      { key: 'court_close_hour',           label: 'Courts close (hour, 24h)',                      hint: 'Bookings must end by this hour. e.g. 20 = 8 PM. Default 20.',                  enforced: true },
       { key: 'booking_max_days_ahead',     label: 'Max days ahead a court can be booked',         hint: 'How far in advance members may book. Enforced on save.',                     enforced: true },
       { key: 'booking_open_time',          label: 'Time next reservation day opens',               hint: 'e.g. 06:00 — when tomorrow\'s slots become bookable. Leave blank for midnight.', type: 'time' },
       { key: 'booking_min_gap_minutes',    label: 'Min gap between a member\'s bookings (minutes)', hint: 'Prevents back-to-back "sandwich" reservations on the same court. Set to 30 to require a 30-min gap. 0 = disabled.', enforced: true },
