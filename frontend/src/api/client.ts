@@ -194,6 +194,22 @@ export interface Poll {
   has_voted: boolean; my_vote?: string
 }
 
+export interface CollabDocSummary {
+  id: string; title: string; version: number
+  updated_at: string; updated_by_name: string; created_by_name: string
+  active_editors: number
+}
+export interface CollabDoc {
+  id: string; title: string; body: string; version: number
+  created_by: string | null
+  updated_at: string; updated_by_name: string; created_by_name: string
+}
+export interface CollabEditor { user_id: string; name: string; editing: boolean }
+export type CollabSaveResult =
+  | { status: 'ok'; version: number; updated_at: string }
+  | { status: 'conflict'; document: CollabDoc }
+export interface CollabPresence { editors: CollabEditor[]; version: number; updated_by_name: string }
+
 // --- AI assistant shapes ---
 export interface DraftedMinutes {
   attendees_present: string; attendees_absent: string; treasurer_report: string
@@ -864,6 +880,31 @@ export const api = {
     mute: (id: string, muted: boolean) =>
       request(`/conversations/${id}/mute`, { method: 'POST', body: JSON.stringify({ muted }) }),
     leave: (id: string) => request(`/conversations/${id}`, { method: 'DELETE' }),
+  },
+  collabDocs: {
+    list: () => request<CollabDocSummary[]>('/collab-docs'),
+    get: (id: string) => request<CollabDoc>(`/collab-docs/${id}`),
+    create: (title?: string, body?: string) =>
+      request<CollabDoc>('/collab-docs', { method: 'POST', body: JSON.stringify({ title: title ?? '', body: body ?? '' }) }),
+    // Save with optimistic concurrency. A 409 means someone else saved first —
+    // we return the conflict payload (with the latest copy) instead of throwing.
+    update: async (id: string, data: { title: string; body: string; version: number }): Promise<CollabSaveResult> => {
+      const res = await fetch(`${BASE}/collab-docs/${id}`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json', ...impersonationHeaders() },
+        body: JSON.stringify(data),
+      })
+      if (res.status === 409) return res.json()
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: res.statusText }))
+        throw new Error(err.message || 'Save failed')
+      }
+      return res.json()
+    },
+    delete: (id: string) => request(`/collab-docs/${id}`, { method: 'DELETE' }),
+    presence: (id: string, editing: boolean) =>
+      request<CollabPresence>(`/collab-docs/${id}/presence`, { method: 'POST', body: JSON.stringify({ editing }) }),
+    leave: (id: string) => request(`/collab-docs/${id}/presence`, { method: 'DELETE' }),
   },
   matches: {
     pending: () => request<PendingMatch[]>('/matches/pending'),

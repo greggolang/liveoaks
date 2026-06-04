@@ -83,6 +83,7 @@ The Portal is already built and includes the following. Features members see are
 - Online member payments by credit/debit card (Stripe)
 - Member account balances and statements
 - Receipts generation
+- **AI receipt scanning** — reads an uploaded receipt or invoice and auto-fills the vendor, amount, date, and expense category for the treasurer to confirm
 - Accounting and financial rules
 - Tax reporting
 - Pro Shop sales and a self-service Kiosk for in-club purchases
@@ -92,6 +93,7 @@ The Portal is already built and includes the following. Features members see are
 - Mail filters, contacts, and import tools
 - Member-to-member private messaging
 - Club-wide broadcast email/announcements
+- **AI writing assistant** — a "✨ Improve" button that polishes the tone, clarity, and subject line of announcements and broadcast emails before they go out
 - Announcements feed
 - Notification preferences per member
 
@@ -113,6 +115,7 @@ The Portal is already built and includes the following. Features members see are
 - Event listings and online event sign-ups
 - USTA team rosters and management
 - Score tracking and match results (with digital scorecards)
+- **Natural-language score entry** — a member can type "beat Mark 6-4 6-3" and the scorecard fills in the sets and players automatically
 - Tennis ladder
 - Fantasy pool
 - Liveball events
@@ -123,10 +126,12 @@ The Portal is already built and includes the following. Features members see are
 - User and member management; member-request approvals
 - Granular permissions and page-access control
 - Board communications, board meeting management, and board RSVPs
+- **AI board-minutes drafting** — turns a secretary's rough notes into polished, organized minutes and automatically extracts action items
 - Board-member permission controls
 - Email template management
 - Activity log / audit trail
 - Member feedback and bug-report tracking
+- **AI feedback triage** — groups and de-duplicates member feedback into a prioritized, board-ready digest ("3 people reported the same thing")
 - Admin notes
 - Password and account management (resets, impersonate-for-support)
 - Teaching pro tools

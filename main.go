@@ -148,6 +148,7 @@ func main() {
 	passwords := &handlers.PasswordsHandler{DB: pool, Secret: cfg.JWTSecret}
 	polls := &handlers.PollsHandler{DB: pool}
 	matches := &handlers.MatchesHandler{DB: pool}
+	collabDocs := &handlers.CollabDocsHandler{DB: pool}
 	aiClient := &ai.Client{DB: pool}
 	aiH := &handlers.AIHandler{DB: pool, AI: aiClient, UploadDir: uploadDir}
 
@@ -229,6 +230,15 @@ func main() {
 	authed.POST("/conversations/:id/read", conversations.MarkRead)
 	authed.POST("/conversations/:id/mute", conversations.Mute)
 	authed.DELETE("/conversations/:id", conversations.Leave)
+
+	// Collaborative documents — any authenticated member can view, create, and edit
+	authed.GET("/collab-docs", collabDocs.List)
+	authed.POST("/collab-docs", collabDocs.Create)
+	authed.GET("/collab-docs/:id", collabDocs.Get)
+	authed.PUT("/collab-docs/:id", collabDocs.Update)
+	authed.DELETE("/collab-docs/:id", collabDocs.Delete)
+	authed.POST("/collab-docs/:id/presence", collabDocs.Presence)
+	authed.DELETE("/collab-docs/:id/presence", collabDocs.Leave)
 
 	// Match scores & club scoreboard
 	// AI assistant — "Ask the Club" (members) and natural-language score entry
