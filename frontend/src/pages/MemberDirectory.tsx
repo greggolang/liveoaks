@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { Link } from 'react-router-dom'
 import { formatPhone } from '../utils/phone'
 
-interface Member { id: string; first_name: string; last_name: string; email: string; phone?: string; address?: string; family?: string; usta_ranking?: string; created_at?: string; photo_url?: string; household?: string[]; type: 'member' }
+interface Member { id: string; first_name: string; last_name: string; email: string; phone?: string; address?: string; family?: string; usta_ranking?: string; created_at?: string; photo_url?: string; household?: string[]; is_family_member?: boolean; type: 'member' }
 interface Contact { id: string; first_name: string; last_name: string; email?: string; phone?: string; address?: string; family?: string; category: string; notes?: string; type: 'contact' }
 type Entry = Member | Contact
 
@@ -49,7 +49,7 @@ export default function MemberDirectory() {
   const [contacts, setContacts] = useState<Contact[]>([])
   const [records, setRecords] = useState<Record<string, MatchStat>>({})
   const [search, setSearch] = useState('')
-  const [filterType, setFilterType] = useState<'all' | 'member' | 'contact'>('all')
+  const [filterType, setFilterType] = useState<'all' | 'member' | 'family' | 'contact'>('all')
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<Contact | null>(null)
   const [form, setForm] = useState(emptyForm)
@@ -116,8 +116,12 @@ export default function MemberDirectory() {
     ...contacts,
   ].sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name))
 
+  const familyMembers = members.filter(m => m.is_family_member)
+
   const filtered = all.filter(e => {
-    if (filterType !== 'all' && e.type !== filterType) return false
+    if (filterType === 'family') {
+      if (e.type !== 'member' || !(e as Member).is_family_member) return false
+    } else if (filterType !== 'all' && e.type !== filterType) return false
     if (!search) return true
     const q = search.toLowerCase()
     return `${e.first_name} ${e.last_name} ${e.email ?? ''}`.toLowerCase().includes(q)
@@ -148,12 +152,6 @@ export default function MemberDirectory() {
             </p>
           )}
         </div>
-        {isBoard && (
-          <button onClick={openAdd}
-            className="bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-800 transition">
-            + Add Contact
-          </button>
-        )}
       </div>
 
       {/* Add/Edit form */}
@@ -223,11 +221,11 @@ export default function MemberDirectory() {
             onChange={e => setSearch(e.target.value)}
             className="w-full border border-gray-300 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
         </div>
-        <div className="flex gap-1">
-          {(['all', 'member', 'contact'] as const).map(t => (
+        <div className="flex gap-1 flex-wrap">
+          {(['all', 'member', 'family', 'contact'] as const).map(t => (
             <button key={t} onClick={() => setFilterType(t)}
               className={`px-3 py-2 rounded-lg text-xs font-medium transition ${filterType === t ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-              {t === 'all' ? `All (${all.length})` : t === 'member' ? `Members (${members.length})` : `Contacts (${contacts.length})`}
+              {t === 'all' ? `All (${all.length})` : t === 'member' ? `Members (${members.length})` : t === 'family' ? `Family (${familyMembers.length})` : `Contacts (${contacts.length})`}
             </button>
           ))}
         </div>

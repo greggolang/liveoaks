@@ -122,13 +122,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         ...(hasPermission('friends') ? [{ to: '/friends', label: 'Friends', icon: ICONS.heart }] : []),
         { to: '/messages', label: 'Messages', icon: ICONS.chat, badge: unreadMessages || undefined },
         ...(hasMailAccount ? [{ to: '/email', label: 'Email', icon: ICONS.mail }] : []),
-        ...((hasPermission('documents') && showDocuments) ? [{ to: '/files', label: 'Files', icon: ICONS.folder }] : []),
-        ...(isAdmin ? [{ to: '/admin', label: 'Admin', icon: ICONS.cog }] : []),
       ],
     },
     {
       key: 'board', heading: isAdmin ? 'Admin' : 'Board Members', items: [
-        ...((isAdmin || isBoard) ? [{ to: '/board', label: 'Board', icon: ICONS.star }] : []),
+        ...(isAdmin ? [{ to: '/admin', label: 'Admin', icon: ICONS.cog }] : []),
+        ...(!isAdmin && isBoard ? [{ to: '/board', label: 'Board', icon: ICONS.star }] : []),
       ],
     },
     {
