@@ -29,7 +29,7 @@ const ICONS = {
 type NavEntry = { to: string; label: string; icon: string; badge?: number }
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  const { user, logout, hasPermission, isAdmin } = useAuth()
+  const { user, logout, hasPermission, isAdmin, isBoard } = useAuth()
   const [clubLogo, setClubLogo] = useState('')
 
   useEffect(() => {
@@ -112,9 +112,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         ...(hasPermission('bookings') ? [{ to: '/bookings?tab=grid', label: 'Book a Court', icon: ICONS.calendar }] : []),
         { to: '/conditions', label: 'Conditions', icon: ICONS.sun },
         { to: '/scores', label: 'Scores', icon: ICONS.trophy },
-        ...(hasPermission('events') ? [{ to: '/events', label: 'Events', icon: ICONS.ticket }] : []),
         ...(hasPermission('pro_shop') ? [{ to: '/pro-shop', label: 'Pro Shop', icon: ICONS.tag }] : []),
         ...(hasPermission('directory') ? [{ to: '/directory', label: 'Directory', icon: ICONS.users }] : []),
+        { to: '/club-info', label: 'Club Info', icon: ICONS.info },
       ],
     },
     {
@@ -123,8 +123,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         { to: '/messages', label: 'Messages', icon: ICONS.chat, badge: unreadMessages || undefined },
         ...(hasMailAccount ? [{ to: '/email', label: 'Email', icon: ICONS.mail }] : []),
         ...((hasPermission('documents') && showDocuments) ? [{ to: '/files', label: 'Files', icon: ICONS.folder }] : []),
-        { to: '/club-info', label: 'Club Info', icon: ICONS.info },
         ...(isAdmin ? [{ to: '/admin', label: 'Admin', icon: ICONS.cog }] : []),
+      ],
+    },
+    {
+      key: 'board', heading: isAdmin ? 'Admin' : 'Board Members', items: [
+        ...((isAdmin || isBoard) ? [{ to: '/board', label: 'Board', icon: ICONS.star }] : []),
       ],
     },
     {
