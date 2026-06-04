@@ -38,3 +38,22 @@ select,
 textarea {
   font-size: max(16px, 1em);
 }
+
+/* ── Collaborative document editor content ──────────────────────────────────
+   Tailwind's base reset strips heading/list styling; restore it inside the
+   rich-text editor so formatting from the toolbar is visible. */
+.prose-doc h1 { font-size: 1.5rem; font-weight: 700; margin: 1rem 0 0.5rem; color: #1f2937; }
+.prose-doc h2,
+.prose-doc h3 { font-size: 1.15rem; font-weight: 600; margin: 0.85rem 0 0.4rem; color: #374151; }
+.prose-doc p { margin: 0.5rem 0; }
+.prose-doc ul { list-style: disc; margin: 0.5rem 0; padding-left: 1.5rem; }
+.prose-doc ol { list-style: decimal; margin: 0.5rem 0; padding-left: 1.5rem; }
+.prose-doc li { margin: 0.2rem 0; }
+.prose-doc a { color: #15803d; text-decoration: underline; }
+.prose-doc blockquote { border-left: 3px solid #d1d5db; padding-left: 0.75rem; color: #6b7280; margin: 0.5rem 0; }
+.prose-doc hr { border: 0; border-top: 1px solid #e5e7eb; margin: 1rem 0; }
+.prose-doc table { border-collapse: collapse; margin: 0.75rem 0; width: 100%; }
+.prose-doc th,
+.prose-doc td { border: 1px solid #e5e7eb; padding: 0.4rem 0.6rem; text-align: left; vertical-align: top; }
+.prose-doc th { background: #f9fafb; font-weight: 600; }
+.prose-doc:empty::before { content: 'Start writing…'; color: #9ca3af; }

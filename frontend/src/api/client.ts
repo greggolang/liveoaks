@@ -48,7 +48,7 @@ export interface MemberRequest {
 
 export interface DocFile {
   id: string; title: string; filename: string; original_name: string; created_at: string
-  uploaded_by_name?: string
+  uploaded_by_name?: string; ai_indexed?: boolean
 }
 export interface DocFolder {
   id: string; name: string; sort_order: number; roles: string[]
@@ -113,6 +113,11 @@ export interface PlayerStats {
   form: string[]; head_to_head: HeadToHeadRow[]; matches: MatchResult[]
 }
 export interface MatchStat { user_id: string; wins: number; losses: number; played: number; last_played: string | null }
+export interface ClubQuestion {
+  id: string; question: string; asked_by_name: string | null
+  status: 'pending' | 'answered'; answer: string | null
+  answered_by_name: string | null; answered_at: string | null; created_at: string
+}
 
 export type MailFilterInput = {
   name: string
@@ -463,6 +468,8 @@ export const api = {
       return uploadWithProgress('/admin/documents', f, onProgress)
     },
     delete: (id: string) => request(`/admin/documents/${id}`, { method: 'DELETE' }),
+    setAIIndexed: (id: string, indexed: boolean) =>
+      request(`/admin/documents/${id}/ai-indexed`, { method: 'PUT', body: JSON.stringify({ indexed }) }),
     folders: {
       adminList: () => request<DocFolder[]>('/admin/document-folders'),
       create: (data: { name: string; sort_order: number; roles: string[]; parent_id?: string | null }) =>
@@ -612,6 +619,13 @@ export const api = {
       request('/admin/ai-config', { method: 'PUT', body: JSON.stringify(data) }),
     testAIConfig: (api_key?: string) =>
       request<{ success: boolean; error?: string }>('/admin/ai-config/test', { method: 'POST', body: JSON.stringify({ api_key: api_key ?? '' }) }),
+    aiUsage: () => request<{
+      month_to_date: number; last_30_days: number; all_time: number; calls_30_days: number
+      by_feature: { feature: string; cost: number; calls: number }[]
+    }>('/admin/ai-usage'),
+    aiIndexStatus: () => request<{ total: number; indexed: number; pending: number }>('/admin/ai/index-status'),
+    reindexAI: (force = false) =>
+      request<{ indexed: number; pending: number }>(`/admin/ai/reindex${force ? '?force=1' : ''}`, { method: 'POST' }),
     passwordResets: () => request('/admin/password-resets'),
     activityLog: () => request('/admin/activity-log'),
     testEmail: (to: string) =>
@@ -619,6 +633,10 @@ export const api = {
     testSms: (to: string) =>
       request('/admin/test-sms', { method: 'POST', body: JSON.stringify({ to }) }),
     smtpPing: () => request('/admin/smtp-ping'),
+    clubQuestions: () => request<ClubQuestion[]>('/admin/club-questions'),
+    answerClubQuestion: (id: string, answer: string) =>
+      request(`/admin/club-questions/${id}/answer`, { method: 'POST', body: JSON.stringify({ answer }) }),
+    deleteClubQuestion: (id: string) => request(`/admin/club-questions/${id}`, { method: 'DELETE' }),
   },
   finance: {
     // Rules
@@ -919,7 +937,12 @@ export const api = {
   },
   ai: {
     askClub: (question: string, history: { role: 'user' | 'assistant'; content: string }[] = []) =>
-      request<{ answer: string }>('/ask-club', { method: 'POST', body: JSON.stringify({ question, history }) }),
+      request<{
+        answer: string; answered: boolean
+        booking_proposal?: { court_id: number; court_name: string; start_time: string; end_time: string; match_type: string; label: string }
+      }>('/ask-club', { method: 'POST', body: JSON.stringify({ question, history }) }),
+    escalate: (question: string) =>
+      request<{ id: string }>('/ask-club/escalate', { method: 'POST', body: JSON.stringify({ question }) }),
     analyzeReceipt: (file: File) => {
       const f = new FormData(); f.append('file', file)
       return upload<ReceiptAnalysis>('/admin/receipts/analyze', f)

@@ -1986,11 +1986,27 @@ export default function Bookings() {
                               }
 
                               if (booking) {
+                                // Draw the booking as ONE solid block covering its whole
+                                // duration: render only on its first visible slot and use
+                                // rowSpan to cover the rest (later slots return null).
+                                const isAnchor = isFirstSlot(booking, slot) ||
+                                  (slot === HOURS[0] && parseDate(booking.start_time) < slotToDate(date, slot))
+                                if (!isAnchor) return null
+                                let span = 0
+                                for (const s of HOURS) {
+                                  if (s < slot) continue
+                                  const sStart = slotToDate(date, s)
+                                  const sEnd = new Date(sStart.getTime() + 30 * 60 * 1000)
+                                  if (parseDate(booking.start_time) < sEnd && parseDate(booking.end_time) > sStart) span++
+                                  else break
+                                }
+                                if (span < 1) span = 1
+
                                 const myFullName = user ? `${user.first_name} ${user.last_name}` : ''
                                 const isOnRoster = !isMe && (booking.players?.includes(myFullName) ?? false)
                                 const isInvolved = isMe || isOnRoster
 
-                                const showDetails = isFirstSlot(booking, slot)
+                                const showDetails = isAnchor
                                 const isBallMachine = booking.match_type === 'ball_machine'
                                 const bStart = parseDate(booking.start_time)
                                 const bEnd = parseDate(booking.end_time)
@@ -2009,7 +2025,6 @@ export default function Bookings() {
                                 const subText = isBallMachine ? 'text-red-200' : isMe ? 'text-green-200' : isOnRoster ? 'text-green-600' : 'text-slate-400'
                                 const dividerColor = isBallMachine ? 'border-red-400' : isMe ? 'border-green-500' : isOnRoster ? 'border-green-200' : 'border-slate-200'
                                 const cancelBtnColor = isBallMachine ? 'text-red-200' : isMe ? 'text-green-200' : isOnRoster ? 'text-green-500' : 'text-slate-400'
-                                const compactBg = isBallMachine ? 'bg-red-500/80' : isMe ? 'bg-green-500/80' : isOnRoster ? 'bg-green-200' : 'bg-slate-200'
 
                                 const wl = waitlistSlots.find(w => w.court_id === c.id && w.start_time === booking.start_time)
                                 const wlKey = `${c.id}-${booking.start_time}`
@@ -2022,11 +2037,11 @@ export default function Bookings() {
 
                                 // ── Desktop: original expanded cells ──────────
                                 if (!isMobile) return (
-                                  <td key={c.id} className="px-1.5 py-1 align-top border-r border-gray-100 last:border-r-0">
-                                    {showDetails ? (
+                                  <td key={c.id} rowSpan={span} style={{ height: '1px' }} className="px-1.5 py-1 align-top border-r border-gray-100 last:border-r-0">
+                                    <div className="flex flex-col h-full gap-1">
                                       <div
                                         onClick={() => setBookingDetail(bookingDetail?.id === booking.id ? null : booking)}
-                                        className={`rounded-lg px-2 py-1.5 flex flex-col gap-0.5 cursor-pointer hover:opacity-90 transition shadow-sm ${cellBg} ${accentBorder}`}>
+                                        className={`flex-1 rounded-lg px-2 py-1.5 flex flex-col gap-0.5 cursor-pointer hover:opacity-90 transition shadow-sm ${cellBg} ${accentBorder}`}>
                                         <div className="flex items-center justify-between gap-1">
                                           <span className="text-xs font-bold truncate leading-tight">
                                             {isBallMachine ? '🤖 Ball Machine' : isMe ? 'Me' : `${booking.user.first_name} ${booking.user.last_name[0]}.`}
@@ -2061,36 +2076,34 @@ export default function Bookings() {
                                           )
                                         })()}
                                       </div>
-                                    ) : (
-                                      <div className={`rounded-md h-8 opacity-70 ${compactBg}`} />
-                                    )}
-                                    {showDetails && !isInvolved && !past && (
-                                      <div className="mt-1" onClick={e => e.stopPropagation()}>
-                                        {wl?.is_mine && wl.my_entry_id ? (
-                                          <button disabled={wlLoading}
-                                            onClick={() => handleLeaveWaitlist(wl.my_entry_id!, c.id, booking.start_time)}
-                                            className="w-full text-[10px] py-0.5 rounded-md bg-amber-100 text-amber-800 hover:bg-amber-200 font-semibold transition disabled:opacity-50">
-                                            {wlLoading ? '…' : `On waitlist (#${wl.count})`}
-                                          </button>
-                                        ) : (
-                                          <button disabled={wlLoading}
-                                            onClick={() => handleJoinWaitlist(c.id, booking.start_time, booking.end_time)}
-                                            className="w-full text-[10px] py-0.5 rounded-md bg-slate-100 text-slate-500 hover:bg-amber-100 hover:text-amber-800 font-semibold transition disabled:opacity-50">
-                                            {wlLoading ? '…' : wl ? `Waitlist (${wl.count})` : 'Waitlist'}
-                                          </button>
-                                        )}
-                                      </div>
-                                    )}
+                                      {!isInvolved && !past && (
+                                        <div onClick={e => e.stopPropagation()}>
+                                          {wl?.is_mine && wl.my_entry_id ? (
+                                            <button disabled={wlLoading}
+                                              onClick={() => handleLeaveWaitlist(wl.my_entry_id!, c.id, booking.start_time)}
+                                              className="w-full text-[10px] py-0.5 rounded-md bg-amber-100 text-amber-800 hover:bg-amber-200 font-semibold transition disabled:opacity-50">
+                                              {wlLoading ? '…' : `On waitlist (#${wl.count})`}
+                                            </button>
+                                          ) : (
+                                            <button disabled={wlLoading}
+                                              onClick={() => handleJoinWaitlist(c.id, booking.start_time, booking.end_time)}
+                                              className="w-full text-[10px] py-0.5 rounded-md bg-slate-100 text-slate-500 hover:bg-amber-100 hover:text-amber-800 font-semibold transition disabled:opacity-50">
+                                              {wlLoading ? '…' : wl ? `Waitlist (${wl.count})` : 'Waitlist'}
+                                            </button>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
                                   </td>
                                 )
 
                                 // ── Mobile / PWA: compact cells + tap tooltip ─
                                 return (
-                                  <td key={c.id} className="px-1 py-0.5 align-top border-r border-gray-100 last:border-r-0">
-                                    <div className={`relative ${showDetails ? 'group' : ''}`}>
+                                  <td key={c.id} rowSpan={span} style={{ height: '1px' }} className="px-1 py-0.5 align-top border-r border-gray-100 last:border-r-0">
+                                    <div className="relative group h-full">
                                       <div
-                                        onClick={() => showDetails && setBookingDetail(bookingDetail?.id === booking.id ? null : booking)}
-                                        className={`rounded-lg ${showDetails ? 'h-8 cursor-pointer' : 'h-8 opacity-50'} flex items-center justify-between px-1.5 transition ${cellBg} ${accentBorder}`}
+                                        onClick={() => setBookingDetail(bookingDetail?.id === booking.id ? null : booking)}
+                                        className={`rounded-lg h-full min-h-8 cursor-pointer flex items-center justify-between px-1.5 transition ${cellBg} ${accentBorder}`}
                                       >
                                         {showDetails && (
                                           <>

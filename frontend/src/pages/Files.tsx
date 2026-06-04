@@ -127,9 +127,11 @@ function FileTypeBadge({ filename }: { filename: string }) {
 }
 
 // ── File row ─────────────────────────────────────────────────────────────────
-function FileRow({ doc, isBoard, onDelete, subtitle }: {
-  doc: DocFile; isBoard: boolean; onDelete: (id: string) => void; subtitle?: string
+function FileRow({ doc, isBoard, onDelete, onToggleAI, subtitle }: {
+  doc: DocFile; isBoard: boolean; onDelete: (id: string) => void
+  onToggleAI: (id: string, next: boolean) => void; subtitle?: string
 }) {
+  const aiReadable = ['pdf', 'txt', 'md', 'markdown', 'csv', 'log'].includes((doc.filename.split('.').pop() ?? '').toLowerCase())
   return (
     <div className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 transition group">
       <a
@@ -152,6 +154,16 @@ function FileRow({ doc, isBoard, onDelete, subtitle }: {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
         </svg>
       </a>
+      {isBoard && aiReadable && (
+        <button onClick={() => onToggleAI(doc.id, !doc.ai_indexed)}
+          title={doc.ai_indexed
+            ? 'Regular members can ask the assistant about this file — click to make it board-only'
+            : 'Let regular members ask the assistant about this file (board & admins can already search files they have access to)'}
+          className={`shrink-0 text-xs px-1.5 py-0.5 rounded font-medium transition ${
+            doc.ai_indexed ? 'bg-green-100 text-green-700' : 'text-gray-300 hover:text-gray-500'}`}>
+          ✨ AI
+        </button>
+      )}
       {isBoard && (
         <button onClick={() => onDelete(doc.id)}
           className="shrink-0 text-xs text-red-400 hover:text-red-600 transition px-1">
@@ -216,6 +228,7 @@ interface FolderNodeProps {
   onUploadFileChange: (files: File[]) => void
   onUploadSubmit: (e: React.FormEvent) => void
   onDelete: (docId: string) => void
+  onToggleAI: (docId: string, next: boolean) => void
 }
 
 // ── FolderNode ───────────────────────────────────────────────────────────────
@@ -223,7 +236,7 @@ function FolderNode({
   folder, depth, isBoard, isOpen, onToggle, openFolders, sortBy,
   showUploadFor, uploadFolderId, uploadTitle, uploadFiles, uploading, uploadError,
   uploadProgress, uploadCurrent, uploadTotal,
-  onUploadOpen, onUploadCancel, onUploadTitleChange, onUploadFileChange, onUploadSubmit, onDelete,
+  onUploadOpen, onUploadCancel, onUploadTitleChange, onUploadFileChange, onUploadSubmit, onDelete, onToggleAI,
 }: FolderNodeProps) {
   const [dragOver, setDragOver] = useState(false)
 
@@ -391,7 +404,7 @@ function FolderNode({
           {sortedDocs.length > 0 && (
             <div className="bg-white border border-gray-200 rounded-xl shadow-sm divide-y divide-gray-100 mb-3">
               {sortedDocs.map((doc: DocFile) => (
-                <FileRow key={doc.id} doc={doc} isBoard={isBoard} onDelete={onDelete} />
+                <FileRow key={doc.id} doc={doc} isBoard={isBoard} onDelete={onDelete} onToggleAI={onToggleAI} />
               ))}
             </div>
           )}
@@ -414,7 +427,7 @@ function FolderNode({
               uploadProgress={uploadProgress} uploadCurrent={uploadCurrent} uploadTotal={uploadTotal}
               onUploadOpen={onUploadOpen} onUploadCancel={onUploadCancel}
               onUploadTitleChange={onUploadTitleChange} onUploadFileChange={onUploadFileChange}
-              onUploadSubmit={onUploadSubmit} onDelete={onDelete}
+              onUploadSubmit={onUploadSubmit} onDelete={onDelete} onToggleAI={onToggleAI}
             />
           ))}
         </div>
@@ -633,6 +646,18 @@ export default function Files() {
     await loadFolders()
   }
 
+  const handleToggleAI = async (docId: string, next: boolean) => {
+    // Optimistic flip so the badge responds instantly.
+    const flip = (fs: DocFolder[]): DocFolder[] => fs.map(f => ({
+      ...f,
+      docs: (f.docs ?? []).map(d => d.id === docId ? { ...d, ai_indexed: next } : d),
+      children: f.children ? flip(f.children) : f.children,
+    }))
+    setFolders(prev => flip(prev))
+    try { await api.documents.setAIIndexed(docId, next) }
+    catch { await loadFolders() }
+  }
+
   const openUpload = (folderId: string) => {
     setUploadFolderId(folderId); setShowUploadFor(folderId)
     setUploadTitle(''); setUploadFiles([]); setUploadError('')
@@ -648,6 +673,7 @@ export default function Files() {
     onUploadFileChange: handleUploadFileChange,
     onUploadSubmit: handleUpload,
     onDelete: handleDelete,
+    onToggleAI: handleToggleAI,
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -742,7 +768,7 @@ export default function Files() {
               {searchResults.length} result{searchResults.length !== 1 ? 's' : ''}
             </p>
             {searchResults.map(({ doc, folderPath }) => (
-              <FileRow key={doc.id} doc={doc} isBoard={isBoard} onDelete={handleDelete} subtitle={folderPath} />
+              <FileRow key={doc.id} doc={doc} isBoard={isBoard} onDelete={handleDelete} onToggleAI={handleToggleAI} subtitle={folderPath} />
             ))}
           </div>
         )

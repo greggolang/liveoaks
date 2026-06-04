@@ -77,6 +77,12 @@ const CLAUDE_MODELS = [
   { id: 'claude-opus-4-8',           label: 'Opus 4.8 — most capable' },
 ]
 
+const AI_FEATURE_LABELS: Record<string, string> = {
+  ask_club: 'Ask the Club', receipt: 'Receipt scanning', minutes: 'Minutes drafting',
+  improve_text: 'Email polish', feedback_digest: 'Feedback triage', parse_score: 'Score entry', other: 'Other',
+}
+const fmtUsd = (n: number) => n > 0 && n < 1 ? `$${n.toFixed(3)}` : `$${n.toFixed(2)}`
+
 interface Photo { id: string; title: string; filename: string }
 
 export default function AdminSettings() {
@@ -99,8 +105,32 @@ export default function AdminSettings() {
   const [aiSaved, setAiSaved] = useState(false)
   const [aiTest, setAiTest] = useState<{ state: 'idle' | 'testing' | 'ok' | 'fail'; msg?: string }>({ state: 'idle' })
 
+  const [aiUsage, setAiUsage] = useState<{
+    month_to_date: number; last_30_days: number; all_time: number; calls_30_days: number
+    by_feature: { feature: string; cost: number; calls: number }[]
+  } | null>(null)
+
+  const [indexStatus, setIndexStatus] = useState<{ total: number; indexed: number; pending: number } | null>(null)
+  const [indexing, setIndexing] = useState(false)
+
   const loadAI = () => api.admin.aiConfig().then(setAi).catch(() => {})
-  useEffect(() => { loadAI() }, [])
+  const loadUsage = () => api.admin.aiUsage().then(setAiUsage).catch(() => {})
+  const loadIndex = () => api.admin.aiIndexStatus().then(setIndexStatus).catch(() => {})
+  useEffect(() => { loadAI(); loadUsage(); loadIndex() }, [])
+
+  const buildIndex = async (force = false) => {
+    setIndexing(true)
+    try {
+      let res = await api.admin.reindexAI(force)
+      await loadIndex()
+      // Keep processing batches until nothing is pending (each call makes progress).
+      for (let guard = 0; res.pending > 0 && guard < 500; guard++) {
+        res = await api.admin.reindexAI(false)
+        await loadIndex()
+      }
+    } catch { /* AI off/unconfigured — status note already explains */ }
+    finally { setIndexing(false) }
+  }
 
   const saveAI = async () => {
     setAiSaving(true)
@@ -357,6 +387,77 @@ export default function AdminSettings() {
         <p className="text-xs text-gray-400 ml-[calc(224px+1rem)]">
           "Test connection" checks the key against Anthropic at no token cost. Billing is pay-per-use on your Anthropic account.
         </p>
+
+        {/* Spending */}
+        {aiUsage && (
+          <div className="border-t border-gray-100 pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-semibold text-gray-700">AI Spending</p>
+              <span className="text-xs text-gray-400">{aiUsage.calls_30_days} calls in last 30 days</span>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                ['This month', aiUsage.month_to_date],
+                ['Last 30 days', aiUsage.last_30_days],
+                ['All time', aiUsage.all_time],
+              ].map(([label, val]) => (
+                <div key={label as string} className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 text-center">
+                  <div className="text-lg font-bold text-gray-800 tabular-nums">{fmtUsd(val as number)}</div>
+                  <div className="text-[11px] text-gray-500 mt-0.5">{label as string}</div>
+                </div>
+              ))}
+            </div>
+            {aiUsage.by_feature.length > 0 && (
+              <div className="mt-3 divide-y divide-gray-100 border border-gray-100 rounded-lg">
+                {aiUsage.by_feature.map(f => (
+                  <div key={f.feature} className="flex items-center justify-between px-3 py-1.5 text-xs">
+                    <span className="text-gray-600">{AI_FEATURE_LABELS[f.feature] ?? f.feature}</span>
+                    <span className="text-gray-400 tabular-nums">{f.calls} calls · <span className="text-gray-700 font-medium">{fmtUsd(f.cost)}</span></span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="text-[11px] text-gray-400 mt-2">
+              Estimated from token usage at list prices — your actual Anthropic invoice is the source of truth.
+            </p>
+          </div>
+        )}
+
+        {/* Document search index (RAG) */}
+        {indexStatus && (
+          <div className="border-t border-gray-100 pt-4">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-sm font-semibold text-gray-700">Document Search Index</p>
+              <span className="text-xs text-gray-400">
+                {indexStatus.indexed} of {indexStatus.total} indexed
+                {indexStatus.pending > 0 && <span className="text-amber-600"> · {indexStatus.pending} pending</span>}
+              </span>
+            </div>
+            <p className="text-xs text-gray-400 mb-3">
+              Extracts your documents' text so “Ask the Club” can search the whole library and pull only the relevant
+              passages per question. PDFs use one Claude call each to extract (counts toward spending above).
+            </p>
+            {indexStatus.total > 0 && (
+              <div className="h-2 bg-gray-100 rounded-full overflow-hidden mb-3">
+                <div className="h-full bg-green-600 rounded-full transition-all"
+                  style={{ width: `${indexStatus.total ? Math.round((indexStatus.indexed / indexStatus.total) * 100) : 0}%` }} />
+              </div>
+            )}
+            <div className="flex items-center gap-3">
+              <button onClick={() => buildIndex(false)} disabled={indexing || !ai.configured}
+                className="bg-green-700 hover:bg-green-800 text-white text-sm font-medium px-4 py-2 rounded-lg transition disabled:opacity-50">
+                {indexing ? `Indexing… ${indexStatus.pending} left` : indexStatus.pending > 0 ? `Index ${indexStatus.pending} document${indexStatus.pending !== 1 ? 's' : ''}` : 'Index up to date'}
+              </button>
+              {indexStatus.indexed > 0 && (
+                <button onClick={() => buildIndex(true)} disabled={indexing}
+                  className="text-sm text-gray-500 hover:text-gray-700 transition disabled:opacity-50">
+                  Rebuild all
+                </button>
+              )}
+            </div>
+            {!ai.configured && <p className="text-[11px] text-amber-600 mt-2">Add an API key above first — extraction needs Claude.</p>}
+          </div>
+        )}
       </div>
 
       {/* Timezone */}

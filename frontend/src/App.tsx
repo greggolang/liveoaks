@@ -16,6 +16,7 @@ import CourtGrid from './pages/CourtGrid'
 import Announcements from './pages/Announcements'
 import Events from './pages/Events'
 import Files from './pages/Files'
+import Documents from './pages/Documents'
 import PhotoGallery from './pages/PhotoGallery'
 import USTATeams from './pages/USTATeams'
 import MemberDirectory from './pages/MemberDirectory'
@@ -47,6 +48,7 @@ import AdminTestEmail from './pages/admin/AdminTestEmail'
 import AdminBoardPermissions from './pages/admin/AdminBoardPermissions'
 import AdminPageAccess from './pages/admin/AdminPageAccess'
 import AdminFeedback from './pages/admin/AdminFeedback'
+import AdminClubQuestions from './pages/admin/AdminClubQuestions'
 import AdminEmailTemplates from './pages/admin/AdminEmailTemplates'
 import AdminReceipts from './pages/admin/AdminReceipts'
 import AdminBookingDocs from './pages/admin/AdminBookingDocs'
@@ -142,6 +144,7 @@ function AppRoutes() {
       <Route path="/announcements" element={<ProtectedRoute><Announcements /></ProtectedRoute>} />
       <Route path="/events" element={<ProtectedRoute><Events /></ProtectedRoute>} />
       <Route path="/files" element={<ProtectedRoute><Files /></ProtectedRoute>} />
+      <Route path="/docs" element={<ProtectedRoute><Documents /></ProtectedRoute>} />
       <Route path="/documents" element={<Navigate to="/files" replace />} />
       <Route path="/photos" element={<ProtectedRoute><PhotoGallery /></ProtectedRoute>} />
       <Route path="/usta-teams" element={<ProtectedRoute><USTATeams /></ProtectedRoute>} />
@@ -178,6 +181,7 @@ function AppRoutes() {
         <Route path="permissions" element={<AdminBoardPermissions />} />
         <Route path="page-access" element={<AdminPageAccess />} />
         <Route path="feedback" element={<AdminFeedback />} />
+        <Route path="club-questions" element={<AdminClubQuestions />} />
         <Route path="email-templates" element={<AdminEmailTemplates />} />
         <Route path="receipts" element={<AdminReceipts />} />
         <Route path="bookings" element={<AdminBookings />} />

@@ -243,6 +243,7 @@ func main() {
 	// Match scores & club scoreboard
 	// AI assistant — "Ask the Club" (members) and natural-language score entry
 	authed.POST("/ask-club", aiH.AskClub)
+	authed.POST("/ask-club/escalate", aiH.EscalateQuestion)
 	authed.POST("/matches/parse-score", aiH.ParseScore)
 
 	authed.GET("/matches/pending", matches.Pending)
@@ -301,6 +302,7 @@ func main() {
 	boardPlus.DELETE("/events/:id", events.Delete)
 	boardPlus.POST("/events/:id/send-email", events.SendEmail)
 	boardPlus.POST("/admin/documents", uploads.UploadDocument)
+	boardPlus.PUT("/admin/documents/:id/ai-indexed", uploads.SetDocAIIndexed)
 	boardPlus.DELETE("/admin/documents/:id", uploads.DeleteDocument)
 	boardPlus.GET("/admin/document-folders", uploads.AdminListFolders)
 	boardPlus.POST("/admin/document-folders", uploads.CreateFolder)
@@ -344,11 +346,17 @@ func main() {
 	adminOnly.GET("/ai-config", admin.GetAIConfig)
 	adminOnly.PUT("/ai-config", admin.UpdateAIConfig)
 	adminOnly.POST("/ai-config/test", admin.TestAIConfig)
+	adminOnly.GET("/ai-usage", admin.GetAIUsage)
 	// AI-powered admin features
 	adminOnly.POST("/receipts/analyze", aiH.AnalyzeReceipt)
 	adminOnly.GET("/feedback/digest", aiH.FeedbackDigest)
 	boardPlus.POST("/admin/ai/draft-minutes", aiH.DraftMinutes)
 	boardPlus.POST("/admin/ai/improve-text", aiH.ImproveText)
+	boardPlus.GET("/admin/ai/index-status", aiH.IndexStatus)
+	boardPlus.POST("/admin/ai/reindex", aiH.Reindex)
+	boardPlus.GET("/admin/club-questions", aiH.ListClubQuestions)
+	boardPlus.POST("/admin/club-questions/:id/answer", aiH.AnswerClubQuestion)
+	boardPlus.DELETE("/admin/club-questions/:id", aiH.DeleteClubQuestion)
 	adminOnly.GET("/password-resets", admin.PendingResets)
 	adminOnly.GET("/activity-log", admin.ActivityLog)
 	adminOnly.GET("/dues", dues.AdminList)

@@ -30,6 +30,7 @@ type Document struct {
 	UploadedBy     *string `json:"uploaded_by,omitempty"`
 	UploadedByName *string `json:"uploaded_by_name,omitempty"`
 	CreatedAt      string  `json:"created_at"`
+	AIIndexed      bool    `json:"ai_indexed"`
 }
 
 type DocumentFolder struct {
@@ -155,14 +156,14 @@ func (h *UploadsHandler) ListDocuments(c echo.Context) error {
 	for i, f := range folders {
 		dRows, err := h.DB.Query(ctx,
 			`SELECT d.id, d.title, d.filename, d.original_name, d.created_at,
-			        COALESCE(u.first_name || ' ' || u.last_name, NULL)
+			        COALESCE(u.first_name || ' ' || u.last_name, NULL), d.ai_indexed
 			 FROM documents d
 			 LEFT JOIN users u ON u.id = d.uploaded_by
 			 WHERE d.folder_id = $1 ORDER BY d.created_at DESC`, f.ID)
 		if err != nil { continue }
 		for dRows.Next() {
 			var d Document
-			if err := dRows.Scan(&d.ID, &d.Title, &d.Filename, &d.OriginalName, &d.CreatedAt, &d.UploadedByName); err != nil { continue }
+			if err := dRows.Scan(&d.ID, &d.Title, &d.Filename, &d.OriginalName, &d.CreatedAt, &d.UploadedByName, &d.AIIndexed); err != nil { continue }
 			folders[i].Docs = append(folders[i].Docs, d)
 		}
 		dRows.Close()
@@ -280,6 +281,20 @@ func (h *UploadsHandler) UploadDocument(c echo.Context) error {
 		title, filename, original, fid, userID,
 	).Scan(&doc.ID, &doc.Title, &doc.Filename, &doc.OriginalName, &doc.CreatedAt)
 	return c.JSON(http.StatusCreated, doc)
+}
+
+// SetDocAIIndexed toggles whether the AI assistant may read a document's full
+// contents (board+).
+func (h *UploadsHandler) SetDocAIIndexed(c echo.Context) error {
+	var req struct {
+		Indexed bool `json:"indexed"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
+	}
+	h.DB.Exec(c.Request().Context(),
+		`UPDATE documents SET ai_indexed = $1 WHERE id = $2`, req.Indexed, c.Param("id"))
+	return c.NoContent(http.StatusNoContent)
 }
 
 func (h *UploadsHandler) DeleteDocument(c echo.Context) error {

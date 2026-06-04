@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -88,10 +89,17 @@ type Source struct {
 
 // Block is one piece of message or system content.
 type Block struct {
-	Type         string        `json:"type"` // "text" | "image" | "document"
+	Type         string        `json:"type"` // "text" | "image" | "document" | "tool_use" | "tool_result"
 	Text         string        `json:"text,omitempty"`
 	Source       *Source       `json:"source,omitempty"`
 	CacheControl *CacheControl `json:"cache_control,omitempty"`
+	// tool_use blocks (assistant calling a tool)
+	ID    string          `json:"id,omitempty"`
+	Name  string          `json:"name,omitempty"`
+	Input json.RawMessage `json:"input,omitempty"`
+	// tool_result blocks (our reply with the tool's output)
+	ToolUseID string `json:"tool_use_id,omitempty"`
+	Content   string `json:"content,omitempty"`
 }
 
 // Text builds a text block.
@@ -151,6 +159,8 @@ type Request struct {
 	// call; the result is returned by Structured.
 	Schema      json.RawMessage
 	Temperature *float64
+	// Feature labels the call in the usage log (e.g. "ask_club"). Optional.
+	Feature string
 }
 
 type apiRequest struct {
@@ -166,22 +176,62 @@ type apiRequest struct {
 type respBlock struct {
 	Type  string          `json:"type"` // "text" | "tool_use"
 	Text  string          `json:"text"`
+	ID    string          `json:"id"`
+	Name  string          `json:"name"`
 	Input json.RawMessage `json:"input"`
+}
+
+// Usage holds the token counts Anthropic returns for a call.
+type Usage struct {
+	InputTokens              int `json:"input_tokens"`
+	OutputTokens             int `json:"output_tokens"`
+	CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
+	CacheReadInputTokens     int `json:"cache_read_input_tokens"`
 }
 
 type apiResponse struct {
 	Content    []respBlock `json:"content"`
 	StopReason string      `json:"stop_reason"`
-	Usage      struct {
-		InputTokens              int `json:"input_tokens"`
-		OutputTokens             int `json:"output_tokens"`
-		CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
-		CacheReadInputTokens     int `json:"cache_read_input_tokens"`
-	} `json:"usage"`
-	Error *struct {
+	Usage      Usage       `json:"usage"`
+	Error      *struct {
 		Type    string `json:"type"`
 		Message string `json:"message"`
 	} `json:"error"`
+}
+
+// ModelPricing returns approximate USD list prices per million input and output
+// tokens. Cache writes bill at 1.25x input and cache reads at 0.1x input.
+func ModelPricing(model string) (inPerM, outPerM float64) {
+	m := strings.ToLower(model)
+	switch {
+	case strings.Contains(m, "opus"):
+		return 15, 75
+	case strings.Contains(m, "haiku"):
+		return 1, 5
+	default: // sonnet and anything unrecognised
+		return 3, 15
+	}
+}
+
+func usageCost(model string, u Usage) float64 {
+	in, out := ModelPricing(model)
+	total := float64(u.InputTokens)*in +
+		float64(u.CacheCreationInputTokens)*in*1.25 +
+		float64(u.CacheReadInputTokens)*in*0.1 +
+		float64(u.OutputTokens)*out
+	return total / 1e6
+}
+
+// recordUsage logs one call's tokens and computed cost. It runs on a detached
+// context (the response has already been returned) and never blocks the caller.
+func (c *Client) recordUsage(model, feature string, u Usage) {
+	if feature == "" {
+		feature = "other"
+	}
+	c.DB.Exec(context.Background(),
+		`INSERT INTO ai_usage (feature, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost_usd)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		feature, model, u.InputTokens, u.OutputTokens, u.CacheReadInputTokens, u.CacheCreationInputTokens, usageCost(model, u))
 }
 
 const structuredToolName = "emit_result"
@@ -239,6 +289,7 @@ func (c *Client) Complete(ctx context.Context, req Request) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	c.recordUsage(cfg.Model, req.Feature, out.Usage)
 	var buf bytes.Buffer
 	for _, b := range out.Content {
 		if b.Type == "text" {
@@ -246,6 +297,79 @@ func (c *Client) Complete(ctx context.Context, req Request) (string, error) {
 		}
 	}
 	return buf.String(), nil
+}
+
+// Tool describes a callable tool exposed to the model in Converse.
+type Tool struct {
+	Name        string
+	Description string
+	Schema      json.RawMessage
+}
+
+// ToolFunc executes a tool call and returns the text result shown back to the model.
+type ToolFunc func(ctx context.Context, input json.RawMessage) (string, error)
+
+// Converse runs a tool-use conversation: the model may call the provided tools
+// (run by handlers) over several turns until it produces a final text answer.
+// Capped at a few turns so it always terminates.
+func (c *Client) Converse(ctx context.Context, req Request, tools []Tool, handlers map[string]ToolFunc) (string, error) {
+	cfg, _ := c.Config(ctx)
+	if !cfg.Enabled || cfg.APIKey == "" {
+		return "", ErrDisabled
+	}
+	apiTools := make([]tool, len(tools))
+	for i, t := range tools {
+		apiTools[i] = tool{Name: t.Name, Description: t.Description, InputSchema: t.Schema}
+	}
+	maxTokens := req.MaxTokens
+	if maxTokens == 0 {
+		maxTokens = 1024
+	}
+	messages := append([]Message{}, req.Messages...)
+	for iter := 0; iter < 6; iter++ {
+		out, err := c.do(ctx, cfg, apiRequest{
+			Model: cfg.Model, MaxTokens: maxTokens,
+			System: req.System, Messages: messages, Tools: apiTools,
+		})
+		if err != nil {
+			return "", err
+		}
+		c.recordUsage(cfg.Model, req.Feature, out.Usage)
+		if out.StopReason != "tool_use" {
+			var buf bytes.Buffer
+			for _, b := range out.Content {
+				if b.Type == "text" {
+					buf.WriteString(b.Text)
+				}
+			}
+			return buf.String(), nil
+		}
+		// Echo the assistant's turn back, then run each requested tool.
+		assistant := []Block{}
+		results := []Block{}
+		for _, b := range out.Content {
+			switch b.Type {
+			case "text":
+				assistant = append(assistant, Block{Type: "text", Text: b.Text})
+			case "tool_use":
+				assistant = append(assistant, Block{Type: "tool_use", ID: b.ID, Name: b.Name, Input: b.Input})
+				res := "(no result)"
+				if fn, ok := handlers[b.Name]; ok {
+					if r, herr := fn(ctx, b.Input); herr != nil {
+						res = "Error: " + herr.Error()
+					} else if strings.TrimSpace(r) != "" {
+						res = r
+					}
+				} else {
+					res = "Error: unknown tool " + b.Name
+				}
+				results = append(results, Block{Type: "tool_result", ToolUseID: b.ID, Content: res})
+			}
+		}
+		messages = append(messages, Message{Role: "assistant", Content: assistant})
+		messages = append(messages, Message{Role: "user", Content: results})
+	}
+	return "", errors.New("ai: tool conversation did not converge")
 }
 
 // Structured forces the model to return JSON matching req.Schema and unmarshals
@@ -275,6 +399,7 @@ func (c *Client) Structured(ctx context.Context, req Request, dst any) error {
 	if err != nil {
 		return err
 	}
+	c.recordUsage(cfg.Model, req.Feature, out.Usage)
 	for _, b := range out.Content {
 		if b.Type == "tool_use" && len(b.Input) > 0 {
 			return json.Unmarshal(b.Input, dst)

@@ -63,6 +63,7 @@ const sections: Section[] = [
     heading: 'Feedback',
     links: [
       { to: '/admin/feedback', label: 'Site Ideas', section: 'feedback' },
+      { to: '/admin/club-questions', label: 'Club Q&A' },
     ],
   },
   {

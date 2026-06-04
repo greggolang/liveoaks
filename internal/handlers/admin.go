@@ -165,6 +165,44 @@ func (h *AdminHandler) UpdateAIConfig(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
+// GetAIUsage summarizes Claude spend for the admin settings page.
+func (h *AdminHandler) GetAIUsage(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	var monthToDate, last30, allTime float64
+	var calls30 int
+	h.DB.QueryRow(ctx, `SELECT COALESCE(SUM(cost_usd),0) FROM ai_usage WHERE created_at >= date_trunc('month', NOW())`).Scan(&monthToDate)
+	h.DB.QueryRow(ctx, `SELECT COALESCE(SUM(cost_usd),0), COUNT(*) FROM ai_usage WHERE created_at >= NOW() - INTERVAL '30 days'`).Scan(&last30, &calls30)
+	h.DB.QueryRow(ctx, `SELECT COALESCE(SUM(cost_usd),0) FROM ai_usage`).Scan(&allTime)
+
+	type featureRow struct {
+		Feature string  `json:"feature"`
+		Cost    float64 `json:"cost"`
+		Calls   int     `json:"calls"`
+	}
+	byFeature := []featureRow{}
+	if rows, err := h.DB.Query(ctx, `
+		SELECT feature, COALESCE(SUM(cost_usd),0), COUNT(*)
+		FROM ai_usage WHERE created_at >= NOW() - INTERVAL '30 days'
+		GROUP BY feature ORDER BY SUM(cost_usd) DESC`); err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var f featureRow
+			if rows.Scan(&f.Feature, &f.Cost, &f.Calls) == nil {
+				byFeature = append(byFeature, f)
+			}
+		}
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"month_to_date": monthToDate,
+		"last_30_days":  last30,
+		"all_time":      allTime,
+		"calls_30_days": calls30,
+		"by_feature":    byFeature,
+	})
+}
+
 // TestAIConfig verifies an API key against Anthropic's models endpoint (a free
 // call that spends no tokens). It tests the supplied key if given, otherwise the
 // stored one.
