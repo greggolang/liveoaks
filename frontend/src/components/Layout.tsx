@@ -3,6 +3,7 @@ import { Link, useNavigate, NavLink } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { api } from '../api/client'
 import { APP_VERSION } from '../version'
+import { HelpProvider, useHelp } from '../contexts/HelpContext'
 
 type BugState = 'idle' | 'sending' | 'done' | 'error'
 
@@ -29,6 +30,10 @@ const ICONS = {
 type NavEntry = { to: string; label: string; icon: string; badge?: number }
 
 export default function Layout({ children }: { children: React.ReactNode }) {
+  return <HelpProvider><LayoutInner>{children}</LayoutInner></HelpProvider>
+}
+
+function LayoutInner({ children }: { children: React.ReactNode }) {
   const { user, logout, hasPermission, isAdmin, isBoard } = useAuth()
   const [clubLogo, setClubLogo] = useState('')
 
@@ -60,10 +65,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('booking-countdown', handler)
   }, [])
 
+  const { helpItems, helpTitle } = useHelp()
   const [menuOpen, setMenuOpen] = useState(false)
   const [bugOpen, setBugOpen] = useState(false)
   const [bugText, setBugText] = useState('')
   const [bugState, setBugState] = useState<BugState>('idle')
+  const [helpOpen, setHelpOpen] = useState(false)
+  const [helpExpanded, setHelpExpanded] = useState<number | null>(null)
   const [showFantasy, setShowFantasy] = useState(false)
   const [showLadder, setShowLadder] = useState(false)
   const [showDocuments, setShowDocuments] = useState(false)
@@ -168,6 +176,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </Link>
         <div className="flex items-center gap-2 mt-1.5 pl-0.5">
           <span className="text-green-300 text-[11px]">v{APP_VERSION}</span>
+          {helpItems.length > 0 && (
+            <button
+              onClick={() => { setHelpOpen(true); setHelpExpanded(null) }}
+              title="How this page works"
+              className="w-4 h-4 rounded-full border border-green-300/70 flex items-center justify-center text-[10px] font-bold text-green-300 hover:border-white hover:text-white transition leading-none shrink-0">
+              ?
+            </button>
+          )}
           {bookingCountdown !== null && (
             <span className="text-green-400 text-[11px] tabular-nums" title="Bookings auto-refresh">↻ {bookingCountdown}s</span>
           )}
@@ -271,6 +287,42 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <main className="flex-1 w-full max-w-7xl mx-auto px-4 py-5 sm:py-8">{children}</main>
         <div style={{ height: 'env(safe-area-inset-bottom)' }} />
       </div>
+
+      {/* Help modal */}
+      {helpOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setHelpOpen(false)} />
+          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-semibold text-gray-800">{helpTitle}</h2>
+              <button onClick={() => setHelpOpen(false)} className="text-gray-400 hover:text-gray-600 transition">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="divide-y divide-gray-100">
+              {helpItems.map((item, i) => (
+                <div key={i}>
+                  <button
+                    onClick={() => setHelpExpanded(helpExpanded === i ? null : i)}
+                    className="w-full flex items-center justify-between py-2.5 text-left text-gray-800 font-medium hover:text-green-700 transition text-sm">
+                    {item.heading}
+                    <svg className={`w-3.5 h-3.5 shrink-0 transition-transform ${helpExpanded === i ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  {helpExpanded === i && (
+                    <div className="pb-3 text-gray-500 text-xs leading-relaxed space-y-1.5">
+                      {typeof item.body === 'string' ? <p>{item.body}</p> : item.body}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Bug report modal */}
       {bugOpen && (

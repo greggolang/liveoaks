@@ -102,10 +102,8 @@ export default function CourtGrid() {
                     if (startHour !== hour) return null
                     const span = parseDate(b.end_time).getHours() - startHour
                     return (
-                      <td key={c.id} rowSpan={span} className="px-2 py-1 align-middle">
-                        <div className="bg-green-100 border border-green-300 rounded px-2 py-2 text-xs text-green-800 font-medium text-center flex items-center justify-center" style={{ minHeight: `${span * 2}rem` }}>
-                          {b.user.first_name} {b.user.last_name[0]}.
-                        </div>
+                      <td key={c.id} rowSpan={span} className="bg-green-100 border border-green-300 px-2 py-1 align-middle text-center text-xs text-green-800 font-medium">
+                        {b.user.first_name} {b.user.last_name[0]}.
                       </td>
                     )
                   }
@@ -116,10 +114,8 @@ export default function CourtGrid() {
                     if (start !== hour) return null
                     const span = end - start
                     return (
-                      <td key={c.id} rowSpan={span} className="px-2 py-1 align-middle" title={blk.reason}>
-                        <div className="bg-amber-50 border border-amber-200 rounded px-2 py-2 text-xs text-amber-500 font-medium text-center truncate flex items-center justify-center" style={{ minHeight: `${span * 2}rem` }}>
-                          {blk.reason}
-                        </div>
+                      <td key={c.id} rowSpan={span} className="bg-amber-50 border border-amber-200 px-2 py-1 align-middle text-center text-xs text-amber-500 font-medium truncate" title={blk.reason}>
+                        {blk.reason}
                       </td>
                     )
                   }
