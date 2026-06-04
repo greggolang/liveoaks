@@ -576,6 +576,8 @@ export const api = {
     adminList: () => request('/admin/feedback'),
     updateStatus: (id: string, status: string) =>
       request(`/admin/feedback/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),
+    updateAssigned: (id: string, assigned_to: string) =>
+      request(`/admin/feedback/${id}/assigned`, { method: 'PUT', body: JSON.stringify({ assigned_to }) }),
     delete: (id: string) => request(`/admin/feedback/${id}`, { method: 'DELETE' }),
   },
   permissions: {

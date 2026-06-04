@@ -10,6 +10,7 @@ interface FeedbackItem {
   status: string
   type: string
   page?: string
+  assigned_to?: string
   created_at: string
   first_name: string
   last_name: string
@@ -17,12 +18,16 @@ interface FeedbackItem {
 }
 
 const STATUSES = [
-  { value: 'new',         label: 'New',         color: 'bg-blue-100 text-blue-700' },
-  { value: 'reviewing',   label: 'Reviewing',   color: 'bg-yellow-100 text-yellow-700' },
-  { value: 'planned',     label: 'Planned',     color: 'bg-purple-100 text-purple-700' },
-  { value: 'done',        label: 'Done',        color: 'bg-green-100 text-green-700' },
-  { value: 'declined',    label: 'Declined',    color: 'bg-gray-100 text-gray-500' },
+  { value: 'new',             label: 'New',             color: 'bg-blue-100 text-blue-700' },
+  { value: 'need_validation', label: 'Need Validation', color: 'bg-orange-100 text-orange-700' },
+  { value: 'validated',       label: 'Validated',       color: 'bg-teal-100 text-teal-700' },
+  { value: 'reviewing',       label: 'Reviewing',       color: 'bg-yellow-100 text-yellow-700' },
+  { value: 'planned',         label: 'Planned',         color: 'bg-purple-100 text-purple-700' },
+  { value: 'done',            label: 'Done',            color: 'bg-green-100 text-green-700' },
+  { value: 'declined',        label: 'Declined',        color: 'bg-gray-100 text-gray-500' },
 ]
+
+const ASSIGNEES = ['Greg', 'Sean', 'Ian']
 
 function statusStyle(status: string) {
   return STATUSES.find(s => s.value === status)?.color ?? 'bg-gray-100 text-gray-500'
@@ -69,6 +74,11 @@ export default function AdminFeedback() {
   const setStatus = async (id: string, status: string) => {
     await api.feedback.updateStatus(id, status)
     setItems(prev => prev.map(i => i.id === id ? { ...i, status } : i))
+  }
+
+  const setAssigned = async (id: string, assigned_to: string) => {
+    await api.feedback.updateAssigned(id, assigned_to)
+    setItems(prev => prev.map(i => i.id === id ? { ...i, assigned_to: assigned_to || undefined } : i))
   }
 
   const remove = async (id: string) => {
@@ -151,6 +161,14 @@ export default function AdminFeedback() {
                 </span>
               </>
             )}
+            {item.assigned_to && (
+              <>
+                <span>·</span>
+                <span className="font-medium text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">
+                  👤 {item.assigned_to}
+                </span>
+              </>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -172,6 +190,16 @@ export default function AdminFeedback() {
             className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-600">
             {STATUSES.map(s => (
               <option key={s.value} value={s.value}>{s.label}</option>
+            ))}
+          </select>
+          <select
+            value={item.assigned_to ?? ''}
+            onChange={e => setAssigned(item.id, e.target.value)}
+            title="Assign to a board member"
+            className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-600">
+            <option value="">Unassigned</option>
+            {ASSIGNEES.map(a => (
+              <option key={a} value={a}>{a}</option>
             ))}
           </select>
           <button onClick={() => remove(item.id)}
@@ -229,7 +257,7 @@ export default function AdminFeedback() {
   return (
     <div>
       <div className="flex items-start justify-between gap-4 mb-1">
-        <h2 className="text-xl font-bold text-gray-800">Site Ideas & Feedback</h2>
+        <h2 className="text-xl font-bold text-gray-800">Site Ideas and Bugs</h2>
         <button onClick={runDigest} disabled={digestLoading}
           className="inline-flex items-center gap-1.5 text-sm font-medium text-white bg-green-700 hover:bg-green-800 rounded-lg px-3 py-1.5 transition disabled:opacity-50 shrink-0">
           {digestLoading ? 'Analyzing…' : '✨ AI Triage Digest'}

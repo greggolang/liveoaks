@@ -73,7 +73,7 @@ func (h *FeedbackHandler) NewFeedback(c echo.Context) error {
 
 func (h *FeedbackHandler) AdminList(c echo.Context) error {
 	rows, err := h.DB.Query(c.Request().Context(),
-		`SELECT f.id, COALESCE(f.number, 0), f.user_id, f.message, f.status, f.type, f.page, f.created_at,
+		`SELECT f.id, COALESCE(f.number, 0), f.user_id, f.message, f.status, f.type, f.page, f.assigned_to, f.created_at,
 		        u.first_name, u.last_name, u.email
 		 FROM feedback f
 		 JOIN users u ON u.id = f.user_id
@@ -89,17 +89,18 @@ func (h *FeedbackHandler) AdminList(c echo.Context) error {
 		UserID    string    `json:"user_id"`
 		Message   string    `json:"message"`
 		Status    string    `json:"status"`
-		Type      string    `json:"type"`
-		Page      *string   `json:"page,omitempty"`
-		CreatedAt time.Time `json:"created_at"`
-		FirstName string    `json:"first_name"`
-		LastName  string    `json:"last_name"`
-		Email     string    `json:"email"`
+		Type       string    `json:"type"`
+		Page       *string   `json:"page,omitempty"`
+		AssignedTo *string   `json:"assigned_to,omitempty"`
+		CreatedAt  time.Time `json:"created_at"`
+		FirstName  string    `json:"first_name"`
+		LastName   string    `json:"last_name"`
+		Email      string    `json:"email"`
 	}
 	items := []Item{}
 	for rows.Next() {
 		var i Item
-		if err := rows.Scan(&i.ID, &i.Number, &i.UserID, &i.Message, &i.Status, &i.Type, &i.Page, &i.CreatedAt, &i.FirstName, &i.LastName, &i.Email); err != nil {
+		if err := rows.Scan(&i.ID, &i.Number, &i.UserID, &i.Message, &i.Status, &i.Type, &i.Page, &i.AssignedTo, &i.CreatedAt, &i.FirstName, &i.LastName, &i.Email); err != nil {
 			continue
 		}
 		items = append(items, i)
@@ -121,6 +122,22 @@ func (h *FeedbackHandler) UpdateStatus(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not update status")
 	}
 	return c.JSON(http.StatusOK, map[string]string{"id": id, "status": req.Status})
+}
+
+func (h *FeedbackHandler) UpdateAssigned(c echo.Context) error {
+	id := c.Param("id")
+	var req struct {
+		AssignedTo string `json:"assigned_to"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
+	}
+	_, err := h.DB.Exec(c.Request().Context(),
+		`UPDATE feedback SET assigned_to = NULLIF($1, '') WHERE id = $2`, req.AssignedTo, id)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not update assignee")
+	}
+	return c.JSON(http.StatusOK, map[string]string{"id": id, "assigned_to": req.AssignedTo})
 }
 
 func (h *FeedbackHandler) Delete(c echo.Context) error {

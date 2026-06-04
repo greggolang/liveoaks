@@ -418,6 +418,7 @@ func main() {
 	boardPlus.GET("/feedback/new", feedback.NewFeedback)
 	adminOnly.GET("/feedback", feedback.AdminList)
 	adminOnly.PUT("/feedback/:id/status", feedback.UpdateStatus)
+	adminOnly.PUT("/feedback/:id/assigned", feedback.UpdateAssigned)
 	adminOnly.DELETE("/feedback/:id", feedback.Delete)
 	adminOnly.GET("/email-templates", emailTemplates.List)
 	adminOnly.POST("/email-templates", emailTemplates.Create)
