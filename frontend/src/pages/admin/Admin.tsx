@@ -19,7 +19,7 @@ const sections: Section[] = [
       { to: '/admin/announcements', label: 'Announcements', section: 'announcements' },
       { to: '/admin/member-requests', label: 'New Member Requests', section: 'member_requests' },
       { to: '/admin/waitlist', label: 'Waitlist', section: 'waitlist' },
-{ to: '/admin/polls', label: 'Membership Polls' },
+{ to: '/admin/polls', label: 'Membership Polls', section: 'polls' },
       { to: '/admin/page-access', label: 'Page Access' },
     ],
   },
@@ -83,7 +83,7 @@ const sections: Section[] = [
   {
     heading: 'System',
     links: [
-      { to: '/admin/content', label: 'Main Site Content' },
+      { to: '/admin/content', label: 'Main Site Content', section: 'content' },
       { to: '/files', label: 'Files', section: 'files' },
       { to: '/photos', label: 'Photos', section: 'photos' },
       { to: '/admin/mail', label: 'Mail Accounts' },

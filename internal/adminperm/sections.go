@@ -28,6 +28,8 @@ var Catalog = []Section{
 	{"files", "Files", "Content", "Upload and organize club documents and folders"},
 	{"photos", "Photos", "Content", "Upload and organize photo albums"},
 	{"usta_teams", "USTA Teams", "Content", "Add and remove USTA league teams"},
+	{"content", "Main Site Content", "Content", "Edit the main public-facing site content"},
+	{"polls", "Membership Polls", "Members", "Create and manage membership polls"},
 	// Members
 	{"members", "Members", "Members", "View and manage the member roster, roles, and status"},
 	{"member_requests", "New Member Requests", "Members", "Review, approve, and communicate with membership applicants"},
@@ -90,6 +92,8 @@ type routePrefix struct {
 }
 
 var routePrefixes = []routePrefix{
+	{"/api/admin/site-content", "content"},
+	{"/api/admin/polls", "polls"},
 	{"/api/events", "events_admin"},
 	{"/api/admin/events", "events_admin"},
 	{"/api/announcements", "announcements"},

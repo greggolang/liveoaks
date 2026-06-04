@@ -13,9 +13,7 @@ const ROLES: { key: string; label: string; short: string }[] = [
   { key: 'entertainment',  label: 'Entertainment',   short: 'Ent' },
   { key: 'house_grounds',  label: 'House & Grounds', short: 'H&G' },
   { key: 'usta',           label: 'USTA',            short: 'USTA' },
-  { key: 'games',          label: 'Games',           short: 'Games' },
   { key: 'pro',            label: 'Pro',             short: 'Pro' },
-  { key: 'member',         label: 'Member',          short: 'Mem' },
 ]
 
 export default function AdminBoardPermissions() {
