@@ -66,6 +66,7 @@ var Catalog = []Section{
 	{"settings", "Settings", "System", "Edit club-wide settings"},
 	{"email_templates", "Email Templates", "System", "Create and edit email templates"},
 	{"password_resets", "Password Resets", "System", "View pending password reset requests"},
+	{"password_vault", "Password Vault", "System", "View and manage the shared password vault"},
 	{"activity_log", "Activity Log", "System", "View the site activity log"},
 	{"communication_test", "Test Communications", "System", "Send test emails and texts"},
 }
@@ -138,6 +139,7 @@ var routePrefixes = []routePrefix{
 	{"/api/admin/settings", "settings"},
 	{"/api/admin/email-templates", "email_templates"},
 	{"/api/admin/password-resets", "password_resets"},
+	{"/api/admin/passwords", "password_vault"},
 	{"/api/admin/activity-log", "activity_log"},
 	{"/api/admin/test-email", "communication_test"},
 	{"/api/admin/test-sms", "communication_test"},

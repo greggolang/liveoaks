@@ -54,6 +54,9 @@ export default function AdminPasswords() {
   const [copied, setCopied] = useState(false)
   const [addingNewCategory, setAddingNewCategory] = useState(false)
   const [error, setError] = useState('')
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const toggleFolder = (k: string) =>
+    setCollapsed(s => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n })
   const labelRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -145,7 +148,7 @@ export default function AdminPasswords() {
   )
 
   const grouped = filtered.reduce<Record<string, PasswordEntry[]>>((acc, e) => {
-    const key = e.category || 'Uncategorized'
+    const key = e.category || 'No Folder'
     ;(acc[key] ??= []).push(e)
     return acc
   }, {})
@@ -180,10 +183,22 @@ export default function AdminPasswords() {
                 {entries.length === 0 ? 'No entries yet.' : 'No matches.'}
               </p>
             )}
-            {Object.entries(grouped).map(([cat, items]) => (
+            {Object.entries(grouped).map(([cat, items]) => {
+              const isCollapsed = collapsed.has(cat) && !search
+              return (
               <div key={cat}>
-                <p className="px-1 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">{cat}</p>
-                {items.map(entry => {
+                <button onClick={() => toggleFolder(cat)}
+                  className="w-full flex items-center gap-1.5 px-1 mb-1 text-xs font-semibold text-gray-400 hover:text-gray-600 transition">
+                  <svg className={`w-3 h-3 shrink-0 transition-transform ${isCollapsed ? '' : 'rotate-90'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                  <svg className="w-3.5 h-3.5 shrink-0 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                  </svg>
+                  <span className="flex-1 text-left truncate uppercase tracking-wider">{cat}</span>
+                  <span className="text-gray-300 font-normal">{items.length}</span>
+                </button>
+                {!isCollapsed && items.map(entry => {
                   const active = selected?.id === entry.id && !isNew
                   return (
                     <div key={entry.id} className="relative group">
@@ -212,7 +227,8 @@ export default function AdminPasswords() {
                   )
                 })}
               </div>
-            ))}
+              )
+            })}
           </div>
         </div>
 
@@ -232,19 +248,19 @@ export default function AdminPasswords() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Category</label>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Folder</label>
                   {addingNewCategory ? (
                     <div className="flex gap-1.5">
                       <input
                         autoFocus
                         value={category}
                         onChange={e => { setCategory(e.target.value); mark() }}
-                        placeholder="New category name"
+                        placeholder="New folder name"
                         className="flex-1 min-w-0 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                       />
                       <button
                         type="button"
-                        title="Choose an existing category"
+                        title="Choose an existing folder"
                         onClick={() => { setAddingNewCategory(false); setCategory(''); mark() }}
                         className="px-2.5 text-xs text-gray-400 hover:text-gray-600 border border-gray-200 rounded-lg shrink-0">
                         ✕
@@ -261,9 +277,9 @@ export default function AdminPasswords() {
                         }
                       }}
                       className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500">
-                      <option value="">Uncategorized</option>
+                      <option value="">No folder</option>
                       {categories.map(c => <option key={c} value={c}>{c}</option>)}
-                      <option value="__new__">➕ Add new category…</option>
+                      <option value="__new__">➕ New folder…</option>
                     </select>
                   )}
                 </div>

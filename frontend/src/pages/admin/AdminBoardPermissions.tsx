@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState } from 'react'
-import { api } from '../../api/client'
+import { api, DocFolder } from '../../api/client'
 
 type SectionDef = { key: string; label: string; group: string; desc: string }
 
@@ -24,6 +24,33 @@ export default function AdminBoardPermissions() {
   const [error, setError] = useState<string | null>(null)
   const [selectedRole, setSelectedRole] = useState(ROLES[0].key)
   const [view, setView] = useState<'by-role' | 'by-section'>('by-role')
+
+  // Files drill-down: which document folders the selected role can see.
+  const [foldersOpen, setFoldersOpen] = useState(false)
+  const [folders, setFolders] = useState<DocFolder[]>([])
+  const [foldersLoading, setFoldersLoading] = useState(false)
+  const [foldersLoaded, setFoldersLoaded] = useState(false)
+  const [folderBusy, setFolderBusy] = useState<string | null>(null)
+
+  const loadFolders = async () => {
+    setFoldersLoading(true)
+    try { setFolders(await api.documents.folders.adminList()); setFoldersLoaded(true) }
+    catch { setFolders([]) }
+    finally { setFoldersLoading(false) }
+  }
+  const flattenFolders = (list: DocFolder[], depth = 0): { f: DocFolder; depth: number }[] =>
+    list.flatMap(f => [{ f, depth }, ...flattenFolders(f.children ?? [], depth + 1)])
+  const applyFolderRoles = (list: DocFolder[], id: string, roles: string[]): DocFolder[] =>
+    list.map(f => f.id === id ? { ...f, roles } : { ...f, children: f.children ? applyFolderRoles(f.children, id, roles) : f.children })
+  const toggleFolderRole = async (f: DocFolder, role: string) => {
+    const has = f.roles.includes(role)
+    const roles = has ? f.roles.filter(r => r !== role) : [...f.roles, role]
+    setFolderBusy(`${f.id}:${role}`)
+    try {
+      await api.documents.folders.update(f.id, { name: f.name, sort_order: f.sort_order, roles, parent_id: f.parent_id ?? null })
+      setFolders(prev => applyFolderRoles(prev, f.id, roles))
+    } finally { setFolderBusy(null) }
+  }
 
   useEffect(() => {
     Promise.all([api.adminPermissions.sections(), api.adminPermissions.getAll()])
@@ -124,6 +151,72 @@ export default function AdminBoardPermissions() {
                   {sections.map(s => {
                     const granted = perms[s.key]?.has(selectedRole) ?? false
                     const busy = toggling === `${s.key}:${selectedRole}`
+                    const sw = busy ? (
+                      <div className="w-10 h-6 rounded-full bg-gray-200 animate-pulse" />
+                    ) : (
+                      <button type="button" role="switch" aria-checked={granted}
+                        onClick={() => toggle(s.key, selectedRole)}
+                        className={`relative w-10 h-6 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-1 ${granted ? 'bg-green-600' : 'bg-gray-200'}`}>
+                        <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${granted ? 'translate-x-4' : 'translate-x-0'}`} />
+                      </button>
+                    )
+
+                    if (s.key === 'files') {
+                      return (
+                        <div key={s.key} className="border-t border-gray-50">
+                          <div className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <button type="button" title="Folder access"
+                                onClick={() => { setFoldersOpen(o => !o); if (!foldersLoaded) loadFolders() }}
+                                className="p-0.5 text-gray-400 hover:text-gray-700 shrink-0">
+                                <svg className={`w-4 h-4 transition-transform ${foldersOpen ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                              </button>
+                              <div className="min-w-0">
+                                <span className="text-sm font-medium text-gray-800">{s.label}</span>
+                                <span className="text-xs text-gray-400 block">{s.desc} · expand to set per-folder access</span>
+                              </div>
+                            </div>
+                            <div className="ml-4 shrink-0">{sw}</div>
+                          </div>
+                          {foldersOpen && (
+                            <div className="bg-gray-50/70 border-t border-gray-100 px-4 py-3">
+                              <p className="text-xs text-gray-500 mb-2">
+                                Folders <strong className="text-gray-700">{ROLES.find(r => r.key === selectedRole)?.label}</strong> can see on the Files page:
+                              </p>
+                              {foldersLoading ? (
+                                <p className="text-xs text-gray-400">Loading…</p>
+                              ) : folders.length === 0 ? (
+                                <p className="text-xs text-gray-400">No document folders yet.</p>
+                              ) : (
+                                <div className="space-y-1.5">
+                                  {flattenFolders(folders).map(({ f, depth }) => {
+                                    const on = f.roles.includes(selectedRole)
+                                    const fb = folderBusy === `${f.id}:${selectedRole}`
+                                    return (
+                                      <div key={f.id} className="flex items-center justify-between gap-3" style={{ paddingLeft: `${depth * 1.25}rem` }}>
+                                        <span className="flex items-center gap-1.5 text-sm text-gray-700 min-w-0">
+                                          <svg className="w-3.5 h-3.5 text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                                          </svg>
+                                          <span className="truncate">{f.name}</span>
+                                        </span>
+                                        <button type="button" disabled={fb} onClick={() => toggleFolderRole(f, selectedRole)}
+                                          className={`relative w-9 h-5 rounded-full transition-colors shrink-0 disabled:opacity-50 ${on ? 'bg-green-600' : 'bg-gray-300'}`}>
+                                          <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${on ? 'translate-x-4' : 'translate-x-0'}`} />
+                                        </button>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    }
+
                     return (
                       <label key={s.key}
                         className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 cursor-pointer border-t border-gray-50 transition">
@@ -131,25 +224,7 @@ export default function AdminBoardPermissions() {
                           <span className="text-sm font-medium text-gray-800">{s.label}</span>
                           <span className="text-xs text-gray-400 block">{s.desc}</span>
                         </div>
-                        <div className="ml-4 shrink-0">
-                          {busy ? (
-                            <div className="w-10 h-6 rounded-full bg-gray-200 animate-pulse" />
-                          ) : (
-                            <button
-                              type="button"
-                              role="switch"
-                              aria-checked={granted}
-                              onClick={() => toggle(s.key, selectedRole)}
-                              className={`relative w-10 h-6 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-1 ${
-                                granted ? 'bg-green-600' : 'bg-gray-200'
-                              }`}
-                            >
-                              <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                                granted ? 'translate-x-4' : 'translate-x-0'
-                              }`} />
-                            </button>
-                          )}
-                        </div>
+                        <div className="ml-4 shrink-0">{sw}</div>
                       </label>
                     )
                   })}
