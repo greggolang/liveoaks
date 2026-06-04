@@ -6,7 +6,8 @@ import { formatPhone } from '../utils/phone'
 
 interface Member { id: string; first_name: string; last_name: string; email: string; phone?: string; address?: string; family?: string; usta_ranking?: string; created_at?: string; photo_url?: string; household?: string[]; is_family_member?: boolean; type: 'member' }
 interface Contact { id: string; first_name: string; last_name: string; email?: string; phone?: string; address?: string; family?: string; category: string; notes?: string; type: 'contact' }
-type Entry = Member | Contact
+interface FamilyEntry { id: string; first_name: string; last_name: string; email?: string; phone?: string; usta_ranking?: string; relationship: string; primary_member_name: string; primary_member_id: string; type: 'family' }
+type Entry = Member | Contact | FamilyEntry
 
 const CATEGORIES = ['spouse', 'coach', 'staff', 'associate', 'other']
 
@@ -47,6 +48,7 @@ export default function MemberDirectory() {
   const { isBoard } = useAuth()
   const [members, setMembers] = useState<Member[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
+  const [familyEntries, setFamilyEntries] = useState<FamilyEntry[]>([])
   const [records, setRecords] = useState<Record<string, MatchStat>>({})
   const [search, setSearch] = useState('')
   const [filterType, setFilterType] = useState<'all' | 'member' | 'family' | 'contact'>('all')
@@ -62,6 +64,9 @@ export default function MemberDirectory() {
     api.contacts.list().then(d =>
       setContacts((d as any[]).map(c => ({ ...c, type: 'contact' as const })))
     )
+    api.members.familyDirectory().then(d =>
+      setFamilyEntries((d as any[]).map(f => ({ ...f, type: 'family' as const })))
+    ).catch(() => {})
     api.matches.stats().then(s => {
       const map: Record<string, MatchStat> = {}
       s.forEach(r => { map[r.user_id] = r })
@@ -114,17 +119,18 @@ export default function MemberDirectory() {
   const all: Entry[] = [
     ...members,
     ...contacts,
+    ...familyEntries,
   ].sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name))
 
-  const familyMembers = members.filter(m => m.is_family_member)
-
   const filtered = all.filter(e => {
-    if (filterType === 'family') {
-      if (e.type !== 'member' || !(e as Member).is_family_member) return false
-    } else if (filterType !== 'all' && e.type !== filterType) return false
+    if (filterType === 'family' && e.type !== 'family') return false
+    if (filterType === 'member' && e.type !== 'member') return false
+    if (filterType === 'contact' && e.type !== 'contact') return false
     if (!search) return true
     const q = search.toLowerCase()
-    return `${e.first_name} ${e.last_name} ${e.email ?? ''}`.toLowerCase().includes(q)
+    const base = `${e.first_name} ${e.last_name} ${e.email ?? ''}`.toLowerCase()
+    const extra = e.type === 'family' ? (e as FamilyEntry).primary_member_name.toLowerCase() : ''
+    return base.includes(q) || extra.includes(q)
   })
 
   // Group by first letter of last name
@@ -142,7 +148,7 @@ export default function MemberDirectory() {
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Member Directory</h1>
           <p className="text-sm text-gray-400 mt-0.5">
-            {members.length} members · {contacts.length} contacts
+            {members.length} members · {familyEntries.length} family · {contacts.length} contacts
             {members.filter(m => m.usta_ranking).length > 0 && ` · ${members.filter(m => m.usta_ranking).length} rated`}
           </p>
           {!isBoard && (
@@ -225,7 +231,7 @@ export default function MemberDirectory() {
           {(['all', 'member', 'family', 'contact'] as const).map(t => (
             <button key={t} onClick={() => setFilterType(t)}
               className={`px-3 py-2 rounded-lg text-xs font-medium transition ${filterType === t ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-              {t === 'all' ? `All (${all.length})` : t === 'member' ? `Members (${members.length})` : t === 'family' ? `Family (${familyMembers.length})` : `Contacts (${contacts.length})`}
+              {t === 'all' ? `All (${all.length})` : t === 'member' ? `Members (${members.length})` : t === 'family' ? `Family (${familyEntries.length})` : `Contacts (${contacts.length})`}
             </button>
           ))}
         </div>
@@ -238,17 +244,19 @@ export default function MemberDirectory() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
             {grouped[letter].map(e => {
               const isMember = e.type === 'member'
+              const isFamily = e.type === 'family'
+              const isContact = e.type === 'contact'
               const fullName = `${e.first_name} ${e.last_name}`
-              const rating = isMember ? (e as Member).usta_ranking : undefined
+              const rating = isMember ? (e as Member).usta_ranking : isFamily ? (e as FamilyEntry).usta_ranking : undefined
               const since = isMember ? (e as Member).created_at : undefined
               const photo = isMember ? (e as Member).photo_url : undefined
               const household = isMember ? (e as Member).household : undefined
               const rec = isMember ? records[e.id] : undefined
               const recentDays = daysAgo(rec?.last_played)
               return (
-                <div key={e.id}
+                <div key={`${e.type}-${e.id}`}
                   className={`group bg-white border rounded-xl p-3.5 shadow-sm hover:shadow-md transition flex items-start gap-3
-                    ${isMember ? 'border-gray-200 hover:border-green-200' : 'border-gray-200 border-l-4 border-l-blue-300'}`}>
+                    ${isMember ? 'border-gray-200 hover:border-green-200' : isFamily ? 'border-gray-200 border-l-4 border-l-purple-300' : 'border-gray-200 border-l-4 border-l-blue-300'}`}>
                   {/* Avatar */}
                   {isMember ? (
                     <Link to={`/players/${e.id}`} title="View profile" className="shrink-0">
@@ -256,6 +264,10 @@ export default function MemberDirectory() {
                         ? <img src={photo} alt={fullName} className="w-10 h-10 rounded-full object-cover" />
                         : <span className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${avatarColor(fullName)}`}>{initials(e.first_name, e.last_name)}</span>}
                     </Link>
+                  ) : isFamily ? (
+                    <div className="w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-sm font-bold bg-purple-50 text-purple-500">
+                      {initials(e.first_name, e.last_name)}
+                    </div>
                   ) : (
                     <div className="w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-sm font-bold bg-blue-50 text-blue-500">
                       {initials(e.first_name, e.last_name)}
@@ -276,7 +288,12 @@ export default function MemberDirectory() {
                           <span className="w-1.5 h-1.5 rounded-full bg-green-500" />Active
                         </span>
                       )}
-                      {!isMember && (
+                      {isFamily && (
+                        <span className="text-[11px] font-medium text-purple-500 bg-purple-50 px-1.5 py-0.5 rounded capitalize">
+                          {(e as FamilyEntry).relationship}
+                        </span>
+                      )}
+                      {isContact && (
                         <span className="text-[11px] font-medium text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded">
                           {CATEGORY_LABEL[(e as Contact).category] ?? (e as Contact).category}
                         </span>
@@ -294,9 +311,9 @@ export default function MemberDirectory() {
                           <Icon d={IC.phone} />{formatPhone(e.phone)}
                         </a>
                       )}
-                      {e.address && (
+                      {(e as Member).address && (
                         <div className="flex items-center gap-1.5 text-xs text-gray-400">
-                          <Icon d={IC.pin} /><span className="truncate">{e.address}</span>
+                          <Icon d={IC.pin} /><span className="truncate">{(e as Member).address}</span>
                         </div>
                       )}
                       {household && household.length > 0 && (
@@ -304,12 +321,17 @@ export default function MemberDirectory() {
                           <Icon d={IC.people} /><span className="truncate">Household: {household.join(', ')}</span>
                         </div>
                       )}
-                      {e.family && (
+                      {(e as Member).family && (
                         <div className="flex items-center gap-1.5 text-xs text-gray-400">
-                          <Icon d={IC.people} /><span className="truncate">{e.family}</span>
+                          <Icon d={IC.people} /><span className="truncate">{(e as Member).family}</span>
                         </div>
                       )}
-                      {!isMember && (e as Contact).notes && (
+                      {isFamily && (
+                        <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                          <Icon d={IC.people} /><span className="truncate">{(e as FamilyEntry).primary_member_name}</span>
+                        </div>
+                      )}
+                      {isContact && (e as Contact).notes && (
                         <div className="text-xs text-gray-400 italic">{(e as Contact).notes}</div>
                       )}
                     </div>
@@ -317,7 +339,7 @@ export default function MemberDirectory() {
                     {since && <div className="text-[11px] text-gray-300 mt-1.5">Member since {new Date(since).getFullYear()}</div>}
                   </div>
 
-                  {isBoard && !isMember && (
+                  {isBoard && isContact && (
                     <div className="flex flex-col gap-1 shrink-0 sm:opacity-0 group-hover:opacity-100 transition">
                       <button onClick={() => openEdit(e as Contact)}
                         className="text-gray-400 hover:text-gray-600 text-xs">Edit</button>

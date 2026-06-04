@@ -88,3 +88,62 @@ func (h *MembersHandler) Directory(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, members)
 }
+
+type FamilyDirectoryEntry struct {
+	ID                string  `json:"id"`
+	FirstName         string  `json:"first_name"`
+	LastName          string  `json:"last_name"`
+	Relationship      string  `json:"relationship"`
+	USTARanking       *string `json:"usta_ranking,omitempty"`
+	Phone             *string `json:"phone,omitempty"`
+	Email             *string `json:"email,omitempty"`
+	PrimaryMemberName string  `json:"primary_member_name"`
+	PrimaryMemberID   string  `json:"primary_member_id"`
+}
+
+func (h *MembersHandler) FamilyDirectory(c echo.Context) error {
+	role, _ := c.Get("role").(string)
+	boardRoles := map[string]bool{
+		"admin": true, "developer": true, "president": true, "vice_president": true,
+		"secretary": true, "treasurer": true, "entertainment": true, "house_grounds": true,
+	}
+	isBoard := boardRoles[role]
+
+	var query string
+	if isBoard {
+		query = `SELECT fm.id, fm.first_name, fm.last_name, fm.relationship, fm.usta_ranking,
+		                fm.phone, fm.email,
+		                u.first_name || ' ' || u.last_name AS primary_member_name,
+		                u.id::text AS primary_member_id
+		         FROM family_members fm
+		         JOIN users u ON u.id = fm.user_id
+		         WHERE u.status = 'active'
+		         ORDER BY fm.last_name, fm.first_name`
+	} else {
+		query = `SELECT fm.id, fm.first_name, fm.last_name, fm.relationship, fm.usta_ranking,
+		                NULL, NULL,
+		                u.first_name || ' ' || u.last_name AS primary_member_name,
+		                u.id::text AS primary_member_id
+		         FROM family_members fm
+		         JOIN users u ON u.id = fm.user_id
+		         WHERE u.status = 'active'
+		         ORDER BY fm.last_name, fm.first_name`
+	}
+
+	rows, err := h.DB.Query(c.Request().Context(), query)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch family members")
+	}
+	defer rows.Close()
+
+	entries := []FamilyDirectoryEntry{}
+	for rows.Next() {
+		var e FamilyDirectoryEntry
+		if err := rows.Scan(&e.ID, &e.FirstName, &e.LastName, &e.Relationship, &e.USTARanking,
+			&e.Phone, &e.Email, &e.PrimaryMemberName, &e.PrimaryMemberID); err != nil {
+			continue
+		}
+		entries = append(entries, e)
+	}
+	return c.JSON(http.StatusOK, entries)
+}

@@ -191,6 +191,7 @@ func main() {
 	authed.POST("/announcements/:id/read", announcements.Confirm)
 
 	authed.GET("/members/directory", members.Directory)
+	authed.GET("/members/family-directory", members.FamilyDirectory)
 	authed.GET("/contacts", contacts.List)
 	authed.GET("/events", events.List)
 	authed.GET("/events/:id", events.Get)

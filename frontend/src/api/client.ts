@@ -317,7 +317,10 @@ export const api = {
     confirmRead: (id: string) => request(`/announcements/${id}/read`, { method: 'POST' }),
     getReadStats: (id: string) => request(`/announcements/${id}/reads`),
   },
-  members: { directory: () => request('/members/directory') },
+  members: {
+    directory: () => request('/members/directory'),
+    familyDirectory: () => request('/members/family-directory'),
+  },
   siteContent: {
     get: () => request<any>('/site-content'),
     save: (content: unknown) => request('/admin/site-content', { method: 'PUT', body: JSON.stringify(content) }),
