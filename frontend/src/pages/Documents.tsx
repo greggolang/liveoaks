@@ -124,6 +124,9 @@ function DocumentEditor({ docId, onClose }: { docId: string; onClose: () => void
   const editingRef = useRef(false)
   const titleRef = useRef('')
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Holds the loaded body until the editor div has mounted (it's hidden behind
+  // the loading skeleton while the fetch is in flight, so it can't receive HTML yet).
+  const pendingBodyRef = useRef<string | null>(null)
 
   const setEditorHtml = (html: string) => {
     if (editorRef.current) editorRef.current.innerHTML = sanitizeHtml(html)
@@ -138,6 +141,9 @@ function DocumentEditor({ docId, onClose }: { docId: string; onClose: () => void
         if (!alive) return
         setTitle(doc.title); titleRef.current = doc.title
         versionRef.current = doc.version
+        // The editor isn't mounted yet (loading skeleton is showing), so stash the
+        // body and inject it once the editor appears (see the effect below).
+        pendingBodyRef.current = doc.body
         setEditorHtml(doc.body)
         setSavedAt(doc.updated_at)
         setCanDelete(isBoard || (!!user && doc.created_by === user.id))
@@ -149,6 +155,16 @@ function DocumentEditor({ docId, onClose }: { docId: string; onClose: () => void
     return () => { alive = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [docId])
+
+  // Once loading ends and the editor div mounts, inject the body that was loaded
+  // while it was still hidden behind the skeleton.
+  useEffect(() => {
+    if (!loading && pendingBodyRef.current !== null) {
+      setEditorHtml(pendingBodyRef.current)
+      pendingBodyRef.current = null
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading])
 
   // ── Save ───────────────────────────────────────────────────────────────────
   const save = useCallback(async () => {
