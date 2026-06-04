@@ -18,6 +18,7 @@ const (
 	RoleUSTA        Role = "usta"
 	RoleGames       Role = "games"
 	RolePro         Role = "pro"
+	RoleDeveloper   Role = "developer"
 	RoleMember      Role = "member"
 
 	StatusActive   Status = "active"

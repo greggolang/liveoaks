@@ -71,7 +71,7 @@ func RequireRole(roles ...string) echo.MiddlewareFunc {
 // BoardRoleList returns roles with board-level access (billing, membership, usta now included).
 func BoardRoleList() []string {
 	return []string{
-		"admin", "president", "vice_president", "secretary", "treasurer",
+		"admin", "developer", "president", "vice_president", "secretary", "treasurer",
 		"billing", "membership", "usta", "entertainment", "house_grounds",
 		"games", "pro",
 	}
@@ -108,7 +108,7 @@ func RequireAdminSection(pool *pgxpool.Pool, fallbackRoles ...string) echo.Middl
 		return func(c echo.Context) error {
 			roles := rolesFromContext(c)
 			for _, r := range roles {
-				if r == "admin" {
+				if r == "admin" || r == "developer" {
 					return next(c)
 				}
 			}

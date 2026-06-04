@@ -39,11 +39,11 @@ func (h *MembersHandler) Directory(c echo.Context) error {
 	if isBoard {
 		query = `SELECT id, first_name, last_name, email, phone, address, family, usta_ranking, created_at, photo_filename,
 		                EXISTS(SELECT 1 FROM family_members WHERE linked_user_id = users.id) AS is_family_member
-		         FROM users WHERE status = 'active' ORDER BY last_name, first_name`
+		         FROM users WHERE status = 'active' AND role != 'developer' ORDER BY last_name, first_name`
 	} else {
 		query = `SELECT id, first_name, last_name, email, NULL, NULL, family, usta_ranking, created_at, photo_filename,
 		                EXISTS(SELECT 1 FROM family_members WHERE linked_user_id = users.id) AS is_family_member
-		         FROM users WHERE status = 'active' ORDER BY last_name, first_name`
+		         FROM users WHERE status = 'active' AND role != 'developer' ORDER BY last_name, first_name`
 	}
 
 	ctx := c.Request().Context()

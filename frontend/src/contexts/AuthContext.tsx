@@ -5,7 +5,7 @@ import { api } from '../api/client'
 // 'games' and 'pro' are intentionally excluded — they are "Special" roles, not
 // board members, so they do not get the Admin menu.
 const BOARD_ROLES = [
-  'admin', 'president', 'vice_president', 'secretary', 'treasurer',
+  'admin', 'developer', 'president', 'vice_president', 'secretary', 'treasurer',
   'billing', 'membership', 'usta', 'entertainment', 'house_grounds',
 ]
 
@@ -110,14 +110,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       login,
       logout,
-      isAdmin: !isFamilyMember && (user ? allRoles(user).includes('admin') : false),
+      isAdmin: !isFamilyMember && (user ? allRoles(user).some(r => r === 'admin' || r === 'developer') : false),
       isBoard: !isFamilyMember && (user ? allRoles(user).some(r => BOARD_ROLES.includes(r)) : false),
       isFamilyMember,
       bookingMaxDaysAhead,
-      hasPermission: (page: string) => (!isFamilyMember && (user ? allRoles(user).includes('admin') : false)) || myPages.has(page),
-      canSeeAdmin: (section: string) => !isFamilyMember && ((user ? allRoles(user).includes('admin') : false) || myAdminSections.has(section)),
+      hasPermission: (page: string) => (!isFamilyMember && (user ? allRoles(user).some(r => r === 'admin' || r === 'developer') : false)) || myPages.has(page),
+      canSeeAdmin: (section: string) => !isFamilyMember && ((user ? allRoles(user).some(r => r === 'admin' || r === 'developer') : false) || myAdminSections.has(section)),
       canAccessAdmin: !isFamilyMember && (
-        (user ? allRoles(user).includes('admin') : false) ||
+        (user ? allRoles(user).some(r => r === 'admin' || r === 'developer') : false) ||
         (user ? allRoles(user).some(r => BOARD_ROLES.includes(r)) : false) ||
         myAdminSections.size > 0
       ),

@@ -67,6 +67,25 @@ func (h *PermissionsHandler) MyPages(c echo.Context) error {
 	}
 	ctx := c.Request().Context()
 
+	// Developers get all pages, same as admin (handled client-side for admin).
+	for _, r := range roles {
+		if r == "developer" {
+			allRows, err := h.DB.Query(ctx, `SELECT DISTINCT page FROM page_permissions`)
+			if err != nil {
+				return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch permissions")
+			}
+			defer allRows.Close()
+			pages := []string{}
+			for allRows.Next() {
+				var p string
+				if allRows.Scan(&p) == nil {
+					pages = append(pages, p)
+				}
+			}
+			return c.JSON(http.StatusOK, pages)
+		}
+	}
+
 	rows, err := h.DB.Query(ctx,
 		`SELECT DISTINCT page FROM page_permissions WHERE role = ANY($1)`, roles)
 	if err != nil {

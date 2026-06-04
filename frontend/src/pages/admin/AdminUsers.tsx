@@ -285,6 +285,7 @@ export default function AdminUsers() {
 
   const roleColor = (role: string): string => {
     if (role === 'admin') return 'bg-purple-100 text-purple-700'
+    if (role === 'developer') return 'bg-cyan-100 text-cyan-700'
     if (BOARD_ROLES.includes(role)) return 'bg-blue-100 text-blue-700'
     if (role === 'games') return 'bg-orange-100 text-orange-700'
     if (role === 'pro') return 'bg-indigo-100 text-indigo-700'
@@ -292,7 +293,7 @@ export default function AdminUsers() {
   }
 
   const roleLabel: Record<string, string> = {
-    admin: 'Admin', president: 'President', vice_president: 'Vice President',
+    admin: 'Admin', developer: 'Developer', president: 'President', vice_president: 'Vice President',
     secretary: 'Secretary', treasurer: 'Treasurer', entertainment: 'Entertainment',
     house_grounds: 'House & Grounds', billing: 'Billing', membership: 'Membership',
     usta: 'USTA', games: 'Games Admin', pro: 'Pro', member: 'Member',
@@ -605,6 +606,7 @@ export default function AdminUsers() {
                       </optgroup>
                       <optgroup label="System">
                         <option value="admin">Admin</option>
+                        <option value="developer">Developer</option>
                       </optgroup>
                     </select>
                     {(u.extra_roles ?? []).map(r => (
@@ -895,6 +897,7 @@ export default function AdminUsers() {
                   </optgroup>
                   <optgroup label="System">
                     <option value="admin">Admin</option>
+                    <option value="developer">Developer</option>
                   </optgroup>
                 </select>
               </div>
