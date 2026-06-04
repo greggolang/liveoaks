@@ -125,9 +125,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       ],
     },
     {
-      key: 'board', heading: isAdmin ? 'Admin' : 'Board Members', items: [
+      key: 'board', heading: isAdmin ? 'Admin' : 'Board Member', items: [
         ...(isAdmin ? [{ to: '/admin', label: 'Admin', icon: ICONS.cog }] : []),
-        ...(!isAdmin && isBoard ? [{ to: '/board', label: 'Board', icon: ICONS.star }] : []),
+        ...(!isAdmin && isBoard ? [{ to: '/admin', label: 'Board Member', icon: ICONS.cog }] : []),
       ],
     },
     {
