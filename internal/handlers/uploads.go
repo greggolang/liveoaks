@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -285,7 +286,16 @@ func (h *UploadsHandler) UploadDocument(c echo.Context) error {
 	).Scan(&doc.ID, &doc.Title, &doc.Filename, &doc.OriginalName, &doc.CreatedAt); err != nil {
 		// Surface a real failure instead of returning a misleading 201 with an
 		// empty document (which makes uploads look successful but vanish).
-		return echo.NewHTTPError(http.StatusInternalServerError, "could not save document record")
+		folderLog := "<none>"
+		if fid != nil {
+			folderLog = *fid
+		}
+		log.Printf("UploadDocument insert failed (folder_id=%s uploaded_by=%s title=%q): %v", folderLog, userID, title, err)
+		msg := "could not save document record"
+		if strings.Contains(err.Error(), "documents_folder_id_fkey") {
+			msg = "that folder no longer exists — refresh the page and try again"
+		}
+		return echo.NewHTTPError(http.StatusBadRequest, msg)
 	}
 	// Auto-index text-based files immediately so they're searchable without a manual reindex.
 	// PDFs require an AI extraction pass — they stay as indexed_at=NULL for the batch reindex.
