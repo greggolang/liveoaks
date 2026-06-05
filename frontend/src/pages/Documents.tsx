@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { api, CollabDocSummary, CollabEditor } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 import { parseDate } from '../utils/dates'
+import Files from './Files'
 
 // ── Print ────────────────────────────────────────────────────────────────────
 function printDocument(title: string, html: string) {
@@ -645,6 +646,12 @@ export default function Documents() {
   const [params, setParams] = useSearchParams()
   const docId = params.get('doc')
 
+  // Two views: collaborative documents, and the uploaded files from /files
+  // (permission-filtered by the same /documents API). The active tab lives in the
+  // URL so it survives a refresh and the back button.
+  const tab: 'documents' | 'files' = params.get('tab') === 'files' ? 'files' : 'documents'
+  const setTab = (t: 'documents' | 'files') => setParams(t === 'files' ? { tab: 'files' } : {})
+
   const [docs, setDocs] = useState<CollabDocSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
@@ -718,15 +725,35 @@ export default function Documents() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Documents</h1>
-          <p className="text-sm text-gray-500 mt-1">Shared documents members can write and edit together.</p>
+          <p className="text-sm text-gray-500 mt-1">
+            {tab === 'documents'
+              ? 'Shared documents members can write and edit together.'
+              : 'Club files, organized in folders and filtered by your access.'}
+          </p>
         </div>
-        <button onClick={create} disabled={creating}
-          className="bg-green-700 hover:bg-green-800 text-white text-sm font-medium px-4 py-2 rounded-lg transition disabled:opacity-50">
-          {creating ? 'Creating…' : '+ New Document'}
-        </button>
+        {tab === 'documents' && (
+          <button onClick={create} disabled={creating}
+            className="bg-green-700 hover:bg-green-800 text-white text-sm font-medium px-4 py-2 rounded-lg transition disabled:opacity-50">
+            {creating ? 'Creating…' : '+ New Document'}
+          </button>
+        )}
       </div>
 
-      {loading ? (
+      {/* Tabs: collaborative documents vs. uploaded files */}
+      <div className="flex items-center gap-1 border-b border-gray-200">
+        {([['documents', 'Documents'], ['files', 'Files']] as const).map(([t, label]) => (
+          <button key={t} onClick={() => setTab(t)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition ${
+              tab === t ? 'border-green-700 text-green-800' : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'files' ? (
+        <Files embedded />
+      ) : loading ? (
         <div className="animate-pulse space-y-2">
           {[1, 2, 3].map(i => <div key={i} className="h-16 bg-gray-100 rounded-xl" />)}
         </div>
