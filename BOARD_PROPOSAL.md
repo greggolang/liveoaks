@@ -149,7 +149,31 @@ The Portal is already built and includes the following. Features members see are
 
 ---
 
-## 7. Recommendation
+## 7. Transition Plan — How We Move to the New System
+
+We move to the Portal in clear, low-risk steps. **Steps 1 through 5 do not require the membership to use the new Portal at all — only the board members.** Members keep using the website, email, and CourtReserve exactly as they do today while the board builds out and verifies the new system behind the scenes. Members only come onto the Portal at Step 6, the booking cut-over.
+
+**Step 1 — Move the domain and set up DNS.**
+Move the domain `liveoakstennis.com` to Linode and set up a Cloudflare account for the club to handle DNS.
+
+**Step 2 — Point the public website to the new Portal server.**
+Change the DNS to point the public-facing website to the new Portal server. This step lets us cancel the website management system, SiteGround.com, and replaces both the current website and the Google Workspace accounts. The public website is now updated inside the admin area on the new Portal. We can also cancel the Google Workspace mailboxes — past emails and files from the mailboxes are moved to the new server, where both email and files live inside the Portal. Mailboxes can now be moved freely by the admin from member to member as board members change, and all files and emails are saved.
+
+**Step 3 — Add a clubhouse iPad and Pro Shop ordering.**
+Add an iPad to replace the binder located in the clubhouse. The iPad runs a Pro Shop ordering system that is simple to use. This same Pro Shop order system is inside the Portal, so members can also order items from their mobile phone.
+
+**Step 4 — Move all board-member activities into the Portal.**
+This includes email, board-member-to-board-member chat, files (old and new), management of the members list, waitlist, USTA teams, new-member requests from the website, Pro Shop $$ owed, receipts, purchases, passwords, board meeting tracking, board-member communications, notes, appliance tracking and maintenance notices, vendor information, website content, photos, broadcast emails (if needed), and YoLink alert system alerts.
+
+**Step 5 — Move billing into the Portal.**
+This is a manual process that includes the current billing person, Rose. She is given access to the billing area of the Portal to do ALL of the accounting work. We can then stop using QuickBooks — reporting, P&Ls, tax reports, and any other billing/accounting needs for the club are handled inside the Portal.
+
+**Step 6 — Cut over the booking system (members come on board).**
+We pick a cut-over date for the booking system to replace CourtReserve. All members are given access to the new Portal, and DropShot employees help them through this process. Once all members have access to the new Portal, we begin using the new booking system.
+
+---
+
+## 8. Recommendation
 
 Approve adoption of the LOTA Portal to replace our website hosting, Google Workspace, CourtReserve, outside billing service, and IPCamlive camera streaming. The change consolidates five services into one board-controlled platform, automates dues and billing, and gives members a modern, all-in-one experience tailored to LOTA — at a net cost of about **$186.76/month ($2,241.12/year)** more than the five services it replaces.
 
