@@ -337,6 +337,57 @@ function FolderItem({ folder, view, onClick, isBoard, onEdit, onDelete }: {
   )
 }
 
+// ── Folder import helpers ─────────────────────────────────────────────────────
+
+interface FileWithPath {
+  file: File
+  relativePath: string // e.g. "FolderA/Sub/file.pdf" — just filename if no subfolders
+}
+
+function fileEntryToFile(entry: FileSystemFileEntry): Promise<File> {
+  return new Promise((resolve, reject) => entry.file(resolve, reject))
+}
+
+function readDirEntries(reader: FileSystemDirectoryReader): Promise<FileSystemEntry[]> {
+  return new Promise((resolve, reject) => {
+    const all: FileSystemEntry[] = []
+    function batch() {
+      reader.readEntries(items => {
+        if (items.length === 0) { resolve(all); return }
+        all.push(...items)
+        batch()
+      }, reject)
+    }
+    batch()
+  })
+}
+
+async function traverseEntry(entry: FileSystemEntry, basePath: string): Promise<FileWithPath[]> {
+  const path = basePath ? `${basePath}/${entry.name}` : entry.name
+  if (entry.isFile) {
+    const file = await fileEntryToFile(entry as FileSystemFileEntry)
+    return [{ file, relativePath: path }]
+  }
+  if (entry.isDirectory) {
+    const children = await readDirEntries((entry as FileSystemDirectoryEntry).createReader())
+    const nested = await Promise.all(children.map(c => traverseEntry(c, path)))
+    return nested.flat()
+  }
+  return []
+}
+
+async function getDropEntries(dt: DataTransfer): Promise<FileWithPath[]> {
+  if (dt.items?.length && (dt.items[0] as any).webkitGetAsEntry) {
+    const all: FileWithPath[] = []
+    for (let i = 0; i < dt.items.length; i++) {
+      const entry = (dt.items[i] as any).webkitGetAsEntry() as FileSystemEntry | null
+      if (entry) all.push(...await traverseEntry(entry, ''))
+    }
+    return all
+  }
+  return Array.from(dt.files).map(f => ({ file: f, relativePath: f.name }))
+}
+
 // ── Folder form state ─────────────────────────────────────────────────────────
 interface FolderFormState { name: string; sortOrder: string; roles: string[]; parentId: string }
 const emptyFolderForm = (): FolderFormState => ({ name: '', sortOrder: '0', roles: [], parentId: '' })
@@ -368,11 +419,14 @@ export default function Files() {
   const [showUpload, setShowUpload] = useState(false)
   const [uploadTitle, setUploadTitle] = useState('')
   const [uploadFiles, setUploadFiles] = useState<File[]>([])
+  const [uploadEntries, setUploadEntries] = useState<FileWithPath[]>([])
+  const [uploadMode, setUploadMode] = useState<'files' | 'folder'>('files')
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
   const [uploadProgress, setUploadProgress] = useState(0)
   const [uploadCurrent, setUploadCurrent] = useState(0)
   const [uploadTotal, setUploadTotal] = useState(0)
+  const [uploadStatus, setUploadStatus] = useState('')
   const [dragOver, setDragOver] = useState(false)
 
   const loadFolders = useCallback(async () => {
@@ -459,34 +513,131 @@ export default function Files() {
   const toggleRole = (role: string) =>
     setFolderForm(f => ({ ...f, roles: f.roles.includes(role) ? f.roles.filter(r => r !== role) : [...f.roles, role] }))
 
-  // Upload
-  const handleUploadFileChange = (files: File[]) => {
+  // Upload — plain files
+  const handlePlainFiles = (files: File[]) => {
+    setUploadMode('files')
+    setUploadEntries([])
     setUploadFiles(files)
     if (files.length === 1) setUploadTitle(files[0].name.replace(/\.[^.]+$/, ''))
     else setUploadTitle('')
   }
+
+  // Upload — folder picker (webkitdirectory)
+  const handleFolderPicker = (fileList: FileList) => {
+    const entries: FileWithPath[] = Array.from(fileList).map(f => ({
+      file: f,
+      relativePath: (f as any).webkitRelativePath || f.name,
+    })).filter(e => {
+      // Skip hidden files and macOS junk
+      const parts = e.relativePath.split('/')
+      return !parts.some((p: string) => p.startsWith('.') || p === '__MACOSX')
+    })
+    setUploadMode('folder')
+    setUploadEntries(entries)
+    setUploadFiles([])
+    setUploadTitle('')
+  }
+
+  const resetUpload = () => {
+    setUploadFiles([]); setUploadEntries([]); setUploadTitle('')
+    setUploadError(''); setUploadProgress(0); setUploadStatus('')
+    setUploadMode('files')
+  }
+
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (uploadFiles.length === 0 || !selectedId) return
-    if (uploadFiles.length === 1 && !uploadTitle.trim()) { setUploadError('Title is required'); return }
+    if (!selectedId) return
+    if (uploadMode === 'folder') {
+      await doFolderUpload(uploadEntries, selectedId)
+    } else {
+      await doPlainUpload(uploadFiles, selectedId)
+    }
+  }
+
+  const doPlainUpload = async (files: File[], targetFolderId: string) => {
+    if (files.length === 0) return
+    if (files.length === 1 && !uploadTitle.trim()) { setUploadError('Title is required'); return }
     setUploading(true); setUploadError(''); setUploadProgress(0)
-    setUploadCurrent(0); setUploadTotal(uploadFiles.length)
+    setUploadCurrent(0); setUploadTotal(files.length)
     try {
-      if (uploadFiles.length === 1) {
+      if (files.length === 1) {
         setUploadCurrent(1)
-        await api.documents.upload(uploadTitle.trim(), selectedId, uploadFiles[0], pct => setUploadProgress(pct))
+        await api.documents.upload(uploadTitle.trim(), targetFolderId, files[0], pct => setUploadProgress(pct))
       } else {
-        for (let i = 0; i < uploadFiles.length; i++) {
+        for (let i = 0; i < files.length; i++) {
           setUploadCurrent(i + 1)
-          const file = uploadFiles[i]
-          await api.documents.upload(file.name.replace(/\.[^.]+$/, '') || file.name, selectedId, file, pct =>
-            setUploadProgress(Math.round(((i + pct / 100) / uploadFiles.length) * 100)))
+          const file = files[i]
+          await api.documents.upload(file.name.replace(/\.[^.]+$/, '') || file.name, targetFolderId, file, pct =>
+            setUploadProgress(Math.round(((i + pct / 100) / files.length) * 100)))
         }
       }
-      setUploadTitle(''); setUploadFiles([]); setShowUpload(false); setUploadProgress(0)
+      resetUpload(); setShowUpload(false)
       await loadFolders()
     } catch (e: any) { setUploadError(e.message || 'Upload failed') }
     finally { setUploading(false) }
+  }
+
+  const doFolderUpload = async (entries: FileWithPath[], targetFolderId: string) => {
+    if (entries.length === 0) return
+    setUploading(true); setUploadError(''); setUploadProgress(0); setUploadStatus('')
+
+    try {
+      // Map: relative folder path -> folder ID
+      const folderMap = new Map<string, string>()
+      folderMap.set('', targetFolderId)
+
+      // Collect all unique subfolder paths
+      const folderPaths = new Set<string>()
+      for (const { relativePath } of entries) {
+        const parts = relativePath.split('/')
+        parts.pop() // strip filename
+        let cur = ''
+        for (const part of parts) {
+          cur = cur ? `${cur}/${part}` : part
+          if (cur) folderPaths.add(cur)
+        }
+      }
+
+      // Sort shallowest first so parents exist before children
+      const sorted = [...folderPaths].sort((a, b) =>
+        a.split('/').length - b.split('/').length || a.localeCompare(b))
+
+      // Create each missing subfolder
+      for (const path of sorted) {
+        const parts = path.split('/')
+        const name = parts[parts.length - 1]
+        const parentPath = parts.slice(0, -1).join('/')
+        const parentId = folderMap.get(parentPath) ?? targetFolderId
+        setUploadStatus(`Creating folder: ${name}`)
+        const res = await api.documents.folders.create({
+          name,
+          sort_order: 0,
+          roles: [],
+          parent_id: parentId,
+        }) as { id: string }
+        folderMap.set(path, res.id)
+      }
+
+      // Upload files
+      const total = entries.length
+      setUploadTotal(total)
+      for (let i = 0; i < entries.length; i++) {
+        const { file, relativePath } = entries[i]
+        const parts = relativePath.split('/')
+        const filename = parts[parts.length - 1]
+        const folderPath = parts.slice(0, -1).join('/')
+        const folderId = folderMap.get(folderPath) ?? targetFolderId
+        const title = filename.replace(/\.[^.]+$/, '') || filename
+        setUploadCurrent(i + 1)
+        setUploadStatus(`Uploading: ${relativePath}`)
+        await api.documents.upload(title, folderId, file, pct =>
+          setUploadProgress(Math.round(((i + pct / 100) / total) * 100)))
+      }
+
+      resetUpload(); setShowUpload(false)
+      await Promise.all([loadFolders(), isBoard ? loadAdminFolders() : Promise.resolve()])
+    } catch (e: any) { setUploadError(e.message || 'Upload failed') }
+    finally { setUploading(false); setUploadStatus('') }
   }
   const handleDelete = async (docId: string) => {
     if (!confirm('Delete this file?')) return
@@ -679,7 +830,7 @@ export default function Files() {
 
             {/* Upload button (board + folder selected) */}
             {isBoard && selectedId && (
-              <button onClick={() => { setShowUpload(v => !v); setUploadFiles([]); setUploadTitle(''); setUploadError('') }}
+              <button onClick={() => { setShowUpload(v => !v); resetUpload() }}
                 className="shrink-0 text-xs bg-green-700 hover:bg-green-800 text-white font-medium px-3 py-1.5 rounded-lg transition">
                 + Upload
               </button>
@@ -707,39 +858,88 @@ export default function Files() {
               className="border-b border-gray-100 bg-green-50 px-4 py-3 space-y-3 shrink-0"
               onDragOver={e => { e.preventDefault(); setDragOver(true) }}
               onDragLeave={() => setDragOver(false)}
-              onDrop={e => { e.preventDefault(); setDragOver(false); handleUploadFileChange(Array.from(e.dataTransfer.files)) }}>
+              onDrop={async e => {
+                e.preventDefault(); setDragOver(false)
+                const entries = await getDropEntries(e.dataTransfer)
+                const hasSubfolders = entries.some(en => en.relativePath.includes('/'))
+                if (hasSubfolders) {
+                  setUploadMode('folder')
+                  setUploadEntries(entries.filter(en => {
+                    const parts = en.relativePath.split('/')
+                    return !parts.some(p => p.startsWith('.') || p === '__MACOSX')
+                  }))
+                  setUploadFiles([])
+                } else {
+                  handlePlainFiles(entries.map(en => en.file))
+                }
+              }}>
               <div className={`border-2 border-dashed rounded-lg p-3 text-center transition-colors ${dragOver ? 'border-green-500 bg-green-100' : 'border-green-300 bg-white'}`}>
-                <p className="text-xs text-gray-400 mb-1.5">Drop files here or</p>
-                <label className="cursor-pointer text-xs text-green-700 hover:text-green-900 font-medium border border-green-300 rounded px-3 py-1 bg-white">
-                  Browse files
-                  <input type="file" multiple className="sr-only" onChange={e => handleUploadFileChange(Array.from(e.target.files ?? []))} />
-                </label>
+                <p className="text-xs text-gray-400 mb-2">Drop files or folders here, or</p>
+                <div className="flex gap-2 justify-center flex-wrap">
+                  <label className="cursor-pointer text-xs text-green-700 hover:text-green-900 font-medium border border-green-300 rounded px-3 py-1 bg-white transition">
+                    Browse files
+                    <input type="file" multiple className="sr-only"
+                      onChange={e => handlePlainFiles(Array.from(e.target.files ?? []))} />
+                  </label>
+                  <label className="cursor-pointer text-xs text-blue-700 hover:text-blue-900 font-medium border border-blue-300 rounded px-3 py-1 bg-white transition">
+                    Import folder
+                    <input type="file" multiple className="sr-only"
+                      {...{ webkitdirectory: '' } as React.InputHTMLAttributes<HTMLInputElement>}
+                      onChange={e => e.target.files?.length && handleFolderPicker(e.target.files)} />
+                  </label>
+                </div>
               </div>
-              {uploadFiles.length === 1 && (
+
+              {/* Plain files: single title or file count */}
+              {uploadMode === 'files' && uploadFiles.length === 1 && (
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Title *</label>
                   <input value={uploadTitle} onChange={e => setUploadTitle(e.target.value)} required autoFocus
                     className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
                 </div>
               )}
-              {uploadFiles.length > 1 && (
+              {uploadMode === 'files' && uploadFiles.length > 1 && (
                 <p className="text-xs text-gray-600 font-medium">{uploadFiles.length} files selected</p>
               )}
+
+              {/* Folder import summary */}
+              {uploadMode === 'folder' && uploadEntries.length > 0 && (() => {
+                const folderSet = new Set<string>()
+                for (const { relativePath } of uploadEntries) {
+                  const parts = relativePath.split('/')
+                  if (parts.length > 1) folderSet.add(parts[0])
+                }
+                return (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-800 space-y-0.5">
+                    <p className="font-semibold">Folder import ready</p>
+                    <p>{uploadEntries.length} file{uploadEntries.length !== 1 ? 's' : ''} in {folderSet.size} top-level folder{folderSet.size !== 1 ? 's' : ''}</p>
+                    <p className="text-blue-500">Subfolders will be created automatically.</p>
+                  </div>
+                )
+              })()}
+
               {uploadError && <p className="text-red-500 text-xs">{uploadError}</p>}
               {uploading && (
                 <div className="space-y-1">
-                  {uploadTotal > 1 && <p className="text-xs text-gray-500">File {uploadCurrent} of {uploadTotal}</p>}
+                  {uploadStatus && <p className="text-xs text-gray-500 truncate">{uploadStatus}</p>}
+                  {uploadTotal > 0 && <p className="text-xs text-gray-400">File {uploadCurrent} of {uploadTotal}</p>}
                   <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
                     <div className="h-full bg-green-600 rounded-full transition-all" style={{ width: `${uploadProgress}%` }} />
                   </div>
                 </div>
               )}
               <div className="flex gap-2">
-                <button type="submit" disabled={uploading || uploadFiles.length === 0}
+                <button type="submit"
+                  disabled={uploading || (uploadMode === 'files' ? uploadFiles.length === 0 : uploadEntries.length === 0)}
                   className="bg-green-700 hover:bg-green-800 text-white text-xs font-medium px-4 py-1.5 rounded-lg transition disabled:opacity-50">
-                  {uploading ? 'Uploading…' : `Upload${uploadFiles.length > 1 ? ` ${uploadFiles.length} files` : ''}`}
+                  {uploading
+                    ? 'Uploading…'
+                    : uploadMode === 'folder'
+                      ? `Import ${uploadEntries.length} file${uploadEntries.length !== 1 ? 's' : ''}`
+                      : `Upload${uploadFiles.length > 1 ? ` ${uploadFiles.length} files` : ''}`}
                 </button>
-                <button type="button" onClick={() => setShowUpload(false)} className="text-xs text-gray-400 hover:text-gray-600 px-2 transition">Cancel</button>
+                <button type="button" onClick={() => { setShowUpload(false); resetUpload() }}
+                  className="text-xs text-gray-400 hover:text-gray-600 px-2 transition">Cancel</button>
               </div>
             </form>
           )}
