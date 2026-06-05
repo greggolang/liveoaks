@@ -126,6 +126,17 @@ export default function Dashboard() {
   const [pendingMatches, setPendingMatches] = useState<PendingMatch[]>([])
   const [recentMatches, setRecentMatches] = useState<MatchResult[]>([])
   const [scoreFor, setScoreFor] = useState<PendingMatch | null>(null)
+  const [dismissedScores, setDismissedScores] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('dismissedScores') ?? '[]')) } catch { return new Set() }
+  })
+  const dismissScore = (bookingId: string) => {
+    setDismissedScores(prev => {
+      const next = new Set(prev)
+      next.add(bookingId)
+      localStorage.setItem('dismissedScores', JSON.stringify([...next]))
+      return next
+    })
+  }
   const loadMatches = () => {
     api.matches.pending().then(setPendingMatches).catch(() => {})
     // The home dashboard shows the member's own matches (incl. their private
