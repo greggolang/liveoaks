@@ -1178,9 +1178,11 @@ func (h *BookingsHandler) AdminCreate(c echo.Context) error {
 	}
 	alertMsg := fmt.Sprintf("A court booking has been made for you — %s on %s, %s",
 		courtNameForAlert, matchLabel, req.StartTime.In(loc).Format("Mon Jan 2 at 3:04 PM"))
-	h.DB.Exec(c.Request().Context(),
+	if _, err := h.DB.Exec(c.Request().Context(),
 		`INSERT INTO member_alerts (user_id, message, type, created_by) VALUES ($1, $2, 'info', $3)`,
-		req.UserID, alertMsg, adminID)
+		req.UserID, alertMsg, adminID); err != nil {
+		log.Printf("admin booking alert insert failed for user %s: %v", req.UserID, err)
+	}
 
 	// Confirmation email to the booked member
 	if h.Mailer != nil && memberEmail != "" {

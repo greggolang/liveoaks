@@ -428,6 +428,7 @@ export default function Files() {
   const [uploadTotal, setUploadTotal] = useState(0)
   const [uploadStatus, setUploadStatus] = useState('')
   const [dragOver, setDragOver] = useState(false)
+  const [loadError, setLoadError] = useState('')
 
   const loadFolders = useCallback(async () => {
     const d = await api.documents.list()
@@ -435,17 +436,23 @@ export default function Files() {
   }, [])
 
   const loadAdminFolders = useCallback(async () => {
-    const d = await api.documents.folders.adminList()
-    setAdminFolders(d)
+    try {
+      const d = await api.documents.folders.adminList()
+      setAdminFolders(d)
+    } catch { /* non-fatal — admin folder metadata is supplemental */ }
   }, [])
 
   useEffect(() => {
     const init = async () => {
       try {
-        const [data] = await Promise.all([loadFolders(), isBoard ? loadAdminFolders() : Promise.resolve()])
-        // Auto-open root folders in the tree
-        setTreeOpenIds(new Set((data as DocFolder[]).map(f => f.id)))
-      } finally { setLoading(false) }
+        const data = await loadFolders()
+        setTreeOpenIds(new Set(data.map(f => f.id)))
+      } catch (e: any) {
+        setLoadError(e.message || 'Could not load files')
+      } finally {
+        setLoading(false)
+      }
+      if (isBoard) loadAdminFolders()
     }
     init()
   }, [isBoard, loadFolders, loadAdminFolders])
@@ -499,7 +506,8 @@ export default function Files() {
       if (editingFolderId) await api.documents.folders.update(editingFolderId, payload)
       else await api.documents.folders.create(payload)
       setShowFolderForm(false); setEditingFolderId(null)
-      await Promise.all([loadFolders(), loadAdminFolders()])
+      await loadFolders()
+      loadAdminFolders()
     } catch (e: any) { setFolderError(e.message || 'Save failed') }
     finally { setFolderSaving(false) }
   }
@@ -508,7 +516,8 @@ export default function Files() {
     if (!confirm(msg)) return
     await api.documents.folders.delete(id)
     if (selectedId === id) setSelectedId(null)
-    await Promise.all([loadFolders(), loadAdminFolders()])
+    await loadFolders()
+    loadAdminFolders()
   }
   const toggleRole = (role: string) =>
     setFolderForm(f => ({ ...f, roles: f.roles.includes(role) ? f.roles.filter(r => r !== role) : [...f.roles, role] }))
@@ -635,7 +644,8 @@ export default function Files() {
       }
 
       resetUpload(); setShowUpload(false)
-      await Promise.all([loadFolders(), isBoard ? loadAdminFolders() : Promise.resolve()])
+      await loadFolders()
+      if (isBoard) loadAdminFolders()
     } catch (e: any) { setUploadError(e.message || 'Upload failed') }
     finally { setUploading(false); setUploadStatus('') }
   }
@@ -758,6 +768,8 @@ export default function Files() {
               <div className="space-y-1 px-2 animate-pulse">
                 {[1,2,3,4].map(i => <div key={i} className="h-6 bg-gray-200 rounded w-full" />)}
               </div>
+            ) : loadError ? (
+              <p className="text-xs text-red-400 px-3 py-2">{loadError}</p>
             ) : (
               folders.map(f => (
                 <TreeNode key={f.id} folder={f} depth={0}
@@ -949,6 +961,14 @@ export default function Files() {
             {loading ? (
               <div className="p-4 space-y-2 animate-pulse">
                 {[1,2,3,4,5].map(i => <div key={i} className="h-10 bg-gray-100 rounded-lg" />)}
+              </div>
+            ) : loadError ? (
+              <div className="flex flex-col items-center justify-center h-full text-center p-8">
+                <svg className="w-12 h-12 text-red-200 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                </svg>
+                <p className="text-red-500 text-sm font-medium mb-1">Failed to load files</p>
+                <p className="text-gray-400 text-xs">{loadError}</p>
               </div>
             ) : searchResults !== null ? (
               /* Search results */

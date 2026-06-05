@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -424,9 +425,11 @@ func (h *InvitationsHandler) AddPlayer(c echo.Context) error {
 		}
 		alertMsg := fmt.Sprintf("%s added you to a booking — %s, %s, %s",
 			hostName, courtName, matchLabel, bookingStart.In(loc).Format("Mon Jan 2 at 3:04 PM"))
-		h.DB.Exec(c.Request().Context(),
+		if _, err := h.DB.Exec(c.Request().Context(),
 			`INSERT INTO member_alerts (user_id, message, type, created_by) VALUES ($1, $2, 'info', $3)`,
-			*req.UserID, alertMsg, userID)
+			*req.UserID, alertMsg, userID); err != nil {
+			log.Printf("add-player alert insert failed for user %s: %v", *req.UserID, err)
+		}
 	}
 
 	return c.JSON(http.StatusCreated, p)

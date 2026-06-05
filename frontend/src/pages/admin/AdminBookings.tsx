@@ -72,9 +72,11 @@ export default function AdminBookings() {
     setCreating(true)
     try {
       const durationHrs = parseFloat(createForm.duration)
-      const [h, m] = createForm.start.split(':').map(Number)
       const start = parseDate(`${createForm.date}T${createForm.start}:00`)
       const end = new Date(start.getTime() + durationHrs * 3600000)
+      const playersNeeded = createForm.match_type === 'singles' ? 1
+        : createForm.match_type === 'doubles' ? 3
+        : 0
       await api.bookings.adminCreate({
         user_id: createForm.user_id,
         court_id: parseInt(createForm.court_id),
@@ -82,7 +84,7 @@ export default function AdminBookings() {
         end_time: end.toISOString(),
         match_type: createForm.match_type,
         notes: createForm.notes,
-        players_needed: 0,
+        players_needed: playersNeeded,
       })
       setShowCreate(false)
       setCreateForm({ user_id: '', court_id: '', date: todayStr(), start: '08:00', duration: '1.5', match_type: 'casual', notes: '' })
