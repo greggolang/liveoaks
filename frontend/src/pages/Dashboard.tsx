@@ -1369,7 +1369,7 @@ export default function Dashboard() {
       )}
 
       {/* Matches waiting to be scored (host of an ended singles/doubles booking) */}
-      {pendingMatches.map(pm => (
+      {pendingMatches.filter(pm => !dismissedScores.has(pm.booking_id)).map(pm => (
         <div key={pm.booking_id} className="flex items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
           <div className="flex items-center gap-3 min-w-0">
             <span className="text-xl shrink-0">🎾</span>
@@ -1380,10 +1380,17 @@ export default function Dashboard() {
               </p>
             </div>
           </div>
-          <button onClick={() => setScoreFor(pm)}
-            className="bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition shrink-0">
-            Enter score
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button onClick={() => setScoreFor(pm)}
+              className="bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition">
+              Enter score
+            </button>
+            <button onClick={() => dismissScore(pm.booking_id)}
+              title="Dismiss"
+              className="text-amber-400 hover:text-amber-600 text-lg leading-none transition px-1">
+              ✕
+            </button>
+          </div>
         </div>
       ))}
 
