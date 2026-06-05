@@ -3,6 +3,7 @@ import { api } from '../../api/client'
 import { parseDate } from '../../utils/dates'
 
 interface Ladder { id: string; name: string; type: string; season_year: number; status: string; challenge_range: number; challenge_expiry_days: number; response_window_hours: number; play_window_days: number; challenge_frequency_days: number; description: string }
+interface Member { id: string; first_name: string; last_name: string; email: string; status: string }
 interface Entry { user_id: string; name: string; rank: number; wins: number; losses: number; season_points: number; player_status: string; current_streak: number; longest_streak: number; last_match_date?: string }
 interface Registration { id: string; ladder_id: string; user_id: string; name: string; email: string; usta_rating: string; self_rating?: number; preference: string; availability: string; notes: string; status: string; created_at: string }
 interface Challenge { id: string; challenger_id: string; challenger_name: string; challenger_rank: number; challenged_id: string; challenged_name: string; challenged_rank: number; status: string; winner_id?: string; score: string; score_status: string; match_format: string; match_date?: string; match_time?: string; created_at: string; play_by?: string; respond_by?: string }
@@ -66,6 +67,13 @@ export default function AdminTennisChallengeLadder() {
   const [resultSaving, setResultSaving] = useState(false)
   const [resultErr, setResultErr] = useState('')
 
+  // Add member
+  const [allMembers, setAllMembers] = useState<Member[]>([])
+  const [addSearch, setAddSearch] = useState('')
+  const [addUserId, setAddUserId] = useState('')
+  const [addSaving, setAddSaving] = useState(false)
+  const [addErr, setAddErr] = useState('')
+
   // Conduct
   const [conductUserId, setConductUserId] = useState('')
   const [conductType, setConductType] = useState('warning')
@@ -97,6 +105,11 @@ export default function AdminTennisChallengeLadder() {
     if (!activeLid) return
     refreshData(activeLid)
   }, [activeLid])
+
+  useEffect(() => {
+    if (tab !== 'registrations' || allMembers.length > 0) return
+    api.admin.users().then(d => setAllMembers((d as Member[]).filter(m => m.status === 'active')))
+  }, [tab])
 
   useEffect(() => {
     if (!activeLid || tab !== 'audit') return
