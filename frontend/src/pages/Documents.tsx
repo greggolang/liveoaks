@@ -26,6 +26,7 @@ function printDocument(title: string, html: string) {
     th{background:#f4f4f4;font-weight:bold}
     blockquote{border-left:3px solid #ccc;margin:1em 0 1em .5em;padding-left:1em;color:#555}
     hr{border:none;border-top:1px solid #ddd;margin:1.5em 0}
+    svg{max-width:100%;height:auto}
     .print-header{border-bottom:1px solid #ddd;padding-bottom:.6em;margin-bottom:1.2em}
     .print-date{font-size:.78em;color:#888;margin-top:.15em}
     @media print{body{margin:0}}
@@ -47,13 +48,30 @@ ${html}
 // ── HTML sanitizer ───────────────────────────────────────────────────────────
 // Member-authored HTML is rendered into other members' editors, so strip
 // anything executable. We keep only the tags the toolbar can produce and drop
-// every attribute except safe link/table ones. No external dependency needed.
+// every attribute except safe link/table/SVG ones. No external dependency needed.
 const ALLOWED_TAGS = new Set([
   'P', 'BR', 'B', 'STRONG', 'I', 'EM', 'U', 'S', 'H1', 'H2', 'H3',
   'UL', 'OL', 'LI', 'A', 'BLOCKQUOTE', 'HR', 'TABLE', 'THEAD', 'TBODY',
   'TR', 'TH', 'TD', 'SPAN', 'DIV', 'CODE', 'PRE',
+  // SVG presentation elements — script, foreignObject, use, image, animate* are
+  // blocked by omission so they cannot load external resources or run code.
+  'SVG', 'G', 'PATH', 'CIRCLE', 'ELLIPSE', 'RECT', 'LINE', 'POLYLINE', 'POLYGON',
+  'TEXT', 'TSPAN', 'DEFS', 'CLIPPATH', 'LINEARGRADIENT', 'RADIALGRADIENT', 'STOP',
 ])
+
+// SVG presentation attributes (compared lowercase). Values containing url() or
+// javascript: are stripped to prevent external-resource loading or script injection.
+const SVG_PRES_ATTRS = new Set([
+  'viewbox', 'xmlns', 'fill', 'stroke', 'stroke-width', 'stroke-dasharray',
+  'stroke-linecap', 'stroke-linejoin', 'stroke-opacity', 'fill-opacity',
+  'd', 'cx', 'cy', 'r', 'rx', 'ry', 'x', 'y', 'x1', 'y1', 'x2', 'y2',
+  'width', 'height', 'transform', 'text-anchor', 'font-size', 'font-weight',
+  'font-family', 'points', 'opacity', 'stop-color', 'stop-opacity',
+  'gradientunits', 'gradienttransform',
+])
+
 const KEEP_ATTRS = new Set(['href', 'colspan', 'rowspan'])
+const SVG_UNSAFE_VALUE = /url\s*\(|javascript:/i
 
 function sanitizeHtml(html: string): string {
   const doc = new DOMParser().parseFromString(html, 'text/html')
@@ -61,7 +79,8 @@ function sanitizeHtml(html: string): string {
     for (const child of Array.from(node.childNodes)) {
       if (child.nodeType === Node.ELEMENT_NODE) {
         const el = child as Element
-        if (!ALLOWED_TAGS.has(el.tagName)) {
+        // SVG element tagNames are lowercase in the DOM; HTML are uppercase — normalise.
+        if (!ALLOWED_TAGS.has(el.tagName.toUpperCase())) {
           // Unwrap unknown/dangerous tags (script, img, iframe…) — their text
           // content survives but the element itself is removed.
           while (el.firstChild) node.insertBefore(el.firstChild, el)
@@ -72,6 +91,8 @@ function sanitizeHtml(html: string): string {
           const name = attr.name.toLowerCase()
           if (name === 'href') {
             if (/^\s*javascript:/i.test(attr.value)) el.removeAttribute(attr.name)
+          } else if (SVG_PRES_ATTRS.has(name)) {
+            if (SVG_UNSAFE_VALUE.test(attr.value)) el.removeAttribute(attr.name)
           } else if (!KEEP_ATTRS.has(name)) {
             el.removeAttribute(attr.name)
           }

@@ -27,6 +27,20 @@ export default function AdminTestEmail() {
   const [pinging, setPinging] = useState(false)
   const [pingResult, setPingResult] = useState<{ ok: boolean; message: string } | null>(null)
 
+  // Logged-in-only gate
+  const [loggedInOnly, setLoggedInOnly] = useState(false)
+  const [togglingGate, setTogglingGate] = useState(false)
+
+  const toggleGate = async (next: boolean) => {
+    setLoggedInOnly(next)
+    setTogglingGate(true)
+    try {
+      await api.admin.updateSetting('email_logged_in_only', next ? 'true' : 'false')
+    } catch {
+      setLoggedInOnly(!next) // revert on error
+    } finally { setTogglingGate(false) }
+  }
+
   // Test SMS
   const [smsTo, setSmsTo] = useState('')
   const [smsToError, setSmsToError] = useState('')
@@ -62,6 +76,7 @@ export default function AdminTestEmail() {
         // never pre-fill the password field
         smtp_pass: '',
       }))
+      setLoggedInOnly(s.email_logged_in_only === 'true')
     })
   }, [])
 
@@ -120,6 +135,34 @@ export default function AdminTestEmail() {
       <div>
         <h2 className="text-xl font-bold text-gray-800 mb-1">Test Communications</h2>
         <p className="text-sm text-gray-500">Configure and test outgoing email (SMTP) and text messages (SMS).</p>
+      </div>
+
+      {/* Email gate */}
+      <div className={`border rounded-xl p-5 shadow-sm flex items-start gap-4 ${loggedInOnly ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-200'}`}>
+        <button
+          type="button"
+          onClick={() => toggleGate(!loggedInOnly)}
+          disabled={togglingGate}
+          aria-pressed={loggedInOnly}
+          className={`relative mt-0.5 shrink-0 w-11 h-6 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 disabled:opacity-50 ${loggedInOnly ? 'bg-amber-500' : 'bg-gray-200'}`}>
+          <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${loggedInOnly ? 'translate-x-5' : 'translate-x-0'}`} />
+        </button>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-gray-800">
+            Only email members who have logged in
+            {loggedInOnly && <span className="ml-2 text-xs font-medium text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">Active</span>}
+          </p>
+          <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+            When on, outgoing emails (booking confirmations, reminders, announcements, etc.) are silently skipped for
+            any member whose account has never been signed into. Members who haven't logged in yet won't receive
+            email until they do. Password-reset and welcome emails always go through regardless.
+          </p>
+          {loggedInOnly && (
+            <p className="text-xs text-amber-700 mt-2 font-medium">
+              ⚠ Email suppression is active — members who haven't logged in will not receive any emails.
+            </p>
+          )}
+        </div>
       </div>
 
       {/* SMTP settings form */}

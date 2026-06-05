@@ -70,6 +70,21 @@ func (m *DBMailer) build() *Mailer {
 }
 
 func (m *DBMailer) Send(to, subject, body string) error {
+	// When "email to logged-in members only" is on, skip any recipient whose
+	// account has never been used (last_login_at IS NULL). Password-reset and
+	// welcome emails are exempt — they're needed before a first login.
+	var loggedInOnly string
+	m.DB.QueryRow(context.Background(),
+		`SELECT value FROM settings WHERE key = 'email_logged_in_only'`).Scan(&loggedInOnly)
+	if loggedInOnly == "true" {
+		var hasLoggedIn bool
+		m.DB.QueryRow(context.Background(),
+			`SELECT last_login_at IS NOT NULL FROM users WHERE LOWER(email) = LOWER($1)`, to).
+			Scan(&hasLoggedIn)
+		if !hasLoggedIn {
+			return nil // silently skip — member hasn't logged in yet
+		}
+	}
 	return m.build().Send(to, subject, body)
 }
 
