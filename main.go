@@ -311,6 +311,7 @@ func main() {
 	boardPlus.POST("/admin/document-folders", uploads.CreateFolder)
 	boardPlus.PUT("/admin/document-folders/:id", uploads.UpdateFolder)
 	boardPlus.DELETE("/admin/document-folders/:id", uploads.DeleteFolder)
+	boardPlus.DELETE("/admin/document-folders/:id/documents", uploads.DeleteFolderDocuments)
 	boardPlus.POST("/admin/photos", uploads.UploadPhoto)
 	boardPlus.DELETE("/admin/photos/:id", uploads.DeletePhoto)
 	boardPlus.GET("/admin/photo-folders", uploads.AdminListPhotoFolders)

@@ -659,6 +659,14 @@ export default function Files() {
     if (!confirm('Delete this file?')) return
     await api.documents.delete(docId); await loadFolders()
   }
+  const deleteAllInFolder = async () => {
+    if (!selectedFolder) return
+    const count = currentDocs.length
+    if (count === 0) return
+    if (!confirm(`Delete all ${count} file${count !== 1 ? 's' : ''} in "${selectedFolder.name}"? This permanently deletes the files and cannot be undone. Subfolders are not affected.`)) return
+    await api.documents.folders.deleteAllFiles(selectedFolder.id)
+    await loadFolders()
+  }
   const handleToggleAI = async (docId: string, next: boolean) => {
     const flip = (fs: DocFolder[]): DocFolder[] => fs.map(f => ({
       ...f,
@@ -856,6 +864,15 @@ export default function Files() {
                 </svg>
               </button>
             </div>
+
+            {/* Delete all files in the current folder */}
+            {isBoard && selectedFolder && currentDocs.length > 0 && (
+              <button onClick={deleteAllInFolder}
+                title={`Delete all ${currentDocs.length} file${currentDocs.length !== 1 ? 's' : ''} in this folder`}
+                className="shrink-0 text-xs bg-red-600 hover:bg-red-700 text-white font-medium px-3 py-1.5 rounded-lg transition">
+                Delete all
+              </button>
+            )}
 
             {/* Upload button */}
             {isBoard && (

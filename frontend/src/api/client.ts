@@ -479,6 +479,8 @@ export const api = {
       update: (id: string, data: { name: string; sort_order: number; roles: string[]; parent_id?: string | null }) =>
         request(`/admin/document-folders/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
       delete: (id: string) => request(`/admin/document-folders/${id}`, { method: 'DELETE' }),
+      deleteAllFiles: (id: string) =>
+        request<{ deleted: number }>(`/admin/document-folders/${id}/documents`, { method: 'DELETE' }),
     },
   },
   dues: {

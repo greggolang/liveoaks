@@ -385,6 +385,35 @@ func (h *UploadsHandler) DeleteDocument(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
+// DeleteFolderDocuments removes every document directly inside a folder — both
+// the database rows (doc_chunks cascade) and the underlying files on disk. The
+// folder itself and any subfolders are left untouched. Board+/admin only.
+func (h *UploadsHandler) DeleteFolderDocuments(c echo.Context) error {
+	id := c.Param("id")
+	rows, err := h.DB.Query(c.Request().Context(),
+		`DELETE FROM documents WHERE folder_id = $1 RETURNING filename`, id)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not delete files")
+	}
+	// Collect filenames before touching the filesystem (don't run other queries
+	// while iterating the result set on the same connection).
+	var filenames []string
+	for rows.Next() {
+		var fn string
+		if err := rows.Scan(&fn); err == nil && fn != "" {
+			filenames = append(filenames, fn)
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not delete files")
+	}
+	for _, fn := range filenames {
+		os.Remove(filepath.Join(h.UploadDir, "documents", filepath.Base(fn)))
+	}
+	return c.JSON(http.StatusOK, map[string]int{"deleted": len(filenames)})
+}
+
 func (h *UploadsHandler) ServeDocument(c echo.Context) error {
 	filename := c.Param("filename")
 	path := filepath.Join(h.UploadDir, "documents", filepath.Base(filename))
