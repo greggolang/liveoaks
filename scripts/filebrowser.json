@@ -1,8 +1,0 @@
-{
-  "port": 8090,
-  "baseURL": "/files",
-  "address": "127.0.0.1",
-  "log": "stdout",
-  "database": "/etc/filebrowser/filebrowser.db",
-  "root": "/opt/liveoaks/files"
-}
