@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import { api, DocFolder, DocFile } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 import { parseDate } from '../utils/dates'
+import { APP_VERSION, APP_SHA } from '../version'
 
 const ROLES: { key: string; label: string }[] = [
   { key: 'member',         label: 'Member' },
@@ -683,7 +684,12 @@ export default function Files() {
           </svg>
           <div className="min-w-0">
             <h1 className="text-2xl font-bold font-serif leading-tight">Files</h1>
-            <p className="text-green-100 text-sm">Club documents &amp; shared files</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-green-100 text-sm">Club documents &amp; shared files</p>
+              <span className="text-[10px] font-mono bg-green-900/50 text-green-50 px-1.5 py-0.5 rounded">
+                build v{APP_VERSION}{APP_SHA ? ` · ${APP_SHA}` : ''}
+              </span>
+            </div>
           </div>
         </div>
         {isBoard && (
