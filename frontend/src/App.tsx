@@ -57,6 +57,7 @@ import AdminFantasy from './pages/admin/AdminFantasy'
 import AdminNotes from './pages/admin/AdminNotes'
 import AdminPasswords from './pages/admin/AdminPasswords'
 import AdminLadder from './pages/admin/AdminLadder'
+import AdminTennisChallengeLadder from './pages/admin/AdminTennisChallengeLadder'
 import TennisLadder from './pages/TennisLadder'
 import AdminLiveball from './pages/admin/AdminLiveball'
 import AdminBroadcast from './pages/admin/AdminBroadcast'
@@ -213,6 +214,7 @@ function AppRoutes() {
         <Route path="taxes" element={<AdminTaxes />} />
         <Route path="financial-rules" element={<AdminFinancialRules />} />
         <Route path="ladder" element={<AdminLadder />} />
+        <Route path="tennis-challenge-ladder" element={<AdminTennisChallengeLadder />} />
         <Route path="liveball" element={<AdminLiveball />} />
         <Route path="broadcast" element={<AdminBroadcast />} />
         <Route path="board-meetings" element={<AdminBoardMeetings />} />
