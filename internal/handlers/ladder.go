@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"log"
 	"net/http"
@@ -1793,29 +1795,51 @@ func (h *LadderHandler) AdminNotify(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "no active recipients found")
 	}
 
+	ladderID := c.Param("id")
+
 	go func() {
 		for _, r := range recipients {
+			// Generate a unique token for this recipient's invitation
+			tokBytes := make([]byte, 20)
+			rand.Read(tokBytes)
+			token := hex.EncodeToString(tokBytes)
+
+			tag, insErr := h.DB.Exec(context.Background(), `
+				INSERT INTO tennis_ladder_invite_tokens (ladder_id, user_id, token)
+				VALUES ($1, $2, $3)
+				ON CONFLICT (ladder_id, user_id) DO UPDATE SET token=$3, status='pending', responded_at=NULL
+				`, ladderID, r.id, token)
+			if insErr != nil || tag.RowsAffected() == 0 {
+				log.Printf("ladder notify: token insert failed for %s: %v", r.id, insErr)
+				continue
+			}
+
+			acceptURL := fmt.Sprintf("%s/ladder-invite/%s/accept", h.SiteURL, token)
+			declineURL := fmt.Sprintf("%s/ladder-invite/%s/decline", h.SiteURL, token)
+
 			if r.email != "" && notifprefs.UserWantsEmail(context.Background(), h.DB, r.id, "broadcast") {
-				signupURL := h.SiteURL + "/ladder"
 				emailBody := fmt.Sprintf(`
 <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:32px">
 %s
-<div style="margin-top:24px">
-  <a href="%s" style="background:#15803d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block">
+<div style="margin-top:28px;display:flex;gap:12px">
+  <a href="%s" style="background:#15803d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block;margin-right:12px">
     Sign Up for the Ladder
+  </a>
+  <a href="%s" style="background:#f3f4f6;color:#6b7280;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block">
+    Decline
   </a>
 </div>
 <hr style="border:none;border-top:1px solid #e5e7eb;margin:32px 0">
 <p style="color:#9ca3af;font-size:12px">
-  You're receiving this as a member of Live Oaks Tennis Club.
+  You're receiving this as a member of Live Oaks Tennis Club. These links are unique to you — please don't share them.
 </p>
-</div>`, req.Body, signupURL)
+</div>`, req.Body, acceptURL, declineURL)
 				if err := h.Mailer.Send(r.email, req.Subject, emailBody); err != nil {
 					log.Printf("ladder notify: email to %s failed: %v", r.email, err)
 				}
 			}
 			if req.SendSMS && r.phone != "" && h.SMS != nil && h.SMS.Configured() {
-				smsBody := fmt.Sprintf("%s: %s Sign up: %s/ladder", req.Subject, req.Body, h.SiteURL)
+				smsBody := fmt.Sprintf("%s: %s\nSign up: %s\nDecline: %s", req.Subject, req.Body, acceptURL, declineURL)
 				if err := h.SMS.Send(r.phone, smsBody); err != nil {
 					log.Printf("ladder notify: SMS to %s failed: %v", r.phone, err)
 				}
@@ -1828,4 +1852,48 @@ func (h *LadderHandler) AdminNotify(c echo.Context) error {
 		"sent":    len(recipients),
 		"message": fmt.Sprintf("Sending to %d member(s) in the background.", len(recipients)),
 	})
+}
+
+// RespondToInvite handles token-based accept/decline links from ladder invitation emails.
+// No authentication required — the token itself identifies the member.
+func (h *LadderHandler) RespondToInvite(c echo.Context) error {
+	token := c.Param("token")
+	action := c.Param("action") // "accept" or "decline"
+	ctx := c.Request().Context()
+
+	// Look up the invitation token
+	var invID, ladderID, userID, status string
+	err := h.DB.QueryRow(ctx, `
+		SELECT id, ladder_id, user_id, status
+		FROM tennis_ladder_invite_tokens WHERE token=$1`, token,
+	).Scan(&invID, &ladderID, &userID, &status)
+	if err != nil {
+		return c.JSON(http.StatusOK, map[string]string{"status": "not_found"})
+	}
+	if status != "pending" {
+		return c.JSON(http.StatusOK, map[string]string{"status": "already_responded"})
+	}
+
+	if action == "accept" {
+		// Create a pending registration — admin will review and approve
+		h.DB.Exec(ctx, `
+			INSERT INTO tennis_registrations (ladder_id, user_id, usta_rating, preference, notes)
+			VALUES ($1, $2, '', 'singles', 'Registered via invitation email')
+			ON CONFLICT (ladder_id, user_id) DO NOTHING`, ladderID, userID)
+
+		h.DB.Exec(ctx, `
+			UPDATE tennis_ladder_invite_tokens
+			SET status='accepted', responded_at=NOW()
+			WHERE id=$1`, invID)
+
+		return c.JSON(http.StatusOK, map[string]string{"status": "accepted"})
+	}
+
+	// decline
+	h.DB.Exec(ctx, `
+		UPDATE tennis_ladder_invite_tokens
+		SET status='declined', responded_at=NOW()
+		WHERE id=$1`, invID)
+
+	return c.JSON(http.StatusOK, map[string]string{"status": "declined"})
 }

@@ -851,6 +851,8 @@ export const api = {
       notify: (ladderId: string, data: object) =>
         request(`/admin/ladder/${ladderId}/notify`, { method: 'POST', body: JSON.stringify(data) }),
     },
+    respondToInvite: (token: string, action: 'accept' | 'decline') =>
+      request(`/ladder-invite/${token}/${action}`),
   },
   broadcast: {
     recipients: (roles?: string[]) =>

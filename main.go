@@ -440,6 +440,9 @@ func main() {
 
 	// LiveBall — public response
 	api.POST("/liveball/:token/:action", liveball.Respond)
+	// Ladder invite — public token response (no auth required)
+	api.GET("/ladder-invite/:token/:action", ladder.RespondToInvite)
+	api.GET("/ladder-invite/:token", ladder.RespondToInvite)
 	// LiveBall — member
 	authed.GET("/liveball/my-invitations", liveball.GetMyInvitations)
 	// LiveBall — board+ admin

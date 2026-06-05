@@ -77,6 +77,7 @@ import AdminPolls from './pages/admin/AdminPolls'
 import BoardMeetingResponse from './pages/BoardMeetingResponse'
 import LiveballResponse from './pages/LiveballResponse'
 import BookingReminderResponse from './pages/BookingReminderResponse'
+import LadderInviteResponse from './pages/LadderInviteResponse'
 import Fantasy from './pages/Fantasy'
 import Impersonate, { IMPERSONATION_NAME_KEY } from './pages/Impersonate'
 import { IMPERSONATION_KEY } from './api/client'
@@ -141,6 +142,8 @@ function AppRoutes() {
       <Route path="/board-meeting/:token/:action" element={<BoardMeetingResponse />} />
       <Route path="/liveball/:token/:action" element={<LiveballResponse />} />
       <Route path="/liveball/:token" element={<LiveballResponse />} />
+      <Route path="/ladder-invite/:token/:action" element={<LadderInviteResponse />} />
+      <Route path="/ladder-invite/:token" element={<LadderInviteResponse />} />
       <Route path="/booking-reminder/:token/:action" element={<BookingReminderResponse />} />
       <Route path="/booking-reminder/:token" element={<BookingReminderResponse />} />
       <Route path="/events/:id/signup" element={<EventSignup />} />
