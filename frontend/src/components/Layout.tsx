@@ -76,6 +76,7 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
   const [helpExpanded, setHelpExpanded] = useState<number | null>(null)
   const [showFantasy, setShowFantasy] = useState(false)
   const [showLadder, setShowLadder] = useState(false)
+  const [showChallengeLadder, setShowChallengeLadder] = useState(false)
   const [showDocuments, setShowDocuments] = useState(false)
   const [unreadMessages, setUnreadMessages] = useState(0)
   const [hasMailAccount, setHasMailAccount] = useState(false)
@@ -85,7 +86,11 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
       .then((d: any) => setShowFantasy((d as any[]).some((t: any) => t.status === 'open' || t.status === 'locked')))
       .catch(() => {})
     api.ladder.list()
-      .then((d: any) => setShowLadder((d as any[]).some((l: any) => l.status === 'open')))
+      .then((d: any) => {
+        const ls = d as any[]
+        setShowLadder(ls.some((l: any) => l.status === 'open'))
+        setShowChallengeLadder(ls.some((l: any) => l.status === 'active'))
+      })
       .catch(() => {})
     api.documents.list()
       .then((d: any[]) => setShowDocuments(d.length > 0))
@@ -146,6 +151,7 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
       key: 'games', heading: 'Games', items: [
         ...((hasPermission('fantasy') && showFantasy) ? [{ to: '/fantasy', label: 'Fantasy Pool', icon: ICONS.star }] : []),
         ...((hasPermission('ladder') && showLadder) ? [{ to: '/ladder', label: 'Ladder', icon: ICONS.chart }] : []),
+        ...((hasPermission('ladder') && showChallengeLadder) ? [{ to: '/challenge-ladder', label: 'Challenge Ladder', icon: ICONS.chart }] : []),
       ],
     },
   ].filter(g => g.items.length > 0)

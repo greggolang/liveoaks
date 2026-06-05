@@ -58,6 +58,7 @@ import AdminNotes from './pages/admin/AdminNotes'
 import AdminPasswords from './pages/admin/AdminPasswords'
 import AdminTennisChallengeLadder from './pages/admin/AdminTennisChallengeLadder'
 import TennisLadder from './pages/TennisLadder'
+import TennisChallengeLadder from './pages/TennisChallengeLadder'
 import AdminLiveball from './pages/admin/AdminLiveball'
 import AdminBroadcast from './pages/admin/AdminBroadcast'
 import AdminBoardMeetings from './pages/admin/AdminBoardMeetings'
@@ -174,6 +175,7 @@ function AppRoutes() {
       <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
       <Route path="/fantasy" element={<ProtectedRoute><Fantasy /></ProtectedRoute>} />
       <Route path="/ladder" element={<ProtectedRoute><TennisLadder /></ProtectedRoute>} />
+      <Route path="/challenge-ladder" element={<ProtectedRoute><TennisChallengeLadder /></ProtectedRoute>} />
 
       {/* Admin */}
       <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>}>
