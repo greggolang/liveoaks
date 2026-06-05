@@ -126,12 +126,29 @@ function FileTypeBadge({ filename }: { filename: string }) {
   )
 }
 
+// ── Print helper ─────────────────────────────────────────────────────────────
+const PRINTABLE_EXTS = new Set(['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'txt', 'csv'])
+
+function printDoc(filename: string) {
+  const url = `/uploads/documents/${filename}`
+  const iframe = document.createElement('iframe')
+  iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:none;visibility:hidden;'
+  iframe.src = url
+  document.body.appendChild(iframe)
+  iframe.onload = () => {
+    try { iframe.contentWindow?.print() }
+    finally { setTimeout(() => iframe.remove(), 60000) }
+  }
+}
+
 // ── File row ─────────────────────────────────────────────────────────────────
 function FileRow({ doc, isBoard, onDelete, onToggleAI, subtitle }: {
   doc: DocFile; isBoard: boolean; onDelete: (id: string) => void
   onToggleAI: (id: string, next: boolean) => void; subtitle?: string
 }) {
-  const aiReadable = ['pdf', 'txt', 'md', 'markdown', 'csv', 'log'].includes((doc.filename.split('.').pop() ?? '').toLowerCase())
+  const ext = (doc.filename.split('.').pop() ?? '').toLowerCase()
+  const aiReadable = ['pdf', 'txt', 'md', 'markdown', 'csv', 'log'].includes(ext)
+  const canPrint = PRINTABLE_EXTS.has(ext)
   return (
     <div className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 transition group">
       <a
@@ -154,6 +171,18 @@ function FileRow({ doc, isBoard, onDelete, onToggleAI, subtitle }: {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
         </svg>
       </a>
+      {canPrint && (
+        <button
+          onClick={() => printDoc(doc.filename)}
+          title="Print"
+          className="shrink-0 text-gray-300 hover:text-gray-600 transition opacity-0 group-hover:opacity-100"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm1-4h4v2h-4v-2z" />
+          </svg>
+        </button>
+      )}
       {isBoard && aiReadable && (
         <button onClick={() => onToggleAI(doc.id, !doc.ai_indexed)}
           title={doc.ai_indexed
