@@ -411,6 +411,24 @@ func (h *InvitationsHandler) AddPlayer(c echo.Context) error {
 		go h.Mailer.Send(req.PlayerEmail, "You've been added to a booking – "+courtName, body)
 	}
 
+	// Dashboard alert for portal members added directly to the roster.
+	if req.UserID != nil && *req.UserID != "" && !req.IsGuest {
+		loc := loadTimezone(c.Request().Context(), h.DB)
+		matchTypeLabels := map[string]string{
+			"singles": "Singles", "doubles": "Doubles",
+			"casual": "Hit Session", "ball_machine": "Ball Machine",
+		}
+		matchLabel := matchTypeLabels[matchType]
+		if matchLabel == "" {
+			matchLabel = "Tennis"
+		}
+		alertMsg := fmt.Sprintf("%s added you to a booking — %s, %s, %s",
+			hostName, courtName, matchLabel, bookingStart.In(loc).Format("Mon Jan 2 at 3:04 PM"))
+		h.DB.Exec(c.Request().Context(),
+			`INSERT INTO member_alerts (user_id, message, type, created_by) VALUES ($1, $2, 'info', $3)`,
+			*req.UserID, alertMsg, userID)
+	}
+
 	return c.JSON(http.StatusCreated, p)
 }
 

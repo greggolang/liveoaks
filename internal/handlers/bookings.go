@@ -1151,9 +1151,9 @@ func (h *BookingsHandler) AdminCreate(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not create booking")
 	}
 	// Add member as host
-	var memberName string
+	var memberName, memberEmail string
 	h.DB.QueryRow(c.Request().Context(),
-		`SELECT first_name || ' ' || last_name FROM users WHERE id = $1`, req.UserID).Scan(&memberName)
+		`SELECT first_name || ' ' || last_name, email FROM users WHERE id = $1`, req.UserID).Scan(&memberName, &memberEmail)
 	h.DB.Exec(c.Request().Context(),
 		`INSERT INTO match_players (booking_id, user_id, player_name, is_host) VALUES ($1, $2, $3, true)`,
 		booking.ID, req.UserID, memberName)
@@ -1162,5 +1162,47 @@ func (h *BookingsHandler) AdminCreate(c echo.Context) error {
 	h.Logger.Log(c.Request().Context(), "admin_booking_created",
 		fmt.Sprintf("for %s on court %d at %s", memberName, req.CourtID, req.StartTime.Format("2006-01-02 15:04")),
 		adminID, c.RealIP())
+
+	// Dashboard alert for the booked member
+	var courtNameForAlert string
+	h.DB.QueryRow(c.Request().Context(), `SELECT name FROM courts WHERE id = $1`, req.CourtID).Scan(&courtNameForAlert)
+	loc := loadTimezone(c.Request().Context(), h.DB)
+	matchTypeLabels := map[string]string{
+		"singles": "Singles", "doubles": "Doubles",
+		"casual": "Hit Session", "ball_machine": "Ball Machine",
+		"teaching_pro": "Teaching Pro",
+	}
+	matchLabel := matchTypeLabels[req.MatchType]
+	if matchLabel == "" {
+		matchLabel = "Tennis"
+	}
+	alertMsg := fmt.Sprintf("A court booking has been made for you — %s on %s, %s",
+		courtNameForAlert, matchLabel, req.StartTime.In(loc).Format("Mon Jan 2 at 3:04 PM"))
+	h.DB.Exec(c.Request().Context(),
+		`INSERT INTO member_alerts (user_id, message, type, created_by) VALUES ($1, $2, 'info', $3)`,
+		req.UserID, alertMsg, adminID)
+
+	// Confirmation email to the booked member
+	if h.Mailer != nil && memberEmail != "" {
+		startStr := req.StartTime.In(loc).Format("Mon Jan 2 at 3:04 PM MST")
+		endStr := req.EndTime.In(loc).Format("3:04 PM MST")
+		var adminName string
+		h.DB.QueryRow(c.Request().Context(),
+			`SELECT first_name || ' ' || last_name FROM users WHERE id = $1`, adminID).Scan(&adminName)
+		emailBody := fmt.Sprintf(`
+<div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
+  <h2 style="color:#15803d;text-align:center">🎾 Court Booking Confirmed</h2>
+  <p>Hi %s,</p>
+  <p>A court booking has been made for you by <strong>%s</strong>:</p>
+  <div style="background:#f0fdf4;border-radius:8px;padding:16px;margin:16px 0">
+    <div style="margin:4px 0">🎾 <strong>%s</strong></div>
+    <div style="margin:4px 0">⏰ <strong>%s – %s</strong></div>
+    <div style="margin:4px 0">📋 <strong>%s</strong></div>
+  </div>
+  <p style="margin:16px 0"><a href="%s/bookings" style="color:#15803d">View your bookings →</a></p>
+</div>`, memberName, adminName, courtNameForAlert, startStr, endStr, matchLabel, h.SiteURL)
+		go h.Mailer.Send(memberEmail, "Court booking confirmed – "+courtNameForAlert, emailBody)
+	}
+
 	return c.JSON(http.StatusCreated, booking)
 }
