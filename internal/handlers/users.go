@@ -236,6 +236,51 @@ func (h *UsersHandler) Delete(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
+// SetPassword lets an admin directly set a member's password (as opposed to
+// ForcePasswordReset, which emails the member a reset link). The protected
+// account is excluded so a co-admin cannot lock the owner out by changing it.
+func (h *UsersHandler) SetPassword(c echo.Context) error {
+	userID := c.Param("id")
+	if isProtectedUser(c.Request().Context(), h.DB, userID) {
+		return echo.NewHTTPError(http.StatusForbidden, "this account is protected and cannot be modified")
+	}
+
+	var req struct {
+		Password string `json:"password"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
+	}
+	if len(req.Password) < 8 {
+		return echo.NewHTTPError(http.StatusBadRequest, "password must be at least 8 characters")
+	}
+
+	var firstName, email string
+	if err := h.DB.QueryRow(c.Request().Context(),
+		`SELECT first_name, email FROM users WHERE id = $1`, userID,
+	).Scan(&firstName, &email); err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, "user not found")
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not hash password")
+	}
+
+	if _, err := h.DB.Exec(c.Request().Context(),
+		`UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2`, string(hash), userID); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not update password")
+	}
+
+	// Invalidate any outstanding reset links now that the password is set.
+	h.DB.Exec(c.Request().Context(), `DELETE FROM password_resets WHERE user_id = $1`, userID)
+
+	adminID := c.Get("user_id").(string)
+	h.Logger.Log(c.Request().Context(), "admin_set_password", email, adminID, c.RealIP())
+
+	return c.JSON(http.StatusOK, map[string]string{"message": "password updated"})
+}
+
 func (h *UsersHandler) ForcePasswordReset(c echo.Context) error {
 	userID := c.Param("id")
 

@@ -342,6 +342,7 @@ func main() {
 	adminOnly.PUT("/users/:id/status", users.UpdateStatus)
 	adminOnly.DELETE("/users/:id", users.Delete)
 	adminOnly.POST("/users/:id/force-reset", users.ForcePasswordReset)
+	adminOnly.POST("/users/:id/set-password", users.SetPassword)
 	adminOnly.POST("/users/:id/impersonate", auth.CreateImpersonationToken)
 	api.POST("/auth/redeem-impersonation", auth.RedeemImpersonationToken)
 	adminOnly.GET("/settings", admin.GetSettings)
@@ -741,7 +742,17 @@ self.addEventListener('activate', function(e){
 	aiH.FrontendFS = distFS
 	e.GET("/*", func(c echo.Context) error {
 		req := c.Request()
-		path := req.URL.Path
+		orig := req.URL.Path
+		// Cache policy: content-hashed assets are immutable and cached forever;
+		// everything else (the SPA shell, service worker, manifest) must never be
+		// served stale, or deployed changes won't reach clients on the next load.
+		switch {
+		case strings.HasPrefix(orig, "/assets/"):
+			c.Response().Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		default:
+			c.Response().Header().Set("Cache-Control", "no-cache")
+		}
+		path := orig
 		if path == "/" || path == "" {
 			path = "index.html"
 		} else {
