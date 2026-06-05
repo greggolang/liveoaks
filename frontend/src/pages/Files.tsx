@@ -417,6 +417,7 @@ export default function Files() {
 
   // Upload
   const [showUpload, setShowUpload] = useState(false)
+  const [uploadFolderId, setUploadFolderId] = useState('')
   const [uploadTitle, setUploadTitle] = useState('')
   const [uploadFiles, setUploadFiles] = useState<File[]>([])
   const [uploadEntries, setUploadEntries] = useState<FileWithPath[]>([])
@@ -555,11 +556,11 @@ export default function Files() {
 
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedId) return
+    if (!uploadFolderId) { setUploadError('Please select a destination folder'); return }
     if (uploadMode === 'folder') {
-      await doFolderUpload(uploadEntries, selectedId)
+      await doFolderUpload(uploadEntries, uploadFolderId)
     } else {
-      await doPlainUpload(uploadFiles, selectedId)
+      await doPlainUpload(uploadFiles, uploadFolderId)
     }
   }
 
@@ -840,9 +841,13 @@ export default function Files() {
               </button>
             </div>
 
-            {/* Upload button (board + folder selected) */}
-            {isBoard && selectedId && (
-              <button onClick={() => { setShowUpload(v => !v); resetUpload() }}
+            {/* Upload button */}
+            {isBoard && (
+              <button onClick={() => {
+                setUploadFolderId(selectedId ?? '')
+                setShowUpload(v => !v)
+                resetUpload()
+              }}
                 className="shrink-0 text-xs bg-green-700 hover:bg-green-800 text-white font-medium px-3 py-1.5 rounded-lg transition">
                 + Upload
               </button>
@@ -865,7 +870,7 @@ export default function Files() {
           </div>
 
           {/* Upload form */}
-          {isBoard && showUpload && selectedId && (
+          {isBoard && showUpload && (
             <form onSubmit={handleUpload}
               className="border-b border-gray-100 bg-green-50 px-4 py-3 space-y-3 shrink-0"
               onDragOver={e => { e.preventDefault(); setDragOver(true) }}
@@ -885,6 +890,19 @@ export default function Files() {
                   handlePlainFiles(entries.map(en => en.file))
                 }
               }}>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Upload to folder *</label>
+                <select
+                  required
+                  value={uploadFolderId}
+                  onChange={e => setUploadFolderId(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500">
+                  <option value="">— Select a folder —</option>
+                  {flattenFolders(folders).map(f => (
+                    <option key={f.id} value={f.id}>{f.label}</option>
+                  ))}
+                </select>
+              </div>
               <div className={`border-2 border-dashed rounded-lg p-3 text-center transition-colors ${dragOver ? 'border-green-500 bg-green-100' : 'border-green-300 bg-white'}`}>
                 <p className="text-xs text-gray-400 mb-2">Drop files or folders here, or</p>
                 <div className="flex gap-2 justify-center flex-wrap">

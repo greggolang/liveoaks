@@ -110,6 +110,16 @@ func (h *InvitationsHandler) Send(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "name and email required")
 	}
 
+	// Resolve invitee_user_id from email when not supplied (e.g. family-member path)
+	if (req.InviteeUserID == nil || *req.InviteeUserID == "") && req.InviteeEmail != "" {
+		var resolvedID string
+		if err := h.DB.QueryRow(c.Request().Context(),
+			`SELECT id FROM users WHERE LOWER(email) = LOWER($1)`, req.InviteeEmail,
+		).Scan(&resolvedID); err == nil && resolvedID != "" {
+			req.InviteeUserID = &resolvedID
+		}
+	}
+
 	// Block re-invitation of a player who is already pending or has declined
 	var existing int
 	h.DB.QueryRow(c.Request().Context(),
