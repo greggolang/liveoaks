@@ -69,6 +69,7 @@ export default function AdminLiveball() {
   // Invite form
   const [selectedLevels, setSelectedLevels] = useState<string[]>([])
   const [preview, setPreview] = useState<PreviewMember[]>([])
+  const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set())
   const [previewing, setPreviewing] = useState(false)
   const [sending, setSending] = useState(false)
   const [sendResult, setSendResult] = useState<{ sent: number; skipped: number } | null>(null)
@@ -161,6 +162,7 @@ export default function AdminLiveball() {
   const toggleLevel = (level: string) => {
     setSelectedLevels(ls => ls.includes(level) ? ls.filter(l => l !== level) : [...ls, level])
     setPreview([])
+    setSelectedMembers(new Set())
     setSendResult(null)
   }
 
@@ -170,16 +172,26 @@ export default function AdminLiveball() {
     try {
       const data = await api.liveball.admin.preview(selected.id, selectedLevels) as PreviewMember[]
       setPreview(data)
+      setSelectedMembers(new Set(data.map(m => m.user_id)))
     } finally { setPreviewing(false) }
   }
 
+  const toggleMember = (userId: string) => {
+    setSelectedMembers(prev => {
+      const next = new Set(prev)
+      if (next.has(userId)) next.delete(userId); else next.add(userId)
+      return next
+    })
+  }
+
   const sendInvites = async () => {
-    if (!selected || selectedLevels.length === 0) return
+    if (!selected || selectedMembers.size === 0) return
     setSending(true); setSendResult(null)
     try {
-      const result = await api.liveball.admin.sendInvites(selected.id, { usta_levels: selectedLevels }) as any
+      const result = await api.liveball.admin.sendInvites(selected.id, { user_ids: [...selectedMembers] }) as any
       setSendResult(result)
       setPreview([])
+      setSelectedMembers(new Set())
       await refreshRoster()
     } catch (e: any) { setCErr(e.message) } finally { setSending(false) }
   }
@@ -575,9 +587,9 @@ export default function AdminLiveball() {
                         className="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-4 py-2 rounded-lg transition disabled:opacity-50">
                         {previewing ? 'Loading…' : `Preview (${selectedLevels.join(', ')})`}
                       </button>
-                      <button onClick={sendInvites} disabled={sending || preview.length === 0}
+                      <button onClick={sendInvites} disabled={sending || selectedMembers.size === 0}
                         className="text-sm bg-green-700 hover:bg-green-800 text-white font-semibold px-4 py-2 rounded-lg transition disabled:opacity-50">
-                        {sending ? 'Sending…' : `Send ${preview.length > 0 ? preview.length : ''} Invite${preview.length !== 1 ? 's' : ''}`}
+                        {sending ? 'Sending…' : `Send ${selectedMembers.size > 0 ? selectedMembers.size : ''} Invite${selectedMembers.size !== 1 ? 's' : ''}`}
                       </button>
                     </div>
                   )}
@@ -593,18 +605,35 @@ export default function AdminLiveball() {
                 {/* Preview list */}
                 {preview.length > 0 && (
                   <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                    <div className="px-4 py-2.5 border-b border-gray-100 bg-gray-50 text-sm font-semibold text-gray-700">
-                      Preview — {preview.length} member{preview.length !== 1 ? 's' : ''} will be invited
+                    <div className="px-4 py-2.5 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+                      <span className="text-sm font-semibold text-gray-700">
+                        {selectedMembers.size} of {preview.length} member{preview.length !== 1 ? 's' : ''} selected
+                      </span>
+                      <div className="flex gap-3">
+                        <button onClick={() => setSelectedMembers(new Set(preview.map(m => m.user_id)))}
+                          className="text-xs font-medium text-green-700 hover:underline">
+                          Select all
+                        </button>
+                        <button onClick={() => setSelectedMembers(new Set())}
+                          className="text-xs font-medium text-gray-400 hover:underline">
+                          Deselect all
+                        </button>
+                      </div>
                     </div>
                     <div className="divide-y divide-gray-50 max-h-72 overflow-y-auto">
                       {preview.map(m => (
-                        <div key={m.user_id} className="flex items-center justify-between px-4 py-2">
-                          <span className="text-sm text-gray-700">{m.name}</span>
+                        <label key={m.user_id} className="flex items-center gap-3 px-4 py-2 cursor-pointer hover:bg-gray-50">
+                          <input type="checkbox"
+                            checked={selectedMembers.has(m.user_id)}
+                            onChange={() => toggleMember(m.user_id)}
+                            className="rounded border-gray-300 text-green-700 focus:ring-green-600"
+                          />
+                          <span className="text-sm text-gray-700 flex-1">{m.name}</span>
                           <div className="text-xs text-gray-400 flex gap-3">
                             <span>USTA {m.usta_ranking}</span>
                             <span>{m.email}</span>
                           </div>
-                        </div>
+                        </label>
                       ))}
                     </div>
                   </div>
