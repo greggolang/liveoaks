@@ -1796,20 +1796,27 @@ func (h *LadderHandler) AdminNotify(c echo.Context) error {
 	go func() {
 		for _, r := range recipients {
 			if r.email != "" && notifprefs.UserWantsEmail(context.Background(), h.DB, r.id, "broadcast") {
+				signupURL := h.SiteURL + "/ladder"
 				emailBody := fmt.Sprintf(`
 <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:32px">
 %s
+<div style="margin-top:24px">
+  <a href="%s" style="background:#15803d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block">
+    Sign Up for the Ladder
+  </a>
+</div>
 <hr style="border:none;border-top:1px solid #e5e7eb;margin:32px 0">
 <p style="color:#9ca3af;font-size:12px">
   You're receiving this as a member of Live Oaks Tennis Club.
 </p>
-</div>`, req.Body)
+</div>`, req.Body, signupURL)
 				if err := h.Mailer.Send(r.email, req.Subject, emailBody); err != nil {
 					log.Printf("ladder notify: email to %s failed: %v", r.email, err)
 				}
 			}
 			if req.SendSMS && r.phone != "" && h.SMS != nil && h.SMS.Configured() {
-				if err := h.SMS.Send(r.phone, req.Subject+": "+req.Body); err != nil {
+				smsBody := fmt.Sprintf("%s: %s Sign up: %s/ladder", req.Subject, req.Body, h.SiteURL)
+				if err := h.SMS.Send(r.phone, smsBody); err != nil {
 					log.Printf("ladder notify: SMS to %s failed: %v", r.phone, err)
 				}
 			}
