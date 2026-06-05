@@ -4,6 +4,46 @@ import { api, CollabDocSummary, CollabEditor } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 import { parseDate } from '../utils/dates'
 
+// ── Print ────────────────────────────────────────────────────────────────────
+function printDocument(title: string, html: string) {
+  const win = window.open('', '_blank', 'width=820,height=700')
+  if (!win) return
+  win.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>${title.replace(/</g, '&lt;')}</title>
+  <style>
+    body{font-family:Georgia,serif;max-width:680px;margin:40px auto;color:#111;line-height:1.65;font-size:14px}
+    h1{font-size:1.75em;font-weight:bold;margin:0 0 .15em}
+    h2{font-size:1.3em;font-weight:bold;margin:1.4em 0 .3em}
+    h3{font-size:1.1em;font-weight:bold;margin:1.2em 0 .25em}
+    p{margin:.5em 0}
+    ul,ol{margin:.5em 0;padding-left:1.5em}
+    a{color:#111;text-decoration:underline}
+    table{border-collapse:collapse;width:100%;margin:1em 0}
+    th,td{border:1px solid #ccc;padding:.35em .6em;text-align:left}
+    th{background:#f4f4f4;font-weight:bold}
+    blockquote{border-left:3px solid #ccc;margin:1em 0 1em .5em;padding-left:1em;color:#555}
+    hr{border:none;border-top:1px solid #ddd;margin:1.5em 0}
+    .print-header{border-bottom:1px solid #ddd;padding-bottom:.6em;margin-bottom:1.2em}
+    .print-date{font-size:.78em;color:#888;margin-top:.15em}
+    @media print{body{margin:0}}
+  </style>
+</head>
+<body>
+<div class="print-header">
+  <h1>${title.replace(/</g, '&lt;')}</h1>
+  <p class="print-date">Liveoaks Tennis Club · ${new Date().toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</p>
+</div>
+${html}
+</body>
+</html>`)
+  win.document.close()
+  win.focus()
+  setTimeout(() => { win.print(); win.close() }, 350)
+}
+
 // ── HTML sanitizer ───────────────────────────────────────────────────────────
 // Member-authored HTML is rendered into other members' editors, so strip
 // anything executable. We keep only the tags the toolbar can produce and drop
@@ -306,6 +346,15 @@ function DocumentEditor({ docId, onClose }: { docId: string; onClose: () => void
         <div className="flex items-center gap-3">
           <EditorPills editors={editors} meId={user?.id ?? ''} />
           <span className={`text-xs ${status === 'error' && !conflict ? 'text-red-500' : 'text-gray-400'}`}>{statusLabel}</span>
+          <button
+            onClick={() => printDocument(title || 'Untitled document', editorRef.current?.innerHTML ?? bodyRef.current)}
+            title="Print this document"
+            className="text-xs text-gray-400 hover:text-gray-700 transition flex items-center gap-1">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm1-4h4v2h-4v-2z" />
+            </svg>
+            Print
+          </button>
           {canDelete && (
             <button onClick={handleDelete} className="text-xs text-red-400 hover:text-red-600 transition">Delete</button>
           )}
@@ -415,6 +464,20 @@ export default function Documents() {
     }
   }
 
+  const [printing, setPrinting] = useState<string | null>(null)
+
+  const print = async (d: CollabDocSummary) => {
+    setPrinting(d.id)
+    try {
+      const full = await api.collabDocs.get(d.id)
+      printDocument(full.title || 'Untitled document', full.body)
+    } catch {
+      alert('Could not load document for printing.')
+    } finally {
+      setPrinting(null)
+    }
+  }
+
   const create = async () => {
     setCreating(true)
     try {
@@ -475,6 +538,14 @@ export default function Documents() {
                   {d.active_editors} here now
                 </span>
               )}
+              <button onClick={() => print(d)} disabled={printing === d.id}
+                title="Print"
+                className="shrink-0 text-gray-300 hover:text-gray-600 transition opacity-0 group-hover:opacity-100 focus:opacity-100 p-1 disabled:opacity-40">
+                {printing === d.id
+                  ? <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                  : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm1-4h4v2h-4v-2z"/></svg>
+                }
+              </button>
               <button onClick={() => rename(d)}
                 className="shrink-0 text-xs text-gray-400 hover:text-green-700 transition px-1 opacity-0 group-hover:opacity-100 focus:opacity-100">
                 Rename
