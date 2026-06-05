@@ -845,6 +845,8 @@ export const api = {
       registrations: (id: string) => request(`/admin/ladder/${id}/registrations`),
       approveReg: (ladderId: string, userId: string, status: string) =>
         request(`/admin/ladder/${ladderId}/registrations/${userId}`, { method: 'PUT', body: JSON.stringify({ status }) }),
+      addMember: (ladderId: string, userId: string) =>
+        request(`/admin/ladder/${ladderId}/members`, { method: 'POST', body: JSON.stringify({ user_id: userId }) }),
       setRank: (ladderId: string, userId: string, rank: number) =>
         request(`/admin/ladder/${ladderId}/rank`, { method: 'PUT', body: JSON.stringify({ user_id: userId, rank }) }),
       setPlayerStatus: (ladderId: string, userId: string, status: string, note?: string) =>

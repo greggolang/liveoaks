@@ -971,6 +971,28 @@ func (h *LadderHandler) AdminApproveRegistration(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]string{"status": req.Status})
 }
 
+// AdminAddMember lets an admin directly add (and approve) a member to a ladder.
+func (h *LadderHandler) AdminAddMember(c echo.Context) error {
+	ladderID := c.Param("id")
+	adminID := c.Get("user_id").(string)
+	var req struct {
+		UserID string `json:"user_id"`
+	}
+	if err := c.Bind(&req); err != nil || req.UserID == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "user_id required")
+	}
+	_, err := h.DB.Exec(c.Request().Context(), `
+		INSERT INTO tennis_registrations (ladder_id, user_id, preference, status)
+		VALUES ($1, $2, 'singles', 'approved')
+		ON CONFLICT (ladder_id, user_id) DO UPDATE SET status='approved'`,
+		ladderID, req.UserID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not add member")
+	}
+	h.writeAudit(c.Request().Context(), &ladderID, adminID, "registration_approved", &req.UserID, "Admin added member directly")
+	return c.JSON(http.StatusOK, map[string]string{"status": "added"})
+}
+
 func (h *LadderHandler) AdminSetRank(c echo.Context) error {
 	ladderID := c.Param("id")
 	ctx := c.Request().Context()

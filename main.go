@@ -482,6 +482,7 @@ func main() {
 	adminOnly.DELETE("/ladder/:id", ladder.AdminDeleteLadder)
 	adminOnly.GET("/ladder/:id/registrations", ladder.AdminGetRegistrations)
 	adminOnly.PUT("/ladder/:id/registrations/:userId", ladder.AdminApproveRegistration)
+	adminOnly.POST("/ladder/:id/members", ladder.AdminAddMember)
 	adminOnly.PUT("/ladder/:id/rank", ladder.AdminSetRank)
 	adminOnly.PUT("/ladder/:id/player-status", ladder.AdminSetPlayerStatus)
 	adminOnly.GET("/ladder/:id/challenges", ladder.AdminGetChallenges)
