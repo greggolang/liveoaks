@@ -26,6 +26,7 @@ function printDocument(title: string, html: string) {
     th{background:#f4f4f4;font-weight:bold}
     blockquote{border-left:3px solid #ccc;margin:1em 0 1em .5em;padding-left:1em;color:#555}
     hr{border:none;border-top:1px solid #ddd;margin:1.5em 0}
+    svg{max-width:100%;height:auto}
     .print-header{border-bottom:1px solid #ddd;padding-bottom:.6em;margin-bottom:1.2em}
     .print-date{font-size:.78em;color:#888;margin-top:.15em}
     @media print{body{margin:0}}
@@ -44,16 +45,156 @@ ${html}
   setTimeout(() => { win.print(); win.close() }, 350)
 }
 
+// ── Export helpers ────────────────────────────────────────────────────────────
+function slugify(s: string) {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'document'
+}
+
+function downloadFile(filename: string, content: string, mimeType: string) {
+  const blob = new Blob([content], { type: mimeType })
+  const url = URL.createObjectURL(blob)
+  const a = Object.assign(document.createElement('a'), { href: url, download: filename })
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+function buildHtmlPage(title: string, html: string): string {
+  const safeTitle = title.replace(/</g, '&lt;')
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>${safeTitle}</title>
+  <style>
+    body{font-family:Georgia,serif;max-width:680px;margin:40px auto;color:#111;line-height:1.65;font-size:14px}
+    h1{font-size:1.75em;font-weight:bold;margin:0 0 .15em}
+    h2{font-size:1.3em;font-weight:bold;margin:1.4em 0 .3em}
+    h3{font-size:1.1em;font-weight:bold;margin:1.2em 0 .25em}
+    p{margin:.5em 0}ul,ol{margin:.5em 0;padding-left:1.5em}
+    a{color:#111;text-decoration:underline}
+    table{border-collapse:collapse;width:100%;margin:1em 0}
+    th,td{border:1px solid #ccc;padding:.35em .6em;text-align:left}
+    th{background:#f4f4f4;font-weight:bold}
+    blockquote{border-left:3px solid #ccc;margin:1em 0 1em .5em;padding-left:1em;color:#555}
+    hr{border:none;border-top:1px solid #ddd;margin:1.5em 0}
+    svg{max-width:100%;height:auto}
+  </style>
+</head>
+<body>
+<h1>${safeTitle}</h1>
+${html}
+</body>
+</html>`
+}
+
+function htmlToMarkdown(html: string): string {
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  function convert(node: Node): string {
+    if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? ''
+    if (node.nodeType !== Node.ELEMENT_NODE) return ''
+    const el = node as Element
+    const tag = el.tagName.toUpperCase()
+    const inner = () => Array.from(el.childNodes).map(convert).join('')
+    switch (tag) {
+      case 'SVG': return ''
+      case 'H1': { const t = inner().trim(); return `\n# ${t}\n\n` }
+      case 'H2': { const t = inner().trim(); return `\n## ${t}\n\n` }
+      case 'H3': { const t = inner().trim(); return `\n### ${t}\n\n` }
+      case 'P': return `${inner().trim()}\n\n`
+      case 'BR': return '  \n'
+      case 'HR': return '\n---\n\n'
+      case 'STRONG': case 'B': return `**${inner()}**`
+      case 'EM': case 'I': return `*${inner()}*`
+      case 'U': return `__${inner()}__`
+      case 'S': return `~~${inner()}~~`
+      case 'A': { const href = el.getAttribute('href') ?? ''; const t = inner(); return href ? `[${t}](${href})` : t }
+      case 'UL': return '\n' + Array.from(el.children).filter(c => c.tagName === 'LI')
+        .map(li => `- ${Array.from(li.childNodes).map(convert).join('').trim()}`).join('\n') + '\n\n'
+      case 'OL': return '\n' + Array.from(el.children).filter(c => c.tagName === 'LI')
+        .map((li, i) => `${i + 1}. ${Array.from(li.childNodes).map(convert).join('').trim()}`).join('\n') + '\n\n'
+      case 'LI': return ''
+      case 'BLOCKQUOTE': return inner().split('\n').map(l => `> ${l}`).join('\n').trimEnd() + '\n\n'
+      case 'CODE': return `\`${inner()}\``
+      case 'PRE': return `\`\`\`\n${el.textContent ?? ''}\n\`\`\`\n\n`
+      case 'TABLE': {
+        const rows = Array.from(el.querySelectorAll('tr'))
+        if (!rows.length) return ''
+        const lines: string[] = []
+        rows.forEach((row, i) => {
+          const cells = Array.from(row.querySelectorAll('th, td'))
+            .map(c => (c.textContent ?? '').trim().replace(/\|/g, '\\|'))
+          lines.push('| ' + cells.join(' | ') + ' |')
+          if (i === 0) lines.push('| ' + cells.map(() => '---').join(' | ') + ' |')
+        })
+        return '\n' + lines.join('\n') + '\n\n'
+      }
+      default: return inner()
+    }
+  }
+  return convert(doc.body).replace(/\n{3,}/g, '\n\n').trim()
+}
+
+function htmlToText(html: string): string {
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  doc.querySelectorAll('svg').forEach(s => s.remove())
+  function convert(node: Node): string {
+    if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? ''
+    if (node.nodeType !== Node.ELEMENT_NODE) return ''
+    const el = node as Element
+    const tag = el.tagName.toUpperCase()
+    const inner = () => Array.from(el.childNodes).map(convert).join('')
+    switch (tag) {
+      case 'H1': { const t = inner().trim(); return `\n\n${t}\n${'='.repeat(t.length)}\n\n` }
+      case 'H2': { const t = inner().trim(); return `\n\n${t}\n${'-'.repeat(t.length)}\n\n` }
+      case 'H3': return `\n${inner().trim()}\n\n`
+      case 'P': return `${inner().trim()}\n\n`
+      case 'BR': return '\n'
+      case 'HR': return '\n' + '-'.repeat(50) + '\n\n'
+      case 'LI': return `  * ${inner().trim()}\n`
+      case 'UL': case 'OL': return `\n${inner()}\n`
+      case 'TABLE': {
+        const rows = Array.from(el.querySelectorAll('tr'))
+        return '\n' + rows.map(row =>
+          Array.from(row.querySelectorAll('th, td')).map(c => (c.textContent ?? '').trim()).join('  |  ')
+        ).join('\n') + '\n\n'
+      }
+      case 'BLOCKQUOTE': return inner().split('\n').map(l => `    ${l}`).join('\n').trimEnd() + '\n\n'
+      case 'STRONG': case 'B': return inner().toUpperCase()
+      default: return inner()
+    }
+  }
+  return convert(doc.body).replace(/\n{3,}/g, '\n\n').trim()
+}
+
 // ── HTML sanitizer ───────────────────────────────────────────────────────────
 // Member-authored HTML is rendered into other members' editors, so strip
 // anything executable. We keep only the tags the toolbar can produce and drop
-// every attribute except safe link/table ones. No external dependency needed.
+// every attribute except safe link/table/SVG ones. No external dependency needed.
 const ALLOWED_TAGS = new Set([
   'P', 'BR', 'B', 'STRONG', 'I', 'EM', 'U', 'S', 'H1', 'H2', 'H3',
   'UL', 'OL', 'LI', 'A', 'BLOCKQUOTE', 'HR', 'TABLE', 'THEAD', 'TBODY',
   'TR', 'TH', 'TD', 'SPAN', 'DIV', 'CODE', 'PRE',
+  // SVG presentation elements — script, foreignObject, use, image, animate* are
+  // blocked by omission so they cannot load external resources or run code.
+  'SVG', 'G', 'PATH', 'CIRCLE', 'ELLIPSE', 'RECT', 'LINE', 'POLYLINE', 'POLYGON',
+  'TEXT', 'TSPAN', 'DEFS', 'CLIPPATH', 'LINEARGRADIENT', 'RADIALGRADIENT', 'STOP',
 ])
+
+// SVG presentation attributes (compared lowercase). Values containing url() or
+// javascript: are stripped to prevent external-resource loading or script injection.
+const SVG_PRES_ATTRS = new Set([
+  'viewbox', 'xmlns', 'fill', 'stroke', 'stroke-width', 'stroke-dasharray',
+  'stroke-linecap', 'stroke-linejoin', 'stroke-opacity', 'fill-opacity',
+  'd', 'cx', 'cy', 'r', 'rx', 'ry', 'x', 'y', 'x1', 'y1', 'x2', 'y2',
+  'width', 'height', 'transform', 'text-anchor', 'font-size', 'font-weight',
+  'font-family', 'points', 'opacity', 'stop-color', 'stop-opacity',
+  'gradientunits', 'gradienttransform',
+])
+
 const KEEP_ATTRS = new Set(['href', 'colspan', 'rowspan'])
+const SVG_UNSAFE_VALUE = /url\s*\(|javascript:/i
 
 function sanitizeHtml(html: string): string {
   const doc = new DOMParser().parseFromString(html, 'text/html')
@@ -61,7 +202,8 @@ function sanitizeHtml(html: string): string {
     for (const child of Array.from(node.childNodes)) {
       if (child.nodeType === Node.ELEMENT_NODE) {
         const el = child as Element
-        if (!ALLOWED_TAGS.has(el.tagName)) {
+        // SVG element tagNames are lowercase in the DOM; HTML are uppercase — normalise.
+        if (!ALLOWED_TAGS.has(el.tagName.toUpperCase())) {
           // Unwrap unknown/dangerous tags (script, img, iframe…) — their text
           // content survives but the element itself is removed.
           while (el.firstChild) node.insertBefore(el.firstChild, el)
@@ -72,6 +214,8 @@ function sanitizeHtml(html: string): string {
           const name = attr.name.toLowerCase()
           if (name === 'href') {
             if (/^\s*javascript:/i.test(attr.value)) el.removeAttribute(attr.name)
+          } else if (SVG_PRES_ATTRS.has(name)) {
+            if (SVG_UNSAFE_VALUE.test(attr.value)) el.removeAttribute(attr.name)
           } else if (!KEEP_ATTRS.has(name)) {
             el.removeAttribute(attr.name)
           }
@@ -138,6 +282,81 @@ function Toolbar({ onCommand }: { onCommand: (cmd: string, value?: string) => vo
         if (url) onCommand('createLink', url)
       }}>🔗 Link</button>
       <button type="button" className={btn} title="Clear formatting" onMouseDown={e => { e.preventDefault(); onCommand('removeFormat') }}>Clear</button>
+    </div>
+  )
+}
+
+// ── Export menu ───────────────────────────────────────────────────────────────
+function ExportMenu({ title, getHtml }: { title: string; getHtml: () => string }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const run = (fn: () => void) => { setOpen(false); fn() }
+  const slug = slugify(title)
+
+  const items: { label: string; icon: string; action: () => void }[] = [
+    {
+      label: 'Print / Save as PDF',
+      icon: 'M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm1-4h4v2h-4v-2z',
+      action: () => printDocument(title, getHtml()),
+    },
+    {
+      label: 'Download as HTML',
+      icon: 'M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4',
+      action: () => downloadFile(`${slug}.html`, buildHtmlPage(title, getHtml()), 'text/html;charset=utf-8'),
+    },
+    {
+      label: 'Download as Markdown',
+      icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
+      action: () => downloadFile(`${slug}.md`, htmlToMarkdown(getHtml()), 'text/markdown;charset=utf-8'),
+    },
+    {
+      label: 'Download as Plain Text',
+      icon: 'M4 6h16M4 12h16M4 18h7',
+      action: () => downloadFile(`${slug}.txt`, htmlToText(getHtml()), 'text/plain;charset=utf-8'),
+    },
+  ]
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="text-xs text-gray-400 hover:text-gray-700 transition flex items-center gap-1 px-1 py-0.5 rounded"
+        title="Export document"
+      >
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+        </svg>
+        Export
+        <svg className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute right-0 mt-1.5 w-52 bg-white rounded-xl shadow-lg border border-gray-200 z-30 py-1 overflow-hidden">
+          {items.map(item => (
+            <button
+              key={item.label}
+              onClick={() => run(item.action)}
+              className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs text-gray-700 hover:bg-gray-50 transition text-left"
+            >
+              <svg className="w-4 h-4 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={item.icon} />
+              </svg>
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -346,15 +565,10 @@ function DocumentEditor({ docId, onClose }: { docId: string; onClose: () => void
         <div className="flex items-center gap-3">
           <EditorPills editors={editors} meId={user?.id ?? ''} />
           <span className={`text-xs ${status === 'error' && !conflict ? 'text-red-500' : 'text-gray-400'}`}>{statusLabel}</span>
-          <button
-            onClick={() => printDocument(title || 'Untitled document', editorRef.current?.innerHTML ?? bodyRef.current)}
-            title="Print this document"
-            className="text-xs text-gray-400 hover:text-gray-700 transition flex items-center gap-1">
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm1-4h4v2h-4v-2z" />
-            </svg>
-            Print
-          </button>
+          <ExportMenu
+            title={title || 'Untitled document'}
+            getHtml={() => editorRef.current?.innerHTML ?? bodyRef.current}
+          />
           {canDelete && (
             <button onClick={handleDelete} className="text-xs text-red-400 hover:text-red-600 transition">Delete</button>
           )}
@@ -464,17 +678,24 @@ export default function Documents() {
     }
   }
 
-  const [printing, setPrinting] = useState<string | null>(null)
+  const [exporting, setExporting] = useState<string | null>(null)
+  const [listMenuOpen, setListMenuOpen] = useState<string | null>(null)
 
-  const print = async (d: CollabDocSummary) => {
-    setPrinting(d.id)
+  const handleListExport = async (d: CollabDocSummary, format: 'print' | 'html' | 'md' | 'txt') => {
+    setListMenuOpen(null)
+    setExporting(d.id)
     try {
       const full = await api.collabDocs.get(d.id)
-      printDocument(full.title || 'Untitled document', full.body)
+      const t = full.title || 'Untitled document'
+      const s = slugify(t)
+      if (format === 'print') printDocument(t, full.body)
+      else if (format === 'html') downloadFile(`${s}.html`, buildHtmlPage(t, full.body), 'text/html;charset=utf-8')
+      else if (format === 'md') downloadFile(`${s}.md`, htmlToMarkdown(full.body), 'text/markdown;charset=utf-8')
+      else downloadFile(`${s}.txt`, htmlToText(full.body), 'text/plain;charset=utf-8')
     } catch {
-      alert('Could not load document for printing.')
+      alert('Could not load document for export.')
     } finally {
-      setPrinting(null)
+      setExporting(null)
     }
   }
 
@@ -538,14 +759,41 @@ export default function Documents() {
                   {d.active_editors} here now
                 </span>
               )}
-              <button onClick={() => print(d)} disabled={printing === d.id}
-                title="Print"
-                className="shrink-0 text-gray-300 hover:text-gray-600 transition opacity-0 group-hover:opacity-100 focus:opacity-100 p-1 disabled:opacity-40">
-                {printing === d.id
-                  ? <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                  : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm1-4h4v2h-4v-2z"/></svg>
-                }
-              </button>
+              {/* Export dropdown for list row */}
+              <div className="relative shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
+                <button
+                  onClick={() => setListMenuOpen(listMenuOpen === d.id ? null : d.id)}
+                  disabled={exporting === d.id}
+                  title="Export"
+                  className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-700 transition p-1 disabled:opacity-40"
+                >
+                  {exporting === d.id
+                    ? <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                    : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                  }
+                </button>
+                {listMenuOpen === d.id && (
+                  <>
+                    <div className="fixed inset-0 z-20" onClick={() => setListMenuOpen(null)} />
+                    <div className="absolute right-0 mt-1 w-52 bg-white rounded-xl shadow-lg border border-gray-200 z-30 py-1 overflow-hidden">
+                      {([
+                        ['print', 'Print / Save as PDF', 'M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm1-4h4v2h-4v-2z'],
+                        ['html', 'Download as HTML', 'M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4'],
+                        ['md',   'Download as Markdown', 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'],
+                        ['txt',  'Download as Plain Text', 'M4 6h16M4 12h16M4 18h7'],
+                      ] as const).map(([fmt, label, icon]) => (
+                        <button key={fmt} onClick={() => handleListExport(d, fmt)}
+                          className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs text-gray-700 hover:bg-gray-50 transition text-left">
+                          <svg className="w-4 h-4 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={icon} />
+                          </svg>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
               <button onClick={() => rename(d)}
                 className="shrink-0 text-xs text-gray-400 hover:text-green-700 transition px-1 opacity-0 group-hover:opacity-100 focus:opacity-100">
                 Rename
