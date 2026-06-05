@@ -113,7 +113,7 @@ func (h *InvitationsHandler) Send(c echo.Context) error {
 	var existing int
 	h.DB.QueryRow(c.Request().Context(),
 		`SELECT COUNT(*) FROM match_invitations
-		 WHERE booking_id = $1 AND invitee_email = $2 AND status IN ('pending','declined')`,
+		 WHERE booking_id = $1 AND LOWER(invitee_email) = LOWER($2) AND status IN ('pending','declined')`,
 		bookingID, req.InviteeEmail).Scan(&existing)
 	if existing > 0 {
 		return echo.NewHTTPError(http.StatusConflict, "this player has already been invited or has declined")
@@ -546,7 +546,9 @@ func (h *InvitationsHandler) GetSentPending(c echo.Context) error {
 func (h *InvitationsHandler) GetPendingForMe(c echo.Context) error {
 	userID := c.Get("user_id").(string)
 	var email string
-	h.DB.QueryRow(c.Request().Context(), `SELECT email FROM users WHERE id = $1`, userID).Scan(&email)
+	if err := h.DB.QueryRow(c.Request().Context(), `SELECT email FROM users WHERE id = $1`, userID).Scan(&email); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch user")
+	}
 
 	rows, err := h.DB.Query(c.Request().Context(), `
 		SELECT i.id, i.token, ct.name, b.start_time, b.end_time,
@@ -555,7 +557,7 @@ func (h *InvitationsHandler) GetPendingForMe(c echo.Context) error {
 		JOIN bookings b ON b.id = i.booking_id
 		JOIN courts ct ON ct.id = b.court_id
 		JOIN users u ON u.id = b.user_id
-		WHERE (i.invitee_user_id = $1 OR i.invitee_email = $2)
+		WHERE (i.invitee_user_id = $1 OR LOWER(i.invitee_email) = LOWER($2))
 		  AND i.status = 'pending'
 		  AND i.expires_at > NOW()
 		  AND b.start_time > NOW()
