@@ -60,13 +60,6 @@ export default function ClubInfo() {
         </div>
       </div>
 
-      {settings.weather_camera_url && (
-        <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm mb-6">
-          <h2 className="font-semibold text-gray-800 mb-3">📷 Live Court Camera</h2>
-          <img src={settings.weather_camera_url} alt="Court camera" className="w-full rounded-lg" />
-        </div>
-      )}
-
       {settings.coaching_bio && (
         <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
           <h2 className="font-semibold text-gray-800 mb-3">🎓 Coaching</h2>
