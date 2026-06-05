@@ -30,8 +30,8 @@ type Document struct {
 	Category       string  `json:"category"`
 	FolderID       *string `json:"folder_id,omitempty"`
 	UploadedBy     *string `json:"uploaded_by,omitempty"`
-	UploadedByName *string `json:"uploaded_by_name,omitempty"`
-	CreatedAt      string  `json:"created_at"`
+	UploadedByName *string   `json:"uploaded_by_name,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
 	AIIndexed      bool    `json:"ai_indexed"`
 	Indexed        bool    `json:"indexed"` // true when doc_chunks have been built
 }
