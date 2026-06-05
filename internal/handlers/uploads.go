@@ -20,6 +20,10 @@ type UploadsHandler struct {
 	DB         *pgxpool.Pool
 	UploadDir  string
 	FrontendFS fs.FS // fallback for bylaws.pdf embedded in the binary
+	// IndexDoc auto-indexes an uploaded document for the assistant (set in main
+	// to AIHandler.IndexDocumentBG). Handles every supported type; nil disables
+	// auto-indexing.
+	IndexDoc func(id, filename string)
 }
 
 type Document struct {
@@ -297,9 +301,13 @@ func (h *UploadsHandler) UploadDocument(c echo.Context) error {
 		}
 		return echo.NewHTTPError(http.StatusBadRequest, msg)
 	}
-	// Auto-index text-based files immediately so they're searchable without a manual reindex.
-	// PDFs require an AI extraction pass — they stay as indexed_at=NULL for the batch reindex.
-	if isTextFile(filename) {
+	// Auto-index every supported file so it's searchable by the assistant without
+	// a manual reindex. Text/Office files extract locally; PDFs and images go
+	// through Claude. If AI is off when a PDF/image arrives, it stays indexed_at=
+	// NULL and the batch Reindex picks it up once AI is configured.
+	if h.IndexDoc != nil {
+		h.IndexDoc(doc.ID, filename)
+	} else if isTextFile(filename) {
 		go h.indexTextDocument(context.Background(), doc.ID, filename)
 	}
 	return c.JSON(http.StatusCreated, doc)

@@ -437,7 +437,9 @@ export default function AdminSettings() {
             </div>
             <p className="text-xs text-gray-400 mb-3">
               Extracts your documents' text so “Ask the Club” can search the whole library and pull only the relevant
-              passages per question. PDFs use one Claude call each to extract (counts toward spending above).
+              passages per question. Text and Office files (Word/Excel/PowerPoint) extract for free; PDFs and images
+              use one Claude call each to extract (counts toward spending above). New uploads index automatically —
+              use “Rebuild all” to re-extract files uploaded before image/Office support was added.
             </p>
             {indexStatus.total > 0 && (
               <div className="h-2 bg-gray-100 rounded-full overflow-hidden mb-3">

@@ -155,6 +155,8 @@ func main() {
 	collabDocs := &handlers.CollabDocsHandler{DB: pool}
 	aiClient := &ai.Client{DB: pool}
 	aiH := &handlers.AIHandler{DB: pool, AI: aiClient, UploadDir: uploadDir}
+	// Auto-index every uploaded document so the assistant can read it.
+	uploads.IndexDoc = aiH.IndexDocumentBG
 
 	api := e.Group("/api")
 

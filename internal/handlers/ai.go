@@ -1,11 +1,15 @@
 package handlers
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/xml"
 	"fmt"
 	"io"
 	"io/fs"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -281,18 +285,91 @@ func (h *AIHandler) boardRestrictedHit(ctx context.Context, accessibleIDs []stri
 	return hit
 }
 
-// readableExt reports whether a document's text can be indexed.
+// readableExt reports whether a document's text can be indexed. Text and Office
+// files are extracted locally; PDFs and images are read by Claude.
 func readableExt(filename string) bool {
 	switch strings.ToLower(filepath.Ext(filename)) {
-	case ".pdf", ".txt", ".md", ".markdown", ".csv", ".log":
+	case ".pdf", ".txt", ".md", ".markdown", ".csv", ".log",
+		".docx", ".xlsx", ".pptx",
+		".jpg", ".jpeg", ".png", ".webp", ".gif":
 		return true
 	}
 	return false
 }
 
-// extractText pulls a document's plain text. Text files are read directly;
-// PDFs are extracted by Claude (which reads them natively), so no PDF library
-// is needed. Runs once per document at index time, not per question.
+// imageMediaType maps an image extension to its MIME type for Claude's vision API.
+func imageMediaType(ext string) string {
+	switch ext {
+	case ".png":
+		return "image/png"
+	case ".webp":
+		return "image/webp"
+	case ".gif":
+		return "image/gif"
+	default:
+		return "image/jpeg"
+	}
+}
+
+// extractOfficeText pulls the text out of a .docx/.xlsx/.pptx file. These are
+// just ZIP archives of XML, so we read the relevant parts and collect their
+// text nodes — no external library or AI call needed. Ordering within a part is
+// preserved; formatting is dropped (fine for search).
+func extractOfficeText(data []byte, ext string) (string, error) {
+	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		return "", err
+	}
+	var want func(name string) bool
+	switch ext {
+	case ".docx":
+		want = func(n string) bool {
+			return n == "word/document.xml" || n == "word/footnotes.xml" || n == "word/endnotes.xml" ||
+				strings.HasPrefix(n, "word/header") || strings.HasPrefix(n, "word/footer")
+		}
+	case ".pptx":
+		want = func(n string) bool {
+			return strings.HasPrefix(n, "ppt/slides/slide") || strings.HasPrefix(n, "ppt/notesSlides/")
+		}
+	case ".xlsx":
+		want = func(n string) bool {
+			return n == "xl/sharedStrings.xml" || strings.HasPrefix(n, "xl/worksheets/")
+		}
+	default:
+		return "", nil
+	}
+	var b strings.Builder
+	for _, f := range zr.File {
+		if !want(f.Name) {
+			continue
+		}
+		rc, err := f.Open()
+		if err != nil {
+			continue
+		}
+		dec := xml.NewDecoder(rc)
+		for {
+			tok, err := dec.Token()
+			if err != nil {
+				break
+			}
+			if cd, ok := tok.(xml.CharData); ok {
+				if t := strings.TrimSpace(string(cd)); t != "" {
+					b.WriteString(t)
+					b.WriteByte(' ')
+				}
+			}
+		}
+		rc.Close()
+		b.WriteString("\n")
+	}
+	return b.String(), nil
+}
+
+// extractText pulls a document's plain text. Text and Office files are read
+// locally; PDFs and images are extracted by Claude (which reads them natively),
+// so no PDF/OCR library is needed. Runs once per document at index time, not per
+// question.
 func (h *AIHandler) extractText(ctx context.Context, filename string) (string, error) {
 	if h.UploadDir == "" {
 		return "", nil
@@ -301,9 +378,12 @@ func (h *AIHandler) extractText(ctx context.Context, filename string) (string, e
 	if err != nil || len(data) == 0 {
 		return "", err
 	}
-	switch strings.ToLower(filepath.Ext(filename)) {
+	ext := strings.ToLower(filepath.Ext(filename))
+	switch ext {
 	case ".txt", ".md", ".markdown", ".csv", ".log":
 		return string(data), nil
+	case ".docx", ".xlsx", ".pptx":
+		return extractOfficeText(data, ext)
 	case ".pdf":
 		if len(data) > 12<<20 {
 			return "", nil // too large to extract in one shot
@@ -315,6 +395,19 @@ func (h *AIHandler) extractText(ctx context.Context, filename string) (string, e
 				ai.Text("Extract all text from this document."),
 			}}},
 			MaxTokens: 8000,
+			Feature:   "index",
+		})
+	case ".jpg", ".jpeg", ".png", ".webp", ".gif":
+		if len(data) > 8<<20 {
+			return "", nil // too large to send in one shot
+		}
+		return h.AI.Complete(ctx, ai.Request{
+			System: []ai.Block{ai.Text("You read text from images (OCR). Output only the text visible in the image as plain text, preserving order. If the image contains no text, output nothing. Do not describe the image or add commentary.")},
+			Messages: []ai.Message{{Role: "user", Content: []ai.Block{
+				ai.ImageBlock(imageMediaType(ext), base64.StdEncoding.EncodeToString(data)),
+				ai.Text("Extract all text visible in this image."),
+			}}},
+			MaxTokens: 4000,
 			Feature:   "index",
 		})
 	}
@@ -373,6 +466,22 @@ func (h *AIHandler) indexDocument(ctx context.Context, id, filename string) erro
 	}
 	tx.Exec(ctx, `UPDATE documents SET indexed_at = NOW() WHERE id = $1`, id)
 	return tx.Commit(ctx)
+}
+
+// IndexDocumentBG extracts and indexes one document's text in the background.
+// It's wired into the upload flow so every supported file is auto-indexed on
+// upload (text/Office files locally; PDFs and images via Claude). If extraction
+// fails — e.g. AI is disabled when a PDF arrives — indexed_at stays NULL so the
+// batch Reindex picks it up later. Unsupported types are skipped.
+func (h *AIHandler) IndexDocumentBG(id, filename string) {
+	if !readableExt(filename) {
+		return
+	}
+	go func() {
+		if err := h.indexDocument(context.Background(), id, filename); err != nil {
+			log.Printf("auto-index failed for document %s (%s): %v", id, filename, err)
+		}
+	}()
 }
 
 // IndexStatus reports how many documents are indexed for the assistant (board+).
