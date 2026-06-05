@@ -24,6 +24,17 @@ export default function Scores() {
   const [loading, setLoading] = useState(true)
   const [scoreFor, setScoreFor] = useState<PendingMatch | null>(null)
   const [editing, setEditing] = useState<MatchResult | null>(null)
+  const [dismissedScores, setDismissedScores] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('dismissedScores') ?? '[]')) } catch { return new Set() }
+  })
+  const dismissScore = (bookingId: string) => {
+    setDismissedScores(prev => {
+      const next = new Set(prev)
+      next.add(bookingId)
+      localStorage.setItem('dismissedScores', JSON.stringify([...next]))
+      return next
+    })
+  }
 
   // Only the member who reported a score may edit or delete it.
   const canManage = (m: MatchResult) => !!user && m.reported_by === user.id
