@@ -203,8 +203,11 @@ function FileCard({ doc, isBoard, onDelete, onToggleAI }: {
           </button>
         )}
         {isBoard && aiReadable && (
-          <button onClick={() => onToggleAI(doc.id, !doc.ai_indexed)} title="AI indexing"
-            className={`p-0.5 text-[10px] font-bold ${doc.ai_indexed ? 'text-green-600' : 'text-gray-300 hover:text-gray-500'}`}>
+          <button onClick={() => onToggleAI(doc.id, !doc.ai_indexed)}
+            title={doc.ai_indexed
+              ? doc.indexed ? 'Members can ask the AI about this — click to disable' : 'Enabled for members — PDF will be indexed on next Reindex run'
+              : 'Enable so members can ask the AI about this file'}
+            className={`p-0.5 text-[10px] font-bold ${doc.ai_indexed ? (doc.indexed ? 'text-green-600' : 'text-amber-500') : 'text-gray-300 hover:text-gray-500'}`}>
             ✨
           </button>
         )}
@@ -257,7 +260,10 @@ function FileListRow({ doc, isBoard, onDelete, onToggleAI, subtitle }: {
         )}
         {isBoard && aiReadable && (
           <button onClick={() => onToggleAI(doc.id, !doc.ai_indexed)}
-            className={`text-[10px] px-1 py-0.5 rounded font-bold transition ${doc.ai_indexed ? 'text-green-600' : 'text-gray-300 hover:text-gray-500'}`}>
+            title={doc.ai_indexed
+              ? doc.indexed ? 'Members can ask the AI about this — click to disable' : 'Enabled for members — PDF will be indexed on next Reindex run'
+              : 'Enable so members can ask the AI about this file'}
+            className={`text-[10px] px-1 py-0.5 rounded font-bold transition ${doc.ai_indexed ? (doc.indexed ? 'text-green-600' : 'text-amber-500') : 'text-gray-300 hover:text-gray-500'}`}>
             ✨
           </button>
         )}
@@ -487,9 +493,18 @@ export default function Files() {
     await api.documents.delete(docId); await loadFolders()
   }
   const handleToggleAI = async (docId: string, next: boolean) => {
-    const flip = (fs: DocFolder[]): DocFolder[] => fs.map(f => ({ ...f, docs: (f.docs ?? []).map(d => d.id === docId ? { ...d, ai_indexed: next } : d), children: f.children ? flip(f.children) : f.children }))
+    const flip = (fs: DocFolder[]): DocFolder[] => fs.map(f => ({
+      ...f,
+      docs: (f.docs ?? []).map(d => d.id === docId ? { ...d, ai_indexed: next } : d),
+      children: f.children ? flip(f.children) : f.children,
+    }))
     setFolders(prev => flip(prev))
-    try { await api.documents.setAIIndexed(docId, next) }
+    try {
+      await api.documents.setAIIndexed(docId, next)
+      // Text files are indexed in a background goroutine on the server (~1-2s).
+      // Reload after a short delay so the ✨ badge updates to green.
+      if (next) setTimeout(() => loadFolders(), 2500)
+    }
     catch { await loadFolders() }
   }
 

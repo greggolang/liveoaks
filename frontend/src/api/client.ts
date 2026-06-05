@@ -48,7 +48,7 @@ export interface MemberRequest {
 
 export interface DocFile {
   id: string; title: string; filename: string; original_name: string; created_at: string
-  uploaded_by_name?: string; ai_indexed?: boolean
+  uploaded_by_name?: string; ai_indexed?: boolean; indexed?: boolean
 }
 export interface DocFolder {
   id: string; name: string; sort_order: number; roles: string[]

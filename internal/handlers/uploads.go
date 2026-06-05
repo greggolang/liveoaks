@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"io/fs"
@@ -31,6 +32,7 @@ type Document struct {
 	UploadedByName *string `json:"uploaded_by_name,omitempty"`
 	CreatedAt      string  `json:"created_at"`
 	AIIndexed      bool    `json:"ai_indexed"`
+	Indexed        bool    `json:"indexed"` // true when doc_chunks have been built
 }
 
 type DocumentFolder struct {
@@ -156,14 +158,15 @@ func (h *UploadsHandler) ListDocuments(c echo.Context) error {
 	for i, f := range folders {
 		dRows, err := h.DB.Query(ctx,
 			`SELECT d.id, d.title, d.filename, d.original_name, d.created_at,
-			        COALESCE(u.first_name || ' ' || u.last_name, NULL), d.ai_indexed
+			        COALESCE(u.first_name || ' ' || u.last_name, NULL), d.ai_indexed,
+			        (d.indexed_at IS NOT NULL) AS indexed
 			 FROM documents d
 			 LEFT JOIN users u ON u.id = d.uploaded_by
 			 WHERE d.folder_id = $1 ORDER BY d.created_at DESC`, f.ID)
 		if err != nil { continue }
 		for dRows.Next() {
 			var d Document
-			if err := dRows.Scan(&d.ID, &d.Title, &d.Filename, &d.OriginalName, &d.CreatedAt, &d.UploadedByName, &d.AIIndexed); err != nil { continue }
+			if err := dRows.Scan(&d.ID, &d.Title, &d.Filename, &d.OriginalName, &d.CreatedAt, &d.UploadedByName, &d.AIIndexed, &d.Indexed); err != nil { continue }
 			folders[i].Docs = append(folders[i].Docs, d)
 		}
 		dRows.Close()
@@ -280,11 +283,54 @@ func (h *UploadsHandler) UploadDocument(c echo.Context) error {
 		 RETURNING id, title, filename, original_name, created_at`,
 		title, filename, original, fid, userID,
 	).Scan(&doc.ID, &doc.Title, &doc.Filename, &doc.OriginalName, &doc.CreatedAt)
+	// Auto-index text-based files immediately so they're searchable without a manual reindex.
+	// PDFs require an AI extraction pass — they stay as indexed_at=NULL for the batch reindex.
+	if isTextFile(filename) {
+		go h.indexTextDocument(context.Background(), doc.ID, filename)
+	}
 	return c.JSON(http.StatusCreated, doc)
 }
 
+// isTextFile reports whether a file can be indexed without AI (plain text read).
+func isTextFile(filename string) bool {
+	switch strings.ToLower(filepath.Ext(filename)) {
+	case ".txt", ".md", ".markdown", ".csv", ".log":
+		return true
+	}
+	return false
+}
+
+// indexTextDocument indexes a plain-text document (no AI needed) by chunking it
+// and storing the chunks in doc_chunks. PDFs and other types must go through the
+// AI-powered batch Reindex instead.
+func (h *UploadsHandler) indexTextDocument(ctx context.Context, id, filename string) {
+	if !isTextFile(filename) {
+		return
+	}
+	data, err := os.ReadFile(filepath.Join(h.UploadDir, "documents", filepath.Base(filename)))
+	if err != nil || len(data) == 0 {
+		return
+	}
+	chunks := chunkText(string(data), 1500)
+	if len(chunks) > 300 {
+		chunks = chunks[:300]
+	}
+	tx, err := h.DB.Begin(ctx)
+	if err != nil {
+		return
+	}
+	defer tx.Rollback(ctx)
+	tx.Exec(ctx, `DELETE FROM doc_chunks WHERE document_id = $1`, id)
+	for i, ch := range chunks {
+		tx.Exec(ctx, `INSERT INTO doc_chunks (document_id, chunk_index, content) VALUES ($1, $2, $3)`, id, i, ch)
+	}
+	tx.Exec(ctx, `UPDATE documents SET indexed_at = NOW() WHERE id = $1`, id)
+	tx.Commit(ctx)
+}
+
 // SetDocAIIndexed toggles whether the AI assistant may read a document's full
-// contents (board+).
+// contents for regular members (board+). Enabling also triggers indexing:
+// text files are indexed immediately; PDFs are queued for the batch reindex.
 func (h *UploadsHandler) SetDocAIIndexed(c echo.Context) error {
 	var req struct {
 		Indexed bool `json:"indexed"`
@@ -292,8 +338,26 @@ func (h *UploadsHandler) SetDocAIIndexed(c echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
 	}
+	id := c.Param("id")
 	h.DB.Exec(c.Request().Context(),
-		`UPDATE documents SET ai_indexed = $1 WHERE id = $2`, req.Indexed, c.Param("id"))
+		`UPDATE documents SET ai_indexed = $1 WHERE id = $2`, req.Indexed, id)
+
+	if req.Indexed {
+		var filename string
+		h.DB.QueryRow(c.Request().Context(), `SELECT filename FROM documents WHERE id = $1`, id).Scan(&filename)
+		if isTextFile(filename) {
+			// Index immediately (no AI required for text files).
+			go h.indexTextDocument(context.Background(), id, filename)
+		} else if strings.ToLower(filepath.Ext(filename)) == ".pdf" {
+			// PDF needs AI extraction — queue it by clearing indexed_at if not yet indexed.
+			var hasChunks bool
+			h.DB.QueryRow(c.Request().Context(),
+				`SELECT EXISTS(SELECT 1 FROM doc_chunks WHERE document_id = $1)`, id).Scan(&hasChunks)
+			if !hasChunks {
+				h.DB.Exec(c.Request().Context(), `UPDATE documents SET indexed_at = NULL WHERE id = $1`, id)
+			}
+		}
+	}
 	return c.NoContent(http.StatusNoContent)
 }
 
