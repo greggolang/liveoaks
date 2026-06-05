@@ -103,7 +103,7 @@ export default function AdminPasswords() {
 
   useEffect(() => {
     api.passwords.list().then(d => setEntries(d as PasswordEntry[]))
-    api.boardComms.boardMembers().then(d => setBoardMembers(d as BoardMember[]))
+    api.boardCommunications.boardMembers().then(d => setBoardMembers(d as BoardMember[]))
   }, [])
 
   const openEntry = (entry: PasswordEntry) => {

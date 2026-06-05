@@ -3,8 +3,6 @@ import { api, DocFolder, DocFile } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 import { parseDate } from '../utils/dates'
 
-const SESSION_KEY = 'files_open_folders'
-
 const ROLES: { key: string; label: string }[] = [
   { key: 'member',         label: 'Member' },
   { key: 'president',      label: 'President' },
@@ -43,39 +41,84 @@ const FILE_EXT_CONFIG: Record<string, { label: string; color: string }> = {
   mov:  { label: 'VID',  color: '#db2777' },
 }
 
-function FolderPermissionBadges({ roles }: { roles: string[] }) {
-  if (roles.length === 0)
-    return <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">All members</span>
+const PRINTABLE_EXTS = new Set(['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'txt', 'csv'])
+
+function printDoc(filename: string) {
+  const url = `/uploads/documents/${filename}`
+  const iframe = document.createElement('iframe')
+  iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:none;visibility:hidden;'
+  iframe.src = url
+  document.body.appendChild(iframe)
+  iframe.onload = () => {
+    try { iframe.contentWindow?.print() }
+    finally { setTimeout(() => iframe.remove(), 60000) }
+  }
+}
+
+function relativeDate(dateStr: string): string {
+  const d = parseDate(dateStr)
+  const diffDays = Math.floor((Date.now() - d.getTime()) / 86400000)
+  if (diffDays === 0) return 'Today'
+  if (diffDays === 1) return 'Yesterday'
+  if (diffDays < 7) return `${diffDays} days ago`
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`
+  return d.toLocaleDateString()
+}
+
+// ── File type icon (document silhouette) ─────────────────────────────────────
+function FileIcon({ filename, size = 'sm' }: { filename: string; size?: 'sm' | 'lg' }) {
+  const ext = (filename.split('.').pop() ?? '').toLowerCase()
+  const cfg = FILE_EXT_CONFIG[ext] ?? { label: ext ? ext.toUpperCase().slice(0, 4) : 'FILE', color: '#9ca3af' }
+  const w = size === 'lg' ? 48 : 28
+  const h = size === 'lg' ? 56 : 34
+  const fs = size === 'lg' ? 9 : 7
   return (
-    <div className="flex flex-wrap gap-1">
-      {roles.map(r => (
-        <span key={r} className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full capitalize">
-          {ROLES.find(x => x.key === r)?.label ?? r}
-        </span>
-      ))}
+    <div className="relative shrink-0 flex items-center justify-center" style={{ width: w, height: h }}>
+      <svg viewBox="0 0 28 34" className="absolute inset-0 w-full h-full" fill="none">
+        <path d="M2 2 H18 L26 10 V32 a2 2 0 01-2 2 H4 a2 2 0 01-2-2 V4 a2 2 0 012-2z"
+          fill={cfg.color} fillOpacity="0.12" stroke={cfg.color} strokeOpacity="0.45" strokeWidth="1.5" />
+        <path d="M18 2 V10 H26" stroke={cfg.color} strokeOpacity="0.45" strokeWidth="1.5" strokeLinecap="round"/>
+      </svg>
+      <span className="relative z-10 font-black tracking-widest leading-none mt-3" style={{ fontSize: fs, color: cfg.color }}>
+        {cfg.label}
+      </span>
     </div>
   )
 }
 
-function flattenFolders(folders: DocFolder[], prefix = ''): { id: string; label: string }[] {
-  const result: { id: string; label: string }[] = []
-  for (const f of folders) {
-    result.push({ id: f.id, label: prefix + f.name })
-    if (f.children?.length) result.push(...flattenFolders(f.children, prefix + f.name + ' / '))
-  }
-  return result
+// ── Folder icon ───────────────────────────────────────────────────────────────
+function FolderIcon({ open = false, size = 'sm' }: { open?: boolean; size?: 'sm' | 'lg' }) {
+  const cls = size === 'lg' ? 'w-12 h-12' : 'w-4 h-4'
+  return (
+    <svg className={`${cls} shrink-0`} viewBox="0 0 24 24" fill={open ? '#fbbf24' : '#f59e0b'}>
+      <path d="M10 4H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V8a2 2 0 00-2-2h-8l-2-2z" />
+    </svg>
+  )
 }
 
-function collectAllIds(folders: DocFolder[]): string[] {
-  const ids: string[] = []
-  const walk = (fs: DocFolder[]) => {
-    for (const f of fs) {
-      ids.push(f.id)
-      if (f.children?.length) walk(f.children)
-    }
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function findFolder(folders: DocFolder[], id: string): DocFolder | null {
+  for (const f of folders) {
+    if (f.id === id) return f
+    const found = findFolder(f.children ?? [], id)
+    if (found) return found
   }
-  walk(folders)
-  return ids
+  return null
+}
+
+function getFolderPath(folders: DocFolder[], id: string, path: DocFolder[] = []): DocFolder[] {
+  for (const f of folders) {
+    const next = [...path, f]
+    if (f.id === id) return next
+    const found = getFolderPath(f.children ?? [], id, next)
+    if (found.length) return found
+  }
+  return []
+}
+
+function getAncestorIds(folders: DocFolder[], id: string): string[] {
+  const path = getFolderPath(folders, id)
+  return path.slice(0, -1).map(f => f.id)
 }
 
 function searchFiles(folders: DocFolder[], query: string, path = ''): { doc: DocFile; folderPath: string }[] {
@@ -92,418 +135,207 @@ function searchFiles(folders: DocFolder[], query: string, path = ''): { doc: Doc
   return results
 }
 
-function relativeDate(dateStr: string): string {
-  const d = parseDate(dateStr)
-  const diffDays = Math.floor((Date.now() - d.getTime()) / 86400000)
-  if (diffDays === 0) return 'Today'
-  if (diffDays === 1) return 'Yesterday'
-  if (diffDays < 7) return `${diffDays} days ago`
-  if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`
-  return d.toLocaleDateString()
+function flattenFolders(folders: DocFolder[], prefix = ''): { id: string; label: string }[] {
+  const result: { id: string; label: string }[] = []
+  for (const f of folders) {
+    result.push({ id: f.id, label: prefix + f.name })
+    if (f.children?.length) result.push(...flattenFolders(f.children, prefix + f.name + ' / '))
+  }
+  return result
 }
 
-// ── File type icon (document silhouette with folded corner) ──────────────────
-function FileTypeBadge({ filename }: { filename: string }) {
-  const ext = (filename.split('.').pop() ?? '').toLowerCase()
-  const cfg = FILE_EXT_CONFIG[ext] ?? {
-    label: ext ? ext.toUpperCase().slice(0, 4) : 'FILE',
-    color: '#9ca3af',
-  }
+// ── Left tree node ────────────────────────────────────────────────────────────
+function TreeNode({ folder, depth, selectedId, onSelect, openIds, onToggle }: {
+  folder: DocFolder; depth: number; selectedId: string | null
+  onSelect: (id: string) => void; openIds: Set<string>; onToggle: (id: string) => void
+}) {
+  const isSelected = folder.id === selectedId
+  const isOpen = openIds.has(folder.id)
+  const hasChildren = (folder.children ?? []).length > 0
   return (
-    <div className="relative shrink-0 w-9 h-10 flex items-center justify-center">
-      <svg viewBox="0 0 28 34" className="absolute inset-0 w-full h-full" fill="none">
-        <path
-          d="M2 2 H18 L26 10 V32 a2 2 0 01-2 2 H4 a2 2 0 01-2-2 V4 a2 2 0 012-2z"
-          fill={cfg.color} fillOpacity="0.12"
-          stroke={cfg.color} strokeOpacity="0.45" strokeWidth="1.5"
-        />
-        <path d="M18 2 V10 H26" stroke={cfg.color} strokeOpacity="0.45" strokeWidth="1.5" strokeLinecap="round"/>
-      </svg>
-      <span className="relative z-10 mt-2.5 font-black tracking-widest leading-none" style={{ fontSize: 7, color: cfg.color }}>
-        {cfg.label}
-      </span>
+    <div>
+      <div
+        onClick={() => onSelect(folder.id)}
+        className={`flex items-center gap-1 py-1 px-2 cursor-pointer rounded text-sm select-none transition-colors ${isSelected ? 'bg-blue-100 text-blue-800 font-medium' : 'text-gray-700 hover:bg-gray-200'}`}
+        style={{ paddingLeft: 8 + depth * 16 }}
+      >
+        <button
+          onClick={e => { e.stopPropagation(); if (hasChildren) onToggle(folder.id) }}
+          className="w-4 h-4 flex items-center justify-center shrink-0 text-gray-400"
+        >
+          {hasChildren
+            ? <svg className={`w-2.5 h-2.5 transition-transform ${isOpen ? 'rotate-90' : ''}`} fill="currentColor" viewBox="0 0 6 10"><path d="M1 1l4 4-4 4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round"/></svg>
+            : null}
+        </button>
+        <FolderIcon open={isOpen} />
+        <span className="truncate leading-5">{folder.name}</span>
+      </div>
+      {isOpen && hasChildren && (folder.children ?? []).map(child => (
+        <TreeNode key={child.id} folder={child} depth={depth + 1}
+          selectedId={selectedId} onSelect={onSelect} openIds={openIds} onToggle={onToggle} />
+      ))}
     </div>
   )
 }
 
-// ── Print helper ─────────────────────────────────────────────────────────────
-const PRINTABLE_EXTS = new Set(['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'txt', 'csv'])
-
-function printDoc(filename: string) {
-  const url = `/uploads/documents/${filename}`
-  const iframe = document.createElement('iframe')
-  iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:none;visibility:hidden;'
-  iframe.src = url
-  document.body.appendChild(iframe)
-  iframe.onload = () => {
-    try { iframe.contentWindow?.print() }
-    finally { setTimeout(() => iframe.remove(), 60000) }
-  }
+// ── Grid file card ────────────────────────────────────────────────────────────
+function FileCard({ doc, isBoard, onDelete, onToggleAI }: {
+  doc: DocFile; isBoard: boolean; onDelete: (id: string) => void; onToggleAI: (id: string, next: boolean) => void
+}) {
+  const ext = (doc.filename.split('.').pop() ?? '').toLowerCase()
+  const canPrint = PRINTABLE_EXTS.has(ext)
+  const aiReadable = ['pdf', 'txt', 'md', 'markdown', 'csv', 'log'].includes(ext)
+  return (
+    <div className="group relative flex flex-col items-center gap-1.5 p-3 rounded-lg hover:bg-blue-50 cursor-pointer transition-colors">
+      <a href={`/uploads/documents/${doc.filename}`} target="_blank" rel="noreferrer"
+        className="flex flex-col items-center gap-1.5 w-full">
+        <FileIcon filename={doc.filename} size="lg" />
+        <span className="text-xs text-center text-gray-700 font-medium leading-tight line-clamp-2 w-full break-words">
+          {doc.title}
+        </span>
+      </a>
+      <div className="absolute top-1 right-1 hidden group-hover:flex items-center gap-0.5 bg-white border border-gray-200 rounded shadow-sm px-1 py-0.5">
+        {canPrint && (
+          <button onClick={() => printDoc(doc.filename)} title="Print" className="p-0.5 text-gray-400 hover:text-gray-700">
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm1-4h4v2h-4v-2z" />
+            </svg>
+          </button>
+        )}
+        {isBoard && aiReadable && (
+          <button onClick={() => onToggleAI(doc.id, !doc.ai_indexed)} title="AI indexing"
+            className={`p-0.5 text-[10px] font-bold ${doc.ai_indexed ? 'text-green-600' : 'text-gray-300 hover:text-gray-500'}`}>
+            ✨
+          </button>
+        )}
+        {isBoard && (
+          <button onClick={() => onDelete(doc.id)} title="Delete" className="p-0.5 text-red-400 hover:text-red-600">
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
+      </div>
+    </div>
+  )
 }
 
-// ── File row ─────────────────────────────────────────────────────────────────
-function FileRow({ doc, isBoard, onDelete, onToggleAI, subtitle }: {
+// ── List file row ─────────────────────────────────────────────────────────────
+function FileListRow({ doc, isBoard, onDelete, onToggleAI, subtitle }: {
   doc: DocFile; isBoard: boolean; onDelete: (id: string) => void
   onToggleAI: (id: string, next: boolean) => void; subtitle?: string
 }) {
   const ext = (doc.filename.split('.').pop() ?? '').toLowerCase()
-  const aiReadable = ['pdf', 'txt', 'md', 'markdown', 'csv', 'log'].includes(ext)
   const canPrint = PRINTABLE_EXTS.has(ext)
+  const aiReadable = ['pdf', 'txt', 'md', 'markdown', 'csv', 'log'].includes(ext)
+  const cfg = FILE_EXT_CONFIG[ext] ?? { label: ext.toUpperCase().slice(0, 4) || 'FILE', color: '#9ca3af' }
   return (
-    <div className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 transition group">
-      <a
-        href={`/uploads/documents/${doc.filename}`}
-        target="_blank" rel="noreferrer"
-        title="Open file"
-        className="flex items-center gap-3 flex-1 min-w-0"
-      >
-        <FileTypeBadge filename={doc.filename} />
+    <div className="group flex items-center gap-3 px-3 py-2 hover:bg-blue-50 rounded-lg transition-colors">
+      <a href={`/uploads/documents/${doc.filename}`} target="_blank" rel="noreferrer"
+        className="flex items-center gap-3 flex-1 min-w-0">
+        <FileIcon filename={doc.filename} size="sm" />
         <div className="flex-1 min-w-0">
-          <span className="font-medium text-gray-800 group-hover:text-green-700 text-sm transition block truncate">
+          <span className="text-sm font-medium text-gray-800 group-hover:text-blue-700 transition block truncate">
             {doc.title}
           </span>
-          <p className="text-xs text-gray-400 mt-0.5">
-            {subtitle ? `${subtitle} · ` : ''}{relativeDate(doc.created_at)}
-            {doc.uploaded_by_name && ` · ${doc.uploaded_by_name}`}
-          </p>
+          {subtitle && <span className="text-xs text-gray-400 block truncate">{subtitle}</span>}
         </div>
-        <svg className="w-4 h-4 shrink-0 text-gray-300 group-hover:text-green-600 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <span className="text-xs text-gray-400 shrink-0 w-20 text-right hidden sm:block">{relativeDate(doc.created_at)}</span>
+        <span className="text-xs shrink-0 w-12 text-right hidden md:block font-medium" style={{ color: cfg.color }}>{cfg.label}</span>
+        <svg className="w-3.5 h-3.5 shrink-0 text-gray-300 group-hover:text-blue-500 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
         </svg>
       </a>
-      {canPrint && (
-        <button
-          onClick={() => printDoc(doc.filename)}
-          title="Print"
-          className="shrink-0 text-gray-300 hover:text-gray-600 transition opacity-0 group-hover:opacity-100"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm1-4h4v2h-4v-2z" />
-          </svg>
-        </button>
-      )}
-      {isBoard && aiReadable && (
-        <button onClick={() => onToggleAI(doc.id, !doc.ai_indexed)}
-          title={doc.ai_indexed
-            ? 'Regular members can ask the assistant about this file — click to make it board-only'
-            : 'Let regular members ask the assistant about this file (board & admins can already search files they have access to)'}
-          className={`shrink-0 text-xs px-1.5 py-0.5 rounded font-medium transition ${
-            doc.ai_indexed ? 'bg-green-100 text-green-700' : 'text-gray-300 hover:text-gray-500'}`}>
-          ✨ AI
-        </button>
-      )}
-      {isBoard && (
-        <button onClick={() => onDelete(doc.id)}
-          className="shrink-0 text-xs text-red-400 hover:text-red-600 transition px-1">
-          Delete
-        </button>
-      )}
-    </div>
-  )
-}
-
-// ── Loading skeleton ─────────────────────────────────────────────────────────
-function LoadingSkeleton() {
-  return (
-    <div className="space-y-5 animate-pulse">
-      {[1, 2, 3].map(i => (
-        <div key={i}>
-          <div className="h-8 bg-gray-100 rounded-lg w-44 mb-2" />
-          <div className="ml-6 bg-white border border-gray-100 rounded-xl shadow-sm divide-y divide-gray-100">
-            {[1, 2].map(j => (
-              <div key={j} className="flex items-center gap-3 px-3 py-3">
-                <div className="w-9 h-10 bg-gray-100 rounded" />
-                <div className="flex-1 space-y-1.5">
-                  <div className="h-3.5 bg-gray-100 rounded w-3/4" />
-                  <div className="h-2.5 bg-gray-100 rounded w-1/3" />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-// ── Folder form state ────────────────────────────────────────────────────────
-interface FolderFormState {
-  name: string; sortOrder: string; roles: string[]; parentId: string
-}
-const emptyFolderForm = (): FolderFormState => ({ name: '', sortOrder: '0', roles: [], parentId: '' })
-
-// ── FolderNode props ─────────────────────────────────────────────────────────
-interface FolderNodeProps {
-  folder: DocFolder
-  depth: number
-  isBoard: boolean
-  isOpen: boolean
-  onToggle: (id: string) => void
-  openFolders: Set<string>
-  sortBy: 'date' | 'name'
-  showUploadFor: string | null
-  uploadFolderId: string
-  uploadTitle: string
-  uploadFiles: File[]
-  uploading: boolean
-  uploadError: string
-  uploadProgress: number
-  uploadCurrent: number
-  uploadTotal: number
-  onUploadOpen: (folderId: string) => void
-  onUploadCancel: () => void
-  onUploadTitleChange: (v: string) => void
-  onUploadFileChange: (files: File[]) => void
-  onUploadSubmit: (e: React.FormEvent) => void
-  onDelete: (docId: string) => void
-  onToggleAI: (docId: string, next: boolean) => void
-}
-
-// ── FolderNode ───────────────────────────────────────────────────────────────
-function FolderNode({
-  folder, depth, isBoard, isOpen, onToggle, openFolders, sortBy,
-  showUploadFor, uploadFolderId, uploadTitle, uploadFiles, uploading, uploadError,
-  uploadProgress, uploadCurrent, uploadTotal,
-  onUploadOpen, onUploadCancel, onUploadTitleChange, onUploadFileChange, onUploadSubmit, onDelete, onToggleAI,
-}: FolderNodeProps) {
-  const [dragOver, setDragOver] = useState(false)
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    setDragOver(false)
-    if (!isBoard) return
-    const files = Array.from(e.dataTransfer.files)
-    if (files.length === 0) return
-    onUploadOpen(folder.id)
-    onUploadFileChange(files)
-  }, [isBoard, folder.id, onUploadOpen, onUploadFileChange])
-
-  const sortedDocs = useMemo(() => {
-    const d = folder.docs ?? []
-    if (sortBy === 'name') return [...d].sort((a, b) => a.title.localeCompare(b.title))
-    return d
-  }, [folder.docs, sortBy])
-
-  const children = folder.children ?? []
-
-  return (
-    <div style={{ marginLeft: depth * 20 }}>
-      {/* Folder header row */}
-      <div className="flex items-center justify-between mb-1.5">
-        <button
-          onClick={() => onToggle(folder.id)}
-          className="flex items-center gap-2 flex-1 min-w-0 text-left rounded-lg -ml-2 px-2 py-1.5 hover:bg-gray-100 transition"
-        >
-          <svg
-            className={`w-3.5 h-3.5 shrink-0 text-gray-400 transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`}
-            fill="none" stroke="currentColor" viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 18l6-6-6-6" />
-          </svg>
-          <svg
-            className={`w-4 h-4 shrink-0 transition-colors ${isOpen ? 'text-yellow-400' : 'text-yellow-500'}`}
-            fill="currentColor" viewBox="0 0 24 24"
-          >
-            <path d="M10 4H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V8a2 2 0 00-2-2h-8l-2-2z" />
-          </svg>
-          <h2 className={`font-semibold text-gray-700 truncate ${depth === 0 ? 'text-sm' : 'text-xs'}`}>
-            {folder.name}
-          </h2>
-          {isBoard && <FolderPermissionBadges roles={folder.roles} />}
-          {sortedDocs.length > 0 && (
-            <span className="text-xs text-gray-400 shrink-0 tabular-nums">
-              {sortedDocs.length}
-            </span>
-          )}
-        </button>
-
-        {isBoard && isOpen && showUploadFor !== folder.id && (
-          <button
-            onClick={() => onUploadOpen(folder.id)}
-            className="text-xs text-green-700 hover:text-green-900 font-medium transition shrink-0 ml-2 px-2 py-1 rounded hover:bg-green-50"
-          >
-            + Upload
+      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+        {canPrint && (
+          <button onClick={() => printDoc(doc.filename)} title="Print"
+            className="p-1 text-gray-400 hover:text-gray-700 rounded hover:bg-white transition">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm1-4h4v2h-4v-2z" />
+            </svg>
+          </button>
+        )}
+        {isBoard && aiReadable && (
+          <button onClick={() => onToggleAI(doc.id, !doc.ai_indexed)}
+            className={`text-[10px] px-1 py-0.5 rounded font-bold transition ${doc.ai_indexed ? 'text-green-600' : 'text-gray-300 hover:text-gray-500'}`}>
+            ✨
+          </button>
+        )}
+        {isBoard && (
+          <button onClick={() => onDelete(doc.id)} title="Delete"
+            className="p-1 text-red-400 hover:text-red-600 rounded hover:bg-white transition">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
           </button>
         )}
       </div>
+    </div>
+  )
+}
 
-      {isOpen && (
-        <div
-          className={`ml-6 rounded-xl transition-all ${dragOver ? 'ring-2 ring-green-400 ring-offset-1 bg-green-50' : ''}`}
-          onDragOver={isBoard ? (e) => { e.preventDefault(); setDragOver(true) } : undefined}
-          onDragLeave={isBoard ? (e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false) } : undefined}
-          onDrop={isBoard ? handleDrop : undefined}
-        >
-          {/* Upload form */}
-          {isBoard && showUploadFor === folder.id && (
-            <form onSubmit={onUploadSubmit}
-              className="bg-green-50 border border-green-200 rounded-xl p-4 mb-3 space-y-3">
-              <div
-                className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors cursor-default
-                  ${dragOver ? 'border-green-500 bg-green-100' : 'border-green-300 bg-white'}`}
-                onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
-                onDragLeave={() => setDragOver(false)}
-                onDrop={(e) => { e.preventDefault(); setDragOver(false); onUploadFileChange(Array.from(e.dataTransfer.files)) }}
-              >
-                <svg className="w-6 h-6 text-gray-300 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                </svg>
-                <p className="text-xs text-gray-400 mb-2">Drag files here, or choose below</p>
-                <div className="flex flex-wrap justify-center gap-2">
-                  <label className="cursor-pointer inline-flex items-center text-xs text-green-700 hover:text-green-900 font-medium border border-green-300 rounded px-3 py-1.5 bg-white transition">
-                    Select Files
-                    <input type="file" multiple className="sr-only"
-                      onChange={e => onUploadFileChange(Array.from(e.target.files ?? []))} />
-                  </label>
-                  <label className="cursor-pointer inline-flex items-center text-xs text-green-700 hover:text-green-900 font-medium border border-green-300 rounded px-3 py-1.5 bg-white transition">
-                    Upload Folder
-                    <input
-                      ref={ref => ref && ref.setAttribute('webkitdirectory', '')}
-                      type="file" multiple className="sr-only"
-                      onChange={e => onUploadFileChange(Array.from(e.target.files ?? []))} />
-                  </label>
-                </div>
-              </div>
-
-              {uploadFiles.length === 1 && (
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Title *</label>
-                  <input value={uploadTitle} onChange={e => onUploadTitleChange(e.target.value)} required autoFocus
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
-                </div>
-              )}
-
-              {uploadFiles.length > 1 && (
-                <div className="bg-white border border-gray-200 rounded-lg px-3 py-2 max-h-40 overflow-y-auto space-y-1">
-                  <p className="text-xs font-medium text-gray-700 mb-1.5">
-                    {uploadFiles.length} files selected — filenames used as titles
-                  </p>
-                  {uploadFiles.map((f, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <FileTypeBadge filename={f.name} />
-                      <p className="text-xs text-gray-500 truncate">{f.webkitRelativePath || f.name}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {uploadFiles.length === 0 && (
-                <p className="text-xs text-gray-400 italic">No files selected yet.</p>
-              )}
-
-              {uploadError && <p className="text-red-500 text-xs">{uploadError}</p>}
-
-              <div className="flex gap-2">
-                <button type="submit" disabled={uploading || uploadFiles.length === 0}
-                  className="bg-green-700 hover:bg-green-800 text-white text-sm font-medium px-4 py-1.5 rounded-lg transition disabled:opacity-50">
-                  {uploading ? 'Uploading…' : uploadFiles.length > 1 ? `Upload ${uploadFiles.length} files` : 'Upload'}
-                </button>
-                <button type="button" onClick={onUploadCancel}
-                  className="text-sm text-gray-400 hover:text-gray-600 px-3 transition">
-                  Cancel
-                </button>
-              </div>
-
-              {uploading && (
-                <div className="space-y-1">
-                  {uploadTotal > 1 && (
-                    <p className="text-xs text-gray-500">File {uploadCurrent} of {uploadTotal}</p>
-                  )}
-                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                    <div className="h-full bg-green-600 rounded-full transition-all duration-150"
-                      style={{ width: `${uploadProgress}%` }} />
-                  </div>
-                  <p className="text-xs text-gray-400 text-right">{uploadProgress}%</p>
-                </div>
-              )}
-            </form>
-          )}
-
-          {/* Empty folder hint */}
-          {isBoard && showUploadFor !== folder.id && sortedDocs.length === 0 && children.length === 0 && (
-            <div className="border-2 border-dashed border-gray-200 rounded-xl p-5 mb-3 text-center">
-              <p className="text-xs text-gray-400">
-                Empty folder — drop files here or use <span className="font-medium text-green-700">+ Upload</span>
-              </p>
-            </div>
-          )}
-
-          {/* File list */}
-          {sortedDocs.length > 0 && (
-            <div className="bg-white border border-gray-200 rounded-xl shadow-sm divide-y divide-gray-100 mb-3">
-              {sortedDocs.map((doc: DocFile) => (
-                <FileRow key={doc.id} doc={doc} isBoard={isBoard} onDelete={onDelete} onToggleAI={onToggleAI} />
-              ))}
-            </div>
-          )}
-
-          {sortedDocs.length === 0 && children.length === 0 && !isBoard && (
-            <p className="text-xs text-gray-400 italic mb-3">No files.</p>
-          )}
-
-          {/* Child folders */}
-          {children.map(child => (
-            <FolderNode key={child.id} folder={child} depth={depth + 1}
-              isBoard={isBoard}
-              isOpen={openFolders.has(child.id)}
-              onToggle={onToggle}
-              openFolders={openFolders}
-              sortBy={sortBy}
-              showUploadFor={showUploadFor} uploadFolderId={uploadFolderId}
-              uploadTitle={uploadTitle} uploadFiles={uploadFiles}
-              uploading={uploading} uploadError={uploadError}
-              uploadProgress={uploadProgress} uploadCurrent={uploadCurrent} uploadTotal={uploadTotal}
-              onUploadOpen={onUploadOpen} onUploadCancel={onUploadCancel}
-              onUploadTitleChange={onUploadTitleChange} onUploadFileChange={onUploadFileChange}
-              onUploadSubmit={onUploadSubmit} onDelete={onDelete} onToggleAI={onToggleAI}
-            />
-          ))}
+// ── Folder item (right panel) ─────────────────────────────────────────────────
+function FolderItem({ folder, view, onClick, isBoard, onEdit, onDelete }: {
+  folder: DocFolder; view: 'list' | 'grid'
+  onClick: () => void; isBoard: boolean
+  onEdit: (f: DocFolder) => void; onDelete: (id: string, name: string, count: number) => void
+}) {
+  const count = folder.doc_count ?? (folder.docs ?? []).length
+  if (view === 'grid') {
+    return (
+      <div onClick={onClick}
+        className="group relative flex flex-col items-center gap-1.5 p-3 rounded-lg hover:bg-blue-50 cursor-pointer transition-colors">
+        <FolderIcon size="lg" />
+        <span className="text-xs text-center text-gray-700 font-medium leading-tight line-clamp-2 w-full break-words">
+          {folder.name}
+        </span>
+        {count > 0 && <span className="text-[10px] text-gray-400">{count} item{count !== 1 ? 's' : ''}</span>}
+        {isBoard && (
+          <div className="absolute top-1 right-1 hidden group-hover:flex items-center gap-0.5 bg-white border border-gray-200 rounded shadow-sm px-1 py-0.5">
+            <button onClick={e => { e.stopPropagation(); onEdit(folder) }}
+              className="p-0.5 text-blue-400 hover:text-blue-600">
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+              </svg>
+            </button>
+            <button onClick={e => { e.stopPropagation(); onDelete(folder.id, folder.name, folder.doc_count ?? 0) }}
+              className="p-0.5 text-red-400 hover:text-red-600">
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        )}
+      </div>
+    )
+  }
+  return (
+    <div onClick={onClick}
+      className="group flex items-center gap-3 px-3 py-2 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer">
+      <FolderIcon />
+      <span className="text-sm font-medium text-gray-800 group-hover:text-blue-700 flex-1 truncate transition">{folder.name}</span>
+      {count > 0 && <span className="text-xs text-gray-400 shrink-0 hidden sm:block">{count} item{count !== 1 ? 's' : ''}</span>}
+      {isBoard && (
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+          <button onClick={e => { e.stopPropagation(); onEdit(folder) }}
+            className="text-xs text-blue-500 hover:text-blue-700 font-medium px-1.5 py-0.5 rounded hover:bg-white transition">
+            Edit
+          </button>
+          <button onClick={e => { e.stopPropagation(); onDelete(folder.id, folder.name, folder.doc_count ?? 0) }}
+            className="text-xs text-red-400 hover:text-red-600 font-medium px-1.5 py-0.5 rounded hover:bg-white transition">
+            Delete
+          </button>
         </div>
       )}
     </div>
   )
 }
 
-// ── Admin folder row ─────────────────────────────────────────────────────────
-function AdminFolderRow({
-  folder, depth, onEdit, onDelete,
-}: {
-  folder: DocFolder; depth: number
-  onEdit: (f: DocFolder) => void
-  onDelete: (id: string, name: string, docCount: number) => void
-}) {
-  return (
-    <>
-      <div className="flex items-center gap-3 px-4 py-3" style={{ paddingLeft: 16 + depth * 20 }}>
-        <svg className="w-4 h-4 text-yellow-500 shrink-0" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M10 4H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V8a2 2 0 00-2-2h-8l-2-2z" />
-        </svg>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-gray-800">{folder.name}</p>
-          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-            <FolderPermissionBadges roles={folder.roles} />
-            <span className="text-xs text-gray-400">
-              {folder.doc_count ?? 0} file{(folder.doc_count ?? 0) !== 1 ? 's' : ''}
-            </span>
-          </div>
-        </div>
-        <button onClick={() => onEdit(folder)} className="text-xs text-blue-500 hover:text-blue-700 font-medium shrink-0 transition">
-          Edit
-        </button>
-        <button onClick={() => onDelete(folder.id, folder.name, folder.doc_count ?? 0)}
-          className="text-xs text-red-400 hover:text-red-600 shrink-0 transition">
-          Delete
-        </button>
-      </div>
-      {(folder.children ?? []).map(child => (
-        <AdminFolderRow key={child.id} folder={child} depth={depth + 1} onEdit={onEdit} onDelete={onDelete} />
-      ))}
-    </>
-  )
-}
+// ── Folder form state ─────────────────────────────────────────────────────────
+interface FolderFormState { name: string; sortOrder: string; roles: string[]; parentId: string }
+const emptyFolderForm = (): FolderFormState => ({ name: '', sortOrder: '0', roles: [], parentId: '' })
 
-// ── Main component ───────────────────────────────────────────────────────────
+// ── Main component ────────────────────────────────────────────────────────────
 export default function Files() {
   const { isBoard } = useAuth()
 
@@ -512,16 +344,22 @@ export default function Files() {
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState<'date' | 'name'>('date')
-  const [openFolders, setOpenFolders] = useState<Set<string>>(new Set())
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list')
 
+  // Left panel tree expansion
+  const [treeOpenIds, setTreeOpenIds] = useState<Set<string>>(new Set())
+  // Selected folder (right panel shows its contents)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+
+  // Folder CRUD
   const [showFolderForm, setShowFolderForm] = useState(false)
   const [folderForm, setFolderForm] = useState<FolderFormState>(emptyFolderForm())
   const [folderSaving, setFolderSaving] = useState(false)
   const [folderError, setFolderError] = useState('')
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null)
 
-  const [showUploadFor, setShowUploadFor] = useState<string | null>(null)
-  const [uploadFolderId, setUploadFolderId] = useState('')
+  // Upload
+  const [showUpload, setShowUpload] = useState(false)
   const [uploadTitle, setUploadTitle] = useState('')
   const [uploadFiles, setUploadFiles] = useState<File[]>([])
   const [uploading, setUploading] = useState(false)
@@ -529,11 +367,11 @@ export default function Files() {
   const [uploadProgress, setUploadProgress] = useState(0)
   const [uploadCurrent, setUploadCurrent] = useState(0)
   const [uploadTotal, setUploadTotal] = useState(0)
+  const [dragOver, setDragOver] = useState(false)
 
   const loadFolders = useCallback(async () => {
     const d = await api.documents.list()
-    setFolders(d)
-    return d
+    setFolders(d); return d
   }, [])
 
   const loadAdminFolders = useCallback(async () => {
@@ -544,370 +382,443 @@ export default function Files() {
   useEffect(() => {
     const init = async () => {
       try {
-        const [data] = await Promise.all([
-          loadFolders(),
-          isBoard ? loadAdminFolders() : Promise.resolve(),
-        ])
-        try {
-          const saved = sessionStorage.getItem(SESSION_KEY)
-          if (saved) {
-            setOpenFolders(new Set(JSON.parse(saved)))
-          } else {
-            const rootIds = new Set((data as DocFolder[]).map(f => f.id))
-            setOpenFolders(rootIds)
-            sessionStorage.setItem(SESSION_KEY, JSON.stringify([...rootIds]))
-          }
-        } catch {}
-      } finally {
-        setLoading(false)
-      }
+        const [data] = await Promise.all([loadFolders(), isBoard ? loadAdminFolders() : Promise.resolve()])
+        // Auto-open root folders in the tree
+        setTreeOpenIds(new Set((data as DocFolder[]).map(f => f.id)))
+      } finally { setLoading(false) }
     }
     init()
   }, [isBoard, loadFolders, loadAdminFolders])
 
-  const toggleFolder = useCallback((id: string) => {
-    setOpenFolders(prev => {
+  const toggleTree = useCallback((id: string) => {
+    setTreeOpenIds(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next })
+  }, [])
+
+  const selectFolder = useCallback((id: string) => {
+    setSelectedId(id)
+    // Expand ancestors in the tree
+    setTreeOpenIds(prev => {
+      const ancestors = getAncestorIds(folders, id)
       const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      sessionStorage.setItem(SESSION_KEY, JSON.stringify([...next]))
+      ancestors.forEach(a => next.add(a))
+      next.add(id)
       return next
     })
-  }, [])
-
-  const expandAll = useCallback(() => {
-    const ids = new Set(collectAllIds(folders))
-    setOpenFolders(ids)
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify([...ids]))
   }, [folders])
 
-  const collapseAll = useCallback(() => {
-    setOpenFolders(new Set())
-    sessionStorage.setItem(SESSION_KEY, '[]')
-  }, [])
+  // Current folder contents
+  const selectedFolder = selectedId ? findFolder(folders, selectedId) : null
+  const breadcrumb = selectedId ? getFolderPath(folders, selectedId) : []
 
-  const flatFolders = flattenFolders(adminFolders).filter(f => f.id !== editingFolderId)
+  const currentFolders = selectedFolder ? (selectedFolder.children ?? []) : folders
+  const currentDocs: DocFile[] = selectedFolder ? (selectedFolder.docs ?? []) : []
+
+  const sortedDocs = useMemo(() => {
+    if (sortBy === 'name') return [...currentDocs].sort((a, b) => a.title.localeCompare(b.title))
+    return currentDocs
+  }, [currentDocs, sortBy])
+
   const searchResults = searchQuery.trim() ? searchFiles(folders, searchQuery.trim()) : null
 
-  // ── Folder CRUD ──────────────────────────────────────────────────────────
+  // Folder CRUD
   const openCreateFolder = () => {
-    setEditingFolderId(null); setFolderForm(emptyFolderForm()); setFolderError(''); setShowFolderForm(true)
+    setEditingFolderId(null)
+    setFolderForm({ ...emptyFolderForm(), parentId: selectedId ?? '' })
+    setFolderError(''); setShowFolderForm(true)
   }
-
   const openEditFolder = (f: DocFolder) => {
     setEditingFolderId(f.id)
     setFolderForm({ name: f.name, sortOrder: String(f.sort_order), roles: [...f.roles], parentId: f.parent_id ?? '' })
     setFolderError(''); setShowFolderForm(true)
   }
-
   const saveFolder = async () => {
     if (!folderForm.name.trim()) { setFolderError('Name is required'); return }
     setFolderSaving(true); setFolderError('')
     try {
-      const payload = {
-        name: folderForm.name.trim(),
-        sort_order: parseInt(folderForm.sortOrder) || 0,
-        roles: folderForm.roles,
-        parent_id: folderForm.parentId || null,
-      }
-      if (editingFolderId) {
-        await api.documents.folders.update(editingFolderId, payload)
-      } else {
-        await api.documents.folders.create(payload)
-      }
+      const payload = { name: folderForm.name.trim(), sort_order: parseInt(folderForm.sortOrder) || 0, roles: folderForm.roles, parent_id: folderForm.parentId || null }
+      if (editingFolderId) await api.documents.folders.update(editingFolderId, payload)
+      else await api.documents.folders.create(payload)
       setShowFolderForm(false); setEditingFolderId(null)
       await Promise.all([loadFolders(), loadAdminFolders()])
     } catch (e: any) { setFolderError(e.message || 'Save failed') }
     finally { setFolderSaving(false) }
   }
-
   const deleteFolder = async (id: string, name: string, docCount: number) => {
-    const msg = docCount > 0
-      ? `Delete "${name}"? Its ${docCount} file${docCount !== 1 ? 's' : ''} will become unfiled.`
-      : `Delete folder "${name}"?`
+    const msg = docCount > 0 ? `Delete "${name}"? Its ${docCount} file${docCount !== 1 ? 's' : ''} will become unfiled.` : `Delete folder "${name}"?`
     if (!confirm(msg)) return
     await api.documents.folders.delete(id)
+    if (selectedId === id) setSelectedId(null)
     await Promise.all([loadFolders(), loadAdminFolders()])
   }
-
   const toggleRole = (role: string) =>
-    setFolderForm(f => ({
-      ...f, roles: f.roles.includes(role) ? f.roles.filter(r => r !== role) : [...f.roles, role],
-    }))
+    setFolderForm(f => ({ ...f, roles: f.roles.includes(role) ? f.roles.filter(r => r !== role) : [...f.roles, role] }))
 
-  // ── Upload ───────────────────────────────────────────────────────────────
+  // Upload
   const handleUploadFileChange = (files: File[]) => {
     setUploadFiles(files)
     if (files.length === 1) setUploadTitle(files[0].name.replace(/\.[^.]+$/, ''))
     else setUploadTitle('')
   }
-
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (uploadFiles.length === 0 || !uploadFolderId) return
+    if (uploadFiles.length === 0 || !selectedId) return
     if (uploadFiles.length === 1 && !uploadTitle.trim()) { setUploadError('Title is required'); return }
     setUploading(true); setUploadError(''); setUploadProgress(0)
     setUploadCurrent(0); setUploadTotal(uploadFiles.length)
     try {
       if (uploadFiles.length === 1) {
         setUploadCurrent(1)
-        await api.documents.upload(uploadTitle.trim(), uploadFolderId, uploadFiles[0], pct => setUploadProgress(pct))
+        await api.documents.upload(uploadTitle.trim(), selectedId, uploadFiles[0], pct => setUploadProgress(pct))
       } else {
         for (let i = 0; i < uploadFiles.length; i++) {
           setUploadCurrent(i + 1)
           const file = uploadFiles[i]
-          const title = file.name.replace(/\.[^.]+$/, '') || file.name
-          await api.documents.upload(title, uploadFolderId, file, pct =>
-            setUploadProgress(Math.round(((i + pct / 100) / uploadFiles.length) * 100))
-          )
+          await api.documents.upload(file.name.replace(/\.[^.]+$/, '') || file.name, selectedId, file, pct =>
+            setUploadProgress(Math.round(((i + pct / 100) / uploadFiles.length) * 100)))
         }
       }
-      setUploadTitle(''); setUploadFiles([]); setShowUploadFor(null); setUploadFolderId('')
-      setUploadProgress(0); setUploadCurrent(0); setUploadTotal(0)
+      setUploadTitle(''); setUploadFiles([]); setShowUpload(false); setUploadProgress(0)
       await loadFolders()
     } catch (e: any) { setUploadError(e.message || 'Upload failed') }
     finally { setUploading(false) }
   }
-
   const handleDelete = async (docId: string) => {
     if (!confirm('Delete this file?')) return
-    await api.documents.delete(docId)
-    await loadFolders()
+    await api.documents.delete(docId); await loadFolders()
   }
-
   const handleToggleAI = async (docId: string, next: boolean) => {
-    // Optimistic flip so the badge responds instantly.
-    const flip = (fs: DocFolder[]): DocFolder[] => fs.map(f => ({
-      ...f,
-      docs: (f.docs ?? []).map(d => d.id === docId ? { ...d, ai_indexed: next } : d),
-      children: f.children ? flip(f.children) : f.children,
-    }))
+    const flip = (fs: DocFolder[]): DocFolder[] => fs.map(f => ({ ...f, docs: (f.docs ?? []).map(d => d.id === docId ? { ...d, ai_indexed: next } : d), children: f.children ? flip(f.children) : f.children }))
     setFolders(prev => flip(prev))
     try { await api.documents.setAIIndexed(docId, next) }
     catch { await loadFolders() }
   }
 
-  const openUpload = (folderId: string) => {
-    setUploadFolderId(folderId); setShowUploadFor(folderId)
-    setUploadTitle(''); setUploadFiles([]); setUploadError('')
-  }
-
-  // ── Shared FolderNode upload props ────────────────────────────────────────
-  const uploadNodeProps = {
-    showUploadFor, uploadFolderId, uploadTitle, uploadFiles,
-    uploading, uploadError, uploadProgress, uploadCurrent, uploadTotal,
-    onUploadOpen: openUpload,
-    onUploadCancel: () => setShowUploadFor(null),
-    onUploadTitleChange: setUploadTitle,
-    onUploadFileChange: handleUploadFileChange,
-    onUploadSubmit: handleUpload,
-    onDelete: handleDelete,
-    onToggleAI: handleToggleAI,
-  }
-
-  // ── Render ────────────────────────────────────────────────────────────────
-  const hasTree = !loading && folders.length > 0
-  const showControls = hasTree && searchResults === null
+  const flatFolders = flattenFolders(adminFolders).filter(f => f.id !== editingFolderId)
+  const totalItems = currentFolders.length + sortedDocs.length
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
+    <div className="flex flex-col h-full space-y-3">
+      {/* ── Page header ── */}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <h1 className="text-2xl font-bold text-gray-800">Files</h1>
-
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Sort toggle */}
-          {showControls && (
-            <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
-              <button
-                onClick={() => setSortBy('date')}
-                className={`text-xs px-3 py-1.5 rounded-md font-medium transition ${
-                  sortBy === 'date' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                Newest
-              </button>
-              <button
-                onClick={() => setSortBy('name')}
-                className={`text-xs px-3 py-1.5 rounded-md font-medium transition ${
-                  sortBy === 'name' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                A–Z
-              </button>
-            </div>
-          )}
-
-          {/* Expand / Collapse all */}
-          {showControls && (
-            <div className="flex items-center gap-0.5">
-              <button onClick={expandAll}
-                className="text-xs text-gray-400 hover:text-gray-700 px-2 py-1.5 rounded hover:bg-gray-100 transition">
-                Expand all
-              </button>
-              <button onClick={collapseAll}
-                className="text-xs text-gray-400 hover:text-gray-700 px-2 py-1.5 rounded hover:bg-gray-100 transition">
-                Collapse
-              </button>
-            </div>
-          )}
-
-          {isBoard && (
+        {isBoard && (
+          <div className="flex items-center gap-2">
             <button onClick={openCreateFolder}
               className="bg-green-700 hover:bg-green-800 text-white text-sm font-medium px-4 py-2 rounded-lg transition">
               + New Folder
             </button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Folder form modal ── */}
+      {isBoard && showFolderForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => { setShowFolderForm(false); setEditingFolderId(null) }} />
+          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold text-gray-800 text-base">{editingFolderId ? 'Edit Folder' : 'New Folder'}</h2>
+              <button onClick={() => { setShowFolderForm(false); setEditingFolderId(null) }} className="text-gray-400 hover:text-gray-600">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="grid sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Folder Name *</label>
+                <input value={folderForm.name} onChange={e => setFolderForm(f => ({ ...f, name: e.target.value }))}
+                  autoFocus placeholder="e.g. Board Minutes"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Sort Order</label>
+                <input type="number" value={folderForm.sortOrder}
+                  onChange={e => setFolderForm(f => ({ ...f, sortOrder: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Parent Folder (optional)</label>
+              <select value={folderForm.parentId} onChange={e => setFolderForm(f => ({ ...f, parentId: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500">
+                <option value="">— Top level —</option>
+                {flatFolders.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-2">Who can see this folder?</label>
+              <label className="flex items-center gap-2 mb-2 cursor-pointer">
+                <input type="checkbox" checked={folderForm.roles.length === 0} onChange={() => setFolderForm(f => ({ ...f, roles: [] }))} className="w-4 h-4 accent-green-600" />
+                <span className="text-sm text-gray-700 font-medium">All members</span>
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 pl-1">
+                {ROLES.map(r => (
+                  <label key={r.key} className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={folderForm.roles.includes(r.key)} onChange={() => toggleRole(r.key)} className="w-3.5 h-3.5 accent-green-600" />
+                    <span className="text-xs text-gray-600">{r.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            {folderError && <p className="text-red-500 text-xs">{folderError}</p>}
+            <div className="flex gap-2 pt-1">
+              <button onClick={saveFolder} disabled={folderSaving}
+                className="bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-5 py-2 rounded-lg transition disabled:opacity-50">
+                {folderSaving ? 'Saving…' : editingFolderId ? 'Save Changes' : 'Create Folder'}
+              </button>
+              <button onClick={() => { setShowFolderForm(false); setEditingFolderId(null) }}
+                className="text-sm text-gray-400 hover:text-gray-600 px-3 transition">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Explorer shell ── */}
+      <div className="flex bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm"
+        style={{ height: 'calc(100vh - 200px)', minHeight: 400 }}>
+
+        {/* Left: folder tree */}
+        <div className="w-48 md:w-56 shrink-0 bg-gray-50 border-r border-gray-200 overflow-y-auto py-2 flex flex-col">
+          {/* Root node */}
+          <button
+            onClick={() => setSelectedId(null)}
+            className={`flex items-center gap-2 py-1.5 px-3 text-sm font-medium rounded mx-1 transition-colors select-none ${selectedId === null ? 'bg-blue-100 text-blue-800' : 'text-gray-600 hover:bg-gray-200'}`}>
+            <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+            </svg>
+            Files
+          </button>
+          <div className="mt-1 px-1 flex-1">
+            {loading ? (
+              <div className="space-y-1 px-2 animate-pulse">
+                {[1,2,3,4].map(i => <div key={i} className="h-6 bg-gray-200 rounded w-full" />)}
+              </div>
+            ) : (
+              folders.map(f => (
+                <TreeNode key={f.id} folder={f} depth={0}
+                  selectedId={selectedId} onSelect={selectFolder}
+                  openIds={treeOpenIds} onToggle={toggleTree} />
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Right: content area */}
+        <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+          {/* Toolbar */}
+          <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-100 bg-white shrink-0">
+            {/* Breadcrumb */}
+            <div className="flex items-center gap-1 text-sm min-w-0 flex-1">
+              <button onClick={() => setSelectedId(null)} className="text-gray-500 hover:text-blue-600 shrink-0 font-medium transition">Files</button>
+              {breadcrumb.map((f, i) => (
+                <span key={f.id} className="flex items-center gap-1 min-w-0">
+                  <svg className="w-3 h-3 text-gray-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                  <button
+                    onClick={() => setSelectedId(f.id)}
+                    className={`truncate transition font-medium ${i === breadcrumb.length - 1 ? 'text-gray-800' : 'text-gray-500 hover:text-blue-600'}`}>
+                    {f.name}
+                  </button>
+                </span>
+              ))}
+            </div>
+
+            {/* Search */}
+            <div className="relative hidden sm:block">
+              <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input type="text" placeholder="Search…" value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="pl-8 pr-3 py-1 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 w-36" />
+              {searchQuery && (
+                <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs">✕</button>
+              )}
+            </div>
+
+            {/* Sort */}
+            <div className="flex items-center bg-gray-100 rounded-lg p-0.5 shrink-0">
+              {(['date', 'name'] as const).map(s => (
+                <button key={s} onClick={() => setSortBy(s)}
+                  className={`text-xs px-2.5 py-1 rounded-md font-medium transition ${sortBy === s ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                  {s === 'date' ? 'Newest' : 'A–Z'}
+                </button>
+              ))}
+            </div>
+
+            {/* View toggle */}
+            <div className="flex items-center bg-gray-100 rounded-lg p-0.5 shrink-0">
+              <button onClick={() => setViewMode('list')} title="List view"
+                className={`p-1 rounded-md transition ${viewMode === 'list' ? 'bg-white shadow-sm text-gray-700' : 'text-gray-400 hover:text-gray-600'}`}>
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                </svg>
+              </button>
+              <button onClick={() => setViewMode('grid')} title="Grid view"
+                className={`p-1 rounded-md transition ${viewMode === 'grid' ? 'bg-white shadow-sm text-gray-700' : 'text-gray-400 hover:text-gray-600'}`}>
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Upload button (board + folder selected) */}
+            {isBoard && selectedId && (
+              <button onClick={() => { setShowUpload(v => !v); setUploadFiles([]); setUploadTitle(''); setUploadError('') }}
+                className="shrink-0 text-xs bg-green-700 hover:bg-green-800 text-white font-medium px-3 py-1.5 rounded-lg transition">
+                + Upload
+              </button>
+            )}
+          </div>
+
+          {/* Mobile search */}
+          <div className="sm:hidden px-3 pt-2 shrink-0">
+            <div className="relative">
+              <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input type="text" placeholder="Search…" value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400" />
+              {searchQuery && (
+                <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">✕</button>
+              )}
+            </div>
+          </div>
+
+          {/* Upload form */}
+          {isBoard && showUpload && selectedId && (
+            <form onSubmit={handleUpload}
+              className="border-b border-gray-100 bg-green-50 px-4 py-3 space-y-3 shrink-0"
+              onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={e => { e.preventDefault(); setDragOver(false); handleUploadFileChange(Array.from(e.dataTransfer.files)) }}>
+              <div className={`border-2 border-dashed rounded-lg p-3 text-center transition-colors ${dragOver ? 'border-green-500 bg-green-100' : 'border-green-300 bg-white'}`}>
+                <p className="text-xs text-gray-400 mb-1.5">Drop files here or</p>
+                <label className="cursor-pointer text-xs text-green-700 hover:text-green-900 font-medium border border-green-300 rounded px-3 py-1 bg-white">
+                  Browse files
+                  <input type="file" multiple className="sr-only" onChange={e => handleUploadFileChange(Array.from(e.target.files ?? []))} />
+                </label>
+              </div>
+              {uploadFiles.length === 1 && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Title *</label>
+                  <input value={uploadTitle} onChange={e => setUploadTitle(e.target.value)} required autoFocus
+                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                </div>
+              )}
+              {uploadFiles.length > 1 && (
+                <p className="text-xs text-gray-600 font-medium">{uploadFiles.length} files selected</p>
+              )}
+              {uploadError && <p className="text-red-500 text-xs">{uploadError}</p>}
+              {uploading && (
+                <div className="space-y-1">
+                  {uploadTotal > 1 && <p className="text-xs text-gray-500">File {uploadCurrent} of {uploadTotal}</p>}
+                  <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                    <div className="h-full bg-green-600 rounded-full transition-all" style={{ width: `${uploadProgress}%` }} />
+                  </div>
+                </div>
+              )}
+              <div className="flex gap-2">
+                <button type="submit" disabled={uploading || uploadFiles.length === 0}
+                  className="bg-green-700 hover:bg-green-800 text-white text-xs font-medium px-4 py-1.5 rounded-lg transition disabled:opacity-50">
+                  {uploading ? 'Uploading…' : `Upload${uploadFiles.length > 1 ? ` ${uploadFiles.length} files` : ''}`}
+                </button>
+                <button type="button" onClick={() => setShowUpload(false)} className="text-xs text-gray-400 hover:text-gray-600 px-2 transition">Cancel</button>
+              </div>
+            </form>
+          )}
+
+          {/* Content area */}
+          <div className="flex-1 overflow-y-auto">
+            {loading ? (
+              <div className="p-4 space-y-2 animate-pulse">
+                {[1,2,3,4,5].map(i => <div key={i} className="h-10 bg-gray-100 rounded-lg" />)}
+              </div>
+            ) : searchResults !== null ? (
+              /* Search results */
+              <div className="p-3">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-3 py-2">
+                  {searchResults.length} result{searchResults.length !== 1 ? 's' : ''} for "{searchQuery}"
+                </p>
+                {searchResults.length === 0 ? (
+                  <p className="text-sm text-gray-400 py-8 text-center">No files found.</p>
+                ) : (
+                  searchResults.map(({ doc, folderPath }) => (
+                    <FileListRow key={doc.id} doc={doc} isBoard={isBoard} onDelete={handleDelete} onToggleAI={handleToggleAI} subtitle={folderPath} />
+                  ))
+                )}
+              </div>
+            ) : currentFolders.length === 0 && sortedDocs.length === 0 ? (
+              /* Empty state */
+              <div className="flex flex-col items-center justify-center h-full text-center p-8">
+                <svg className="w-16 h-16 text-gray-200 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                </svg>
+                <p className="text-gray-400 text-sm">
+                  {selectedId
+                    ? isBoard ? 'Empty folder — use Upload to add files.' : 'No files in this folder.'
+                    : isBoard ? 'No folders yet — create one to get started.' : 'No files available.'}
+                </p>
+              </div>
+            ) : viewMode === 'grid' ? (
+              /* Grid view */
+              <div className="p-4">
+                {currentFolders.length > 0 && (
+                  <div className="mb-4">
+                    {!selectedId && <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-1">Folders</p>}
+                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-1">
+                      {currentFolders.map(f => (
+                        <FolderItem key={f.id} folder={f} view="grid" onClick={() => selectFolder(f.id)}
+                          isBoard={isBoard} onEdit={openEditFolder} onDelete={deleteFolder} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {sortedDocs.length > 0 && (
+                  <div>
+                    {currentFolders.length > 0 && <div className="border-t border-gray-100 mb-3" />}
+                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-1">
+                      {sortedDocs.map(doc => (
+                        <FileCard key={doc.id} doc={doc} isBoard={isBoard} onDelete={handleDelete} onToggleAI={handleToggleAI} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* List view */
+              <div className="p-2">
+                {/* Column headers */}
+                <div className="flex items-center gap-3 px-3 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100 mb-1">
+                  <span className="flex-1">Name</span>
+                  <span className="w-20 text-right hidden sm:block">Modified</span>
+                  <span className="w-12 text-right hidden md:block">Type</span>
+                  <span className="w-16" />
+                </div>
+                {currentFolders.map(f => (
+                  <FolderItem key={f.id} folder={f} view="list" onClick={() => selectFolder(f.id)}
+                    isBoard={isBoard} onEdit={openEditFolder} onDelete={deleteFolder} />
+                ))}
+                {currentFolders.length > 0 && sortedDocs.length > 0 && <div className="border-t border-gray-100 my-1" />}
+                {sortedDocs.map(doc => (
+                  <FileListRow key={doc.id} doc={doc} isBoard={isBoard} onDelete={handleDelete} onToggleAI={handleToggleAI} />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Status bar */}
+          {!loading && searchResults === null && (
+            <div className="shrink-0 border-t border-gray-100 bg-gray-50 px-4 py-1 flex items-center gap-3 text-xs text-gray-400">
+              <span>{totalItems} item{totalItems !== 1 ? 's' : ''}</span>
+              {sortedDocs.length > 0 && <span>{sortedDocs.length} file{sortedDocs.length !== 1 ? 's' : ''}</span>}
+              {currentFolders.length > 0 && <span>{currentFolders.length} folder{currentFolders.length !== 1 ? 's' : ''}</span>}
+              {selectedFolder && <span className="ml-auto truncate">{breadcrumb.map(f => f.name).join(' › ')}</span>}
+            </div>
           )}
         </div>
       </div>
-
-      {/* Search bar */}
-      {hasTree && (
-        <div className="relative">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
-            fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          <input
-            type="text"
-            placeholder="Search files…"
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-9 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
-          />
-          {searchQuery && (
-            <button onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs font-bold">
-              ✕
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Loading skeleton */}
-      {loading && <LoadingSkeleton />}
-
-      {/* Search results */}
-      {!loading && searchResults !== null && (
-        searchResults.length === 0 ? (
-          <p className="text-sm text-gray-400 py-2">No files match "{searchQuery}".</p>
-        ) : (
-          <div className="bg-white border border-gray-200 rounded-xl shadow-sm divide-y divide-gray-100">
-            <p className="px-4 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-              {searchResults.length} result{searchResults.length !== 1 ? 's' : ''}
-            </p>
-            {searchResults.map(({ doc, folderPath }) => (
-              <FileRow key={doc.id} doc={doc} isBoard={isBoard} onDelete={handleDelete} onToggleAI={handleToggleAI} subtitle={folderPath} />
-            ))}
-          </div>
-        )
-      )}
-
-      {/* Main content (hidden while searching) */}
-      {!loading && searchResults === null && (
-        <>
-          {/* Folder form */}
-          {isBoard && showFolderForm && (
-            <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm space-y-4">
-              <h2 className="font-semibold text-gray-700">{editingFolderId ? 'Edit Folder' : 'New Folder'}</h2>
-              <div className="grid sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Folder Name *</label>
-                  <input value={folderForm.name} onChange={e => setFolderForm(f => ({ ...f, name: e.target.value }))}
-                    autoFocus placeholder="e.g. Board Minutes"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Sort Order</label>
-                  <input type="number" value={folderForm.sortOrder}
-                    onChange={e => setFolderForm(f => ({ ...f, sortOrder: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Parent Folder (optional)</label>
-                <select value={folderForm.parentId}
-                  onChange={e => setFolderForm(f => ({ ...f, parentId: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500">
-                  <option value="">— Top level —</option>
-                  {flatFolders.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-2">Who can see this folder?</label>
-                <label className="flex items-center gap-2 mb-2 cursor-pointer">
-                  <input type="checkbox" checked={folderForm.roles.length === 0}
-                    onChange={() => setFolderForm(f => ({ ...f, roles: [] }))}
-                    className="w-4 h-4 accent-green-600" />
-                  <span className="text-sm text-gray-700 font-medium">All members</span>
-                </label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 pl-1">
-                  {ROLES.map(r => (
-                    <label key={r.key} className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" checked={folderForm.roles.includes(r.key)}
-                        onChange={() => toggleRole(r.key)} className="w-3.5 h-3.5 accent-green-600" />
-                      <span className="text-xs text-gray-600">{r.label}</span>
-                    </label>
-                  ))}
-                </div>
-                {folderForm.roles.length > 0 && (
-                  <p className="text-xs text-blue-600 mt-2">Only the selected roles (plus admin) will see this folder.</p>
-                )}
-              </div>
-
-              {folderError && <p className="text-red-500 text-xs">{folderError}</p>}
-              <div className="flex gap-2">
-                <button onClick={saveFolder} disabled={folderSaving}
-                  className="bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-5 py-2 rounded-lg transition disabled:opacity-50">
-                  {folderSaving ? 'Saving…' : editingFolderId ? 'Save Changes' : 'Create Folder'}
-                </button>
-                <button onClick={() => { setShowFolderForm(false); setEditingFolderId(null) }}
-                  className="text-sm text-gray-400 hover:text-gray-600 px-3 transition">
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Admin folder management panel */}
-          {isBoard && !showFolderForm && adminFolders.length > 0 && (
-            <div className="bg-white border border-gray-200 rounded-xl shadow-sm divide-y divide-gray-100">
-              <p className="px-4 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">Folders</p>
-              {adminFolders.map(f => (
-                <AdminFolderRow key={f.id} folder={f} depth={0} onEdit={openEditFolder} onDelete={deleteFolder} />
-              ))}
-            </div>
-          )}
-
-          {/* Folder tree */}
-          {folders.length === 0 ? (
-            <div className="text-center py-16">
-              <svg className="w-12 h-12 text-gray-200 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                  d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-              </svg>
-              <p className="text-gray-400 text-sm">
-                {isBoard ? 'No folders yet — create one to get started.' : 'No files available.'}
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {folders.map(folder => (
-                <FolderNode key={folder.id} folder={folder} depth={0}
-                  isBoard={isBoard}
-                  isOpen={openFolders.has(folder.id)}
-                  onToggle={toggleFolder}
-                  openFolders={openFolders}
-                  sortBy={sortBy}
-                  {...uploadNodeProps}
-                />
-              ))}
-            </div>
-          )}
-        </>
-      )}
     </div>
   )
 }
