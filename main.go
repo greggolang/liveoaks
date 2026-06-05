@@ -342,6 +342,7 @@ func main() {
 	adminOnly.PUT("/users/:id/status", users.UpdateStatus)
 	adminOnly.DELETE("/users/:id", users.Delete)
 	adminOnly.POST("/users/:id/force-reset", users.ForcePasswordReset)
+	adminOnly.POST("/users/:id/set-password", users.SetPassword)
 	adminOnly.POST("/users/:id/impersonate", auth.CreateImpersonationToken)
 	api.POST("/auth/redeem-impersonation", auth.RedeemImpersonationToken)
 	adminOnly.GET("/settings", admin.GetSettings)

@@ -616,6 +616,7 @@ export const api = {
       request(`/admin/users/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),
     deleteUser: (id: string) => request(`/admin/users/${id}`, { method: 'DELETE' }),
     forceReset: (id: string) => request<{ reset_url: string; email_sent: boolean; email_error: string }>(`/admin/users/${id}/force-reset`, { method: 'POST' }),
+    setPassword: (id: string, password: string) => request<{ message: string }>(`/admin/users/${id}/set-password`, { method: 'POST', body: JSON.stringify({ password }) }),
     impersonate: (id: string) => request<{ token: string }>(`/admin/users/${id}/impersonate`, { method: 'POST' }),
     settings: () => request('/admin/settings'),
     updateSetting: (key: string, value: string) =>

@@ -108,6 +108,10 @@ export default function AdminUsers() {
   const [sendingAlert, setSendingAlert] = useState(false)
   const [forceResetNotice, setForceResetNotice] = useState<{ name: string; emailSent: boolean; url: string; error?: string } | null>(null)
   const [linkCopied, setLinkCopied] = useState(false)
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [settingPassword, setSettingPassword] = useState(false)
+  const [passwordMsg, setPasswordMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
   const load = () => api.admin.users().then(d => setUsers(d as User[]))
   const loadWaitlist = () => api.waitlist.list().then(d => setWaitlist(d as WaitlistEntry[]))
@@ -133,6 +137,9 @@ export default function AdminUsers() {
     setEditingFamilyId(null)
     setMemberAlerts([])
     setAlertMsg('')
+    setNewPassword('')
+    setConfirmPassword('')
+    setPasswordMsg(null)
     loadFamily(u.id)
     loadAlerts(u.id)
   }
@@ -239,6 +246,28 @@ export default function AdminUsers() {
     } catch (err: any) {
       setForceResetNotice({ name: `${u.first_name} ${u.last_name}`, emailSent: false, url: '', error: err.message })
     }
+  }
+
+  const handleSetPassword = async () => {
+    if (!editing) return
+    setPasswordMsg(null)
+    if (newPassword.length < 8) {
+      setPasswordMsg({ ok: false, text: 'Password must be at least 8 characters.' })
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordMsg({ ok: false, text: 'Passwords do not match.' })
+      return
+    }
+    setSettingPassword(true)
+    try {
+      await api.admin.setPassword(editing.id, newPassword)
+      setNewPassword('')
+      setConfirmPassword('')
+      setPasswordMsg({ ok: true, text: `Password updated for ${editing.first_name}. They can sign in with it now.` })
+    } catch (err: any) {
+      setPasswordMsg({ ok: false, text: err.message || 'Could not update password.' })
+    } finally { setSettingPassword(false) }
   }
 
   const handleAddMember = async (e: React.FormEvent) => {
@@ -825,6 +854,27 @@ export default function AdminUsers() {
                   {sendingAlert ? 'Sending…' : 'Send'}
                 </button>
               </div>
+            </div>
+
+            {/* Set Password */}
+            <div className="border-t border-gray-100 pt-3">
+              <p className="text-xs font-medium text-gray-600 mb-1">Set Password</p>
+              <p className="text-xs text-gray-400 mb-2">Directly set a new password for this member. They can sign in with it immediately — no email is sent.</p>
+              <div className="flex flex-wrap gap-2 items-start">
+                <input type="text" value={newPassword} onChange={e => { setNewPassword(e.target.value); setPasswordMsg(null) }}
+                  placeholder="New password (min 8)" autoComplete="new-password"
+                  className="flex-1 min-w-[10rem] border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-500" />
+                <input type="text" value={confirmPassword} onChange={e => { setConfirmPassword(e.target.value); setPasswordMsg(null) }}
+                  placeholder="Confirm password" autoComplete="new-password"
+                  className="flex-1 min-w-[10rem] border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-500" />
+                <button type="button" disabled={!newPassword || settingPassword} onClick={handleSetPassword}
+                  className="px-3 py-1.5 bg-green-700 text-white text-xs rounded-lg hover:bg-green-800 transition disabled:opacity-50 shrink-0">
+                  {settingPassword ? 'Setting…' : 'Set Password'}
+                </button>
+              </div>
+              {passwordMsg && (
+                <p className={`text-xs mt-1.5 ${passwordMsg.ok ? 'text-green-600' : 'text-red-600'}`}>{passwordMsg.text}</p>
+              )}
             </div>
 
             <div className="flex gap-3 pt-2">
