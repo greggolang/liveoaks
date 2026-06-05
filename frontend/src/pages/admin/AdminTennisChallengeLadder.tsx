@@ -155,6 +155,15 @@ export default function AdminTennisChallengeLadder() {
     await api.ladder.admin.approveReg(activeLid, userId, status)
     setRegs(rs => rs.map(r => r.user_id === userId ? { ...r, status } : r))
   }
+  const addMember = async () => {
+    if (!addUserId || !activeLid) return
+    setAddSaving(true); setAddErr('')
+    try {
+      await api.ladder.admin.addMember(activeLid, addUserId)
+      await refreshData(activeLid)
+      setAddUserId(''); setAddSearch('')
+    } catch (e: any) { setAddErr(e.message) } finally { setAddSaving(false) }
+  }
 
   // Rankings
   const setRank = async () => {
@@ -408,6 +417,55 @@ export default function AdminTennisChallengeLadder() {
       {/* ═══ REGISTRATIONS ═══ */}
       {tab === 'registrations' && (
         <div className="space-y-4">
+          {/* Add member directly */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+            <h3 className="font-semibold text-gray-700 mb-1">Add Member to Ladder</h3>
+            <p className="text-xs text-gray-400 mb-3">Search for an active member and add them directly — no sign-up required.</p>
+            <div className="flex gap-2 flex-wrap items-start">
+              <div className="flex-1 min-w-[220px] relative">
+                <input
+                  value={addSearch}
+                  onChange={e => { setAddSearch(e.target.value); setAddUserId('') }}
+                  placeholder="Search by name or email…"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+                {addSearch.length >= 2 && !addUserId && (() => {
+                  const alreadyIn = new Set(regs.map(r => r.user_id))
+                  const q = addSearch.toLowerCase()
+                  const matches = allMembers.filter(m =>
+                    !alreadyIn.has(m.id) &&
+                    (`${m.first_name} ${m.last_name}`.toLowerCase().includes(q) || m.email.toLowerCase().includes(q))
+                  ).slice(0, 8)
+                  if (matches.length === 0) return null
+                  return (
+                    <ul className="absolute z-20 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+                      {matches.map(m => (
+                        <li key={m.id}>
+                          <button
+                            type="button"
+                            onClick={() => { setAddUserId(m.id); setAddSearch(`${m.first_name} ${m.last_name}`) }}
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-green-50 flex justify-between items-center"
+                          >
+                            <span className="font-medium text-gray-800">{m.first_name} {m.last_name}</span>
+                            <span className="text-xs text-gray-400">{m.email}</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )
+                })()}
+              </div>
+              <button
+                onClick={addMember}
+                disabled={addSaving || !addUserId}
+                className="bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-4 py-2 rounded-lg transition disabled:opacity-50 whitespace-nowrap"
+              >
+                {addSaving ? 'Adding…' : 'Add to Ladder'}
+              </button>
+            </div>
+            {addErr && <p className="text-red-500 text-xs mt-2">{addErr}</p>}
+          </div>
+
           {pendingRegs.length > 0 && (
             <div className="bg-yellow-50 border border-yellow-200 rounded-xl overflow-hidden">
               <div className="px-4 py-3 border-b border-yellow-100 font-semibold text-sm text-yellow-800">
