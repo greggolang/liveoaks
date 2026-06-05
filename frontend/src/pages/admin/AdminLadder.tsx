@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '../../api/client'
 import { parseDate } from '../../utils/dates'
 
-interface Ladder { id: string; name: string; type: string; season_year: number; status: string; challenge_range: number; challenge_expiry_days: number; response_window_hours: number; play_window_days: number; description: string }
+interface Ladder { id: string; name: string; type: string; season_year: number; status: string; challenge_range: number; challenge_expiry_days: number; response_window_hours: number; play_window_days: number; challenge_frequency_days: number; description: string }
 interface Entry {
   user_id: string; name: string; rank: number; wins: number; losses: number; season_points: number
   player_status: string; current_streak: number; longest_streak: number; last_match_date?: string
@@ -78,7 +78,7 @@ export default function AdminLadder() {
 
   const [ladders, setLadders] = useState<Ladder[]>([])
   const [activeLid, setActiveLid] = useState('')
-  const [lForm, setLForm] = useState({ name: '', type: 'singles', season_year: new Date().getFullYear(), status: 'draft', challenge_range: 3, challenge_expiry_days: 7, response_window_hours: 48, play_window_days: 10, description: '' })
+  const [lForm, setLForm] = useState({ name: '', type: 'singles', season_year: new Date().getFullYear(), status: 'draft', challenge_range: 3, challenge_expiry_days: 7, response_window_hours: 48, play_window_days: 10, challenge_frequency_days: 0, description: '' })
   const [editingL, setEditingL] = useState<Ladder | null>(null)
   const [lSaving, setLSaving] = useState(false)
   const [lErr, setLErr] = useState('')
@@ -159,12 +159,12 @@ export default function AdminLadder() {
   // Ladder CRUD
   const startEditL = (l: Ladder) => {
     setEditingL(l)
-    setLForm({ name: l.name, type: l.type, season_year: l.season_year, status: l.status, challenge_range: l.challenge_range, challenge_expiry_days: l.challenge_expiry_days, response_window_hours: l.response_window_hours, play_window_days: l.play_window_days, description: l.description })
+    setLForm({ name: l.name, type: l.type, season_year: l.season_year, status: l.status, challenge_range: l.challenge_range, challenge_expiry_days: l.challenge_expiry_days, response_window_hours: l.response_window_hours, play_window_days: l.play_window_days, challenge_frequency_days: l.challenge_frequency_days, description: l.description })
     setLErr('')
   }
   const resetLForm = () => {
     setEditingL(null)
-    setLForm({ name: '', type: 'singles', season_year: new Date().getFullYear(), status: 'draft', challenge_range: 3, challenge_expiry_days: 7, response_window_hours: 48, play_window_days: 10, description: '' })
+    setLForm({ name: '', type: 'singles', season_year: new Date().getFullYear(), status: 'draft', challenge_range: 3, challenge_expiry_days: 7, response_window_hours: 48, play_window_days: 10, challenge_frequency_days: 0, description: '' })
     setLErr('')
   }
   const saveL = async () => {
@@ -351,6 +351,12 @@ export default function AdminLadder() {
                 <input type="number" min={1} value={lForm.play_window_days} onChange={e => setLForm(f => ({ ...f, play_window_days: +e.target.value }))}
                   className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
               </div>
+              <div className="flex gap-2 items-center">
+                <label className="text-xs text-gray-500 whitespace-nowrap">Frequency cap (days)</label>
+                <input type="number" min={0} value={lForm.challenge_frequency_days} onChange={e => setLForm(f => ({ ...f, challenge_frequency_days: +e.target.value }))}
+                  className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="0 = off" />
+              </div>
               <textarea value={lForm.description} onChange={e => setLForm(f => ({ ...f, description: e.target.value }))}
                 placeholder="Description (optional)" rows={2}
                 className="sm:col-span-3 border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-green-500" />
@@ -389,7 +395,10 @@ export default function AdminLadder() {
                           {l.status}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-xs text-gray-400">±{l.challenge_range} spots · {l.response_window_hours}h respond · {l.play_window_days}d play</td>
+                      <td className="px-4 py-3 text-xs text-gray-400">
+                        ±{l.challenge_range} spots · {l.response_window_hours}h respond · {l.play_window_days}d play
+                        {l.challenge_frequency_days > 0 && ` · 1 challenge/${l.challenge_frequency_days}d`}
+                      </td>
                       <td className="px-4 py-3 text-right space-x-2">
                         <button onClick={() => startEditL(l)} className="text-xs text-blue-600 hover:underline">Edit</button>
                         <button onClick={() => deleteL(l.id)} className="text-xs text-red-500 hover:underline">Delete</button>

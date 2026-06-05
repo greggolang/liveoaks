@@ -29,16 +29,17 @@ const (
 // ─────────────────────────────────────────────
 
 type ladderRow struct {
-	ID                  string `json:"id"`
-	Name                string `json:"name"`
-	Type                string `json:"type"`
-	SeasonYear          int    `json:"season_year"`
-	Status              string `json:"status"`
-	ChallengeRange      int    `json:"challenge_range"`
-	ChallengeExpiryDays int    `json:"challenge_expiry_days"`
-	ResponseWindowHours int    `json:"response_window_hours"`
-	PlayWindowDays      int    `json:"play_window_days"`
-	Description         string `json:"description"`
+	ID                    string `json:"id"`
+	Name                  string `json:"name"`
+	Type                  string `json:"type"`
+	SeasonYear            int    `json:"season_year"`
+	Status                string `json:"status"`
+	ChallengeRange        int    `json:"challenge_range"`
+	ChallengeExpiryDays   int    `json:"challenge_expiry_days"`
+	ResponseWindowHours   int    `json:"response_window_hours"`
+	PlayWindowDays        int    `json:"play_window_days"`
+	ChallengeFrequencyDays int   `json:"challenge_frequency_days"`
+	Description           string `json:"description"`
 }
 
 type entryRow struct {
@@ -129,7 +130,8 @@ type conductRow struct {
 func (h *LadderHandler) GetLadders(c echo.Context) error {
 	rows, err := h.DB.Query(c.Request().Context(), `
 		SELECT id, name, type, season_year, status,
-		       challenge_range, challenge_expiry_days, response_window_hours, play_window_days, description
+		       challenge_range, challenge_expiry_days, response_window_hours, play_window_days,
+		       challenge_frequency_days, description
 		FROM tennis_ladders WHERE status != 'draft' ORDER BY season_year DESC, name`)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch ladders")
@@ -139,7 +141,8 @@ func (h *LadderHandler) GetLadders(c echo.Context) error {
 	for rows.Next() {
 		var r ladderRow
 		rows.Scan(&r.ID, &r.Name, &r.Type, &r.SeasonYear, &r.Status,
-			&r.ChallengeRange, &r.ChallengeExpiryDays, &r.ResponseWindowHours, &r.PlayWindowDays, &r.Description)
+			&r.ChallengeRange, &r.ChallengeExpiryDays, &r.ResponseWindowHours, &r.PlayWindowDays,
+			&r.ChallengeFrequencyDays, &r.Description)
 		out = append(out, r)
 	}
 	return c.JSON(http.StatusOK, out)
@@ -152,11 +155,12 @@ func (h *LadderHandler) GetLadder(c echo.Context) error {
 	var ladder ladderRow
 	err := h.DB.QueryRow(ctx, `
 		SELECT id, name, type, season_year, status,
-		       challenge_range, challenge_expiry_days, response_window_hours, play_window_days, description
+		       challenge_range, challenge_expiry_days, response_window_hours, play_window_days,
+		       challenge_frequency_days, description
 		FROM tennis_ladders WHERE id = $1`, id,
 	).Scan(&ladder.ID, &ladder.Name, &ladder.Type, &ladder.SeasonYear, &ladder.Status,
 		&ladder.ChallengeRange, &ladder.ChallengeExpiryDays, &ladder.ResponseWindowHours,
-		&ladder.PlayWindowDays, &ladder.Description)
+		&ladder.PlayWindowDays, &ladder.ChallengeFrequencyDays, &ladder.Description)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "ladder not found")
 	}
@@ -307,10 +311,11 @@ func (h *LadderHandler) CreateChallenge(c echo.Context) error {
 	// Get ladder settings
 	var ladder ladderRow
 	if err := h.DB.QueryRow(ctx, `
-		SELECT id, challenge_range, challenge_expiry_days, response_window_hours, play_window_days, status
+		SELECT id, challenge_range, challenge_expiry_days, response_window_hours, play_window_days,
+		       challenge_frequency_days, status
 		FROM tennis_ladders WHERE id=$1`, ladderID,
 	).Scan(&ladder.ID, &ladder.ChallengeRange, &ladder.ChallengeExpiryDays,
-		&ladder.ResponseWindowHours, &ladder.PlayWindowDays, &ladder.Status); err != nil {
+		&ladder.ResponseWindowHours, &ladder.PlayWindowDays, &ladder.ChallengeFrequencyDays, &ladder.Status); err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "ladder not found")
 	}
 	if ladder.Status != "active" {
@@ -399,6 +404,22 @@ func (h *LadderHandler) CreateChallenge(c echo.Context) error {
 	).Scan(&incomingCount)
 	if incomingCount > 0 {
 		return echo.NewHTTPError(http.StatusConflict, "that player already has a pending challenge")
+	}
+
+	// Frequency cap: each player may only receive one challenge per N days
+	if ladder.ChallengeFrequencyDays > 0 {
+		var recentCount int
+		h.DB.QueryRow(ctx, `
+			SELECT COUNT(*) FROM tennis_challenges
+			WHERE ladder_id=$1 AND challenged_id=$2
+			  AND status NOT IN ('declined','expired')
+			  AND created_at > NOW() - make_interval(days => $3)`,
+			ladderID, req.ChallengedID, ladder.ChallengeFrequencyDays,
+		).Scan(&recentCount)
+		if recentCount > 0 {
+			return echo.NewHTTPError(http.StatusConflict,
+				fmt.Sprintf("this player can only receive one challenge every %d day(s)", ladder.ChallengeFrequencyDays))
+		}
 	}
 
 	// Prevent circular challenges (B challenges A while A has pending against B)
@@ -792,7 +813,8 @@ func (h *LadderHandler) GetStats(c echo.Context) error {
 func (h *LadderHandler) AdminGetLadders(c echo.Context) error {
 	rows, err := h.DB.Query(c.Request().Context(), `
 		SELECT id, name, type, season_year, status,
-		       challenge_range, challenge_expiry_days, response_window_hours, play_window_days, description
+		       challenge_range, challenge_expiry_days, response_window_hours, play_window_days,
+		       challenge_frequency_days, description
 		FROM tennis_ladders ORDER BY season_year DESC, name`)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch ladders")
@@ -802,7 +824,8 @@ func (h *LadderHandler) AdminGetLadders(c echo.Context) error {
 	for rows.Next() {
 		var r ladderRow
 		rows.Scan(&r.ID, &r.Name, &r.Type, &r.SeasonYear, &r.Status,
-			&r.ChallengeRange, &r.ChallengeExpiryDays, &r.ResponseWindowHours, &r.PlayWindowDays, &r.Description)
+			&r.ChallengeRange, &r.ChallengeExpiryDays, &r.ResponseWindowHours, &r.PlayWindowDays,
+			&r.ChallengeFrequencyDays, &r.Description)
 		out = append(out, r)
 	}
 	return c.JSON(http.StatusOK, out)
@@ -810,15 +833,16 @@ func (h *LadderHandler) AdminGetLadders(c echo.Context) error {
 
 func (h *LadderHandler) AdminCreateLadder(c echo.Context) error {
 	var req struct {
-		Name                string `json:"name"`
-		Type                string `json:"type"`
-		SeasonYear          int    `json:"season_year"`
-		Status              string `json:"status"`
-		ChallengeRange      int    `json:"challenge_range"`
-		ChallengeExpiryDays int    `json:"challenge_expiry_days"`
-		ResponseWindowHours int    `json:"response_window_hours"`
-		PlayWindowDays      int    `json:"play_window_days"`
-		Description         string `json:"description"`
+		Name                   string `json:"name"`
+		Type                   string `json:"type"`
+		SeasonYear             int    `json:"season_year"`
+		Status                 string `json:"status"`
+		ChallengeRange         int    `json:"challenge_range"`
+		ChallengeExpiryDays    int    `json:"challenge_expiry_days"`
+		ResponseWindowHours    int    `json:"response_window_hours"`
+		PlayWindowDays         int    `json:"play_window_days"`
+		ChallengeFrequencyDays int    `json:"challenge_frequency_days"`
+		Description            string `json:"description"`
 	}
 	if err := c.Bind(&req); err != nil || req.Name == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "name required")
@@ -835,14 +859,17 @@ func (h *LadderHandler) AdminCreateLadder(c echo.Context) error {
 	err := h.DB.QueryRow(c.Request().Context(), `
 		INSERT INTO tennis_ladders
 		  (name, type, season_year, status, challenge_range, challenge_expiry_days,
-		   response_window_hours, play_window_days, description)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+		   response_window_hours, play_window_days, challenge_frequency_days, description)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
 		RETURNING id, name, type, season_year, status,
-		          challenge_range, challenge_expiry_days, response_window_hours, play_window_days, description`,
+		          challenge_range, challenge_expiry_days, response_window_hours, play_window_days,
+		          challenge_frequency_days, description`,
 		req.Name, req.Type, req.SeasonYear, req.Status, req.ChallengeRange,
-		req.ChallengeExpiryDays, req.ResponseWindowHours, req.PlayWindowDays, req.Description,
+		req.ChallengeExpiryDays, req.ResponseWindowHours, req.PlayWindowDays,
+		req.ChallengeFrequencyDays, req.Description,
 	).Scan(&r.ID, &r.Name, &r.Type, &r.SeasonYear, &r.Status,
-		&r.ChallengeRange, &r.ChallengeExpiryDays, &r.ResponseWindowHours, &r.PlayWindowDays, &r.Description)
+		&r.ChallengeRange, &r.ChallengeExpiryDays, &r.ResponseWindowHours, &r.PlayWindowDays,
+		&r.ChallengeFrequencyDays, &r.Description)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not create ladder")
 	}
@@ -856,15 +883,16 @@ func (h *LadderHandler) AdminCreateLadder(c echo.Context) error {
 func (h *LadderHandler) AdminUpdateLadder(c echo.Context) error {
 	id := c.Param("id")
 	var req struct {
-		Name                string `json:"name"`
-		Type                string `json:"type"`
-		SeasonYear          int    `json:"season_year"`
-		Status              string `json:"status"`
-		ChallengeRange      int    `json:"challenge_range"`
-		ChallengeExpiryDays int    `json:"challenge_expiry_days"`
-		ResponseWindowHours int    `json:"response_window_hours"`
-		PlayWindowDays      int    `json:"play_window_days"`
-		Description         string `json:"description"`
+		Name                   string `json:"name"`
+		Type                   string `json:"type"`
+		SeasonYear             int    `json:"season_year"`
+		Status                 string `json:"status"`
+		ChallengeRange         int    `json:"challenge_range"`
+		ChallengeExpiryDays    int    `json:"challenge_expiry_days"`
+		ResponseWindowHours    int    `json:"response_window_hours"`
+		PlayWindowDays         int    `json:"play_window_days"`
+		ChallengeFrequencyDays int    `json:"challenge_frequency_days"`
+		Description            string `json:"description"`
 	}
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
@@ -873,14 +901,18 @@ func (h *LadderHandler) AdminUpdateLadder(c echo.Context) error {
 	err := h.DB.QueryRow(c.Request().Context(), `
 		UPDATE tennis_ladders
 		SET name=$1, type=$2, season_year=$3, status=$4, challenge_range=$5,
-		    challenge_expiry_days=$6, response_window_hours=$7, play_window_days=$8, description=$9
-		WHERE id=$10
+		    challenge_expiry_days=$6, response_window_hours=$7, play_window_days=$8,
+		    challenge_frequency_days=$9, description=$10
+		WHERE id=$11
 		RETURNING id, name, type, season_year, status,
-		          challenge_range, challenge_expiry_days, response_window_hours, play_window_days, description`,
+		          challenge_range, challenge_expiry_days, response_window_hours, play_window_days,
+		          challenge_frequency_days, description`,
 		req.Name, req.Type, req.SeasonYear, req.Status, req.ChallengeRange,
-		req.ChallengeExpiryDays, req.ResponseWindowHours, req.PlayWindowDays, req.Description, id,
+		req.ChallengeExpiryDays, req.ResponseWindowHours, req.PlayWindowDays,
+		req.ChallengeFrequencyDays, req.Description, id,
 	).Scan(&r.ID, &r.Name, &r.Type, &r.SeasonYear, &r.Status,
-		&r.ChallengeRange, &r.ChallengeExpiryDays, &r.ResponseWindowHours, &r.PlayWindowDays, &r.Description)
+		&r.ChallengeRange, &r.ChallengeExpiryDays, &r.ResponseWindowHours, &r.PlayWindowDays,
+		&r.ChallengeFrequencyDays, &r.Description)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "ladder not found")
 	}

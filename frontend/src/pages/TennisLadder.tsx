@@ -12,7 +12,7 @@ const HELP = [
   { heading: 'Player Status', body: 'If you are injured or going on vacation, set your status to Injury Reserve or Vacation Hold — you will be removed from the active challenge pool. Activity is required every 30 days to remain active.' },
 ]
 
-interface Ladder { id: string; name: string; type: string; season_year: number; status: string; challenge_range: number; response_window_hours: number; play_window_days: number; description: string }
+interface Ladder { id: string; name: string; type: string; season_year: number; status: string; challenge_range: number; response_window_hours: number; play_window_days: number; challenge_frequency_days: number; description: string }
 interface Entry {
   user_id: string; name: string; rank: number; wins: number; losses: number; season_points: number
   player_status: string; current_streak: number; longest_streak: number; last_match_date?: string; date_joined: string
@@ -358,7 +358,7 @@ export default function TennisLadder() {
           )}
           {activeLadder && (
             <p className="text-xs text-gray-400">
-              Challenge up to <strong>{activeLadder.challenge_range} spots</strong> above you · {activeLadder.response_window_hours}h to respond · {activeLadder.play_window_days} days to play
+              Challenge up to <strong>{activeLadder.challenge_range} spots</strong> above you · {activeLadder.response_window_hours}h to respond · {activeLadder.play_window_days} days to play{activeLadder.challenge_frequency_days > 0 ? ` · each player challengeable once per ${activeLadder.challenge_frequency_days}d` : ''}
             </p>
           )}
 
