@@ -256,7 +256,7 @@ export default function AdminSettings() {
       {/* ── Club Logo ── */}
       <h2 className="text-xl font-bold text-gray-800 mb-1">Club Logo</h2>
       <p className="text-sm text-gray-500 mb-4">
-        Select a photo from the gallery to use as the header logo. Upload images in <strong>Admin → Photos</strong> first.
+        Select a photo from the gallery to use as the header logo. Upload images in <strong>Admin → Images</strong> first.
       </p>
       <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-5 space-y-4">
         {currentLogo && (
@@ -274,7 +274,7 @@ export default function AdminSettings() {
           </div>
         )}
         {photos.length === 0 ? (
-          <p className="text-sm text-gray-400 italic">No photos uploaded yet. Go to Admin → Photos to upload your logo.</p>
+          <p className="text-sm text-gray-400 italic">No images uploaded yet. Go to Admin → Images to upload your logo.</p>
         ) : (
           <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-8 gap-2">
             {photos.map(p => {

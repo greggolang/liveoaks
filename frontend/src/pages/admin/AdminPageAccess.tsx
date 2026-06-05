@@ -21,7 +21,7 @@ const PAGE_GROUPS: { group: string; items: { key: string; label: string }[] }[] 
     group: 'Other features', items: [
       { key: 'court_grid', label: 'Court Grid' },
       { key: 'announcements', label: 'Announcements' },
-      { key: 'photos', label: 'Photos' },
+      { key: 'photos', label: 'Images' },
       { key: 'usta_teams', label: 'USTA Teams' },
       { key: 'guests', label: 'Guest Passes' },
       { key: 'dues', label: 'My Dues' },

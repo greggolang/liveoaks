@@ -86,7 +86,7 @@ const sections: Section[] = [
     links: [
       { to: '/admin/content', label: 'Main Site Content', section: 'content' },
       { to: '/files', label: 'Files', section: 'files' },
-      { to: '/photos', label: 'Photos', section: 'photos' },
+      { to: '/photos', label: 'Images', section: 'photos' },
       { to: '/admin/mail', label: 'Mail Accounts' },
       { to: '/admin/broadcast', label: 'Broadcast Email', section: 'broadcast' },
       { to: '/admin/settings', label: 'Settings', section: 'settings' },
