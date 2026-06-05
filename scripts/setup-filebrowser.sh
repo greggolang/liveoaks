@@ -36,23 +36,31 @@ fi
 #    — this file holds no user data, so refreshing it is safe.
 install -m 0644 /opt/liveoaks/scripts/filebrowser.json "$FB_CONFIG"
 
-# 3. Initialise the users/settings DB once, with proxy authentication so it
-#    trusts the X-Forwarded-User header set by the liveoaks reverse proxy.
+# 3. Initialise the users/settings DB once (no user data is touched after this).
 if [ ! -f "$FB_DB" ]; then
-  echo "Initialising File Browser database with proxy auth..."
+  echo "Initialising File Browser database..."
   "$FB_BIN" config init -d "$FB_DB"
-  "$FB_BIN" config set -d "$FB_DB" \
-    --auth.method=proxy \
-    --auth.header=X-Forwarded-User \
-    --branding.name="Live Oaks Files"
-  # New proxied users are created automatically on first request with default
-  # (non-admin) permissions. To make a specific member a File Browser admin:
-  #   filebrowser users update <user_id> --perm.admin -d "$FB_DB"
-else
-  echo "File Browser database already present; leaving users/settings untouched."
 fi
 
-# 4. systemd unit (refreshed each deploy; contains no state).
+# 4. Ensure the single proxy account exists. liveoaks authenticates as this one
+#    fixed user (see internal/handlers/files.go); its password is irrelevant
+#    because proxy auth never uses it. Created once, then left alone.
+if ! "$FB_BIN" users ls -d "$FB_DB" 2>/dev/null | grep -qw liveoaks; then
+  echo "Creating proxy user 'liveoaks'..."
+  "$FB_BIN" users add liveoaks "$(head -c16 /dev/urandom | od -An -tx1 | tr -d ' \n')" \
+    --perm.admin -d "$FB_DB"
+fi
+
+# 5. Enforce proxy authentication on EVERY deploy. This is just a settings write
+#    (no user data), so running it each time is safe — and necessary: applying
+#    it only at DB-creation time means an existing database keeps showing File
+#    Browser's own login page instead of trusting the liveoaks proxy header.
+"$FB_BIN" config set -d "$FB_DB" \
+  --auth.method=proxy \
+  --auth.header=X-Forwarded-User \
+  --branding.name="Live Oaks Files"
+
+# 6. systemd unit (refreshed each deploy; contains no state).
 install -m 0644 /opt/liveoaks/scripts/filebrowser.service "$UNIT"
 systemctl daemon-reload
 systemctl enable filebrowser >/dev/null 2>&1 || true
