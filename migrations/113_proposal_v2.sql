@@ -66,8 +66,7 @@ SET
   <tbody>
     <tr><td>Server hosting</td><td>$50 / mo ($600/yr)</td><td>Runs the entire platform — website, email, bookings, and billing.</td></tr>
     <tr><td>Portal software</td><td>$300 / mo ($3,600/yr)</td><td>Ongoing license, hosting management, updates, and new features. Support is included — no separate contract or hourly billing.</td></tr>
-    <tr><td>Stripe payment processing</td><td>2.9% + $0.30 per card transaction</td><td>Applies only when members pay dues by credit/debit card. If $50,000 in annual dues flow through Stripe, the fee is approximately $1,500/yr. The board may add a small convenience fee to offset this, or absorb it as a club expense.</td></tr>
-    <tr><td><strong>Fixed monthly total</strong></td><td><strong>$350 / mo ($4,200/yr)</strong></td><td>Stripe fees are separate and vary with card payment volume.</td></tr>
+    <tr><td><strong>Total</strong></td><td><strong>$350 / mo ($4,200/yr)</strong></td><td></td></tr>
   </tbody>
 </table>
 <p><strong>Net result: $600/mo &#8722; $350/mo = $250/mo saved ($3,000/year), with more capability than all four current services combined.</strong></p>
