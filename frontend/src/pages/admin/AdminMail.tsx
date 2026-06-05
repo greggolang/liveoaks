@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api, type MailFilter, type MailFilterInput } from '../../api/client'
 import { useAuth } from '../../contexts/AuthContext'
+import { parseDate } from '../../utils/dates'
 
 const emptyFilterForm: MailFilterInput = {
   name: '', enabled: true, match_field: 'from', pattern: '',
@@ -1082,7 +1083,7 @@ query = SELECT address FROM mail_accounts WHERE address='%s' AND active = true`,
                           <p className="text-xs text-gray-600">{filterSummary(f)}</p>
                           <p className="text-[11px] text-gray-400 mt-0.5">
                             Matched {f.matched_count.toLocaleString()}
-                            {f.last_run_at && <> · last run {new Date(f.last_run_at).toLocaleString()}</>}
+                            {f.last_run_at && <> · last run {parseDate(f.last_run_at).toLocaleString()}</>}
                           </p>
                           {f.last_error && <p className="text-[11px] text-red-600 mt-0.5">⚠ {f.last_error}</p>}
                         </div>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api, PendingMatch, MatchResult } from '../api/client'
 import { TennisSet, validateTennis, isTiebreakSet } from '../utils/tennis'
+import { parseDate } from '../utils/dates'
 
 interface Member { id: string; first_name: string; last_name: string; email: string }
 
@@ -160,7 +161,7 @@ export default function ScorecardModal({ match, existing, onClose, onSubmitted }
     } finally { setSaving(false) }
   }
 
-  const playedAt = new Date(playedISO).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+  const playedAt = parseDate(playedISO).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-4">

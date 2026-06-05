@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { api, CollabDocSummary, CollabEditor } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
+import { parseDate } from '../utils/dates'
 
 // ── HTML sanitizer ───────────────────────────────────────────────────────────
 // Member-authored HTML is rendered into other members' editors, so strip
@@ -47,7 +48,7 @@ function sanitizeHtml(html: string): string {
 
 function relTime(s: string): string {
   if (!s) return ''
-  const d = new Date(s)
+  const d = parseDate(s)
   const diff = (Date.now() - d.getTime()) / 1000
   if (diff < 60) return 'just now'
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`

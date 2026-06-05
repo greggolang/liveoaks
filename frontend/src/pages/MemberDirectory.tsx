@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { Link } from 'react-router-dom'
 import { formatPhone } from '../utils/phone'
 import HelpPanel from '../components/HelpPanel'
+import { parseDate } from '../utils/dates'
 
 const HELP = [
   { heading: 'Members vs Family', body: 'In the "All" view, each full member (green card) is shown with their registered family members — spouses or children (purple cards) — nested directly beneath them. Use the Members or Family buttons to view either group on its own.' },
@@ -66,7 +67,7 @@ export default function MemberDirectory() {
     }).catch(() => {})
   }
 
-  const daysAgo = (iso?: string | null) => iso ? Math.floor((Date.now() - new Date(iso).getTime()) / 86400000) : null
+  const daysAgo = (iso?: string | null) => iso ? Math.floor((Date.now() - parseDate(iso).getTime()) / 86400000) : null
 
   useEffect(() => { load() }, [])
 
@@ -191,7 +192,7 @@ export default function MemberDirectory() {
             )}
           </div>
 
-          {since && <div className="text-[11px] text-gray-300 mt-1.5">Member since {new Date(since).getFullYear()}</div>}
+          {since && <div className="text-[11px] text-gray-300 mt-1.5">Member since {parseDate(since).getFullYear()}</div>}
         </div>
       </div>
     )

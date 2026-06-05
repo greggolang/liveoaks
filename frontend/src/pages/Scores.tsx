@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext'
 import ScorecardModal from '../components/ScorecardModal'
 import MatchCard from '../components/MatchCard'
 import HelpPanel from '../components/HelpPanel'
+import { parseDate } from '../utils/dates'
 
 const HELP = [
   { heading: 'Pending Scores', body: 'Matches you played that haven\'t been scored yet appear here. Click "Enter Score" to record the result. Both players must agree on the score — if your entry matches the other player\'s, the result is confirmed automatically.' },
@@ -65,7 +66,7 @@ export default function Scores() {
               <div className="min-w-0">
                 <p className="text-sm font-medium text-amber-900">Enter your match score</p>
                 <p className="text-xs text-amber-700/80 truncate">
-                  {pm.match_type === 'doubles' ? 'Doubles' : 'Singles'} · {pm.court_name} · {new Date(pm.start_time).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                  {pm.match_type === 'doubles' ? 'Doubles' : 'Singles'} · {pm.court_name} · {parseDate(pm.start_time).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                 </p>
               </div>
               <button onClick={() => setScoreFor(pm)}

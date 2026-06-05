@@ -1,6 +1,7 @@
 import { Fragment } from 'react'
 import { Link } from 'react-router-dom'
 import { MatchResult } from '../api/client'
+import { parseDate } from '../utils/dates'
 
 // Render a side's players, linking members to their profile and leaving guests
 // as plain text.
@@ -25,7 +26,7 @@ function SideNames({ match, side }: { match: MatchResult; side: number }) {
 
 // Compact result row: each side with its per-set games (winner's side highlighted).
 export default function MatchCard({ match }: { match: MatchResult }) {
-  const played = new Date(match.played_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  const played = parseDate(match.played_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   return (
     <div className="border border-gray-200 rounded-xl overflow-hidden bg-white">
       {(match.winner_side === 2 ? [2, 1] : [1, 2]).map((side, idx) => {
