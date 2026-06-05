@@ -48,10 +48,6 @@ const PRINTABLE_EXTS = new Set(['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg
 // Office formats that can be opened in the in-browser editor and saved back.
 const EDITABLE_EXTS = new Set(['docx', 'doc', 'odt', 'rtf'])
 
-function extOf(filename: string): string {
-  return (filename.split('.').pop() ?? '').toLowerCase()
-}
-
 function printDoc(filename: string) {
   const url = `/uploads/documents/${filename}`
   const iframe = document.createElement('iframe')
@@ -224,6 +220,22 @@ function FileCard({ doc, isBoard, onDelete, onToggleAI, onEdit, onConvert, conve
             </svg>
           </button>
         )}
+        {isBoard && canEdit && (
+          <button onClick={() => onEdit(doc.id)} title="Edit in browser" className="p-0.5 text-blue-400 hover:text-blue-600">
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+            </svg>
+          </button>
+        )}
+        {isBoard && isPdf && (
+          <button onClick={() => onConvert(doc.id)} disabled={converting}
+            title="Convert to an editable Word document (layout may change)"
+            className="p-0.5 text-blue-400 hover:text-blue-600 disabled:opacity-40">
+            {converting
+              ? <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+              : <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h8m-8 4h8m-8 4h5M4 4v16l2-1 2 1 2-1 2 1 2-1 2 1V4l-2 1-2-1-2 1-2-1-2 1-2-1z" /></svg>}
+          </button>
+        )}
         {isBoard && aiReadable && (
           <button onClick={() => onToggleAI(doc.id, !doc.ai_indexed)}
             title={doc.ai_indexed
@@ -246,12 +258,15 @@ function FileCard({ doc, isBoard, onDelete, onToggleAI, onEdit, onConvert, conve
 }
 
 // ── List file row ─────────────────────────────────────────────────────────────
-function FileListRow({ doc, isBoard, onDelete, onToggleAI, subtitle }: {
+function FileListRow({ doc, isBoard, onDelete, onToggleAI, onEdit, onConvert, converting, subtitle }: {
   doc: DocFile; isBoard: boolean; onDelete: (id: string) => void
-  onToggleAI: (id: string, next: boolean) => void; subtitle?: string
+  onToggleAI: (id: string, next: boolean) => void
+  onEdit: (id: string) => void; onConvert: (id: string) => void; converting: boolean; subtitle?: string
 }) {
   const ext = (doc.filename.split('.').pop() ?? '').toLowerCase()
   const canPrint = PRINTABLE_EXTS.has(ext)
+  const canEdit = EDITABLE_EXTS.has(ext)
+  const isPdf = ext === 'pdf'
   const aiReadable = ['pdf', 'txt', 'md', 'markdown', 'csv', 'log'].includes(ext)
   const cfg = FILE_EXT_CONFIG[ext] ?? { label: ext.toUpperCase().slice(0, 4) || 'FILE', color: '#9ca3af' }
   return (
@@ -278,6 +293,23 @@ function FileListRow({ doc, isBoard, onDelete, onToggleAI, subtitle }: {
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm1-4h4v2h-4v-2z" />
             </svg>
+          </button>
+        )}
+        {isBoard && canEdit && (
+          <button onClick={() => onEdit(doc.id)} title="Edit in browser"
+            className="p-1 text-blue-400 hover:text-blue-600 rounded hover:bg-white transition">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+            </svg>
+          </button>
+        )}
+        {isBoard && isPdf && (
+          <button onClick={() => onConvert(doc.id)} disabled={converting}
+            title="Convert to an editable Word document (layout may change)"
+            className="p-1 text-blue-400 hover:text-blue-600 rounded hover:bg-white transition disabled:opacity-40">
+            {converting
+              ? <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+              : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h8m-8 4h8m-8 4h5M4 4v16l2-1 2 1 2-1 2 1 2-1 2 1V4l-2 1-2-1-2 1-2-1-2 1-2-1z" /></svg>}
           </button>
         )}
         {isBoard && aiReadable && (
@@ -424,6 +456,10 @@ export default function Files() {
   const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState<'date' | 'name'>('date')
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list')
+
+  // In-browser editing of Word files, and best-effort PDF→Word conversion.
+  const [editingDocId, setEditingDocId] = useState<string | null>(null)
+  const [convertingId, setConvertingId] = useState<string | null>(null)
 
   // Left panel tree expansion
   const [treeOpenIds, setTreeOpenIds] = useState<Set<string>>(new Set())
@@ -704,9 +740,35 @@ export default function Files() {
     catch { await loadFolders() }
   }
 
+  // Convert a PDF into a new editable Word document (the PDF is kept).
+  const handleConvert = async (docId: string) => {
+    if (convertingId) return
+    setConvertingId(docId)
+    try {
+      const newDoc = await api.documents.convertToWord(docId)
+      await loadFolders()
+      // Jump straight into editing the freshly converted Word file.
+      setEditingDocId(newDoc.id)
+    } catch (e: any) {
+      alert(e.message || 'Could not convert this PDF')
+    } finally {
+      setConvertingId(null)
+    }
+  }
+
   const flatFolders = flattenFolders(adminFolders).filter(f => f.id !== editingFolderId)
   const totalItems = currentFolders.length + sortedDocs.length
   const totalFiles = useMemo(() => countAllFiles(folders), [folders])
+
+  // When editing a file, take over the page with the editor (board only).
+  if (editingDocId) {
+    return (
+      <FileEditor
+        docId={editingDocId}
+        onClose={() => { setEditingDocId(null); loadFolders() }}
+      />
+    )
+  }
 
   return (
     <div className="flex flex-col h-full space-y-3">
@@ -1053,7 +1115,8 @@ export default function Files() {
                   <p className="text-sm text-gray-400 py-8 text-center">No files found.</p>
                 ) : (
                   searchResults.map(({ doc, folderPath }) => (
-                    <FileListRow key={doc.id} doc={doc} isBoard={isBoard} onDelete={handleDelete} onToggleAI={handleToggleAI} subtitle={folderPath} />
+                    <FileListRow key={doc.id} doc={doc} isBoard={isBoard} onDelete={handleDelete} onToggleAI={handleToggleAI}
+                      onEdit={setEditingDocId} onConvert={handleConvert} converting={convertingId === doc.id} subtitle={folderPath} />
                   ))
                 )}
               </div>
@@ -1088,7 +1151,8 @@ export default function Files() {
                     {currentFolders.length > 0 && <div className="border-t border-gray-100 mb-3" />}
                     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-1">
                       {sortedDocs.map(doc => (
-                        <FileCard key={doc.id} doc={doc} isBoard={isBoard} onDelete={handleDelete} onToggleAI={handleToggleAI} />
+                        <FileCard key={doc.id} doc={doc} isBoard={isBoard} onDelete={handleDelete} onToggleAI={handleToggleAI}
+                          onEdit={setEditingDocId} onConvert={handleConvert} converting={convertingId === doc.id} />
                       ))}
                     </div>
                   </div>
@@ -1110,7 +1174,8 @@ export default function Files() {
                 ))}
                 {currentFolders.length > 0 && sortedDocs.length > 0 && <div className="border-t border-gray-100 my-1" />}
                 {sortedDocs.map(doc => (
-                  <FileListRow key={doc.id} doc={doc} isBoard={isBoard} onDelete={handleDelete} onToggleAI={handleToggleAI} />
+                  <FileListRow key={doc.id} doc={doc} isBoard={isBoard} onDelete={handleDelete} onToggleAI={handleToggleAI}
+                    onEdit={setEditingDocId} onConvert={handleConvert} converting={convertingId === doc.id} />
                 ))}
               </div>
             )}

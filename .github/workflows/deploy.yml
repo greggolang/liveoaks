@@ -84,6 +84,17 @@ jobs:
             systemctl restart fail2ban
 
             mkdir -p /opt/liveoaks/uploads/documents /opt/liveoaks/uploads/photos
+
+            # Install LibreOffice (headless) once — it powers in-browser editing of
+            # Word files and best-effort PDF→Word conversion on the Files page.
+            # Idempotent: skip the apt run entirely if soffice is already present.
+            # Non-fatal: the app shows a clear "editing unavailable" message if this
+            # fails, so a flaky apt run must not block the binary deploy/restart below.
+            if ! command -v soffice >/dev/null 2>&1; then
+              export DEBIAN_FRONTEND=noninteractive
+              (apt-get update -y && apt-get install -y --no-install-recommends libreoffice-writer libreoffice-calc) \
+                || echo "WARNING: LibreOffice install failed — file editing will be unavailable until it is installed"
+            fi
             # NOTE: resetpw is a manual recovery tool only. It runs
             # `UPDATE users SET password_hash=...` with NO WHERE clause, so it
             # overwrites EVERY member's password with the default. It must never
