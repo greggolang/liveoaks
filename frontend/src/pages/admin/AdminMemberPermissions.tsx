@@ -20,7 +20,6 @@ const PAGE_GROUPS: { group: string; items: { key: string; label: string; desc: s
       { key: 'announcements', label: 'Announcements', desc: 'Club announcements' },
       { key: 'photos',        label: 'Images',        desc: 'Photo gallery' },
       { key: 'usta_teams',    label: 'USTA Teams',    desc: 'USTA team info' },
-      { key: 'guests',        label: 'Guest Passes',  desc: 'Guest pass management' },
       { key: 'dues',          label: 'My Dues',       desc: 'Dues & payment history' },
       { key: 'club_info',     label: 'Club Info',     desc: 'Club details & contacts' },
     ],

@@ -20,7 +20,6 @@ import Documents from './pages/Documents'
 import PhotoGallery from './pages/PhotoGallery'
 import USTATeams from './pages/USTATeams'
 import MemberDirectory from './pages/MemberDirectory'
-import GuestPasses from './pages/GuestPasses'
 import MyDues from './pages/MyDues'
 import ClubInfo from './pages/ClubInfo'
 import AskTheClub from './pages/AskTheClub'
@@ -161,7 +160,6 @@ function AppRoutes() {
       <Route path="/photos" element={<ProtectedRoute><PhotoGallery /></ProtectedRoute>} />
       <Route path="/usta-teams" element={<ProtectedRoute><USTATeams /></ProtectedRoute>} />
       <Route path="/directory" element={<ProtectedRoute><MemberDirectory /></ProtectedRoute>} />
-      <Route path="/guests" element={<ProtectedRoute><GuestPasses /></ProtectedRoute>} />
       <Route path="/dues" element={<ProtectedRoute><MyDues /></ProtectedRoute>} />
       <Route path="/club-info" element={<ProtectedRoute><ClubInfo /></ProtectedRoute>} />
       <Route path="/ask" element={<ProtectedRoute><AskTheClub /></ProtectedRoute>} />

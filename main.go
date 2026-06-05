@@ -110,7 +110,6 @@ func main() {
 	emailTemplates := &handlers.EmailTemplatesHandler{DB: pool}
 	dues := &handlers.DuesHandler{DB: pool}
 	waitlist := &handlers.WaitlistHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
-	guests := &handlers.GuestsHandler{DB: pool}
 	usta := &handlers.USTAHandler{DB: pool}
 	uploads := &handlers.UploadsHandler{DB: pool, UploadDir: uploadDir}
 	tax := &handlers.TaxHandler{DB: pool, UploadDir: uploadDir}
@@ -214,8 +213,6 @@ func main() {
 	authed.GET("/stripe/config", stripeH.Config)
 	authed.POST("/dues/:id/stripe-intent", stripeH.CreatePaymentIntent)
 	api.POST("/stripe/webhook", stripeH.Webhook)
-	authed.GET("/guests/me", guests.MyGuests)
-	authed.POST("/guests", guests.Log)
 
 	// Member-to-member messages
 	authed.GET("/messages/inbox", messages.Inbox)
