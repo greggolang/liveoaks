@@ -30,7 +30,6 @@ const PAGE_GROUPS: { group: string; items: { key: string; label: string; desc: s
 const ROLES: { key: string; label: string; short: string }[] = [
   { key: 'member', label: 'Member', short: 'Mbr' },
   { key: 'games',  label: 'Games',  short: 'Gms' },
-  { key: 'pro',    label: 'Pro',    short: 'Pro' },
 ]
 
 export default function AdminMemberPermissions() {
