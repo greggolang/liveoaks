@@ -2,6 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import { api } from '../../api/client'
 import { parseDate } from '../../utils/dates'
 
+interface BoardMember {
+  id: string
+  first_name: string
+  last_name: string
+  role: string
+}
+
 interface PasswordEntry {
   id: string
   label: string
@@ -59,8 +66,44 @@ export default function AdminPasswords() {
     setCollapsed(s => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n })
   const labelRef = useRef<HTMLInputElement>(null)
 
+  // Board alerts state
+  const [boardMembers, setBoardMembers] = useState<BoardMember[]>([])
+  const [alertTargets, setAlertTargets] = useState<Set<string>>(new Set())
+  const [alertMsg, setAlertMsg] = useState('')
+  const [alertType, setAlertType] = useState('info')
+  const [sendingAlert, setSendingAlert] = useState(false)
+  const [alertSuccess, setAlertSuccess] = useState('')
+
+  const toggleTarget = (id: string) =>
+    setAlertTargets(s => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
+
+  const toggleAll = () => {
+    if (alertTargets.size === boardMembers.length) setAlertTargets(new Set())
+    else setAlertTargets(new Set(boardMembers.map(m => m.id)))
+  }
+
+  const handleSendAlert = async () => {
+    if (!alertMsg.trim() || alertTargets.size === 0) return
+    setSendingAlert(true)
+    setAlertSuccess('')
+    try {
+      await Promise.all(
+        [...alertTargets].map(uid => api.memberAlerts.adminCreate(uid, alertMsg.trim(), alertType))
+      )
+      const names = boardMembers
+        .filter(m => alertTargets.has(m.id))
+        .map(m => m.first_name)
+        .join(', ')
+      setAlertSuccess(`Sent to ${names}`)
+      setAlertMsg('')
+      setAlertTargets(new Set())
+      setTimeout(() => setAlertSuccess(''), 4000)
+    } finally { setSendingAlert(false) }
+  }
+
   useEffect(() => {
     api.passwords.list().then(d => setEntries(d as PasswordEntry[]))
+    api.boardComms.boardMembers().then(d => setBoardMembers(d as BoardMember[]))
   }, [])
 
   const openEntry = (entry: PasswordEntry) => {
@@ -383,6 +426,87 @@ export default function AdminPasswords() {
               Select an entry or create a new one
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Board Alerts */}
+      <div className="mt-6 border border-gray-200 rounded-xl bg-white p-5 shadow-sm">
+        <h3 className="text-sm font-semibold text-gray-700 mb-1">Send Dashboard Alert to Board Members</h3>
+        <p className="text-xs text-gray-400 mb-4">Alerts appear on the selected members' dashboards until dismissed.</p>
+
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+
+          {/* Recipient list */}
+          <div className="shrink-0">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xs font-medium text-gray-500">Recipients</span>
+              <button onClick={toggleAll}
+                className="text-xs text-green-700 hover:underline">
+                {alertTargets.size === boardMembers.length ? 'Deselect all' : 'Select all'}
+              </button>
+            </div>
+            <div className="flex flex-col gap-1 max-h-48 overflow-y-auto pr-1">
+              {boardMembers.map(m => (
+                <label key={m.id} className="flex items-center gap-2 cursor-pointer select-none group">
+                  <input
+                    type="checkbox"
+                    checked={alertTargets.has(m.id)}
+                    onChange={() => toggleTarget(m.id)}
+                    className="accent-green-700 w-3.5 h-3.5"
+                  />
+                  <span className={`text-xs ${alertTargets.has(m.id) ? 'text-gray-800 font-medium' : 'text-gray-500'} group-hover:text-gray-700 transition`}>
+                    {m.first_name} {m.last_name}
+                  </span>
+                  <span className="text-xs text-gray-300 capitalize hidden sm:inline">
+                    {m.role.replace(/_/g, ' ')}
+                  </span>
+                </label>
+              ))}
+              {boardMembers.length === 0 && (
+                <p className="text-xs text-gray-300">Loading…</p>
+              )}
+            </div>
+          </div>
+
+          {/* Message + type + send */}
+          <div className="flex-1 flex flex-col gap-2">
+            <div className="flex gap-2">
+              <select value={alertType} onChange={e => setAlertType(e.target.value)}
+                className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500 shrink-0">
+                <option value="info">Info</option>
+                <option value="warning">Warning</option>
+                <option value="danger">Urgent</option>
+              </select>
+              <div className={`text-xs px-2 py-1.5 rounded-lg border font-medium shrink-0 ${
+                alertType === 'danger' ? 'bg-red-50 border-red-200 text-red-700' :
+                alertType === 'warning' ? 'bg-amber-50 border-amber-200 text-amber-700' :
+                'bg-blue-50 border-blue-200 text-blue-700'
+              }`}>
+                {alertType === 'danger' ? 'Urgent' : alertType === 'warning' ? 'Warning' : 'Info'}
+              </div>
+            </div>
+            <textarea
+              value={alertMsg}
+              onChange={e => setAlertMsg(e.target.value)}
+              placeholder="e.g. SSL certificate renews June 30 — please verify the renewal is configured."
+              rows={3}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-700 resize-none focus:outline-none focus:ring-2 focus:ring-green-500 leading-relaxed"
+            />
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleSendAlert}
+                disabled={sendingAlert || !alertMsg.trim() || alertTargets.size === 0}
+                className="bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-4 py-1.5 rounded-lg transition disabled:opacity-40">
+                {sendingAlert ? 'Sending…' : `Send Alert${alertTargets.size > 1 ? ` (${alertTargets.size})` : ''}`}
+              </button>
+              {alertTargets.size === 0 && !alertSuccess && (
+                <span className="text-xs text-gray-400">Select at least one recipient</span>
+              )}
+              {alertSuccess && (
+                <span className="text-xs text-green-600 font-medium">{alertSuccess}</span>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>

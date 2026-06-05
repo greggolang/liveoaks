@@ -487,23 +487,20 @@ func (h *InvitationsHandler) GetResponses(c echo.Context) error {
 	}
 	defer rows.Close()
 	type Response struct {
-		ID          string `json:"id"`
-		BookingID   string `json:"booking_id"`
-		InviteeName string `json:"invitee_name"`
-		Status      string `json:"status"`
-		CourtName   string `json:"court_name"`
-		StartTime   string `json:"start_time"`
-		RespondedAt string `json:"responded_at"`
+		ID          string    `json:"id"`
+		BookingID   string    `json:"booking_id"`
+		InviteeName string    `json:"invitee_name"`
+		Status      string    `json:"status"`
+		CourtName   string    `json:"court_name"`
+		StartTime   time.Time `json:"start_time"`
+		RespondedAt time.Time `json:"responded_at"`
 	}
 	results := []Response{}
 	for rows.Next() {
 		var r Response
-		var start, responded interface{}
-		if err := rows.Scan(&r.ID, &r.BookingID, &r.InviteeName, &r.Status, &r.CourtName, &start, &responded); err != nil {
+		if err := rows.Scan(&r.ID, &r.BookingID, &r.InviteeName, &r.Status, &r.CourtName, &r.StartTime, &r.RespondedAt); err != nil {
 			continue
 		}
-		r.StartTime = fmt.Sprintf("%v", start)
-		r.RespondedAt = fmt.Sprintf("%v", responded)
 		results = append(results, r)
 	}
 	return c.JSON(http.StatusOK, results)
@@ -527,22 +524,19 @@ func (h *InvitationsHandler) GetSentPending(c echo.Context) error {
 	}
 	defer rows.Close()
 	type SentPending struct {
-		ID          string `json:"id"`
-		BookingID   string `json:"booking_id"`
-		InviteeName string `json:"invitee_name"`
-		CourtName   string `json:"court_name"`
-		StartTime   string `json:"start_time"`
-		SentAt      string `json:"sent_at"`
+		ID          string    `json:"id"`
+		BookingID   string    `json:"booking_id"`
+		InviteeName string    `json:"invitee_name"`
+		CourtName   string    `json:"court_name"`
+		StartTime   time.Time `json:"start_time"`
+		SentAt      time.Time `json:"sent_at"`
 	}
 	results := []SentPending{}
 	for rows.Next() {
 		var p SentPending
-		var start, sent interface{}
-		if err := rows.Scan(&p.ID, &p.BookingID, &p.InviteeName, &p.CourtName, &start, &sent); err != nil { //nolint
+		if err := rows.Scan(&p.ID, &p.BookingID, &p.InviteeName, &p.CourtName, &p.StartTime, &p.SentAt); err != nil { //nolint
 			continue
 		}
-		p.StartTime = fmt.Sprintf("%v", start)
-		p.SentAt = fmt.Sprintf("%v", sent)
 		results = append(results, p)
 	}
 	return c.JSON(http.StatusOK, results)
@@ -572,22 +566,19 @@ func (h *InvitationsHandler) GetPendingForMe(c echo.Context) error {
 	defer rows.Close()
 
 	type PendingInvite struct {
-		ID          string `json:"id"`
-		Token       string `json:"token"`
-		CourtName   string `json:"court_name"`
-		StartTime   string `json:"start_time"`
-		EndTime     string `json:"end_time"`
-		InviterName string `json:"inviter_name"`
+		ID          string    `json:"id"`
+		Token       string    `json:"token"`
+		CourtName   string    `json:"court_name"`
+		StartTime   time.Time `json:"start_time"`
+		EndTime     time.Time `json:"end_time"`
+		InviterName string    `json:"inviter_name"`
 	}
 	results := []PendingInvite{}
 	for rows.Next() {
 		var p PendingInvite
-		var start, end interface{}
-		if err := rows.Scan(&p.ID, &p.Token, &p.CourtName, &start, &end, &p.InviterName); err != nil {
+		if err := rows.Scan(&p.ID, &p.Token, &p.CourtName, &p.StartTime, &p.EndTime, &p.InviterName); err != nil {
 			continue
 		}
-		p.StartTime = fmt.Sprintf("%v", start)
-		p.EndTime = fmt.Sprintf("%v", end)
 		results = append(results, p)
 	}
 	return c.JSON(http.StatusOK, results)
