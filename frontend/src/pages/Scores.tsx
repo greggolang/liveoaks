@@ -70,9 +70,9 @@ export default function Scores() {
       <HelpPanel items={HELP} />
 
       {/* Matches waiting to be scored */}
-      {pending.length > 0 && (
+      {pending.filter(pm => !dismissedScores.has(pm.booking_id)).length > 0 && (
         <div className="space-y-2">
-          {pending.map(pm => (
+          {pending.filter(pm => !dismissedScores.has(pm.booking_id)).map(pm => (
             <div key={pm.booking_id} className="flex items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
               <div className="min-w-0">
                 <p className="text-sm font-medium text-amber-900">Enter your match score</p>
@@ -80,10 +80,17 @@ export default function Scores() {
                   {pm.match_type === 'doubles' ? 'Doubles' : 'Singles'} · {pm.court_name} · {parseDate(pm.start_time).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                 </p>
               </div>
-              <button onClick={() => setScoreFor(pm)}
-                className="bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition shrink-0">
-                Enter score
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                <button onClick={() => setScoreFor(pm)}
+                  className="bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition">
+                  Enter score
+                </button>
+                <button onClick={() => dismissScore(pm.booking_id)}
+                  title="Dismiss"
+                  className="text-amber-400 hover:text-amber-600 text-lg leading-none transition px-1">
+                  ✕
+                </button>
+              </div>
             </div>
           ))}
         </div>
