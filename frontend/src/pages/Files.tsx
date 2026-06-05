@@ -754,7 +754,7 @@ export default function Files() {
         style={{ height: 'calc(100vh - 200px)', minHeight: 400 }}>
 
         {/* Left: folder tree */}
-        <div className="w-48 md:w-56 shrink-0 bg-gray-50 border-r border-gray-200 overflow-y-auto py-2 flex flex-col">
+        <div className="w-48 md:w-56 shrink-0 bg-green-50 border-r border-green-100 overflow-y-auto py-2 flex flex-col">
           {/* Root node */}
           <button
             onClick={() => setSelectedId(null)}
@@ -1063,7 +1063,7 @@ export default function Files() {
 
           {/* Status bar */}
           {!loading && searchResults === null && (
-            <div className="shrink-0 border-t border-gray-100 bg-gray-50 px-4 py-1 flex items-center gap-3 text-xs text-gray-400">
+            <div className="shrink-0 border-t border-green-100 bg-green-50 px-4 py-1 flex items-center gap-3 text-xs text-gray-500">
               <span>{totalItems} item{totalItems !== 1 ? 's' : ''}</span>
               {sortedDocs.length > 0 && <span>{sortedDocs.length} file{sortedDocs.length !== 1 ? 's' : ''}</span>}
               {currentFolders.length > 0 && <span>{currentFolders.length} folder{currentFolders.length !== 1 ? 's' : ''}</span>}
