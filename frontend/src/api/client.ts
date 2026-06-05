@@ -806,11 +806,20 @@ export const api = {
   ladder: {
     list: () => request('/ladder'),
     get: (id: string) => request(`/ladder/${id}`),
+    stats: (id: string) => request(`/ladder/${id}/stats`),
     register: (id: string, data: object) => request(`/ladder/${id}/register`, { method: 'POST', body: JSON.stringify(data) }),
     myStatus: (id: string) => request(`/ladder/${id}/me`),
+    setMyStatus: (ladderId: string, status: string) =>
+      request(`/ladder/${ladderId}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),
     createChallenge: (id: string, data: object) => request(`/ladder/${id}/challenge`, { method: 'POST', body: JSON.stringify(data) }),
-    respondChallenge: (challengeId: string, action: 'accept' | 'decline') =>
-      request(`/challenges/${challengeId}/respond`, { method: 'PUT', body: JSON.stringify({ action }) }),
+    respondChallenge: (challengeId: string, action: 'accept' | 'decline', data?: object) =>
+      request(`/challenges/${challengeId}/respond`, { method: 'PUT', body: JSON.stringify({ action, ...data }) }),
+    scheduleMatch: (challengeId: string, matchDate: string, matchTime: string) =>
+      request(`/challenges/${challengeId}/schedule`, { method: 'PUT', body: JSON.stringify({ match_date: matchDate, match_time: matchTime }) }),
+    submitScore: (challengeId: string, score: string) =>
+      request(`/challenges/${challengeId}/score`, { method: 'PUT', body: JSON.stringify({ score }) }),
+    approveScore: (challengeId: string, action: 'approve' | 'dispute') =>
+      request(`/challenges/${challengeId}/approve-score`, { method: 'PUT', body: JSON.stringify({ action }) }),
     leaderboard: (id: string) => request(`/ladder/${id}/leaderboard`),
     admin: {
       list: () => request('/admin/ladder'),
@@ -822,13 +831,21 @@ export const api = {
         request(`/admin/ladder/${ladderId}/registrations/${userId}`, { method: 'PUT', body: JSON.stringify({ status }) }),
       setRank: (ladderId: string, userId: string, rank: number) =>
         request(`/admin/ladder/${ladderId}/rank`, { method: 'PUT', body: JSON.stringify({ user_id: userId, rank }) }),
+      setPlayerStatus: (ladderId: string, userId: string, status: string, note?: string) =>
+        request(`/admin/ladder/${ladderId}/player-status`, { method: 'PUT', body: JSON.stringify({ user_id: userId, status, note: note ?? '' }) }),
       challenges: (id: string, status?: string) => request(`/admin/ladder/${id}/challenges${status ? `?status=${status}` : ''}`),
       enterResult: (challengeId: string, winnerId: string, score: string) =>
         request(`/admin/challenges/${challengeId}/result`, { method: 'PUT', body: JSON.stringify({ winner_id: winnerId, score }) }),
       forfeit: (challengeId: string) =>
         request(`/admin/challenges/${challengeId}/forfeit`, { method: 'PUT' }),
+      reverseResult: (challengeId: string, note?: string) =>
+        request(`/admin/challenges/${challengeId}/reverse`, { method: 'PUT', body: JSON.stringify({ note: note ?? '' }) }),
       awardPoints: (ladderId: string, data: object) =>
         request(`/admin/ladder/${ladderId}/points`, { method: 'POST', body: JSON.stringify(data) }),
+      auditLog: (ladderId: string) => request(`/admin/ladder/${ladderId}/audit`),
+      conduct: (ladderId: string) => request(`/admin/ladder/${ladderId}/conduct`),
+      issueConductAction: (ladderId: string, data: object) =>
+        request(`/admin/ladder/${ladderId}/conduct`, { method: 'POST', body: JSON.stringify(data) }),
     },
   },
   broadcast: {

@@ -22,6 +22,7 @@ const PAGE_GROUPS: { group: string; items: { key: string; label: string; desc: s
       { key: 'usta_teams',    label: 'USTA Teams',    desc: 'USTA team info' },
       { key: 'dues',          label: 'My Dues',       desc: 'Dues & payment history' },
       { key: 'club_info',     label: 'Club Info',     desc: 'Club details & contacts' },
+      { key: 'ask',           label: 'Ask the Club',  desc: 'AI assistant for club questions' },
     ],
   },
 ]

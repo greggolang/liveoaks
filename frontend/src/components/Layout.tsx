@@ -126,7 +126,7 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
         ...(hasPermission('directory') ? [{ to: '/directory', label: 'Directory', icon: ICONS.users }] : []),
         { to: '/club-info', label: 'Club Info', icon: ICONS.info },
         ...(isBoard ? [{ to: '/docs', label: 'Documents', icon: ICONS.doc }] : []),
-        { to: '/ask', label: 'Ask the Club', icon: ICONS.sparkles },
+        ...(hasPermission('ask') ? [{ to: '/ask', label: 'Ask the Club', icon: ICONS.sparkles }] : []),
       ],
     },
     {

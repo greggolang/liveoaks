@@ -454,10 +454,15 @@ func main() {
 	// Tennis Ladder — member routes
 	authed.GET("/ladder", ladder.GetLadders)
 	authed.GET("/ladder/:id", ladder.GetLadder)
+	authed.GET("/ladder/:id/stats", ladder.GetStats)
 	authed.POST("/ladder/:id/register", ladder.Register)
 	authed.GET("/ladder/:id/me", ladder.GetMyStatus)
+	authed.PUT("/ladder/:id/status", ladder.SetMyStatus)
 	authed.POST("/ladder/:id/challenge", ladder.CreateChallenge)
 	authed.PUT("/challenges/:id/respond", ladder.RespondChallenge)
+	authed.PUT("/challenges/:id/schedule", ladder.ScheduleMatch)
+	authed.PUT("/challenges/:id/score", ladder.SubmitScore)
+	authed.PUT("/challenges/:id/approve-score", ladder.ApproveScore)
 	authed.GET("/ladder/:id/leaderboard", ladder.GetSeasonLeaderboard)
 
 	// Tennis Ladder — admin routes
@@ -468,10 +473,15 @@ func main() {
 	adminOnly.GET("/ladder/:id/registrations", ladder.AdminGetRegistrations)
 	adminOnly.PUT("/ladder/:id/registrations/:userId", ladder.AdminApproveRegistration)
 	adminOnly.PUT("/ladder/:id/rank", ladder.AdminSetRank)
+	adminOnly.PUT("/ladder/:id/player-status", ladder.AdminSetPlayerStatus)
 	adminOnly.GET("/ladder/:id/challenges", ladder.AdminGetChallenges)
 	adminOnly.PUT("/challenges/:id/result", ladder.AdminEnterResult)
 	adminOnly.PUT("/challenges/:id/forfeit", ladder.AdminForfeit)
+	adminOnly.PUT("/challenges/:id/reverse", ladder.AdminReverseResult)
 	adminOnly.POST("/ladder/:id/points", ladder.AdminAwardPoints)
+	adminOnly.GET("/ladder/:id/audit", ladder.AdminGetAuditLog)
+	adminOnly.POST("/ladder/:id/conduct", ladder.AdminIssueConductAction)
+	adminOnly.GET("/ladder/:id/conduct", ladder.AdminGetConduct)
 
 	// Mail — current user's assigned account (authenticated, not admin-only)
 	authed.GET("/my-mail-account", mail.MyAccount)

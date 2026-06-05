@@ -25,6 +25,7 @@ const PAGE_GROUPS: { group: string; items: { key: string; label: string }[] }[] 
       { key: 'usta_teams', label: 'USTA Teams' },
       { key: 'dues', label: 'My Dues' },
       { key: 'club_info', label: 'Club Info' },
+      { key: 'ask', label: 'Ask the Club' },
     ],
   },
 ]
