@@ -202,10 +202,6 @@ function EventList({ title, events, isBoard, templates, members, onDelete, onTog
                 <div className="flex flex-col items-end gap-2 ml-2 sm:ml-4 shrink-0">
                   {isBoard && (
                     <>
-                      <button onClick={() => toggleSignup(ev)}
-                        className={`text-xs px-2 py-1 rounded-lg font-medium transition ${ev.signup_enabled ? 'bg-orange-100 text-orange-700 hover:bg-orange-200' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}>
-                        {ev.signup_enabled ? 'Close Sign-Up' : 'Open Sign-Up'}
-                      </button>
                       {ev.signup_enabled && (
                         <Link to={`/admin/events/${ev.id}/signups`}
                           className="text-xs text-blue-600 hover:underline font-medium">View Sign-Ups →</Link>
