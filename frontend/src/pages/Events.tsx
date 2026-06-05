@@ -13,10 +13,16 @@ interface EmailTemplate { id: string; name: string; subject: string }
 interface Member { id: string; first_name: string; last_name: string; email: string }
 
 const TYPE_COLORS: Record<string, string> = {
-  general: 'bg-blue-100 text-blue-700',
-  usta: 'bg-purple-100 text-purple-700',
-  social: 'bg-pink-100 text-pink-700',
-  tournament: 'bg-orange-100 text-orange-700',
+  red_blue:        'bg-red-100 text-red-700',
+  liveball:        'bg-blue-100 text-blue-700',
+  christmas_party: 'bg-green-100 text-green-700',
+  social_event:    'bg-pink-100 text-pink-700',
+}
+const TYPE_LABELS: Record<string, string> = {
+  red_blue:        'Red/Blue',
+  liveball:        'LiveBall',
+  christmas_party: 'Christmas Party',
+  social_event:    'Social Event',
 }
 
 export default function Events() {
@@ -25,7 +31,7 @@ export default function Events() {
   const [templates, setTemplates] = useState<EmailTemplate[]>([])
   const [members, setMembers] = useState<Member[]>([])
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ title: '', description: '', start_time: '', end_time: '', event_type: 'general', location: '' })
+  const [form, setForm] = useState({ title: '', description: '', start_time: '', end_time: '', event_type: 'red_blue', location: '' })
   const [error, setError] = useState('')
 
   const load = () => api.events.list().then(d => setEvents(d as Event[]))
@@ -46,7 +52,7 @@ export default function Events() {
     e.preventDefault(); setError('')
     try {
       await api.events.create(form)
-      setForm({ title: '', description: '', start_time: '', end_time: '', event_type: 'general', location: '' })
+      setForm({ title: '', description: '', start_time: '', end_time: '', event_type: 'red_blue', location: '' })
       setShowForm(false); load()
     } catch (err: any) { setError(err.message) }
   }
@@ -88,10 +94,10 @@ export default function Events() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
               <select value={form.event_type} onChange={set('event_type')}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
-                <option value="general">General</option>
-                <option value="usta">USTA Match</option>
-                <option value="social">Social</option>
-                <option value="tournament">Tournament</option>
+                <option value="red_blue">Red/Blue</option>
+                <option value="liveball">LiveBall</option>
+                <option value="christmas_party">Christmas Party</option>
+                <option value="social_event">Social Event</option>
               </select>
             </div>
             <div>
