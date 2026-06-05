@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 
@@ -14,6 +15,10 @@ import (
 type LadderHandler struct {
 	DB      *pgxpool.Pool
 	Mailer  interface{ Send(to, subject, body string) error }
+	SMS     interface {
+		Send(to, body string) error
+		Configured() bool
+	}
 	SiteURL string
 }
 
@@ -1522,78 +1527,86 @@ func scanChallenges(rows interface {
 // ─────────────────────────────────────────────
 
 func (h *LadderHandler) notifyChallengeReceived(ctx context.Context, challengedID, challengerID, challengeID, ladderID string, responseHours int) {
-	if h.Mailer == nil {
-		return
-	}
-	if !notifprefs.UserWantsEmail(ctx, h.DB, challengedID, "ladder_challenge") {
-		return
-	}
-	var email, challengerName string
-	h.DB.QueryRow(ctx, `SELECT email FROM users WHERE id=$1`, challengedID).Scan(&email)
+	var email, phone, challengerName string
+	h.DB.QueryRow(ctx, `SELECT email, COALESCE(phone,'') FROM users WHERE id=$1`, challengedID).Scan(&email, &phone)
 	h.DB.QueryRow(ctx, `SELECT first_name||' '||last_name FROM users WHERE id=$1`, challengerID).Scan(&challengerName)
-	if email == "" {
-		return
-	}
-	body := fmt.Sprintf(`
+
+	if h.Mailer != nil && notifprefs.UserWantsEmail(ctx, h.DB, challengedID, "ladder_challenge") && email != "" {
+		body := fmt.Sprintf(`
 <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
   <h2 style="color:#15803d">You've Been Challenged!</h2>
   <p><strong>%s</strong> has challenged you on the Live Oaks Tennis Ladder.</p>
   <p>Log in to accept or decline. You have <strong>%d hours</strong> to respond — no response results in an automatic forfeit.</p>
   <a href="%s/ladder" style="background:#15803d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block;margin-top:16px">View Challenge</a>
 </div>`, challengerName, responseHours, h.SiteURL)
-	h.Mailer.Send(email, challengerName+" challenged you on the ladder!", body)
+		h.Mailer.Send(email, challengerName+" challenged you on the ladder!", body)
+	}
+
+	if h.SMS != nil && h.SMS.Configured() && phone != "" {
+		msg := fmt.Sprintf("Tennis Ladder: %s has challenged you! You have %dh to respond. %s/ladder", challengerName, responseHours, h.SiteURL)
+		if err := h.SMS.Send(phone, msg); err != nil {
+			log.Printf("ladder: SMS to %s failed: %v", phone, err)
+		}
+	}
 }
 
 func (h *LadderHandler) notifyChallengeResponse(ctx context.Context, challengerID, responderID, action, challengeID string) {
-	if h.Mailer == nil {
-		return
-	}
-	if !notifprefs.UserWantsEmail(ctx, h.DB, challengerID, "ladder_challenge") {
-		return
-	}
-	var email, responderName string
-	h.DB.QueryRow(ctx, `SELECT email FROM users WHERE id=$1`, challengerID).Scan(&email)
+	var email, phone, responderName string
+	h.DB.QueryRow(ctx, `SELECT email, COALESCE(phone,'') FROM users WHERE id=$1`, challengerID).Scan(&email, &phone)
 	h.DB.QueryRow(ctx, `SELECT first_name||' '||last_name FROM users WHERE id=$1`, responderID).Scan(&responderName)
-	if email == "" {
-		return
-	}
-	var subject, msg string
-	if action == "accepted" {
-		subject = responderName + " accepted your ladder challenge"
-		msg = fmt.Sprintf(`<p><strong>%s</strong> accepted your challenge. You have <strong>10 days</strong> to play. Good luck!</p>`, responderName)
-	} else {
-		subject = responderName + " declined your ladder challenge"
-		msg = fmt.Sprintf(`<p><strong>%s</strong> declined your challenge. You may challenge another player.</p>`, responderName)
-	}
-	body := fmt.Sprintf(`
+
+	if h.Mailer != nil && notifprefs.UserWantsEmail(ctx, h.DB, challengerID, "ladder_challenge") && email != "" {
+		var subject, msg string
+		if action == "accepted" {
+			subject = responderName + " accepted your ladder challenge"
+			msg = fmt.Sprintf(`<p><strong>%s</strong> accepted your challenge. You have <strong>10 days</strong> to play. Good luck!</p>`, responderName)
+		} else {
+			subject = responderName + " declined your ladder challenge"
+			msg = fmt.Sprintf(`<p><strong>%s</strong> declined your challenge. You may challenge another player.</p>`, responderName)
+		}
+		body := fmt.Sprintf(`
 <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
   <h2 style="color:#15803d">Challenge Update</h2>
   %s
   <a href="%s/ladder" style="background:#15803d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block;margin-top:16px">View Ladder</a>
 </div>`, msg, h.SiteURL)
-	h.Mailer.Send(email, subject, body)
+		h.Mailer.Send(email, subject, body)
+	}
+
+	if h.SMS != nil && h.SMS.Configured() && phone != "" {
+		var smsMsg string
+		if action == "accepted" {
+			smsMsg = fmt.Sprintf("Tennis Ladder: %s accepted your challenge! Schedule your match at %s/ladder", responderName, h.SiteURL)
+		} else {
+			smsMsg = fmt.Sprintf("Tennis Ladder: %s declined your challenge. You may challenge another player.", responderName)
+		}
+		if err := h.SMS.Send(phone, smsMsg); err != nil {
+			log.Printf("ladder: SMS to %s failed: %v", phone, err)
+		}
+	}
 }
 
 func (h *LadderHandler) notifyScoreSubmitted(ctx context.Context, opponentID, submitterID, challengeID string) {
-	if h.Mailer == nil {
-		return
-	}
-	if !notifprefs.UserWantsEmail(ctx, h.DB, opponentID, "ladder_challenge") {
-		return
-	}
-	var email, submitterName string
-	h.DB.QueryRow(ctx, `SELECT email FROM users WHERE id=$1`, opponentID).Scan(&email)
+	var email, phone, submitterName string
+	h.DB.QueryRow(ctx, `SELECT email, COALESCE(phone,'') FROM users WHERE id=$1`, opponentID).Scan(&email, &phone)
 	h.DB.QueryRow(ctx, `SELECT first_name||' '||last_name FROM users WHERE id=$1`, submitterID).Scan(&submitterName)
-	if email == "" {
-		return
-	}
-	body := fmt.Sprintf(`
+
+	if h.Mailer != nil && notifprefs.UserWantsEmail(ctx, h.DB, opponentID, "ladder_challenge") && email != "" {
+		body := fmt.Sprintf(`
 <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
   <h2 style="color:#15803d">Score Submitted</h2>
   <p><strong>%s</strong> has submitted a score for your recent match. Please log in to approve or dispute the result.</p>
   <a href="%s/ladder" style="background:#15803d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block;margin-top:16px">Review Score</a>
 </div>`, submitterName, h.SiteURL)
-	h.Mailer.Send(email, "Score submitted — please review", body)
+		h.Mailer.Send(email, "Score submitted — please review", body)
+	}
+
+	if h.SMS != nil && h.SMS.Configured() && phone != "" {
+		msg := fmt.Sprintf("Tennis Ladder: %s submitted a match score. Please approve or dispute at %s/ladder", submitterName, h.SiteURL)
+		if err := h.SMS.Send(phone, msg); err != nil {
+			log.Printf("ladder: SMS to %s failed: %v", phone, err)
+		}
+	}
 }
 
 func (h *LadderHandler) notifyScoreApproved(ctx context.Context, submitterID, approverID, challengeID string) {
@@ -1652,27 +1665,31 @@ func (h *LadderHandler) notifyScoreDisputed(ctx context.Context, submitterID, di
 }
 
 func (h *LadderHandler) notifyRankChange(ctx context.Context, ladderID, winnerID string) {
-	if h.Mailer == nil {
-		return
-	}
-	if !notifprefs.UserWantsEmail(ctx, h.DB, winnerID, "ladder_challenge") {
-		return
-	}
-	var email, name string
+	var email, phone, name string
 	var newRank int
-	h.DB.QueryRow(ctx, `SELECT email FROM users WHERE id=$1`, winnerID).Scan(&email)
+	h.DB.QueryRow(ctx, `SELECT email, COALESCE(phone,'') FROM users WHERE id=$1`, winnerID).Scan(&email, &phone)
 	h.DB.QueryRow(ctx, `SELECT first_name||' '||last_name FROM users WHERE id=$1`, winnerID).Scan(&name)
 	h.DB.QueryRow(ctx, `SELECT rank FROM tennis_ladder_entries WHERE ladder_id=$1 AND user_id=$2`, ladderID, winnerID).Scan(&newRank)
-	if email == "" || newRank == 0 {
+	if newRank == 0 {
 		return
 	}
-	body := fmt.Sprintf(`
+
+	if h.Mailer != nil && notifprefs.UserWantsEmail(ctx, h.DB, winnerID, "ladder_challenge") && email != "" {
+		body := fmt.Sprintf(`
 <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
   <h2 style="color:#15803d">You Moved Up!</h2>
   <p>Congratulations <strong>%s</strong>! You are now ranked <strong>#%d</strong> on the Tennis Ladder.</p>
   <a href="%s/ladder" style="background:#15803d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block;margin-top:16px">View Ladder</a>
 </div>`, name, newRank, h.SiteURL)
-	h.Mailer.Send(email, fmt.Sprintf("You're now #%d on the Tennis Ladder!", newRank), body)
+		h.Mailer.Send(email, fmt.Sprintf("You're now #%d on the Tennis Ladder!", newRank), body)
+	}
+
+	if h.SMS != nil && h.SMS.Configured() && phone != "" {
+		msg := fmt.Sprintf("Tennis Ladder: Congrats %s! You're now ranked #%d. %s/ladder", name, newRank, h.SiteURL)
+		if err := h.SMS.Send(phone, msg); err != nil {
+			log.Printf("ladder: SMS to %s failed: %v", phone, err)
+		}
+	}
 }
 
 func (h *LadderHandler) notifyConductAction(ctx context.Context, userID, actionType, reason string) {

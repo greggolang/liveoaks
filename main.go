@@ -127,7 +127,7 @@ func main() {
 	groups := &handlers.GroupsHandler{DB: pool}
 	notes := &handlers.NotesHandler{DB: pool}
 	broadcast := &handlers.BroadcastHandler{DB: pool, Mailer: mailer}
-	ladder := &handlers.LadderHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
+	ladder := &handlers.LadderHandler{DB: pool, Mailer: mailer, SMS: smsSender, SiteURL: cfg.SiteURL}
 	liveball := &handlers.LiveballHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	boardMeetings := &handlers.BoardMeetingsHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	invitations := &handlers.InvitationsHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
