@@ -28,18 +28,9 @@ const PAGE_GROUPS: { group: string; items: { key: string; label: string; desc: s
 ]
 
 const ROLES: { key: string; label: string; short: string }[] = [
-  { key: 'member',        label: 'Member',        short: 'Mbr' },
-  { key: 'president',     label: 'President',     short: 'Pres' },
-  { key: 'vice_president',label: 'Vice President',short: 'VP' },
-  { key: 'secretary',     label: 'Secretary',     short: 'Sec' },
-  { key: 'treasurer',     label: 'Treasurer',     short: 'Treas' },
-  { key: 'billing',       label: 'Billing',       short: 'Bill' },
-  { key: 'membership',    label: 'Membership',    short: 'Mbr' },
-  { key: 'entertainment', label: 'Entertainment', short: 'Ent' },
-  { key: 'house_grounds', label: 'House & Grounds',short: 'H&G' },
-  { key: 'usta',          label: 'USTA',          short: 'USTA' },
-  { key: 'games',         label: 'Games',         short: 'Gms' },
-  { key: 'pro',           label: 'Pro',           short: 'Pro' },
+  { key: 'member', label: 'Member', short: 'Mbr' },
+  { key: 'games',  label: 'Games',  short: 'Gms' },
+  { key: 'pro',    label: 'Pro',    short: 'Pro' },
 ]
 
 export default function AdminMemberPermissions() {
