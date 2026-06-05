@@ -3,6 +3,7 @@ import { api, DocFolder, DocFile } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 import { parseDate } from '../utils/dates'
 import { APP_VERSION, APP_SHA } from '../version'
+import FileEditor from '../components/FileEditor'
 
 const ROLES: { key: string; label: string }[] = [
   { key: 'member',         label: 'Member' },
@@ -43,6 +44,13 @@ const FILE_EXT_CONFIG: Record<string, { label: string; color: string }> = {
 }
 
 const PRINTABLE_EXTS = new Set(['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'txt', 'csv'])
+
+// Office formats that can be opened in the in-browser editor and saved back.
+const EDITABLE_EXTS = new Set(['docx', 'doc', 'odt', 'rtf'])
+
+function extOf(filename: string): string {
+  return (filename.split('.').pop() ?? '').toLowerCase()
+}
 
 function printDoc(filename: string) {
   const url = `/uploads/documents/${filename}`
@@ -190,11 +198,14 @@ function TreeNode({ folder, depth, selectedId, onSelect, openIds, onToggle }: {
 }
 
 // ── Grid file card ────────────────────────────────────────────────────────────
-function FileCard({ doc, isBoard, onDelete, onToggleAI }: {
+function FileCard({ doc, isBoard, onDelete, onToggleAI, onEdit, onConvert, converting }: {
   doc: DocFile; isBoard: boolean; onDelete: (id: string) => void; onToggleAI: (id: string, next: boolean) => void
+  onEdit: (id: string) => void; onConvert: (id: string) => void; converting: boolean
 }) {
   const ext = (doc.filename.split('.').pop() ?? '').toLowerCase()
   const canPrint = PRINTABLE_EXTS.has(ext)
+  const canEdit = EDITABLE_EXTS.has(ext)
+  const isPdf = ext === 'pdf'
   const aiReadable = ['pdf', 'txt', 'md', 'markdown', 'csv', 'log'].includes(ext)
   return (
     <div className="group relative flex flex-col items-center gap-1.5 p-3 rounded-lg hover:bg-green-50 cursor-pointer transition-colors">

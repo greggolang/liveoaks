@@ -50,6 +50,9 @@ export interface DocFile {
   id: string; title: string; filename: string; original_name: string; created_at: string
   uploaded_by_name?: string; ai_indexed?: boolean; indexed?: boolean
 }
+export interface EditableDoc {
+  id: string; title: string; body: string; version: string; format: string
+}
 export interface DocFolder {
   id: string; name: string; sort_order: number; roles: string[]
   parent_id?: string | null
@@ -472,6 +475,16 @@ export const api = {
     delete: (id: string) => request(`/admin/documents/${id}`, { method: 'DELETE' }),
     setAIIndexed: (id: string, indexed: boolean) =>
       request(`/admin/documents/${id}/ai-indexed`, { method: 'PUT', body: JSON.stringify({ indexed }) }),
+    // Open a Word/ODT/RTF file as editable HTML, and save the edits back to the file.
+    editable: {
+      get: (id: string) => request<EditableDoc>(`/admin/documents/${id}/editable`),
+      save: (id: string, body: string, version: string) =>
+        request<{ version: string }>(`/admin/documents/${id}/editable`,
+          { method: 'PUT', body: JSON.stringify({ body, version }) }),
+    },
+    // Best-effort convert an uploaded PDF into a new editable Word document.
+    convertToWord: (id: string) =>
+      request<DocFile>(`/admin/documents/${id}/convert-to-word`, { method: 'POST' }),
     folders: {
       adminList: () => request<DocFolder[]>('/admin/document-folders'),
       create: (data: { name: string; sort_order: number; roles: string[]; parent_id?: string | null }) =>
