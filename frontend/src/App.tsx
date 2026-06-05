@@ -47,6 +47,7 @@ import AdminMemberRequests from './pages/admin/AdminMemberRequests'
 import AdminTestEmail from './pages/admin/AdminTestEmail'
 import AdminBoardPermissions from './pages/admin/AdminBoardPermissions'
 import AdminPageAccess from './pages/admin/AdminPageAccess'
+import AdminMemberPermissions from './pages/admin/AdminMemberPermissions'
 import AdminFeedback from './pages/admin/AdminFeedback'
 import AdminClubQuestions from './pages/admin/AdminClubQuestions'
 import AdminEmailTemplates from './pages/admin/AdminEmailTemplates'
@@ -190,6 +191,7 @@ function AppRoutes() {
         <Route path="communication-test" element={<AdminTestEmail />} />
         <Route path="log" element={<AdminLog />} />
         <Route path="permissions" element={<AdminBoardPermissions />} />
+        <Route path="member-permissions" element={<AdminMemberPermissions />} />
         <Route path="page-access" element={<AdminPageAccess />} />
         <Route path="feedback" element={<AdminFeedback />} />
         <Route path="club-questions" element={<AdminClubQuestions />} />

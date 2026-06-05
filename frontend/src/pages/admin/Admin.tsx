@@ -92,6 +92,7 @@ const sections: Section[] = [
       { to: '/admin/settings', label: 'Settings', section: 'settings' },
       { to: '/admin/email-templates', label: 'Email Templates', section: 'email_templates' },
       { to: '/admin/permissions', label: 'Admin Permissions' },
+      { to: '/admin/member-permissions', label: 'Member Permissions' },
       { to: '/admin/passwords', label: 'Password Vault', section: 'password_vault' },
       { to: '/admin/communication-test', label: 'Test Communications', section: 'communication_test' },
       { to: '/admin/log', label: 'Activity Log', section: 'activity_log' },
@@ -102,7 +103,7 @@ const sections: Section[] = [
 
 // Links restricted to full admins regardless of section grants.
 const ADMIN_ONLY_LINKS = new Set([
-  '/admin/mail', '/admin/permissions', '/admin/page-access',
+  '/admin/mail', '/admin/permissions', '/admin/member-permissions', '/admin/page-access',
 ])
 
 export default function Admin() {
