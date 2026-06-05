@@ -704,6 +704,34 @@ func main() {
 	e.GET("/uploads/receipts/:filename", uploads.ServeReceipt)
 	e.GET("/uploads/tax-documents/:filename", tax.ServeDocument)
 
+	// Evict any stale File Browser service worker left registered at the /files/
+	// scope. File Browser (briefly mounted at /files in the past) registered a
+	// service worker that keeps serving its cached app shell from the browser,
+	// shadowing the native Files page even though the server no longer proxies to
+	// it. Browsers that registered it re-fetch the worker script on navigation;
+	// serving this self-unregistering version makes them drop it, purge caches,
+	// and reload onto the real page. Fresh browsers never request these paths, so
+	// this only ever reaches affected clients. Safe to remove once traffic stops.
+	const killSW = `self.addEventListener('install', function(){ self.skipWaiting(); });
+self.addEventListener('activate', function(e){
+  e.waitUntil((async function(){
+    try { var ks = await caches.keys(); await Promise.all(ks.map(function(k){ return caches.delete(k); })); } catch(_) {}
+    try { await self.registration.unregister(); } catch(_) {}
+    var cs = await self.clients.matchAll({ type: 'window' });
+    cs.forEach(function(c){ try { c.navigate(c.url); } catch(_) {} });
+  })());
+});
+`
+	serveKillSW := func(c echo.Context) error {
+		h := c.Response().Header()
+		h.Set("Content-Type", "application/javascript")
+		h.Set("Service-Worker-Allowed", "/files")
+		h.Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		return c.String(http.StatusOK, killSW)
+	}
+	e.GET("/files/service-worker.js", serveKillSW)
+	e.GET("/files/sw.js", serveKillSW)
+
 	// Serve React frontend — fall back to index.html for SPA routes
 	distFS, err := fs.Sub(frontendFS, "frontend/dist")
 	if err != nil {
