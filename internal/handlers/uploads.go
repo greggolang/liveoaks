@@ -277,12 +277,16 @@ func (h *UploadsHandler) UploadDocument(c echo.Context) error {
 	var fid *string
 	if folderID != "" { fid = &folderID }
 	var doc Document
-	h.DB.QueryRow(c.Request().Context(),
+	if err := h.DB.QueryRow(c.Request().Context(),
 		`INSERT INTO documents (title, filename, original_name, category, folder_id, uploaded_by)
 		 VALUES ($1, $2, $3, 'general', $4, $5)
 		 RETURNING id, title, filename, original_name, created_at`,
 		title, filename, original, fid, userID,
-	).Scan(&doc.ID, &doc.Title, &doc.Filename, &doc.OriginalName, &doc.CreatedAt)
+	).Scan(&doc.ID, &doc.Title, &doc.Filename, &doc.OriginalName, &doc.CreatedAt); err != nil {
+		// Surface a real failure instead of returning a misleading 201 with an
+		// empty document (which makes uploads look successful but vanish).
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not save document record")
+	}
 	// Auto-index text-based files immediately so they're searchable without a manual reindex.
 	// PDFs require an AI extraction pass — they stay as indexed_at=NULL for the batch reindex.
 	if isTextFile(filename) {

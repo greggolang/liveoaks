@@ -584,6 +584,9 @@ export default function Files() {
       }
       resetUpload(); setShowUpload(false)
       await loadFolders()
+      // Jump to the destination folder so the just-uploaded file is visible
+      // (otherwise it lands in a folder the user may not be viewing).
+      selectFolder(targetFolderId)
     } catch (e: any) { setUploadError(e.message || 'Upload failed') }
     finally { setUploading(false) }
   }
@@ -648,6 +651,7 @@ export default function Files() {
       resetUpload(); setShowUpload(false)
       await loadFolders()
       if (isBoard) loadAdminFolders()
+      selectFolder(targetFolderId)
     } catch (e: any) { setUploadError(e.message || 'Upload failed') }
     finally { setUploading(false); setUploadStatus('') }
   }
