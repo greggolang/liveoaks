@@ -41,7 +41,7 @@ jobs:
           host: 172.236.228.11
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: liveoaks,resetpw,migrations
+          source: liveoaks,resetpw,migrations,scripts
           target: /opt/liveoaks/
 
       - name: Run migrations and restart service
@@ -84,6 +84,11 @@ jobs:
             systemctl restart fail2ban
 
             mkdir -p /opt/liveoaks/uploads/documents /opt/liveoaks/uploads/photos
+
+            # File manager (File Browser) behind /files. Idempotent: installs and
+            # initialises only what is missing, so it is safe to run every deploy.
+            chmod +x /opt/liveoaks/scripts/setup-filebrowser.sh
+            /opt/liveoaks/scripts/setup-filebrowser.sh
             # NOTE: resetpw is a manual recovery tool only. It runs
             # `UPDATE users SET password_hash=...` with NO WHERE clause, so it
             # overwrites EVERY member's password with the default. It must never

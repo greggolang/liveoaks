@@ -704,6 +704,18 @@ func main() {
 	e.GET("/uploads/receipts/:filename", uploads.ServeReceipt)
 	e.GET("/uploads/tax-documents/:filename", tax.ServeDocument)
 
+	// File manager — reverse-proxy /files to the local File Browser instance.
+	// JWTAuth runs first so the proxy can pass the authenticated user id as the
+	// proxy-auth header; board+ section gate restricts who can reach it (swap
+	// the RequireAdminSection middleware for nothing to open it to all members).
+	if filesH, ferr := handlers.NewFilesHandler(cfg.FileBrowserURL); ferr == nil {
+		files := e.Group("/files", mw.JWTAuth(cfg.JWTSecret), mw.RequireAdminSection(pool, mw.BoardRoleList()...))
+		files.Any("", filesH.Proxy)
+		files.Any("/*", filesH.Proxy)
+	} else {
+		log.Printf("file manager disabled: %v", ferr)
+	}
+
 	// Serve React frontend — fall back to index.html for SPA routes
 	distFS, err := fs.Sub(frontendFS, "frontend/dist")
 	if err != nil {

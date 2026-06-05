@@ -23,6 +23,7 @@ type Config struct {
 	TwilioAccountSID     string
 	TwilioAuthToken      string
 	TwilioFrom           string // E.164 sending number, e.g. +14155551234
+	FileBrowserURL       string // upstream for the /files file manager (File Browser), localhost-only
 }
 
 func Load() Config {
@@ -42,6 +43,10 @@ func Load() Config {
 	if cameraHLSDir == "" {
 		cameraHLSDir = "/var/cache/camera-hls"
 	}
+	fileBrowserURL := os.Getenv("FILEBROWSER_URL")
+	if fileBrowserURL == "" {
+		fileBrowserURL = "http://127.0.0.1:8090"
+	}
 	return Config{
 		DatabaseURL:  os.Getenv("DATABASE_URL"),
 		JWTSecret:    os.Getenv("JWT_SECRET"),
@@ -60,5 +65,6 @@ func Load() Config {
 		TwilioAccountSID:     os.Getenv("TWILIO_ACCOUNT_SID"),
 		TwilioAuthToken:      os.Getenv("TWILIO_AUTH_TOKEN"),
 		TwilioFrom:           os.Getenv("TWILIO_FROM"),
+		FileBrowserURL:       fileBrowserURL,
 	}
 }
