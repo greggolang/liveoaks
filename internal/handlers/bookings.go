@@ -233,7 +233,40 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("bookings must end by %s", fmtHour(closeH)))
 	}
 
-	// Enforce days-in-advance limit
+	// Rule 8: the first half-hour slot of the day on a court must not be left empty.
+	// Weekdays open at court_open_hour:00; weekends open at court_open_hour_weekend:court_open_minute_weekend.
+	{
+		isWeekend := localStart.Weekday() == time.Saturday || localStart.Weekday() == time.Sunday
+		effOpenH, effOpenMin := openH, 0
+		if isWeekend {
+			var wkHStr, wkMStr string
+			h.DB.QueryRow(c.Request().Context(), `SELECT value FROM settings WHERE key='court_open_hour_weekend'`).Scan(&wkHStr)
+			h.DB.QueryRow(c.Request().Context(), `SELECT value FROM settings WHERE key='court_open_minute_weekend'`).Scan(&wkMStr)
+			if v, err := strconv.Atoi(wkHStr); err == nil {
+				effOpenH = v
+			}
+			if v, err := strconv.Atoi(wkMStr); err == nil {
+				effOpenMin = v
+			} else {
+				effOpenMin = 30
+			}
+		}
+		openOfDay := time.Date(localStart.Year(), localStart.Month(), localStart.Day(), effOpenH, effOpenMin, 0, 0, loc)
+		forbiddenStart := openOfDay.Add(30 * time.Minute)
+		if localStart.Equal(forbiddenStart) {
+			var existingAtOpen int
+			h.DB.QueryRow(c.Request().Context(),
+				`SELECT COUNT(*) FROM bookings WHERE court_id=$1 AND start_time=$2`,
+				req.CourtID, openOfDay.UTC()).Scan(&existingAtOpen)
+			if existingAtOpen == 0 {
+				return echo.NewHTTPError(http.StatusBadRequest,
+					fmt.Sprintf("the %s slot cannot be reserved — the %s (opening) slot on this court must be booked first to avoid a gap at the start of the day",
+						localStart.Format("3:04 PM"), openOfDay.Format("3:04 PM")))
+			}
+		}
+	}
+
+	// Enforce days-in-advance limit and advance-booking open hour (Rule 6)
 	var maxDaysStr string
 	if scanErr := h.DB.QueryRow(c.Request().Context(),
 		`SELECT value FROM settings WHERE key = 'booking_max_days_ahead'`).Scan(&maxDaysStr); scanErr == nil {
@@ -244,6 +277,23 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 			if !localStart.Before(deadline) {
 				return echo.NewHTTPError(http.StatusBadRequest,
 					fmt.Sprintf("courts can only be booked up to %d days in advance", maxDays))
+			}
+			// Rule 6: the booking window for a date opens at booking_advance_open_hour on the eligible day
+			var advOpenHStr string
+			if scanErr2 := h.DB.QueryRow(c.Request().Context(),
+				`SELECT value FROM settings WHERE key = 'booking_advance_open_hour'`).Scan(&advOpenHStr); scanErr2 == nil {
+				if advOpenH, convErr2 := strconv.Atoi(advOpenHStr); convErr2 == nil && advOpenH >= 0 {
+					slotDay := time.Date(localStart.Year(), localStart.Month(), localStart.Day(), 0, 0, 0, 0, loc)
+					openOnDay := slotDay.AddDate(0, 0, -maxDays)
+					advanceOpenTime := time.Date(openOnDay.Year(), openOnDay.Month(), openOnDay.Day(), advOpenH, 0, 0, 0, loc)
+					if nowLA.Before(advanceOpenTime) {
+						return echo.NewHTTPError(http.StatusBadRequest,
+							fmt.Sprintf("reservations for %s open at %s on %s",
+								localStart.Format("Jan 2"),
+								fmtHour(advOpenH),
+								openOnDay.Format("Monday, Jan 2")))
+					}
+				}
 			}
 		}
 	}
@@ -259,6 +309,24 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 	// regardless of match type. This lets the pro schedule as many sessions as
 	// needed in a day.
 	proExempt := h.hasTeachingProPermission(c.Request().Context(), userID)
+
+	// Rule 1: cap on total future (unfulfilled) reservations — completed bookings roll off automatically
+	if !proExempt {
+		var maxFutureStr string
+		if scanErr := h.DB.QueryRow(c.Request().Context(),
+			`SELECT value FROM settings WHERE key = 'booking_max_future_total'`).Scan(&maxFutureStr); scanErr == nil {
+			if maxFuture, convErr := strconv.Atoi(maxFutureStr); convErr == nil && maxFuture > 0 {
+				var futureCount int
+				h.DB.QueryRow(c.Request().Context(),
+					`SELECT COUNT(*) FROM bookings WHERE user_id=$1 AND start_time > NOW() AND match_type <> 'teaching_pro'`,
+					userID).Scan(&futureCount)
+				if futureCount >= maxFuture {
+					return echo.NewHTTPError(http.StatusBadRequest,
+						fmt.Sprintf("members are limited to %d advanced reservations at a time — once a booking ends it frees up a slot", maxFuture))
+				}
+			}
+		}
+	}
 
 	// ── Per-day minutes limit ─────────────────────────────────────────────
 	var maxMinStr string
@@ -303,7 +371,8 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 		}
 	}
 
-	// ── Sandwich gap (min gap between same-member bookings on same court) ─
+	// Rules 4 & 5: minimum gap between same-day reservations across ALL courts.
+	// Back-to-back bookings are prohibited; a 1-hour buffer is required between sessions.
 	var minGapStr string
 	if scanErr := h.DB.QueryRow(c.Request().Context(),
 		`SELECT value FROM settings WHERE key = 'booking_min_gap_minutes'`).Scan(&minGapStr); !proExempt && scanErr == nil {
@@ -311,17 +380,22 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 			var tooClose int
 			h.DB.QueryRow(c.Request().Context(),
 				`SELECT COUNT(*) FROM bookings
-				 WHERE user_id = $1 AND court_id = $2
-				   AND start_time >= $3 AND start_time < $4
+				 WHERE user_id = $1
+				   AND start_time >= $2 AND start_time < $3
 				   AND match_type <> 'teaching_pro'
 				   AND (
-				     (end_time > $5 - make_interval(mins => $6) AND end_time <= $5) OR
-				     (start_time >= $7 AND start_time < $7 + make_interval(mins => $6))
+				     (end_time > $4 - make_interval(mins => $5) AND end_time <= $4) OR
+				     (start_time >= $6 AND start_time < $6 + make_interval(mins => $5))
 				   )`,
-				userID, req.CourtID, dayStart, dayEnd, req.StartTime, minGap, req.EndTime).Scan(&tooClose)
+				userID, dayStart, dayEnd, req.StartTime, minGap, req.EndTime).Scan(&tooClose)
 			if tooClose > 0 {
+				gapHours := minGap / 60
+				if gapHours >= 1 {
+					return echo.NewHTTPError(http.StatusBadRequest,
+						fmt.Sprintf("a minimum %d-hour gap is required between same-day reservations — back-to-back bookings are not allowed", gapHours))
+				}
 				return echo.NewHTTPError(http.StatusBadRequest,
-					fmt.Sprintf("bookings on the same court must be at least %d minutes apart", minGap))
+					fmt.Sprintf("same-day reservations must be at least %d minutes apart", minGap))
 			}
 		}
 	}
