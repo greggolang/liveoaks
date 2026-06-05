@@ -191,7 +191,7 @@ function EventList({ title, events, isBoard, templates, members, onDelete, onTog
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${TYPE_COLORS[ev.event_type] ?? 'bg-gray-100 text-gray-700'}`}>
-                      {ev.event_type.toUpperCase()}
+                      {TYPE_LABELS[ev.event_type] ?? ev.event_type}
                     </span>
                     {ev.signup_enabled && (
                       <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">✏️ Sign-Up Open</span>
