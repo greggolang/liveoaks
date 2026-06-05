@@ -2075,24 +2075,24 @@ export default function Bookings() {
                                             </div>
                                           )
                                         })()}
+                                        {!isInvolved && !past && (
+                                          <div className="mt-auto pt-1" onClick={e => e.stopPropagation()}>
+                                            {wl?.is_mine && wl.my_entry_id ? (
+                                              <button disabled={wlLoading}
+                                                onClick={() => handleLeaveWaitlist(wl.my_entry_id!, c.id, booking.start_time)}
+                                                className="w-full text-[10px] py-0.5 rounded-md bg-amber-100 text-amber-800 hover:bg-amber-200 font-semibold transition disabled:opacity-50">
+                                                {wlLoading ? '…' : `On waitlist (#${wl.count})`}
+                                              </button>
+                                            ) : (
+                                              <button disabled={wlLoading}
+                                                onClick={() => handleJoinWaitlist(c.id, booking.start_time, booking.end_time)}
+                                                className="w-full text-[10px] py-0.5 rounded-md bg-slate-100 text-slate-500 hover:bg-amber-100 hover:text-amber-800 font-semibold transition disabled:opacity-50">
+                                                {wlLoading ? '…' : wl ? `Waitlist (${wl.count})` : 'Waitlist'}
+                                              </button>
+                                            )}
+                                          </div>
+                                        )}
                                       </div>
-                                      {!isInvolved && !past && (
-                                        <div onClick={e => e.stopPropagation()}>
-                                          {wl?.is_mine && wl.my_entry_id ? (
-                                            <button disabled={wlLoading}
-                                              onClick={() => handleLeaveWaitlist(wl.my_entry_id!, c.id, booking.start_time)}
-                                              className="w-full text-[10px] py-0.5 rounded-md bg-amber-100 text-amber-800 hover:bg-amber-200 font-semibold transition disabled:opacity-50">
-                                              {wlLoading ? '…' : `On waitlist (#${wl.count})`}
-                                            </button>
-                                          ) : (
-                                            <button disabled={wlLoading}
-                                              onClick={() => handleJoinWaitlist(c.id, booking.start_time, booking.end_time)}
-                                              className="w-full text-[10px] py-0.5 rounded-md bg-slate-100 text-slate-500 hover:bg-amber-100 hover:text-amber-800 font-semibold transition disabled:opacity-50">
-                                              {wlLoading ? '…' : wl ? `Waitlist (${wl.count})` : 'Waitlist'}
-                                            </button>
-                                          )}
-                                        </div>
-                                      )}
                                     </div>
                                   </td>
                                 )
