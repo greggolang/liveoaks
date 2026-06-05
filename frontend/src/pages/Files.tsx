@@ -145,6 +145,16 @@ function flattenFolders(folders: DocFolder[], prefix = ''): { id: string; label:
   return result
 }
 
+// Total number of files stored across every folder and subfolder.
+function countAllFiles(folders: DocFolder[]): number {
+  let n = 0
+  for (const f of folders) {
+    n += (f.docs ?? []).length
+    if (f.children?.length) n += countAllFiles(f.children)
+  }
+  return n
+}
+
 // ── Left tree node ────────────────────────────────────────────────────────────
 function TreeNode({ folder, depth, selectedId, onSelect, openIds, onToggle }: {
   folder: DocFolder; depth: number; selectedId: string | null
@@ -685,6 +695,7 @@ export default function Files() {
 
   const flatFolders = flattenFolders(adminFolders).filter(f => f.id !== editingFolderId)
   const totalItems = currentFolders.length + sortedDocs.length
+  const totalFiles = useMemo(() => countAllFiles(folders), [folders])
 
   return (
     <div className="flex flex-col h-full space-y-3">
@@ -1095,12 +1106,20 @@ export default function Files() {
           </div>
 
           {/* Status bar */}
-          {!loading && searchResults === null && (
+          {!loading && (
             <div className="shrink-0 border-t border-green-100 bg-green-50 px-4 py-1 flex items-center gap-3 text-xs text-gray-500">
-              <span>{totalItems} item{totalItems !== 1 ? 's' : ''}</span>
-              {sortedDocs.length > 0 && <span>{sortedDocs.length} file{sortedDocs.length !== 1 ? 's' : ''}</span>}
-              {currentFolders.length > 0 && <span>{currentFolders.length} folder{currentFolders.length !== 1 ? 's' : ''}</span>}
-              {selectedFolder && <span className="ml-auto truncate">{breadcrumb.map(f => f.name).join(' › ')}</span>}
+              {searchResults !== null ? (
+                <span>{searchResults.length} result{searchResults.length !== 1 ? 's' : ''}</span>
+              ) : (
+                <>
+                  <span>{totalItems} item{totalItems !== 1 ? 's' : ''}</span>
+                  {sortedDocs.length > 0 && <span>{sortedDocs.length} file{sortedDocs.length !== 1 ? 's' : ''}</span>}
+                  {currentFolders.length > 0 && <span>{currentFolders.length} folder{currentFolders.length !== 1 ? 's' : ''}</span>}
+                </>
+              )}
+              <span className="ml-auto font-medium text-green-800">
+                {totalFiles.toLocaleString()} file{totalFiles !== 1 ? 's' : ''} stored
+              </span>
             </div>
           )}
         </div>

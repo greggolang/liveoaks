@@ -168,22 +168,22 @@ var boardRoleSet = map[string]bool{
 }
 
 // accessibleDocIDs returns the IDs (and a short title index) of documents the
-// caller may search, role-aware:
+// caller may search, role-aware — exactly mirroring the Documents page:
 //   - admin: every document in the system;
-//   - board member: documents in folders their roles can see (plus unfiled);
-//   - regular member: only admin-curated (ai_indexed) docs they can see.
+//   - everyone else: documents in folders their roles can see (plus unfiled).
+//
+// A member can have the assistant read any document they could open on the
+// Documents page; role-restricted folders (e.g. board minutes) stay invisible
+// to members because their roles don't match the folder's required roles.
 func (h *AIHandler) accessibleDocIDs(c echo.Context) (ids []string, indexText string) {
 	ctx := c.Request().Context()
 	role, _ := c.Get("role").(string)
 	extra, _ := c.Get("extra_roles").([]string)
 	roles := append([]string{role}, extra...)
-	isAdmin, isBoard := false, false
+	isAdmin := false
 	for _, r := range roles {
 		if r == "admin" {
 			isAdmin = true
-		}
-		if boardRoleSet[r] {
-			isBoard = true
 		}
 	}
 
@@ -200,11 +200,8 @@ func (h *AIHandler) accessibleDocIDs(c echo.Context) (ids []string, indexText st
 					WHERE NOT EXISTS (SELECT 1 FROM document_folder_roles WHERE folder_id = f.id)
 					   OR EXISTS (SELECT 1 FROM document_folder_roles WHERE folder_id = f.id AND role = ANY($1))
 				)
-			)`
-		if !isBoard {
-			query += ` AND d.ai_indexed = true`
-		}
-		query += ` ORDER BY d.created_at DESC`
+			)
+			ORDER BY d.created_at DESC`
 		args = []interface{}{roles}
 	}
 
@@ -262,6 +259,26 @@ func (h *AIHandler) retrieveChunks(ctx context.Context, docIDs []string, questio
 		}
 	}
 	return b.String()
+}
+
+// boardRestrictedHit reports whether the question matches indexed chunks in
+// documents the caller may NOT access (i.e. board-restricted material such as
+// board minutes). When true, the assistant points the member to a board member
+// instead of pretending the material doesn't exist.
+func (h *AIHandler) boardRestrictedHit(ctx context.Context, accessibleIDs []string, question string) bool {
+	if strings.TrimSpace(question) == "" {
+		return false
+	}
+	var hit bool
+	if err := h.DB.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM doc_chunks dc
+			WHERE dc.document_id <> ALL($1::uuid[])
+			  AND dc.tsv @@ plainto_tsquery('english', $2)
+		)`, accessibleIDs, question).Scan(&hit); err != nil {
+		return false
+	}
+	return hit
 }
 
 // readableExt reports whether a document's text can be indexed.
@@ -497,6 +514,20 @@ func (h *AIHandler) AskClub(c echo.Context) error {
 	finalBlocks := []ai.Block{}
 	if excerpts := h.retrieveChunks(ctx, docIDs, req.Question); excerpts != "" {
 		finalBlocks = append(finalBlocks, ai.Text("Relevant excerpts from club documents you have access to:\n\n"+excerpts))
+	}
+	// If the question matches board-restricted documents this member cannot see,
+	// point them to the board rather than saying it isn't on file.
+	role, _ := c.Get("role").(string)
+	extra, _ := c.Get("extra_roles").([]string)
+	privileged := false
+	for _, r := range append([]string{role}, extra...) {
+		if r == "admin" || boardRoleSet[r] {
+			privileged = true
+			break
+		}
+	}
+	if !privileged && h.boardRestrictedHit(ctx, docIDs, req.Question) {
+		finalBlocks = append(finalBlocks, ai.Text("ACCESS NOTE: One or more club documents that match this question are restricted to the board, and you cannot see their contents. If you cannot answer the question from the materials above, tell the member: that information is restricted to the board — please ask a board member (such as the president or secretary). When you do this, end your reply with [[ANSWERED]] and do NOT offer to forward the question."))
 	}
 	finalBlocks = append(finalBlocks, ai.Text("Question: "+req.Question))
 	messages = append(messages, ai.Message{Role: "user", Content: finalBlocks})
