@@ -447,7 +447,7 @@ interface FolderFormState { name: string; sortOrder: string; roles: string[]; pa
 const emptyFolderForm = (): FolderFormState => ({ name: '', sortOrder: '0', roles: [], parentId: '' })
 
 // ── Main component ────────────────────────────────────────────────────────────
-export default function Files() {
+export default function Files({ embedded = false }: { embedded?: boolean } = {}) {
   const { isBoard } = useAuth()
 
   const [folders, setFolders] = useState<DocFolder[]>([])
@@ -772,29 +772,40 @@ export default function Files() {
 
   return (
     <div className="flex flex-col h-full space-y-3">
-      {/* ── Page header banner ── */}
-      <div className="flex items-center justify-between gap-3 flex-wrap rounded-xl bg-green-700 text-white px-5 py-4 shadow-sm">
-        <div className="flex items-center gap-3 min-w-0">
-          <svg className="w-9 h-9 shrink-0 text-green-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-          </svg>
-          <div className="min-w-0">
-            <h1 className="text-2xl font-bold font-serif leading-tight">Files</h1>
-            <div className="flex items-center gap-2 flex-wrap">
-              <p className="text-green-100 text-sm">Club documents &amp; shared files</p>
-              <span className="text-[10px] font-mono bg-green-900/50 text-green-50 px-1.5 py-0.5 rounded">
-                build v{APP_VERSION}{APP_SHA ? ` · ${APP_SHA}` : ''}
-              </span>
+      {/* ── Page header banner ── (hidden when embedded inside another page, e.g. the Documents tabs) */}
+      {embedded ? (
+        isBoard && (
+          <div className="flex justify-end">
+            <button onClick={openCreateFolder}
+              className="bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-4 py-2 rounded-lg transition shadow-sm">
+              + New Folder
+            </button>
+          </div>
+        )
+      ) : (
+        <div className="flex items-center justify-between gap-3 flex-wrap rounded-xl bg-green-700 text-white px-5 py-4 shadow-sm">
+          <div className="flex items-center gap-3 min-w-0">
+            <svg className="w-9 h-9 shrink-0 text-green-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+            </svg>
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold font-serif leading-tight">Files</h1>
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-green-100 text-sm">Club documents &amp; shared files</p>
+                <span className="text-[10px] font-mono bg-green-900/50 text-green-50 px-1.5 py-0.5 rounded">
+                  build v{APP_VERSION}{APP_SHA ? ` · ${APP_SHA}` : ''}
+                </span>
+              </div>
             </div>
           </div>
+          {isBoard && (
+            <button onClick={openCreateFolder}
+              className="bg-white hover:bg-green-50 text-green-800 text-sm font-semibold px-4 py-2 rounded-lg transition shadow-sm">
+              + New Folder
+            </button>
+          )}
         </div>
-        {isBoard && (
-          <button onClick={openCreateFolder}
-            className="bg-white hover:bg-green-50 text-green-800 text-sm font-semibold px-4 py-2 rounded-lg transition shadow-sm">
-            + New Folder
-          </button>
-        )}
-      </div>
+      )}
 
       {/* ── Folder form modal ── */}
       {isBoard && showFolderForm && (
@@ -859,7 +870,7 @@ export default function Files() {
 
       {/* ── Explorer shell ── */}
       <div className="flex bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm"
-        style={{ height: 'calc(100vh - 200px)', minHeight: 400 }}>
+        style={{ height: embedded ? 'calc(100vh - 260px)' : 'calc(100vh - 200px)', minHeight: 400 }}>
 
         {/* Left: folder tree */}
         <div className="w-48 md:w-56 shrink-0 bg-green-50 border-r border-green-100 overflow-y-auto py-2 flex flex-col">
