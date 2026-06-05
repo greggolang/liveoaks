@@ -846,6 +846,10 @@ export const api = {
       conduct: (ladderId: string) => request(`/admin/ladder/${ladderId}/conduct`),
       issueConductAction: (ladderId: string, data: object) =>
         request(`/admin/ladder/${ladderId}/conduct`, { method: 'POST', body: JSON.stringify(data) }),
+      notifyPreview: (ladderId: string, levels: string[]) =>
+        request(`/admin/ladder/${ladderId}/notify/preview?${levels.map(l => `level=${encodeURIComponent(l)}`).join('&')}`),
+      notify: (ladderId: string, data: object) =>
+        request(`/admin/ladder/${ladderId}/notify`, { method: 'POST', body: JSON.stringify(data) }),
     },
   },
   broadcast: {

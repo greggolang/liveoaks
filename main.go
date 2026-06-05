@@ -482,6 +482,8 @@ func main() {
 	adminOnly.GET("/ladder/:id/audit", ladder.AdminGetAuditLog)
 	adminOnly.POST("/ladder/:id/conduct", ladder.AdminIssueConductAction)
 	adminOnly.GET("/ladder/:id/conduct", ladder.AdminGetConduct)
+	adminOnly.GET("/ladder/:id/notify/preview", ladder.AdminNotifyPreview)
+	adminOnly.POST("/ladder/:id/notify", ladder.AdminNotify)
 
 	// Mail — current user's assigned account (authenticated, not admin-only)
 	authed.GET("/my-mail-account", mail.MyAccount)

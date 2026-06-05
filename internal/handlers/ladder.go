@@ -1720,3 +1720,105 @@ func (h *LadderHandler) notifyConductAction(ctx context.Context, userID, actionT
 </div>`, header, name, actionType, reason)
 	h.Mailer.Send(email, subject, body)
 }
+
+// ─────────────────────────────────────────────
+// USTA-grouped notifications
+// ─────────────────────────────────────────────
+
+// AdminNotifyPreview returns active members matching the given USTA levels.
+func (h *LadderHandler) AdminNotifyPreview(c echo.Context) error {
+	levels := c.QueryParams()["level"]
+	if len(levels) == 0 {
+		return c.JSON(http.StatusOK, []interface{}{})
+	}
+	rows, err := h.DB.Query(c.Request().Context(), `
+		SELECT u.id, u.first_name||' '||u.last_name, u.email,
+		       COALESCE(u.usta_ranking,''), COALESCE(u.phone,'')
+		FROM users u
+		WHERE u.usta_ranking = ANY($1) AND u.status = 'active'
+		ORDER BY u.usta_ranking, u.first_name, u.last_name`, levels)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch members")
+	}
+	defer rows.Close()
+	type row struct {
+		UserID string `json:"user_id"`
+		Name   string `json:"name"`
+		Email  string `json:"email"`
+		USTA   string `json:"usta_ranking"`
+		Phone  string `json:"phone"`
+	}
+	out := []row{}
+	for rows.Next() {
+		var r row
+		rows.Scan(&r.UserID, &r.Name, &r.Email, &r.USTA, &r.Phone)
+		out = append(out, r)
+	}
+	return c.JSON(http.StatusOK, out)
+}
+
+// AdminNotify sends an email (and optional SMS) to a specific set of members.
+func (h *LadderHandler) AdminNotify(c echo.Context) error {
+	var req struct {
+		Subject string   `json:"subject"`
+		Body    string   `json:"body"`
+		UserIDs []string `json:"user_ids"`
+		SendSMS bool     `json:"send_sms"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
+	}
+	if req.Subject == "" || req.Body == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "subject and body required")
+	}
+	if len(req.UserIDs) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "no recipients selected")
+	}
+
+	rows, err := h.DB.Query(c.Request().Context(), `
+		SELECT id, first_name||' '||last_name, email, COALESCE(phone,'')
+		FROM users WHERE id = ANY($1) AND status = 'active'`, req.UserIDs)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch recipients")
+	}
+	defer rows.Close()
+	type recipient struct{ id, name, email, phone string }
+	var recipients []recipient
+	for rows.Next() {
+		var r recipient
+		rows.Scan(&r.id, &r.name, &r.email, &r.phone)
+		recipients = append(recipients, r)
+	}
+	if len(recipients) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "no active recipients found")
+	}
+
+	go func() {
+		for _, r := range recipients {
+			if r.email != "" && notifprefs.UserWantsEmail(context.Background(), h.DB, r.id, "broadcast") {
+				emailBody := fmt.Sprintf(`
+<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:32px">
+%s
+<hr style="border:none;border-top:1px solid #e5e7eb;margin:32px 0">
+<p style="color:#9ca3af;font-size:12px">
+  You're receiving this as a member of Live Oaks Tennis Club.
+</p>
+</div>`, req.Body)
+				if err := h.Mailer.Send(r.email, req.Subject, emailBody); err != nil {
+					log.Printf("ladder notify: email to %s failed: %v", r.email, err)
+				}
+			}
+			if req.SendSMS && r.phone != "" && h.SMS != nil && h.SMS.Configured() {
+				if err := h.SMS.Send(r.phone, req.Subject+": "+req.Body); err != nil {
+					log.Printf("ladder notify: SMS to %s failed: %v", r.phone, err)
+				}
+			}
+			time.Sleep(time.Second)
+		}
+	}()
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"sent":    len(recipients),
+		"message": fmt.Sprintf("Sending to %d member(s) in the background.", len(recipients)),
+	})
+}
