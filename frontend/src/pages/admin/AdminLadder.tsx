@@ -73,7 +73,7 @@ function winPct(wins: number, losses: number): string {
 }
 
 export default function AdminLadder() {
-  type Tab = 'ladders' | 'registrations' | 'rankings' | 'challenges' | 'points' | 'conduct' | 'audit'
+  type Tab = 'ladders' | 'registrations' | 'rankings' | 'challenges' | 'points' | 'notify' | 'conduct' | 'audit'
   const [tab, setTab] = useState<Tab>('ladders')
 
   const [ladders, setLadders] = useState<Ladder[]>([])
@@ -111,6 +111,18 @@ export default function AdminLadder() {
   const [ptType, setPtType] = useState('volunteer')
   const [ptNote, setPtNote] = useState('')
   const [ptSaving, setPtSaving] = useState(false)
+
+  // Notify by USTA rating
+  const [notifyLevels, setNotifyLevels] = useState<string[]>([])
+  const [notifyPreview, setNotifyPreview] = useState<{ user_id: string; name: string; email: string; usta_ranking: string; phone: string }[]>([])
+  const [notifySelected, setNotifySelected] = useState<Set<string>>(new Set())
+  const [notifyPreviewing, setNotifyPreviewing] = useState(false)
+  const [notifySubject, setNotifySubject] = useState('')
+  const [notifyBody, setNotifyBody] = useState('')
+  const [notifySendSMS, setNotifySendSMS] = useState(false)
+  const [notifySending, setNotifySending] = useState(false)
+  const [notifyResult, setNotifyResult] = useState<{ sent: number } | null>(null)
+  const [notifyErr, setNotifyErr] = useState('')
 
   // Conduct
   const [conductUserId, setConductUserId] = useState('')
@@ -264,6 +276,47 @@ export default function AdminLadder() {
     } catch (e: any) { setConductErr(e.message) } finally { setConductSaving(false) }
   }
 
+  const toggleNotifyLevel = (level: string) => {
+    setNotifyLevels(ls => ls.includes(level) ? ls.filter(l => l !== level) : [...ls, level])
+    setNotifyPreview([])
+    setNotifySelected(new Set())
+    setNotifyResult(null)
+  }
+  const loadNotifyPreview = async () => {
+    if (!activeLid || notifyLevels.length === 0) return
+    setNotifyPreviewing(true)
+    try {
+      const data = await api.ladder.admin.notifyPreview(activeLid, notifyLevels) as typeof notifyPreview
+      setNotifyPreview(data)
+      setNotifySelected(new Set(data.map(m => m.user_id)))
+    } finally { setNotifyPreviewing(false) }
+  }
+  const toggleNotifyMember = (userId: string) => {
+    setNotifySelected(prev => {
+      const next = new Set(prev)
+      if (next.has(userId)) next.delete(userId); else next.add(userId)
+      return next
+    })
+  }
+  const sendNotify = async () => {
+    if (!activeLid || notifySelected.size === 0 || !notifySubject || !notifyBody) return
+    setNotifySending(true); setNotifyErr(''); setNotifyResult(null)
+    try {
+      const result = await api.ladder.admin.notify(activeLid, {
+        subject: notifySubject,
+        body: notifyBody,
+        user_ids: [...notifySelected],
+        send_sms: notifySendSMS,
+      }) as any
+      setNotifyResult(result)
+      setNotifyPreview([])
+      setNotifySelected(new Set())
+      setNotifyLevels([])
+      setNotifySubject('')
+      setNotifyBody('')
+    } catch (e: any) { setNotifyErr(e.message) } finally { setNotifySending(false) }
+  }
+
   const activeChallenges = challenges.filter(c => c.status === 'pending' || c.status === 'accepted')
   const disputedChallenges = challenges.filter(c => c.score_status === 'disputed')
   const completedChallenges = challenges.filter(c => c.status === 'completed' || c.status === 'forfeited')
@@ -276,6 +329,7 @@ export default function AdminLadder() {
     { key: 'rankings', label: 'Rankings' },
     { key: 'challenges', label: 'Challenges', badge: disputedChallenges.length },
     { key: 'points', label: 'Points' },
+    { key: 'notify', label: 'Notify' },
     { key: 'conduct', label: 'Conduct' },
     { key: 'audit', label: 'Audit Log' },
   ]
@@ -743,6 +797,108 @@ export default function AdminLadder() {
             <p>Volunteer = <strong>25 pts</strong></p>
             <p>Bonus (admin-defined)</p>
           </div>
+        </div>
+      )}
+
+      {/* ═══ NOTIFY ═══ */}
+      {tab === 'notify' && (
+        <div className="space-y-4">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
+            <div>
+              <h3 className="font-semibold text-gray-700 mb-1">Select USTA Level(s)</h3>
+              <p className="text-xs text-gray-400 mb-3">
+                Choose one or more rating levels, preview members, then compose and send your message.
+              </p>
+              <div className="flex gap-2 flex-wrap">
+                {['2.5', '3.0', '3.5', '4.0', '4.5', '5.0'].map(level => (
+                  <button key={level} onClick={() => toggleNotifyLevel(level)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition ${
+                      notifyLevels.includes(level)
+                        ? 'bg-green-700 text-white border-green-700'
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-green-400'
+                    }`}>
+                    USTA {level}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {notifyLevels.length > 0 && (
+              <button onClick={loadNotifyPreview} disabled={notifyPreviewing}
+                className="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-4 py-2 rounded-lg transition disabled:opacity-50">
+                {notifyPreviewing ? 'Loading…' : `Preview members (${notifyLevels.join(', ')})`}
+              </button>
+            )}
+          </div>
+
+          {/* Recipient preview with checkboxes */}
+          {notifyPreview.length > 0 && (
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="px-4 py-2.5 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+                <span className="text-sm font-semibold text-gray-700">
+                  {notifySelected.size} of {notifyPreview.length} recipient{notifyPreview.length !== 1 ? 's' : ''} selected
+                </span>
+                <div className="flex gap-3">
+                  <button onClick={() => setNotifySelected(new Set(notifyPreview.map(m => m.user_id)))}
+                    className="text-xs font-medium text-green-700 hover:underline">Select all</button>
+                  <button onClick={() => setNotifySelected(new Set())}
+                    className="text-xs font-medium text-gray-400 hover:underline">Deselect all</button>
+                </div>
+              </div>
+              <div className="divide-y divide-gray-50 max-h-64 overflow-y-auto">
+                {notifyPreview.map(m => (
+                  <label key={m.user_id} className="flex items-center gap-3 px-4 py-2 cursor-pointer hover:bg-gray-50">
+                    <input type="checkbox"
+                      checked={notifySelected.has(m.user_id)}
+                      onChange={() => toggleNotifyMember(m.user_id)}
+                      className="rounded border-gray-300 text-green-700 focus:ring-green-600" />
+                    <span className="text-sm text-gray-700 flex-1">{m.name}</span>
+                    <div className="text-xs text-gray-400 flex gap-3">
+                      <span className="font-medium text-green-700">USTA {m.usta_ranking}</span>
+                      <span>{m.email}</span>
+                      {m.phone && <span>{m.phone}</span>}
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Compose form — shown once preview is loaded */}
+          {notifyPreview.length > 0 && (
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-3">
+              <h3 className="font-semibold text-gray-700">Compose Message</h3>
+              <input value={notifySubject} onChange={e => setNotifySubject(e.target.value)}
+                placeholder="Subject"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+              <textarea value={notifyBody} onChange={e => setNotifyBody(e.target.value)}
+                placeholder="Message body (HTML supported for email)"
+                rows={5}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-green-500" />
+              <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+                <input type="checkbox" checked={notifySendSMS} onChange={e => setNotifySendSMS(e.target.checked)}
+                  className="rounded border-gray-300 text-green-700 focus:ring-green-600" />
+                Also send as SMS (requires Twilio configured + member has phone on file)
+              </label>
+              {notifyErr && <p className="text-red-500 text-xs">{notifyErr}</p>}
+              <button
+                onClick={sendNotify}
+                disabled={notifySending || notifySelected.size === 0 || !notifySubject || !notifyBody}
+                className="bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-5 py-2 rounded-lg transition disabled:opacity-50">
+                {notifySending ? 'Sending…' : `Send to ${notifySelected.size} Member${notifySelected.size !== 1 ? 's' : ''}`}
+              </button>
+            </div>
+          )}
+
+          {notifyResult && (
+            <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-sm text-green-700">
+              ✓ Sending to <strong>{notifyResult.sent}</strong> member{notifyResult.sent !== 1 ? 's' : ''} in the background.
+            </div>
+          )}
+
+          {notifyLevels.length === 0 && (
+            <p className="text-sm text-gray-400 text-center py-6">Select USTA level(s) above to get started.</p>
+          )}
         </div>
       )}
 
