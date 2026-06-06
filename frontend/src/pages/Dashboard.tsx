@@ -447,11 +447,12 @@ export default function Dashboard() {
               warning:          'bg-amber-50 border-amber-200 text-amber-800',
               danger:           'bg-red-50 border-red-200 text-red-800',
               meeting_minutes:  'bg-indigo-50 border-indigo-200 text-indigo-800',
+              club_question:    'bg-violet-50 border-violet-200 text-violet-900',
             }
             const icons: Record<string, string> = {
-              info: 'ℹ️', warning: '⚠️', danger: '🚨', meeting_minutes: '📋',
+              info: 'ℹ️', warning: '⚠️', danger: '🚨', meeting_minutes: '📋', club_question: '❓',
             }
-            const bookUrl = a.type !== 'meeting_minutes' ? courtAlertBookUrl(a.message) : null
+            const bookUrl = (a.type !== 'meeting_minutes' && a.type !== 'club_question') ? courtAlertBookUrl(a.message) : null
             const dismiss = () => {
               api.memberAlerts.dismiss(a.id).catch(() => {})
               setAdminAlerts(prev => prev.filter(x => x.id !== a.id))
@@ -479,6 +480,12 @@ export default function Dashboard() {
                     <button onClick={openMinutes} disabled={minutesLoading}
                       className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition disabled:opacity-50">
                       {minutesLoading ? 'Loading…' : '📖 Read Minutes'}
+                    </button>
+                  )}
+                  {a.type === 'club_question' && (
+                    <button onClick={() => { dismiss(); navigate('/admin/club-questions') }}
+                      className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold rounded-lg transition">
+                      Answer in Club Q&amp;A →
                     </button>
                   )}
                   {bookUrl && (

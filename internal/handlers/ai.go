@@ -702,7 +702,7 @@ func (h *AIHandler) EscalateQuestion(c echo.Context) error {
 
 	var askerName string
 	h.DB.QueryRow(ctx, `SELECT first_name || ' ' || last_name FROM users WHERE id = $1`, userID).Scan(&askerName)
-	msg := fmt.Sprintf("New question for the board from %s: \"%s\" — answer it in Admin → Club Q&A.", askerName, clip(q, 140))
+	msg := fmt.Sprintf("New question from %s: \"%s\"", askerName, clip(q, 140))
 	if rows, err := h.DB.Query(ctx, `SELECT id FROM users WHERE role = 'admin' AND status = 'active'`); err == nil {
 		var adminIDs []string
 		for rows.Next() {
@@ -714,8 +714,8 @@ func (h *AIHandler) EscalateQuestion(c echo.Context) error {
 		rows.Close()
 		for _, aid := range adminIDs {
 			h.DB.Exec(ctx,
-				`INSERT INTO member_alerts (user_id, message, type, created_by) VALUES ($1, $2, 'info', $3)`,
-				aid, msg, userID)
+				`INSERT INTO member_alerts (user_id, message, type, created_by, ref_id) VALUES ($1, $2, 'club_question', $3, $4)`,
+				aid, msg, userID, id)
 		}
 	}
 	return c.JSON(http.StatusCreated, map[string]string{"id": id})

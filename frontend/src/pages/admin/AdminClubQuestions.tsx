@@ -11,6 +11,8 @@ export default function AdminClubQuestions() {
   const [loading, setLoading] = useState(true)
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [savingId, setSavingId] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editDraft, setEditDraft] = useState('')
 
   const load = () => {
     setLoading(true)
@@ -25,6 +27,22 @@ export default function AdminClubQuestions() {
     try {
       await api.admin.answerClubQuestion(id, text)
       setDrafts(d => { const n = { ...d }; delete n[id]; return n })
+      load()
+    } finally { setSavingId(null) }
+  }
+
+  const startEdit = (q: ClubQuestion) => {
+    setEditingId(q.id)
+    setEditDraft(q.answer ?? '')
+  }
+
+  const saveEdit = async (id: string) => {
+    const text = editDraft.trim()
+    if (!text) return
+    setSavingId(id)
+    try {
+      await api.admin.answerClubQuestion(id, text)
+      setEditingId(null)
       load()
     } finally { setSavingId(null) }
   }
@@ -97,9 +115,42 @@ export default function AdminClubQuestions() {
                   <div key={q.id} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
                     <div className="flex items-start justify-between gap-3">
                       <p className="font-medium text-gray-800">{q.question}</p>
-                      <button onClick={() => remove(q.id)} className="text-xs text-gray-300 hover:text-red-500 shrink-0">✕</button>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          onClick={() => editingId === q.id ? setEditingId(null) : startEdit(q)}
+                          className={`text-xs px-2 py-1 rounded-lg border transition font-medium ${
+                            editingId === q.id
+                              ? 'bg-amber-500 text-white border-amber-500'
+                              : 'bg-white text-amber-600 border-amber-200 hover:border-amber-500'
+                          }`}>
+                          ✏️ Edit
+                        </button>
+                        <button onClick={() => remove(q.id)} className="text-xs text-gray-300 hover:text-red-500">✕</button>
+                      </div>
                     </div>
-                    <p className="text-sm text-gray-600 mt-2 whitespace-pre-wrap">{q.answer}</p>
+
+                    {editingId === q.id ? (
+                      <div className="mt-3">
+                        <textarea
+                          value={editDraft}
+                          onChange={e => setEditDraft(e.target.value)}
+                          rows={4}
+                          className="w-full border border-amber-300 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400" />
+                        <div className="flex justify-end gap-2 mt-2">
+                          <button onClick={() => setEditingId(null)}
+                            className="text-xs text-gray-400 hover:text-gray-600 px-3 py-1.5">
+                            Cancel
+                          </button>
+                          <button onClick={() => saveEdit(q.id)} disabled={savingId === q.id || !editDraft.trim()}
+                            className="text-xs bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-1.5 rounded-lg transition disabled:opacity-50">
+                            {savingId === q.id ? 'Saving…' : 'Save answer'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-600 mt-2 whitespace-pre-wrap">{q.answer}</p>
+                    )}
+
                     <p className="text-xs text-gray-400 mt-2">
                       Asked by {q.asked_by_name ?? 'a member'}
                       {q.answered_by_name && ` · answered by ${q.answered_by_name}`}

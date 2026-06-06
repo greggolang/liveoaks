@@ -80,6 +80,14 @@ export default function AdminFeedback() {
   const [threadReplies, setThreadReplies] = useState<Record<string, FeedbackReply[]>>({})
   const [threadLoading, setThreadLoading] = useState<string | null>(null)
 
+  const [copiedPage, setCopiedPage] = useState<string | null>(null)
+
+  const copyPageUrl = (page: string) => {
+    navigator.clipboard.writeText(window.location.origin + page)
+    setCopiedPage(page)
+    setTimeout(() => setCopiedPage(null), 2000)
+  }
+
   const [digest, setDigest] = useState<FeedbackDigest | null>(null)
   const [digestLoading, setDigestLoading] = useState(false)
   const [digestError, setDigestError] = useState('')
@@ -277,6 +285,12 @@ export default function AdminFeedback() {
                   title={`Go to ${item.page}`}>
                   {item.page}
                 </Link>
+                <button
+                  onClick={() => copyPageUrl(item.page!)}
+                  title="Copy full URL"
+                  className="text-gray-400 hover:text-blue-600 transition text-xs leading-none">
+                  {copiedPage === item.page ? '✓' : '⧉'}
+                </button>
               </>
             )}
             {item.assigned_to && (
@@ -546,7 +560,15 @@ export default function AdminFeedback() {
               <div className="flex items-center gap-2 mb-2">
                 {page === NO_PAGE
                   ? <span className="font-mono text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">{page}</span>
-                  : <Link to={page} className="font-mono text-xs text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded break-all transition">{page}</Link>
+                  : <>
+                      <Link to={page} className="font-mono text-xs text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded break-all transition">{page}</Link>
+                      <button
+                        onClick={() => copyPageUrl(page)}
+                        title="Copy full URL"
+                        className="text-gray-400 hover:text-blue-600 transition text-xs leading-none">
+                        {copiedPage === page ? '✓' : '⧉'}
+                      </button>
+                    </>
                 }
                 <span className="text-xs text-gray-400">{group.length} report{group.length !== 1 ? 's' : ''}</span>
               </div>
