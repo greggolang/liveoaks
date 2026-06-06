@@ -194,10 +194,11 @@ func (h *AIHandler) accessibleDocIDs(c echo.Context) (ids []string, indexText st
 	var query string
 	var args []interface{}
 	if isAdmin {
-		query = `SELECT id::text, title FROM documents WHERE ai_indexed = true ORDER BY created_at DESC`
+		query = `SELECT id::text, title FROM documents WHERE ai_indexed = true AND indexed_at IS NOT NULL ORDER BY created_at DESC`
 	} else {
 		query = `SELECT d.id::text, d.title FROM documents d
 			WHERE d.ai_indexed = true
+			  AND d.indexed_at IS NOT NULL
 			  AND (
 				d.folder_id IS NULL
 				OR d.folder_id IN (

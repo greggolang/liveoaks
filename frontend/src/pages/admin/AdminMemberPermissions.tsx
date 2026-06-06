@@ -27,10 +27,15 @@ const PAGE_GROUPS: { group: string; items: { key: string; label: string; desc: s
   },
 ]
 
-const ROLES: { key: string; label: string; short: string }[] = [
+const MEMBER_ROLES: { key: string; label: string; short: string }[] = [
   { key: 'member', label: 'Member', short: 'Mbr' },
-  { key: 'games',  label: 'Games',  short: 'Gms' },
 ]
+
+const SPECIAL_ROLES: { key: string; label: string; short: string }[] = [
+  { key: 'games', label: 'Games', short: 'Gms' },
+]
+
+const ROLES = [...MEMBER_ROLES, ...SPECIAL_ROLES]
 
 export default function AdminMemberPermissions() {
   const [perms, setPerms] = useState<Record<string, Set<string>>>({})
@@ -100,8 +105,8 @@ export default function AdminMemberPermissions() {
       {view === 'by-role' ? (
         <div className="mt-4">
           {/* Role selector */}
-          <div className="flex flex-wrap gap-2 mb-4 md:sticky md:top-0 z-10 bg-gray-50 py-2 -mx-4 px-4 border-b border-gray-100">
-            {ROLES.map(r => {
+          <div className="flex flex-wrap items-center gap-2 mb-4 md:sticky md:top-0 z-10 bg-gray-50 py-2 -mx-4 px-4 border-b border-gray-100">
+            {MEMBER_ROLES.map(r => {
               const count = grantCount(r.key)
               const active = selectedRole === r.key
               return (
@@ -114,6 +119,27 @@ export default function AdminMemberPermissions() {
                   {r.label}
                   <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${
                     active ? 'bg-white/20 text-white' : count > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'
+                  }`}>
+                    {count}
+                  </span>
+                </button>
+              )
+            })}
+            <div className="w-px h-6 bg-gray-300 mx-1" />
+            <span className="text-xs text-gray-400 font-medium">Special roles:</span>
+            {SPECIAL_ROLES.map(r => {
+              const count = grantCount(r.key)
+              const active = selectedRole === r.key
+              return (
+                <button key={r.key} onClick={() => setSelectedRole(r.key)}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium border transition ${
+                    active
+                      ? 'bg-purple-700 text-white border-purple-700 shadow-sm'
+                      : 'bg-white text-gray-700 border-gray-200 hover:border-purple-400 hover:bg-purple-50'
+                  }`}>
+                  {r.label}
+                  <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${
+                    active ? 'bg-white/20 text-white' : count > 0 ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-400'
                   }`}>
                     {count}
                   </span>
