@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { api, BoardMinutes, MemberMessage, Poll, PendingMatch, MatchResult } from '../api/client'
+import { api, BoardMinutes, MemberMessage, Poll, PendingMatch } from '../api/client'
 import ScorecardModal from '../components/ScorecardModal'
 import MatchCard from '../components/MatchCard'
 import { parseDate } from '../utils/dates'
@@ -124,7 +124,6 @@ export default function Dashboard() {
   const [polls, setPolls] = useState<Poll[]>([])
   const [pollVoting, setPollVoting] = useState<string | null>(null)
   const [pendingMatches, setPendingMatches] = useState<PendingMatch[]>([])
-  const [recentMatches, setRecentMatches] = useState<MatchResult[]>([])
   const [scoreFor, setScoreFor] = useState<PendingMatch | null>(null)
   const [dismissedScores, setDismissedScores] = useState<Set<string>>(() => {
     try { return new Set(JSON.parse(localStorage.getItem('dismissedScores') ?? '[]')) } catch { return new Set() }
@@ -139,9 +138,6 @@ export default function Dashboard() {
   }
   const loadMatches = () => {
     api.matches.pending().then(setPendingMatches).catch(() => {})
-    // The home dashboard shows the member's own matches (incl. their private
-    // ones); the club-wide public scoreboard lives on the /scores page.
-    api.matches.mine().then(m => setRecentMatches(m.slice(0, 5))).catch(() => {})
   }
   useEffect(() => { loadMatches() }, [])
   const [showHeader, setShowHeader] = useState(true)
@@ -1394,18 +1390,6 @@ export default function Dashboard() {
         </div>
       ))}
 
-      {/* Recent club matches */}
-      {recentMatches.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold text-gray-700">Your Recent Matches</h2>
-            <Link to="/scores" className="text-sm text-green-700 hover:text-green-900 font-medium">Club scoreboard →</Link>
-          </div>
-          <div className="space-y-3">
-            {recentMatches.map(m => <MatchCard key={m.id} match={m} />)}
-          </div>
-        </div>
-      )}
 
       {scoreFor && (
         <ScorecardModal match={scoreFor}
