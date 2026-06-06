@@ -1142,7 +1142,10 @@ export default function Dashboard() {
             <h2 className="text-lg font-semibold text-gray-700">My Upcoming Bookings</h2>
           </div>
           <Link to="/bookings?tab=grid"
-            className="bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-4 py-1.5 rounded-lg transition whitespace-nowrap">
+            className="inline-flex items-center gap-2 bg-green-700 hover:bg-green-800 active:bg-green-900 text-white font-semibold px-5 py-2.5 rounded-xl shadow-sm hover:shadow-md transition-all whitespace-nowrap text-sm">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
             Book a Court
           </Link>
         </div>
