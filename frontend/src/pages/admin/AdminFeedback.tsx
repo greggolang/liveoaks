@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { parseDate } from '../../utils/dates'
 import { api, type FeedbackDigest } from '../../api/client'
 
@@ -266,9 +267,11 @@ export default function AdminFeedback() {
             {item.page && (
               <>
                 <span>·</span>
-                <span className="font-mono text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                <Link to={item.page}
+                  className="font-mono text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-1.5 py-0.5 rounded transition"
+                  title={`Go to ${item.page}`}>
                   {item.page}
-                </span>
+                </Link>
               </>
             )}
             {item.assigned_to && (
@@ -536,7 +539,10 @@ export default function AdminFeedback() {
           {grouped.map(([page, group]) => (
             <div key={page}>
               <div className="flex items-center gap-2 mb-2">
-                <span className="font-mono text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded break-all">{page}</span>
+                {page === NO_PAGE
+                  ? <span className="font-mono text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">{page}</span>
+                  : <Link to={page} className="font-mono text-xs text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded break-all transition">{page}</Link>
+                }
                 <span className="text-xs text-gray-400">{group.length} report{group.length !== 1 ? 's' : ''}</span>
               </div>
               <div className="space-y-3">
