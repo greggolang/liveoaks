@@ -189,6 +189,11 @@ export default function AdminFeedback() {
       || String(i.number).includes(q)
       || i.message.toLowerCase().includes(q)
       || `${i.first_name} ${i.last_name}`.toLowerCase().includes(q))
+    .sort((a, b) => {
+      const aIn = a.status === 'planned' ? 0 : 1
+      const bIn = b.status === 'planned' ? 0 : 1
+      return aIn - bIn
+    })
 
   const NO_PAGE = '(no page reported)'
   const grouped = (() => {
