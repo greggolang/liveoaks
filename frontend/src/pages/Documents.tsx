@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { api, CollabDocSummary, CollabEditor } from '../api/client'
+import { api, CollabEditor } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 import { parseDate } from '../utils/dates'
 import Files from './Files'
@@ -641,194 +641,16 @@ function DocumentEditor({ docId, onClose }: { docId: string; onClose: () => void
   )
 }
 
-// ── List view ────────────────────────────────────────────────────────────────
+// ── Main view ────────────────────────────────────────────────────────────────
 export default function Documents() {
   const [params, setParams] = useSearchParams()
   const docId = params.get('doc')
 
-  // Two views: collaborative documents, and the uploaded files from /files
-  // (permission-filtered by the same /documents API). The active tab lives in the
-  // URL so it survives a refresh and the back button.
-  const tab: 'documents' | 'files' = params.get('tab') === 'files' ? 'files' : 'documents'
-  const setTab = (t: 'documents' | 'files') => setParams(t === 'files' ? { tab: 'files' } : {})
+  const close = () => setParams({})
 
-  const [docs, setDocs] = useState<CollabDocSummary[]>([])
-  const [loading, setLoading] = useState(true)
-  const [creating, setCreating] = useState(false)
-
-  const load = useCallback(() => {
-    setLoading(true)
-    api.collabDocs.list()
-      .then(setDocs)
-      .catch(() => setDocs([]))
-      .finally(() => setLoading(false))
-  }, [])
-
-  useEffect(() => { if (!docId) load() }, [docId, load])
-
-  const open = (id: string) => setParams({ doc: id })
-  const close = () => { setParams({}); }
-
-  const rename = async (d: CollabDocSummary) => {
-    const name = prompt('Rename document:', d.title)?.trim()
-    if (!name || name === d.title) return
-    try {
-      // Pull the current body + version so we don't clobber content or trip the
-      // optimistic-lock check while renaming from the list.
-      const full = await api.collabDocs.get(d.id)
-      const res = await api.collabDocs.update(d.id, { title: name, body: full.body, version: full.version })
-      if (res.status !== 'ok') alert('This document was just changed by someone else — open it to rename.')
-    } catch {
-      alert('Could not rename the document.')
-    } finally {
-      load()
-    }
-  }
-
-  const [exporting, setExporting] = useState<string | null>(null)
-  const [listMenuOpen, setListMenuOpen] = useState<string | null>(null)
-
-  const handleListExport = async (d: CollabDocSummary, format: 'print' | 'html' | 'md' | 'txt') => {
-    setListMenuOpen(null)
-    setExporting(d.id)
-    try {
-      const full = await api.collabDocs.get(d.id)
-      const t = full.title || 'Untitled document'
-      const s = slugify(t)
-      if (format === 'print') printDocument(t, full.body)
-      else if (format === 'html') downloadFile(`${s}.html`, buildHtmlPage(t, full.body), 'text/html;charset=utf-8')
-      else if (format === 'md') downloadFile(`${s}.md`, htmlToMarkdown(full.body), 'text/markdown;charset=utf-8')
-      else downloadFile(`${s}.txt`, htmlToText(full.body), 'text/plain;charset=utf-8')
-    } catch {
-      alert('Could not load document for export.')
-    } finally {
-      setExporting(null)
-    }
-  }
-
-  const create = async () => {
-    setCreating(true)
-    try {
-      const doc = await api.collabDocs.create('Untitled document')
-      open(doc.id)
-    } catch (e: any) {
-      alert(e.message || 'Could not create document')
-    } finally {
-      setCreating(false)
-    }
-  }
-
+  // If a specific collab doc is requested via ?doc=UUID (e.g. board proposal links),
+  // open it directly in the editor. No list or creation is exposed here.
   if (docId) return <DocumentEditor docId={docId} onClose={close} />
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Documents</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            {tab === 'documents'
-              ? 'Shared documents members can write and edit together.'
-              : 'Club files, organized in folders and filtered by your access.'}
-          </p>
-        </div>
-        {tab === 'documents' && (
-          <button onClick={create} disabled={creating}
-            className="bg-green-700 hover:bg-green-800 text-white text-sm font-medium px-4 py-2 rounded-lg transition disabled:opacity-50">
-            {creating ? 'Creating…' : '+ New Document'}
-          </button>
-        )}
-      </div>
-
-      {/* Tabs: collaborative documents vs. uploaded files */}
-      <div className="flex items-center gap-1 border-b border-gray-200">
-        {([['documents', 'Documents'], ['files', 'Files']] as const).map(([t, label]) => (
-          <button key={t} onClick={() => setTab(t)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition ${
-              tab === t ? 'border-green-700 text-green-800' : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}>
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {tab === 'files' ? (
-        <Files embedded />
-      ) : loading ? (
-        <div className="animate-pulse space-y-2">
-          {[1, 2, 3].map(i => <div key={i} className="h-16 bg-gray-100 rounded-xl" />)}
-        </div>
-      ) : docs.length === 0 ? (
-        <div className="text-center py-16">
-          <svg className="w-12 h-12 text-gray-200 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-          <p className="text-gray-400 text-sm">No documents yet — create one to get started.</p>
-        </div>
-      ) : (
-        <div className="bg-white border border-gray-200 rounded-xl shadow-sm divide-y divide-gray-100">
-          {docs.map(d => (
-            <div key={d.id} className="flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 transition group">
-              <button onClick={() => open(d.id)} className="flex items-center gap-3 flex-1 min-w-0 text-left">
-                <svg className="w-5 h-5 shrink-0 text-gray-300 group-hover:text-green-600 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-gray-800 group-hover:text-green-700 transition truncate">{d.title || 'Untitled document'}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    Edited {relTime(d.updated_at)}{d.updated_by_name ? ` by ${d.updated_by_name}` : ''}
-                  </p>
-                </div>
-              </button>
-              {d.active_editors > 0 && (
-                <span className="shrink-0 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
-                  {d.active_editors} here now
-                </span>
-              )}
-              {/* Export dropdown for list row */}
-              <div className="relative shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
-                <button
-                  onClick={() => setListMenuOpen(listMenuOpen === d.id ? null : d.id)}
-                  disabled={exporting === d.id}
-                  title="Export"
-                  className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-700 transition p-1 disabled:opacity-40"
-                >
-                  {exporting === d.id
-                    ? <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                    : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                  }
-                </button>
-                {listMenuOpen === d.id && (
-                  <>
-                    <div className="fixed inset-0 z-20" onClick={() => setListMenuOpen(null)} />
-                    <div className="absolute right-0 mt-1 w-52 bg-white rounded-xl shadow-lg border border-gray-200 z-30 py-1 overflow-hidden">
-                      {([
-                        ['print', 'Print / Save as PDF', 'M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm1-4h4v2h-4v-2z'],
-                        ['html', 'Download as HTML', 'M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4'],
-                        ['md',   'Download as Markdown', 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'],
-                        ['txt',  'Download as Plain Text', 'M4 6h16M4 12h16M4 18h7'],
-                      ] as const).map(([fmt, label, icon]) => (
-                        <button key={fmt} onClick={() => handleListExport(d, fmt)}
-                          className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs text-gray-700 hover:bg-gray-50 transition text-left">
-                          <svg className="w-4 h-4 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={icon} />
-                          </svg>
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-              <button onClick={() => rename(d)}
-                className="shrink-0 text-xs text-gray-400 hover:text-green-700 transition px-1 opacity-0 group-hover:opacity-100 focus:opacity-100">
-                Rename
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
+  return <Files embedded />
 }
