@@ -130,7 +130,7 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
         ...(hasPermission('pro_shop') ? [{ to: '/pro-shop', label: 'Pro Shop', icon: ICONS.tag }] : []),
         ...(hasPermission('directory') ? [{ to: '/directory', label: 'Directory', icon: ICONS.users }] : []),
         { to: '/club-info', label: 'Club Info', icon: ICONS.info },
-        ...(isBoard ? [{ to: '/docs', label: 'Document Editor', icon: ICONS.doc }] : []),
+        ...(isBoard ? [{ to: '/document-editor', label: 'Document Editor', icon: ICONS.doc }] : []),
         ...(hasPermission('ask') ? [{ to: '/ask', label: 'Ask the Club', icon: ICONS.sparkles }] : []),
       ],
     },
