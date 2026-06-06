@@ -16,6 +16,18 @@ interface FeedbackItem {
   first_name: string
   last_name: string
   email: string
+  reply_count: number
+}
+
+interface FeedbackReply {
+  id: string
+  feedback_id: string
+  message_id?: string
+  sender_id?: string
+  sender_name: string
+  body: string
+  direction: 'outbound' | 'inbound'
+  created_at: string
 }
 
 const STATUSES = [
@@ -61,6 +73,11 @@ export default function AdminFeedback() {
   const [noteId, setNoteId] = useState<string | null>(null)
   const [noteDraft, setNoteDraft] = useState('')
   const [noteSaving, setNoteSaving] = useState(false)
+
+  // Per-ticket thread state
+  const [threadOpen, setThreadOpen] = useState<string | null>(null)
+  const [threadReplies, setThreadReplies] = useState<Record<string, FeedbackReply[]>>({})
+  const [threadLoading, setThreadLoading] = useState<string | null>(null)
 
   const [digest, setDigest] = useState<FeedbackDigest | null>(null)
   const [digestLoading, setDigestLoading] = useState(false)
@@ -127,15 +144,38 @@ export default function AdminFeedback() {
     if (!replyBody.trim()) return
     setReplySending(true)
     setReplyError(null)
-    const subject = `Re: Your ${item.type === 'bug' ? 'bug report' : 'site idea'}`
     try {
-      await api.messages.send({ recipient_id: item.user_id, subject, body: replyBody.trim() })
+      const reply = await api.feedback.reply(item.id, replyBody.trim()) as FeedbackReply
+      // Append the new reply to the thread cache and update reply_count
+      setThreadReplies(prev => ({
+        ...prev,
+        [item.id]: [...(prev[item.id] ?? []), reply],
+      }))
+      setItems(prev => prev.map(i => i.id === item.id ? { ...i, reply_count: i.reply_count + 1 } : i))
       setReplyDone(item.id)
       setReplyBody('')
+      // Auto-open thread so admin can see the sent message
+      setThreadOpen(item.id)
     } catch {
       setReplyError('Could not send — please try again.')
     } finally {
       setReplySending(false)
+    }
+  }
+
+  const toggleThread = async (id: string) => {
+    if (threadOpen === id) {
+      setThreadOpen(null)
+      return
+    }
+    setThreadOpen(id)
+    if (threadReplies[id]) return // already loaded
+    setThreadLoading(id)
+    try {
+      const replies = await api.feedback.getReplies(id) as FeedbackReply[]
+      setThreadReplies(prev => ({ ...prev, [id]: replies }))
+    } finally {
+      setThreadLoading(null)
     }
   }
 
@@ -149,9 +189,6 @@ export default function AdminFeedback() {
       || i.message.toLowerCase().includes(q)
       || `${i.first_name} ${i.last_name}`.toLowerCase().includes(q))
 
-  // Bucket the visible reports by the page they were submitted from. Reports
-  // with no page fall into a trailing "(no page reported)" group; pages with the
-  // most reports come first.
   const NO_PAGE = '(no page reported)'
   const grouped = (() => {
     const map = new Map<string, FeedbackItem[]>()
@@ -169,6 +206,47 @@ export default function AdminFeedback() {
   })()
 
   const assignees = Array.from(new Set([...ASSIGNEES, ...items.map(i => i.assigned_to).filter((a): a is string => !!a)]))
+
+  const renderThread = (item: FeedbackItem) => {
+    const replies = threadReplies[item.id] ?? []
+    return (
+      <div className="mt-3 pt-3 border-t border-gray-100">
+        <p className="text-xs font-semibold text-gray-500 mb-2">
+          Communication thread — all messages between the board and {item.first_name}
+        </p>
+        {threadLoading === item.id ? (
+          <p className="text-xs text-gray-400 animate-pulse">Loading thread…</p>
+        ) : replies.length === 0 ? (
+          <p className="text-xs text-gray-400 italic">No messages yet.</p>
+        ) : (
+          <div className="space-y-2">
+            {replies.map(r => (
+              <div
+                key={r.id}
+                className={`rounded-lg px-3 py-2 text-sm ${
+                  r.direction === 'outbound'
+                    ? 'bg-green-50 border border-green-100 ml-4'
+                    : 'bg-blue-50 border border-blue-100 mr-4'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <span className="text-xs font-semibold text-gray-700">
+                    {r.direction === 'outbound' ? '📤 ' : '📥 '}{r.sender_name}
+                  </span>
+                  <span className="text-xs text-gray-400">
+                    {parseDate(r.created_at).toLocaleString('en-US', {
+                      month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+                    })}
+                  </span>
+                </div>
+                <p className="text-gray-800 whitespace-pre-wrap text-xs">{r.body}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
 
   const renderItem = (item: FeedbackItem) => (
     <div key={item.id} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
@@ -221,6 +299,15 @@ export default function AdminFeedback() {
             ↩ Reply
           </button>
           <button
+            onClick={() => toggleThread(item.id)}
+            title="Show communication thread"
+            className={`text-xs px-2 py-1 rounded-lg border transition font-medium
+              ${threadOpen === item.id
+                ? 'bg-indigo-600 text-white border-indigo-600'
+                : 'bg-white text-indigo-600 border-indigo-200 hover:border-indigo-500'}`}>
+            💬 Thread{item.reply_count > 0 ? ` (${item.reply_count})` : ''}
+          </button>
+          <button
             onClick={() => noteId === item.id ? setNoteId(null) : openNote(item)}
             title="Internal board note (not shown to the member)"
             className={`text-xs px-2 py-1 rounded-lg border transition font-medium
@@ -257,13 +344,16 @@ export default function AdminFeedback() {
         </div>
       </div>
 
+      {/* Thread view */}
+      {threadOpen === item.id && renderThread(item)}
+
       {/* Inline reply compose */}
       {replyId === item.id && (
         <div className="mt-3 pt-3 border-t border-gray-100">
           {replyDone === item.id ? (
             <div className="flex items-center justify-between">
               <p className="text-xs text-green-700 font-medium">
-                Message sent — {item.first_name} will see it in their inbox.
+                Message sent and logged on the ticket — {item.first_name} will see it in their inbox.
               </p>
               <button onClick={() => { setReplyDone(null); setReplyId(null) }}
                 className="text-xs text-gray-400 hover:text-gray-600 ml-4">
@@ -273,7 +363,7 @@ export default function AdminFeedback() {
           ) : (
             <>
               <p className="text-xs text-gray-500 mb-1.5">
-                Replying to <span className="font-medium text-gray-700">{item.first_name} {item.last_name}</span> — this will appear in their Messages inbox and they can reply back.
+                Replying to <span className="font-medium text-gray-700">{item.first_name} {item.last_name}</span> — sent to their Messages inbox and stored on this ticket. Their reply will also be captured here.
               </p>
               <textarea
                 value={replyBody}

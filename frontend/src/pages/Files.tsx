@@ -239,8 +239,8 @@ function FileCard({ doc, isBoard, onDelete, onToggleAI, onEdit, onConvert, conve
         {isBoard && aiReadable && (
           <button onClick={() => onToggleAI(doc.id, !doc.ai_indexed)}
             title={doc.ai_indexed
-              ? doc.indexed ? 'Members can ask the AI about this — click to disable' : 'Enabled for members — PDF will be indexed on next Reindex run'
-              : 'Enable so members can ask the AI about this file'}
+              ? doc.indexed ? 'AI-searchable — click to exclude from AI' : 'Will be indexed on next Sync AI — click to exclude'
+              : 'Excluded from AI search — click to include'}
             className={`p-0.5 text-[10px] font-bold ${doc.ai_indexed ? (doc.indexed ? 'text-green-600' : 'text-amber-500') : 'text-gray-300 hover:text-gray-500'}`}>
             ✨
           </button>
@@ -315,8 +315,8 @@ function FileListRow({ doc, isBoard, onDelete, onToggleAI, onEdit, onConvert, co
         {isBoard && aiReadable && (
           <button onClick={() => onToggleAI(doc.id, !doc.ai_indexed)}
             title={doc.ai_indexed
-              ? doc.indexed ? 'Members can ask the AI about this — click to disable' : 'Enabled for members — PDF will be indexed on next Reindex run'
-              : 'Enable so members can ask the AI about this file'}
+              ? doc.indexed ? 'AI-searchable — click to exclude from AI' : 'Will be indexed on next Sync AI — click to exclude'
+              : 'Excluded from AI search — click to include'}
             className={`text-[10px] px-1 py-0.5 rounded font-bold transition ${doc.ai_indexed ? (doc.indexed ? 'text-green-600' : 'text-amber-500') : 'text-gray-300 hover:text-gray-500'}`}>
             ✨
           </button>
@@ -488,6 +488,8 @@ export default function Files({ embedded = false }: { embedded?: boolean } = {})
   const [uploadStatus, setUploadStatus] = useState('')
   const [dragOver, setDragOver] = useState(false)
   const [loadError, setLoadError] = useState('')
+  const [indexStatus, setIndexStatus] = useState<{ total: number; indexed: number; pending: number } | null>(null)
+  const [reindexing, setReindexing] = useState(false)
 
   const loadFolders = useCallback(async () => {
     const d = await api.documents.list()
@@ -501,20 +503,47 @@ export default function Files({ embedded = false }: { embedded?: boolean } = {})
     } catch { /* non-fatal — admin folder metadata is supplemental */ }
   }, [])
 
+  const loadIndexStatus = useCallback(async () => {
+    try {
+      const s = await api.admin.aiIndexStatus()
+      setIndexStatus(s)
+    } catch { /* AI not configured — silently skip */ }
+  }, [])
+
+  const syncAI = async () => {
+    setReindexing(true)
+    try {
+      let res = await api.admin.reindexAI(false)
+      setIndexStatus(s => s ? { ...s, indexed: s.total - res.pending, pending: res.pending } : null)
+      for (let guard = 0; res.pending > 0 && guard < 500; guard++) {
+        res = await api.admin.reindexAI(false)
+        setIndexStatus(s => s ? { ...s, indexed: s.total - res.pending, pending: res.pending } : null)
+      }
+      await loadFolders()
+    } catch { /* AI off — ignore */ }
+    finally {
+      setReindexing(false)
+      loadIndexStatus()
+    }
+  }
+
   useEffect(() => {
     const init = async () => {
       try {
         const data = await loadFolders()
-        setTreeOpenIds(new Set(data.map(f => f.id)))
+        if (!embedded) setTreeOpenIds(new Set(data.map(f => f.id)))
       } catch (e: any) {
         setLoadError(e.message || 'Could not load files')
       } finally {
         setLoading(false)
       }
-      if (isBoard) loadAdminFolders()
+      if (isBoard) {
+        loadAdminFolders()
+        loadIndexStatus()
+      }
     }
     init()
-  }, [isBoard, loadFolders, loadAdminFolders])
+  }, [isBoard, loadFolders, loadAdminFolders, loadIndexStatus])
 
   const toggleTree = useCallback((id: string) => {
     setTreeOpenIds(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next })
@@ -799,10 +828,33 @@ export default function Files({ embedded = false }: { embedded?: boolean } = {})
             </div>
           </div>
           {isBoard && (
-            <button onClick={openCreateFolder}
-              className="bg-white hover:bg-green-50 text-green-800 text-sm font-semibold px-4 py-2 rounded-lg transition shadow-sm">
-              + New Folder
-            </button>
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              {indexStatus && (
+                <div className="flex items-center gap-1.5 text-xs text-green-100">
+                  <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                  </svg>
+                  <span>
+                    {reindexing
+                      ? `Syncing… (${indexStatus.pending} left)`
+                      : indexStatus.pending > 0
+                        ? `${indexStatus.indexed}/${indexStatus.total} indexed`
+                        : `${indexStatus.indexed} docs AI-ready`}
+                  </span>
+                  <button
+                    onClick={syncAI}
+                    disabled={reindexing}
+                    title={reindexing ? 'Syncing…' : 'Index all unindexed documents so members can ask the AI about them'}
+                    className="ml-1 bg-green-800/60 hover:bg-green-800 disabled:opacity-50 text-green-50 text-xs px-2 py-0.5 rounded transition">
+                    {reindexing ? '…' : 'Sync AI'}
+                  </button>
+                </div>
+              )}
+              <button onClick={openCreateFolder}
+                className="bg-white hover:bg-green-50 text-green-800 text-sm font-semibold px-4 py-2 rounded-lg transition shadow-sm">
+                + New Folder
+              </button>
+            </div>
           )}
         </div>
       )}

@@ -122,7 +122,7 @@ func main() {
 	friends := &handlers.FriendsHandler{DB: pool}
 	perms := &handlers.PermissionsHandler{DB: pool}
 	adminPerms := &handlers.AdminPermsHandler{DB: pool}
-	feedback := &handlers.FeedbackHandler{DB: pool}
+	feedback := &handlers.FeedbackHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	family := &handlers.FamilyHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	groups := &handlers.GroupsHandler{DB: pool}
 	notes := &handlers.NotesHandler{DB: pool}
@@ -427,6 +427,8 @@ func main() {
 	adminOnly.PUT("/feedback/:id/assigned", feedback.UpdateAssigned)
 	adminOnly.PUT("/feedback/:id/note", feedback.UpdateNote)
 	adminOnly.DELETE("/feedback/:id", feedback.Delete)
+	adminOnly.POST("/feedback/:id/reply", feedback.Reply)
+	adminOnly.GET("/feedback/:id/replies", feedback.GetReplies)
 	adminOnly.GET("/email-templates", emailTemplates.List)
 	adminOnly.POST("/email-templates", emailTemplates.Create)
 	adminOnly.PUT("/email-templates/:id", emailTemplates.Update)

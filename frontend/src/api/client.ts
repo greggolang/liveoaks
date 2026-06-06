@@ -598,6 +598,9 @@ export const api = {
     updateNote: (id: string, note: string) =>
       request(`/admin/feedback/${id}/note`, { method: 'PUT', body: JSON.stringify({ note }) }),
     delete: (id: string) => request(`/admin/feedback/${id}`, { method: 'DELETE' }),
+    reply: (id: string, body: string) =>
+      request(`/admin/feedback/${id}/reply`, { method: 'POST', body: JSON.stringify({ body }) }),
+    getReplies: (id: string) => request(`/admin/feedback/${id}/replies`),
   },
   permissions: {
     getAll: () => request<Record<string, string[]>>('/admin/permissions'),

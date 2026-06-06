@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -9,7 +10,22 @@ import (
 )
 
 type FeedbackHandler struct {
-	DB *pgxpool.Pool
+	DB     *pgxpool.Pool
+	Mailer interface {
+		Send(to, subject, body string) error
+	}
+	SiteURL string
+}
+
+type FeedbackReply struct {
+	ID         string    `json:"id"`
+	FeedbackID string    `json:"feedback_id"`
+	MessageID  *string   `json:"message_id,omitempty"`
+	SenderID   *string   `json:"sender_id,omitempty"`
+	SenderName string    `json:"sender_name"`
+	Body       string    `json:"body"`
+	Direction  string    `json:"direction"`
+	CreatedAt  time.Time `json:"created_at"`
 }
 
 func (h *FeedbackHandler) Submit(c echo.Context) error {
@@ -74,7 +90,8 @@ func (h *FeedbackHandler) NewFeedback(c echo.Context) error {
 func (h *FeedbackHandler) AdminList(c echo.Context) error {
 	rows, err := h.DB.Query(c.Request().Context(),
 		`SELECT f.id, COALESCE(f.number, 0), f.user_id, f.message, f.status, f.type, f.page, f.assigned_to, f.note, f.created_at,
-		        u.first_name, u.last_name, u.email
+		        u.first_name, u.last_name, u.email,
+		        (SELECT COUNT(*) FROM feedback_replies fr WHERE fr.feedback_id = f.id)
 		 FROM feedback f
 		 JOIN users u ON u.id = f.user_id
 		 ORDER BY f.created_at DESC`)
@@ -84,29 +101,135 @@ func (h *FeedbackHandler) AdminList(c echo.Context) error {
 	defer rows.Close()
 
 	type Item struct {
-		ID        string    `json:"id"`
-		Number    int       `json:"number"`
-		UserID    string    `json:"user_id"`
-		Message   string    `json:"message"`
-		Status    string    `json:"status"`
-		Type       string    `json:"type"`
-		Page       *string   `json:"page,omitempty"`
-		AssignedTo *string   `json:"assigned_to,omitempty"`
-		Note       *string   `json:"note,omitempty"`
-		CreatedAt  time.Time `json:"created_at"`
-		FirstName  string    `json:"first_name"`
-		LastName   string    `json:"last_name"`
-		Email      string    `json:"email"`
+		ID           string    `json:"id"`
+		Number       int       `json:"number"`
+		UserID       string    `json:"user_id"`
+		Message      string    `json:"message"`
+		Status       string    `json:"status"`
+		Type         string    `json:"type"`
+		Page         *string   `json:"page,omitempty"`
+		AssignedTo   *string   `json:"assigned_to,omitempty"`
+		Note         *string   `json:"note,omitempty"`
+		CreatedAt    time.Time `json:"created_at"`
+		FirstName    string    `json:"first_name"`
+		LastName     string    `json:"last_name"`
+		Email        string    `json:"email"`
+		ReplyCount   int       `json:"reply_count"`
 	}
 	items := []Item{}
 	for rows.Next() {
 		var i Item
-		if err := rows.Scan(&i.ID, &i.Number, &i.UserID, &i.Message, &i.Status, &i.Type, &i.Page, &i.AssignedTo, &i.Note, &i.CreatedAt, &i.FirstName, &i.LastName, &i.Email); err != nil {
+		if err := rows.Scan(&i.ID, &i.Number, &i.UserID, &i.Message, &i.Status, &i.Type, &i.Page, &i.AssignedTo, &i.Note, &i.CreatedAt, &i.FirstName, &i.LastName, &i.Email, &i.ReplyCount); err != nil {
 			continue
 		}
 		items = append(items, i)
 	}
 	return c.JSON(http.StatusOK, items)
+}
+
+// GetReplies returns the full communication thread for a feedback ticket.
+func (h *FeedbackHandler) GetReplies(c echo.Context) error {
+	id := c.Param("id")
+	rows, err := h.DB.Query(c.Request().Context(),
+		`SELECT id, feedback_id, message_id::text, sender_id::text, sender_name, body, direction, created_at
+		 FROM feedback_replies
+		 WHERE feedback_id = $1
+		 ORDER BY created_at`, id)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not fetch replies")
+	}
+	defer rows.Close()
+	replies := []FeedbackReply{}
+	for rows.Next() {
+		var r FeedbackReply
+		if err := rows.Scan(&r.ID, &r.FeedbackID, &r.MessageID, &r.SenderID, &r.SenderName, &r.Body, &r.Direction, &r.CreatedAt); err != nil {
+			continue
+		}
+		replies = append(replies, r)
+	}
+	return c.JSON(http.StatusOK, replies)
+}
+
+// Reply sends a message to the member from the feedback ticket and stores it on the ticket thread.
+func (h *FeedbackHandler) Reply(c echo.Context) error {
+	adminID := c.Get("user_id").(string)
+	feedbackID := c.Param("id")
+
+	var req struct {
+		Body string `json:"body"`
+	}
+	if err := c.Bind(&req); err != nil || req.Body == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "body required")
+	}
+
+	var memberID, memberEmail, memberFirst, fbType string
+	var fbNumber int
+	err := h.DB.QueryRow(c.Request().Context(), `
+		SELECT f.user_id, u.email, u.first_name, COALESCE(f.number, 0), f.type
+		FROM feedback f JOIN users u ON u.id = f.user_id
+		WHERE f.id = $1`, feedbackID,
+	).Scan(&memberID, &memberEmail, &memberFirst, &fbNumber, &fbType)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, "feedback not found")
+	}
+
+	var adminFirst, adminLast string
+	h.DB.QueryRow(c.Request().Context(),
+		`SELECT first_name, last_name FROM users WHERE id = $1`, adminID).Scan(&adminFirst, &adminLast)
+	adminName := adminFirst + " " + adminLast
+
+	subjectLabel := "site idea"
+	if fbType == "bug" {
+		subjectLabel = "bug report"
+	}
+	subject := fmt.Sprintf("Re: Your %s (#%d)", subjectLabel, fbNumber)
+
+	// Insert member message with feedback_id so member replies chain back here
+	var msgID string
+	if err := h.DB.QueryRow(c.Request().Context(), `
+		INSERT INTO member_messages (sender_id, recipient_id, subject, body, feedback_id)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id`,
+		adminID, memberID, subject, req.Body, feedbackID,
+	).Scan(&msgID); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not send message")
+	}
+
+	// Store the reply on the ticket thread
+	var reply FeedbackReply
+	if err := h.DB.QueryRow(c.Request().Context(), `
+		INSERT INTO feedback_replies (feedback_id, message_id, sender_id, sender_name, body, direction)
+		VALUES ($1, $2, $3, $4, $5, 'outbound')
+		RETURNING id, feedback_id, message_id::text, sender_id::text, sender_name, body, direction, created_at`,
+		feedbackID, msgID, adminID, adminName, req.Body,
+	).Scan(&reply.ID, &reply.FeedbackID, &reply.MessageID, &reply.SenderID, &reply.SenderName, &reply.Body, &reply.Direction, &reply.CreatedAt); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not log reply")
+	}
+
+	// Email the member
+	if h.Mailer != nil && memberEmail != "" {
+		preview := req.Body
+		if len(preview) > 200 {
+			preview = preview[:200] + "…"
+		}
+		emailBody := fmt.Sprintf(`
+<div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
+  <h2 style="color:#15803d">📬 Update on Your %s</h2>
+  <p>Hi %s,</p>
+  <p><strong>%s</strong> from the board replied to your submission:</p>
+  <div style="background:#f0fdf4;border-left:4px solid #15803d;border-radius:0 8px 8px 0;padding:16px;margin:20px 0">
+    <div style="color:#374151;white-space:pre-wrap;font-size:14px">%s</div>
+  </div>
+  <p style="margin-top:24px">
+    <a href="%s/messages" style="background:#15803d;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block">
+      View &amp; Reply →
+    </a>
+  </p>
+</div>`, subjectLabel, memberFirst, adminName, preview, h.SiteURL)
+		go h.Mailer.Send(memberEmail, subject+" – Liveoaks TC", emailBody)
+	}
+
+	return c.JSON(http.StatusCreated, reply)
 }
 
 func (h *FeedbackHandler) UpdateStatus(c echo.Context) error {

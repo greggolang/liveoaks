@@ -175,6 +175,16 @@ func (h *MessagesHandler) Send(c echo.Context) error {
 		replyToPtr = &req.ReplyTo
 	}
 
+	// If replying to a message linked to a feedback ticket, inherit that link
+	// so the whole thread stays attached to the ticket.
+	var feedbackID *string
+	if req.ReplyTo != "" {
+		var fid *string
+		h.DB.QueryRow(c.Request().Context(),
+			`SELECT feedback_id::text FROM member_messages WHERE id = $1`, req.ReplyTo).Scan(&fid)
+		feedbackID = fid
+	}
+
 	// "Notify on first unread": only email if the recipient is currently caught up
 	// with this sender (no existing unread from them). Once they have unread, later
 	// replies don't re-email until they read again — so a back-and-forth never spams.
@@ -186,14 +196,25 @@ func (h *MessagesHandler) Send(c echo.Context) error {
 
 	var msg MemberMessage
 	err := h.DB.QueryRow(c.Request().Context(), `
-		INSERT INTO member_messages (sender_id, recipient_id, subject, body, reply_to)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO member_messages (sender_id, recipient_id, subject, body, reply_to, feedback_id)
+		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING id, sender_id, recipient_id, subject, body, reply_to, read_at, created_at`,
-		senderID, req.RecipientID, subject, req.Body, replyToPtr,
+		senderID, req.RecipientID, subject, req.Body, replyToPtr, feedbackID,
 	).Scan(&msg.ID, &msg.SenderID, &msg.RecipientID, &msg.Subject, &msg.Body,
 		&msg.ReplyToID, &msg.ReadAt, &msg.CreatedAt)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not send message")
+	}
+
+	// Log inbound reply on the feedback ticket thread
+	if feedbackID != nil {
+		var senderName string
+		h.DB.QueryRow(c.Request().Context(),
+			`SELECT first_name || ' ' || last_name FROM users WHERE id = $1`, senderID).Scan(&senderName)
+		h.DB.Exec(c.Request().Context(), `
+			INSERT INTO feedback_replies (feedback_id, message_id, sender_id, sender_name, body, direction)
+			VALUES ($1, $2, $3, $4, $5, 'inbound')`,
+			*feedbackID, msg.ID, senderID, senderName, req.Body)
 	}
 	msg.SenderName = senderFirst + " " + senderLast
 	msg.RecipientName = recipientFirst + " " + recipientLast
