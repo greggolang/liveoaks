@@ -880,6 +880,13 @@ export const api = {
       request(`/admin/broadcast/recipients${roles && roles.length ? '?' + roles.map(r => `role=${r}`).join('&') : ''}`),
     send: (subject: string, body: string, confirmCode: string, roles?: string[]) =>
       request('/admin/broadcast/send', { method: 'POST', body: JSON.stringify({ subject, body, confirm_code: confirmCode, roles: roles ?? [] }) }),
+    bookingRecipients: (dateFrom: string, dateTo: string, courtId?: string) => {
+      const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo })
+      if (courtId) params.set('court_id', courtId)
+      return request(`/admin/broadcast/booking-recipients?${params}`)
+    },
+    sendToBookings: (data: { subject: string; body: string; confirm_code: string; date_from: string; date_to: string; court_id?: string }) =>
+      request('/admin/broadcast/booking-send', { method: 'POST', body: JSON.stringify(data) }),
   },
   notes: {
     list: () => request('/admin/notes'),

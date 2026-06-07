@@ -239,6 +239,41 @@ func (h *MatchesHandler) Pending(c echo.Context) error {
 			}
 		}
 		prows.Close()
+
+		// If the roster is short, supplement with invited players who haven't
+		// formally joined yet — so Team B pre-fills with the person you played.
+		perSide := 1
+		if out[i].MatchType == "doubles" {
+			perSide = 2
+		}
+		needed := perSide * 2
+		if len(out[i].Players) < needed {
+			existing := map[string]bool{}
+			for _, p := range out[i].Players {
+				if p.UserID != nil {
+					existing[*p.UserID] = true
+				}
+			}
+			irows, ierr := h.DB.Query(ctx, `
+				SELECT mi.invitee_user_id::text, mi.invitee_name, mi.is_guest
+				FROM match_invitations mi
+				WHERE mi.booking_id = $1 AND mi.status IN ('pending', 'accepted')
+				ORDER BY mi.created_at`, out[i].BookingID)
+			if ierr == nil {
+				for irows.Next() && len(out[i].Players) < needed {
+					var p pendingPlayer
+					if irows.Scan(&p.UserID, &p.Name, &p.IsGuest) == nil {
+						if p.UserID == nil || !existing[*p.UserID] {
+							out[i].Players = append(out[i].Players, p)
+							if p.UserID != nil {
+								existing[*p.UserID] = true
+							}
+						}
+					}
+				}
+				irows.Close()
+			}
+		}
 	}
 	return c.JSON(http.StatusOK, out)
 }

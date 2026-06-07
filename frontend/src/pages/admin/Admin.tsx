@@ -76,6 +76,7 @@ const sections: Section[] = [
     color: 'violet',
     links: [
       { to: '/admin/bookings', label: 'All Bookings', section: 'bookings_admin' },
+      { to: '/admin/message-bookings', label: 'Message Bookings', section: 'bookings_admin' },
       { to: '/admin/court-blocks', label: 'Court Blocks', section: 'court_blocks' },
       { to: '/admin/cancellations', label: 'Cancellations', section: 'cancellations' },
       { to: '/admin/ball-tracking', label: 'Ball Tracking', section: 'ball_tracking' },

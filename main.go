@@ -552,6 +552,8 @@ func main() {
 	// Broadcast email (admin only)
 	adminOnly.GET("/broadcast/recipients", broadcast.PreviewRecipients)
 	adminOnly.POST("/broadcast/send", broadcast.Send)
+	adminOnly.GET("/broadcast/booking-recipients", broadcast.BookingRecipients)
+	adminOnly.POST("/broadcast/booking-send", broadcast.SendToBookings)
 
 	// Admin notes (board+)
 	boardPlus.GET("/admin/notes", notes.List)
