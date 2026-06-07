@@ -71,7 +71,7 @@ const PLAYERS_BY_TYPE: Record<string, number> = {
 
 // 24 half-hour slots: 8:00, 8:30, 9:00 … 7:30 PM
 const HOURS = Array.from({ length: 24 }, (_, i) => i * 0.5 + 8)
-const DURATIONS = [{ label: '1 hr', hours: 1 }, { label: '1½ hr', hours: 1.5 }]
+const DURATIONS = [{ label: '30 min', hours: 0.5 }, { label: '1 hr', hours: 1 }, { label: '1½ hr', hours: 1.5 }, { label: '2 hr', hours: 2 }]
 
 function fmt12(slot: number) {
   const h = Math.floor(slot) % 12 || 12
