@@ -80,6 +80,7 @@ const sections: Section[] = [
       { to: '/admin/cancellations', label: 'Cancellations', section: 'cancellations' },
       { to: '/admin/ball-tracking', label: 'Ball Tracking', section: 'ball_tracking' },
       { to: '/admin/teaching-pro', label: 'Teaching Pro', section: 'teaching_pro' },
+      { to: '/admin/booking-rules', label: 'Booking Rules', section: 'booking_rules' },
       { to: '/admin/booking-docs', label: 'How Bookings Work' },
     ],
   },
