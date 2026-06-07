@@ -371,6 +371,31 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 		}
 	}
 
+	// ── Advance reservations per week cap (max 5 active future bookings in the target week) ──
+	if !proExempt {
+		const defaultAdvancePerWeek = 5
+		maxAdvWk := defaultAdvancePerWeek
+		var maxAdvWkStr string
+		if scanErr := h.DB.QueryRow(c.Request().Context(),
+			`SELECT value FROM settings WHERE key = 'booking_max_advance_per_week'`).Scan(&maxAdvWkStr); scanErr == nil {
+			if v, convErr := strconv.Atoi(maxAdvWkStr); convErr == nil && v > 0 {
+				maxAdvWk = v
+			}
+		}
+		var advWeekCount int
+		h.DB.QueryRow(c.Request().Context(),
+			`SELECT COUNT(*) FROM bookings WHERE user_id = $1
+			 AND match_type <> 'teaching_pro'
+			 AND start_time > NOW()
+			 AND DATE_TRUNC('week', start_time AT TIME ZONE 'America/Los_Angeles')
+			   = DATE_TRUNC('week', $2 AT TIME ZONE 'America/Los_Angeles')`,
+			userID, req.StartTime).Scan(&advWeekCount)
+		if advWeekCount >= maxAdvWk {
+			return echo.NewHTTPError(http.StatusBadRequest,
+				fmt.Sprintf("members may hold up to %d active advance reservations per week — wait for an existing booking to pass or cancel one first", maxAdvWk))
+		}
+	}
+
 	// Rules 4 & 5: minimum gap between same-day reservations across ALL courts.
 	// Back-to-back bookings are prohibited; a 1-hour buffer is required between sessions.
 	var minGapStr string
