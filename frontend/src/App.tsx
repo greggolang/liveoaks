@@ -204,6 +204,7 @@ function AppRoutes() {
         <Route path="receipts" element={<AdminReceipts />} />
         <Route path="bookings" element={<AdminBookings />} />
         <Route path="booking-docs" element={<AdminBookingDocs />} />
+        <Route path="booking-rules" element={<AdminBookingRules />} />
         <Route path="fantasy" element={<AdminFantasy />} />
         <Route path="notes" element={<AdminNotes />} />
         <Route path="passwords" element={<AdminPasswords />} />
