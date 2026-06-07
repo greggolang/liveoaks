@@ -396,6 +396,49 @@ func (h *BookingsHandler) Create(c echo.Context) error {
 		}
 	}
 
+	// ── Future reservations per day cap ─────────────────────────────────────
+	if !proExempt {
+		var maxFutDayStr string
+		if scanErr := h.DB.QueryRow(c.Request().Context(),
+			`SELECT value FROM settings WHERE key = 'booking_max_future_per_day'`).Scan(&maxFutDayStr); scanErr == nil {
+			if maxFutDay, convErr := strconv.Atoi(maxFutDayStr); convErr == nil && maxFutDay > 0 {
+				var futDayCount int
+				h.DB.QueryRow(c.Request().Context(),
+					`SELECT COUNT(*) FROM bookings WHERE user_id = $1
+					 AND match_type <> 'teaching_pro'
+					 AND start_time > NOW()
+					 AND DATE_TRUNC('day', start_time AT TIME ZONE 'America/Los_Angeles')
+					   = DATE_TRUNC('day', $2 AT TIME ZONE 'America/Los_Angeles')`,
+					userID, req.StartTime).Scan(&futDayCount)
+				if futDayCount >= maxFutDay {
+					return echo.NewHTTPError(http.StatusBadRequest,
+						fmt.Sprintf("you may only hold %d future reservations on any single day", maxFutDay))
+				}
+			}
+		}
+	}
+
+	// ── Total reservations per day cap ───────────────────────────────────────
+	if !proExempt {
+		var maxPerDayStr string
+		if scanErr := h.DB.QueryRow(c.Request().Context(),
+			`SELECT value FROM settings WHERE key = 'booking_max_per_day'`).Scan(&maxPerDayStr); scanErr == nil {
+			if maxPerDay, convErr := strconv.Atoi(maxPerDayStr); convErr == nil && maxPerDay > 0 {
+				var perDayCount int
+				h.DB.QueryRow(c.Request().Context(),
+					`SELECT COUNT(*) FROM bookings WHERE user_id = $1
+					 AND match_type <> 'teaching_pro'
+					 AND DATE_TRUNC('day', start_time AT TIME ZONE 'America/Los_Angeles')
+					   = DATE_TRUNC('day', $2 AT TIME ZONE 'America/Los_Angeles')`,
+					userID, req.StartTime).Scan(&perDayCount)
+				if perDayCount >= maxPerDay {
+					return echo.NewHTTPError(http.StatusBadRequest,
+						fmt.Sprintf("you have reached the daily limit of %d reservations for this day", maxPerDay))
+				}
+			}
+		}
+	}
+
 	// Rules 4 & 5: minimum gap between same-day reservations across ALL courts.
 	// Back-to-back bookings are prohibited; a 1-hour buffer is required between sessions.
 	var minGapStr string
