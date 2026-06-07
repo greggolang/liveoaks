@@ -888,13 +888,13 @@ export default function Bookings() {
               </div>
               <div className="flex flex-wrap gap-2 items-center flex-1">
                 <span className="text-sm text-green-700 font-medium">Duration:</span>
-                {DURATIONS.map(d => (
+                {DURATIONS.filter(d => d.hours < 2 || matchType === 'doubles').map(d => (
                   <button key={d.hours} onClick={() => setDuration(d.hours)}
                     className={`px-3 py-1 rounded-full text-sm font-medium transition ${duration === d.hours ? 'bg-green-700 text-white' : 'bg-white border border-green-300 text-green-700 hover:bg-green-100'}`}>
                     {d.label}
                   </button>
                 ))}
-                <select value={matchType} onChange={e => { const v = e.target.value; setMatchType(v); setPlayersNeeded(PLAYERS_BY_TYPE[v] ?? 0); if (v === 'teaching_pro') setDuration(1); setSelectedFriends([]); setDirectPlayers([]); setBookingSearchMode(null); setBookingSearchQuery(''); setBookingSearchResults([]) }}
+                <select value={matchType} onChange={e => { const v = e.target.value; setMatchType(v); setPlayersNeeded(PLAYERS_BY_TYPE[v] ?? 0); if (v === 'teaching_pro') setDuration(1); if (v !== 'doubles' && duration === 2) setDuration(1.5); setSelectedFriends([]); setDirectPlayers([]); setBookingSearchMode(null); setBookingSearchQuery(''); setBookingSearchResults([]) }}
                   className="border border-green-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white text-green-800">
                   {MATCH_TYPES
                     .filter(m =>
