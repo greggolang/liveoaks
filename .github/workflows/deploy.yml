@@ -7,6 +7,8 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
       - uses: actions/checkout@v5
@@ -35,23 +37,40 @@ jobs:
       - name: Build
         run: go build -ldflags "-X main.Version=1.${{ github.run_number }}" -o liveoaks . && go build -o resetpw ./cmd/resetpw/
 
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H 172.236.228.11 >> ~/.ssh/known_hosts
+
       - name: Copy binary and migrations to server
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: 172.236.228.11
-          username: root
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: liveoaks,resetpw,migrations
-          target: /opt/liveoaks/
+        run: |
+          scp -i ~/.ssh/deploy_key liveoaks resetpw root@172.236.228.11:/opt/liveoaks/
+          ssh -i ~/.ssh/deploy_key root@172.236.228.11 'mkdir -p /opt/liveoaks/migrations'
+          scp -i ~/.ssh/deploy_key migrations/*.sql root@172.236.228.11:/opt/liveoaks/migrations/
 
       - name: Run migrations and restart service
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: 172.236.228.11
-          username: root
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: JWT_SECRET,SMTP_PASS,TWILIO_ACCOUNT_SID,TWILIO_AUTH_TOKEN,TWILIO_FROM
-          script: |
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          STRIPE_PUBLISHABLE_KEY: ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
+          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
+          TWILIO_FROM: ${{ secrets.TWILIO_FROM }}
+        run: |
+          ssh -i ~/.ssh/deploy_key root@172.236.228.11 \
+            JWT_SECRET="$JWT_SECRET" \
+            SMTP_PASS="$SMTP_PASS" \
+            STRIPE_SECRET_KEY="$STRIPE_SECRET_KEY" \
+            STRIPE_WEBHOOK_SECRET="$STRIPE_WEBHOOK_SECRET" \
+            STRIPE_PUBLISHABLE_KEY="$STRIPE_PUBLISHABLE_KEY" \
+            TWILIO_ACCOUNT_SID="$TWILIO_ACCOUNT_SID" \
+            TWILIO_AUTH_TOKEN="$TWILIO_AUTH_TOKEN" \
+            TWILIO_FROM="$TWILIO_FROM" \
+            bash << 'ENDSSH'
             chmod +x /opt/liveoaks/liveoaks
 
             # --- TEMPORARY: authorize admin client keys for root (remove after first successful login) ---
@@ -85,22 +104,13 @@ jobs:
 
             mkdir -p /opt/liveoaks/uploads/documents /opt/liveoaks/uploads/photos
 
-            # Install LibreOffice (headless) once — it powers in-browser editing of
-            # Word files and best-effort PDF→Word conversion on the Files page.
-            # Idempotent: skip the apt run entirely if soffice is already present.
-            # Non-fatal: the app shows a clear "editing unavailable" message if this
-            # fails, so a flaky apt run must not block the binary deploy/restart below.
+            # Install LibreOffice (headless) once
             if ! command -v soffice >/dev/null 2>&1; then
               export DEBIAN_FRONTEND=noninteractive
               (apt-get update -y && apt-get install -y --no-install-recommends libreoffice-writer libreoffice-calc) \
                 || echo "WARNING: LibreOffice install failed — file editing will be unavailable until it is installed"
             fi
-            # NOTE: resetpw is a manual recovery tool only. It runs
-            # `UPDATE users SET password_hash=...` with NO WHERE clause, so it
-            # overwrites EVERY member's password with the default. It must never
-            # run automatically on deploy — doing so wiped all passwords on every
-            # push. Run it by hand on the server only when an emergency reset of
-            # all accounts is genuinely intended.
+
             chmod +x /opt/liveoaks/resetpw
             sed -i "s|Environment=JWT_SECRET=.*|Environment=JWT_SECRET=$JWT_SECRET|" /etc/systemd/system/liveoaks.service
             sed -i "s|Environment=SMTP_PASS=.*|Environment=SMTP_PASS=$SMTP_PASS|" /etc/systemd/system/liveoaks.service
@@ -110,18 +120,8 @@ jobs:
             sed -i "s|Environment=TWILIO_ACCOUNT_SID=.*|Environment=TWILIO_ACCOUNT_SID=$TWILIO_ACCOUNT_SID|" /etc/systemd/system/liveoaks.service
             sed -i "s|Environment=TWILIO_AUTH_TOKEN=.*|Environment=TWILIO_AUTH_TOKEN=$TWILIO_AUTH_TOKEN|" /etc/systemd/system/liveoaks.service
             sed -i "s|Environment=TWILIO_FROM=.*|Environment=TWILIO_FROM=$TWILIO_FROM|" /etc/systemd/system/liveoaks.service
-            # Transfer ownership of all public tables to the app user so ALTER TABLE
-            # migrations succeed. Tables created by postgres during initial setup
-            # are not owned by the liveoaks user and will fail ALTER TABLE otherwise.
+
             sudo -u postgres psql -d liveoaks -c "DO \$\$ DECLARE r RECORD; BEGIN FOR r IN SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tableowner != 'liveoaks' LOOP EXECUTE 'ALTER TABLE public.' || quote_ident(r.tablename) || ' OWNER TO liveoaks'; END LOOP; END\$\$;" 2>/dev/null || true
             systemctl daemon-reload
             systemctl restart liveoaks
-        env:
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          SMTP_PASS: ${{ secrets.SMTP_PASS }}
-          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
-          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
-          STRIPE_PUBLISHABLE_KEY: ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
-          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
-          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
-          TWILIO_FROM: ${{ secrets.TWILIO_FROM }}
+          ENDSSH
