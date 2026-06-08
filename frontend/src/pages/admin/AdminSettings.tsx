@@ -471,48 +471,6 @@ export default function AdminSettings() {
         <p className="text-xs text-gray-400 mt-2 ml-[calc(224px+1rem)]">5-digit US zip code. Coordinates are looked up automatically.</p>
       </div>
 
-      {/* Booking System */}
-      <h2 className="text-xl font-bold text-gray-800 mt-8 mb-1">Booking System</h2>
-      <p className="text-sm text-gray-500 mb-4">Rules that govern when and how members can reserve courts.</p>
-      <div className="bg-white border border-gray-200 rounded-xl shadow-sm divide-y divide-gray-100">
-        {BOOKING_SECTIONS.map(section => (
-          <div key={section.heading} className="p-6 space-y-5">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{section.heading}</p>
-            {section.settings.map(({ key, label, hint, type, enforced }) => (
-          <div key={key}>
-            <div className="flex items-center gap-4">
-              <label className="w-56 text-sm font-medium text-gray-700 shrink-0 flex items-center gap-1.5">
-                {label}
-                {enforced && <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-normal">enforced</span>}
-              </label>
-              {type === 'boolean' ? (
-                <select value={settings[key] ?? 'true'}
-                  onChange={e => setSettings(s => ({ ...s, [key]: e.target.value }))}
-                  className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
-                  <option value="true">Yes</option>
-                  <option value="false">No</option>
-                </select>
-              ) : type === 'time' ? (
-                <input type="time" value={settings[key] ?? ''}
-                  onChange={e => setSettings(s => ({ ...s, [key]: e.target.value }))}
-                  className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
-              ) : (
-                <input value={settings[key] ?? ''}
-                  onChange={e => setSettings(s => ({ ...s, [key]: e.target.value }))}
-                  className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
-              )}
-              <button onClick={() => save(key)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition shrink-0 ${saved[key] ? 'bg-green-100 text-green-700' : 'bg-green-700 text-white hover:bg-green-800'}`}>
-                {saved[key] ? 'Saved!' : 'Save'}
-              </button>
-            </div>
-            {hint && <p className="text-xs text-gray-400 mt-1 ml-[calc(224px+1rem)]">{hint}</p>}
-          </div>
-            ))}
-          </div>
-        ))}
-      </div>
-
       {/* Session & Security */}
       <h2 className="text-xl font-bold text-gray-800 mt-8 mb-1">Session &amp; Security</h2>
       <p className="text-sm text-gray-500 mb-4">
