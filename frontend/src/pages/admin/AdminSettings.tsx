@@ -17,50 +17,14 @@ const LABELS: Record<string, string> = {
   dues_period: 'Dues Period',
 }
 
-type BSType = 'text' | 'boolean' | 'time'
-type BookingSection = {
-  heading: string
-  settings: { key: string; label: string; hint: string; type?: BSType; enforced?: boolean }[]
-}
-
-const BOOKING_SECTIONS: BookingSection[] = [
-  {
-    heading: 'Court Limits',
-    settings: [
-      { key: 'booking_max_per_day',         label: 'Max reservations per member per day',   hint: '1 = one booking per day. Increase to allow multiple.',                                    enforced: true },
-      { key: 'booking_max_minutes_per_day',  label: 'Max minutes per member per day',        hint: 'Total court time a member may book in a single day. Leave blank for no limit.',          enforced: true },
-      { key: 'booking_max_courts_per_week',  label: 'Max courts per member per week',        hint: 'Max number of court sessions per member in a calendar week. Leave blank for no limit.',  enforced: true },
-      { key: 'booking_max_per_week',         label: 'Max reservations per member per week',  hint: 'Max total bookings per member per week. Leave blank for no limit.',                       enforced: true },
-      { key: 'booking_max_family_per_day',   label: 'Max courts per family per day',         hint: 'Combined daily limit across all family members. Leave blank for no limit.' },
-      { key: 'booking_max_duration_hours',   label: 'Max booking duration (hours)',          hint: 'Longest single reservation allowed. Leave blank for no limit.' },
-    ],
-  },
-  {
-    heading: 'Time Rules',
-    settings: [
-      { key: 'court_open_hour',            label: 'Courts open (hour, 24h)',                       hint: 'First bookable hour. e.g. 8 = 8 AM. Default 8.',                              enforced: true },
-      { key: 'court_close_hour',           label: 'Courts close (hour, 24h)',                      hint: 'Bookings must end by this hour. e.g. 20 = 8 PM. Default 20.',                  enforced: true },
-      { key: 'booking_max_days_ahead',     label: 'Max days ahead a court can be booked',         hint: 'How far in advance members may book. Enforced on save.',                     enforced: true },
-      { key: 'booking_open_time',          label: 'Time next reservation day opens',               hint: 'e.g. 06:00 — when tomorrow\'s slots become bookable. Leave blank for midnight.', type: 'time' },
-      { key: 'booking_min_gap_minutes',    label: 'Min gap between a member\'s bookings (minutes)', hint: 'Prevents back-to-back "sandwich" reservations on the same court. Set to 30 to require a 30-min gap. 0 = disabled.', enforced: true },
-      { key: 'booking_cancel_hours',            label: 'Min hours notice to cancel',              hint: 'Members must cancel at least this many hours before the booking starts. Admins and board can always cancel. Leave blank to allow any-time cancellation.', enforced: true },
-      { key: 'withdrawal_min_notice_hours',     label: 'Min hours notice to withdraw from a match', hint: 'Players cannot remove themselves within this many hours of a booking\'s start. Default 0.5 (30 min). Set to 0 to disable.', enforced: true },
-    ],
-  },
-  {
-    heading: 'Player / Sub Rules',
-    settings: [
-      { key: 'booking_allow_sub',      label: 'Allow rostered players to sub out',      hint: 'A player on a reservation can be replaced by another player.', type: 'boolean' },
-      { key: 'booking_allow_any_sub',  label: 'Allow any player to sub another',        hint: 'Any rostered player may swap without host approval.',          type: 'boolean' },
-    ],
-  },
-]
-
-const BOOKING_KEYS = new Set(BOOKING_SECTIONS.flatMap(s => s.settings.map(x => x.key)))
-
-// Keys managed elsewhere or in dedicated sections — hide from the generic list
+// Keys managed in Booking Rules page or other dedicated sections — hide from the generic list
 const HIDDEN_KEYS = new Set([
-  ...BOOKING_KEYS,
+  'booking_max_per_day', 'booking_max_minutes_per_day', 'booking_max_courts_per_week',
+  'booking_max_per_week', 'booking_max_family_per_day', 'booking_max_duration_hours',
+  'court_open_hour', 'court_close_hour', 'booking_max_days_ahead', 'booking_open_time',
+  'booking_min_gap_minutes', 'booking_cancel_hours', 'withdrawal_min_notice_hours',
+  'booking_allow_sub', 'booking_allow_any_sub',
+  'booking_max_advance_per_week', 'booking_max_future_per_day', 'booking_max_guest_days_per_month',
   ...GUEST_FEE_KEYS,
   'club_logo',
   'camera_url',
