@@ -12,7 +12,7 @@ const HELP = [
   { heading: 'Inviting Players', body: 'After booking, open it from "My Bookings" and use the invite button to send email invitations. You can also add players directly without an invite. Friends saved in your Friends List appear as quick-select options.' },
   { heading: 'Cancelling', body: 'Open your booking from "My Bookings" and click Cancel. You\'ll be asked to choose a cancellation reason. There may be a minimum notice requirement — check with the club if you\'re unsure.' },
   { heading: 'Daily Limits', body: 'The club limits how many courts you can book per day and how far in advance. Members may also hold up to 5 active advance reservations per week — once a booking passes its start time it frees up a slot. These limits are enforced automatically.' },
-  { heading: 'Grid Colors', body: 'White = available. Dark green = your booking (host). Light green = you\'re on the roster. Gray-blue = someone else\'s booking. Amber = court blocked.' },
+  { heading: 'Grid Colors', body: 'White = available. Dark green = your booking (host). Teal = you\'re on the roster. Gray-blue = someone else\'s booking. Amber = court blocked.' },
 ]
 
 interface Court { id: number; name: string; number: number; has_ball_machine?: boolean }
@@ -2016,15 +2016,15 @@ export default function Bookings() {
 
                                 const cellBg = isBallMachine ? 'bg-red-600 text-white'
                                   : isMe ? 'bg-green-600 text-white'
-                                  : isOnRoster ? 'bg-green-100 text-green-800'
+                                  : isOnRoster ? 'bg-teal-100 text-teal-800'
                                   : 'bg-slate-100 text-slate-700'
                                 const accentBorder = isBallMachine ? 'border-l-4 border-red-800'
                                   : isMe ? 'border-l-4 border-green-800'
-                                  : isOnRoster ? 'border-l-4 border-green-400'
+                                  : isOnRoster ? 'border-l-4 border-teal-400'
                                   : 'border-l-4 border-slate-400'
-                                const subText = isBallMachine ? 'text-red-200' : isMe ? 'text-green-200' : isOnRoster ? 'text-green-600' : 'text-slate-400'
-                                const dividerColor = isBallMachine ? 'border-red-400' : isMe ? 'border-green-500' : isOnRoster ? 'border-green-200' : 'border-slate-200'
-                                const cancelBtnColor = isBallMachine ? 'text-red-200' : isMe ? 'text-green-200' : isOnRoster ? 'text-green-500' : 'text-slate-400'
+                                const subText = isBallMachine ? 'text-red-200' : isMe ? 'text-green-200' : isOnRoster ? 'text-teal-600' : 'text-slate-400'
+                                const dividerColor = isBallMachine ? 'border-red-400' : isMe ? 'border-green-500' : isOnRoster ? 'border-teal-200' : 'border-slate-200'
+                                const cancelBtnColor = isBallMachine ? 'text-red-200' : isMe ? 'text-green-200' : isOnRoster ? 'text-teal-500' : 'text-slate-400'
 
                                 const wl = waitlistSlots.find(w => w.court_id === c.id && w.start_time === booking.start_time)
                                 const wlKey = `${c.id}-${booking.start_time}`
@@ -2220,7 +2220,7 @@ export default function Bookings() {
               My booking
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-4 h-4 bg-green-100 rounded-md inline-block" />
+              <span className="w-4 h-4 bg-teal-100 rounded-md inline-block" />
               I'm on roster
             </span>
             <span className="flex items-center gap-1.5">
