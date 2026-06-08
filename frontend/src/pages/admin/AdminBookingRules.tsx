@@ -190,7 +190,7 @@ export default function AdminBookingRules() {
 
     setSaving(s => ({ ...s, [field.key]: true }))
     try {
-      await api.admin.saveSetting(field.key, raw)
+      await api.admin.updateSetting(field.key, raw)
       setLoaded(l => ({ ...l, [field.key]: raw }))
       setValues(v => ({ ...v, [field.key]: raw }))
       setSaved(s => ({ ...s, [field.key]: true }))
