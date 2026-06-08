@@ -52,6 +52,7 @@ import AdminClubQuestions from './pages/admin/AdminClubQuestions'
 import AdminEmailTemplates from './pages/admin/AdminEmailTemplates'
 import AdminReceipts from './pages/admin/AdminReceipts'
 import AdminBookingDocs from './pages/admin/AdminBookingDocs'
+import AdminBookingRules from './pages/admin/AdminBookingRules'
 import AdminBookings from './pages/admin/AdminBookings'
 import AdminFantasy from './pages/admin/AdminFantasy'
 import AdminNotes from './pages/admin/AdminNotes'
@@ -203,6 +204,7 @@ function AppRoutes() {
         <Route path="receipts" element={<AdminReceipts />} />
         <Route path="bookings" element={<AdminBookings />} />
         <Route path="booking-docs" element={<AdminBookingDocs />} />
+        <Route path="booking-rules" element={<AdminBookingRules />} />
         <Route path="fantasy" element={<AdminFantasy />} />
         <Route path="notes" element={<AdminNotes />} />
         <Route path="passwords" element={<AdminPasswords />} />
