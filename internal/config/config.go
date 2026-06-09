@@ -23,6 +23,8 @@ type Config struct {
 	TwilioAccountSID     string
 	TwilioAuthToken      string
 	TwilioFrom           string // E.164 sending number, e.g. +14155551234
+	DropshotURL          string // base URL for forwarding feedback to the central DropShot tracker
+	FeedbackSyncSecret   string // shared secret used for DropShot ↔ LiveOaks status sync
 }
 
 func Load() Config {
@@ -60,5 +62,7 @@ func Load() Config {
 		TwilioAccountSID:     os.Getenv("TWILIO_ACCOUNT_SID"),
 		TwilioAuthToken:      os.Getenv("TWILIO_AUTH_TOKEN"),
 		TwilioFrom:           os.Getenv("TWILIO_FROM"),
+		DropshotURL:          os.Getenv("DROPSHOT_URL"),
+		FeedbackSyncSecret:   os.Getenv("FEEDBACK_SYNC_SECRET"),
 	}
 }

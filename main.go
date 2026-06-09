@@ -122,7 +122,7 @@ func main() {
 	friends := &handlers.FriendsHandler{DB: pool}
 	perms := &handlers.PermissionsHandler{DB: pool}
 	adminPerms := &handlers.AdminPermsHandler{DB: pool}
-	feedback := &handlers.FeedbackHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
+	feedback := &handlers.FeedbackHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL, DropshotURL: cfg.DropshotURL, SyncSecret: cfg.FeedbackSyncSecret}
 	family := &handlers.FamilyHandler{DB: pool, Mailer: mailer, SiteURL: cfg.SiteURL}
 	groups := &handlers.GroupsHandler{DB: pool}
 	notes := &handlers.NotesHandler{DB: pool}

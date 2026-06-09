@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -14,7 +16,9 @@ type FeedbackHandler struct {
 	Mailer interface {
 		Send(to, subject, body string) error
 	}
-	SiteURL string
+	SiteURL      string
+	DropshotURL  string // when set, new submissions are forwarded to the central tracker
+	SyncSecret   string // shared secret for DropShot ↔ LiveOaks status sync callbacks
 }
 
 type FeedbackReply struct {
@@ -44,13 +48,48 @@ func (h *FeedbackHandler) Submit(c echo.Context) error {
 	if req.Type != "idea" && req.Type != "bug" {
 		req.Type = "idea"
 	}
-	_, err := h.DB.Exec(c.Request().Context(),
-		`INSERT INTO feedback (user_id, message, type, page) VALUES ($1, $2, $3, NULLIF($4, ''))`,
-		userID, req.Message, req.Type, req.Page)
+	var id string
+	err := h.DB.QueryRow(c.Request().Context(),
+		`INSERT INTO feedback (user_id, message, type, page) VALUES ($1, $2, $3, NULLIF($4, '')) RETURNING id`,
+		userID, req.Message, req.Type, req.Page).Scan(&id)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "could not save feedback")
 	}
+
+	// Forward to the central DropShot tracker in the background.
+	if h.DropshotURL != "" {
+		var firstName, lastName, email string
+		h.DB.QueryRow(c.Request().Context(),
+			`SELECT first_name, last_name, email FROM users WHERE id=$1`, userID).
+			Scan(&firstName, &lastName, &email)
+		go h.forwardToDropshot(id, req.Message, req.Type, req.Page, firstName+" "+lastName, email)
+	}
+
 	return c.JSON(http.StatusCreated, map[string]bool{"success": true})
+}
+
+func (h *FeedbackHandler) forwardToDropshot(externalID, message, typ, page, name, email string) {
+	payload, _ := json.Marshal(map[string]string{
+		"app":             "liveoaks",
+		"type":            typ,
+		"message":         message,
+		"page":            page,
+		"external_id":     externalID,
+		"submitter_name":  name,
+		"submitter_email": email,
+	})
+	req, err := http.NewRequest(http.MethodPost, h.DropshotURL+"/api/feedback/ingest", bytes.NewReader(payload))
+	if err != nil {
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if h.SyncSecret != "" {
+		req.Header.Set("X-Sync-Secret", h.SyncSecret)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err == nil {
+		resp.Body.Close()
+	}
 }
 
 // NewFeedback returns unread (status='new') feedback for board-level alerts.
